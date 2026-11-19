@@ -55,6 +55,10 @@ mac:
     - target: zip
       arch: [arm64, x64]
   hardenedRuntime: true
+  # Without these the hardened runtime blocks the microphone silently (voice-over, webcam recording).
+  extendInfo:
+    NSMicrophoneUsageDescription: OpenReel uses the microphone to record voice-overs and narration into your project.
+    NSCameraUsageDescription: OpenReel uses the camera to record webcam clips into your project.
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist

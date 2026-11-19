@@ -10,10 +10,12 @@ import {
   NUDGE_FRAMES,
   NUDGE_FRAMES_LARGE,
   prepareEdgeMove,
+  prepareMultiRateStretch,
   prepareTimelineToolEdit,
   sideOfTrack,
   type TimelineToolMode,
 } from "@openreel/core";
+import { v4 as uuidv4 } from "uuid";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { useUIStore } from "../../../stores/ui-store";
@@ -46,6 +48,7 @@ export function useTimelineToolGesture(
     tool: TimelineToolMode,
     edge: "left" | "right",
     unlinked = false,
+    ripple = true,
   ) => {
     const state = useProjectStore.getState();
     const project = state.getFullProject();
@@ -71,6 +74,34 @@ export function useTimelineToolGesture(
       [id],
       useEditorWorkspaceStore.getState().linkedSelection,
     );
+    // Rate Stretch on a multi-selection: every selected clip (and linked
+    // audio) is scaled by the primary's drag, trailing clips ripple.
+    const selection = new Set(useUIStore.getState().getSelectedClipIds());
+    const mediaSelected = project.timeline.tracks
+      .flatMap((track) => track.clips)
+      .filter((clip) => selection.has(clip.id));
+    if (tool === "stretch" && mediaSelected.length > 1 && selection.has(id)) {
+      const multi = prepareMultiRateStretch(project, {
+        itemId: id,
+        // Linked audio always stretches with its picture.
+        clipIds: getLinkedTimelineSelection(project, mediaSelected.map((clip) => clip.id), true),
+        edge,
+        ripple,
+      });
+      const primary = project.timeline.tracks.flatMap((track) => track.clips).find((clip) => clip.id === id)!;
+      return {
+        prepared: {
+          primary: primary as ReturnType<typeof prepareTimelineToolEdit>["primary"],
+          mode: tool,
+          preview: multi.preview,
+          plan: (delta: number) => multi.plan(delta, uuidv4()),
+        },
+        owner: state.project,
+        executor: state.actionExecutor,
+        tracks: state.project.timeline.tracks,
+        modifiedAt: state.project.modifiedAt,
+      };
+    }
     return {
       prepared: prepareTimelineToolEdit(project, {
         mode: tool,
@@ -112,7 +143,14 @@ export function useTimelineToolGesture(
     if (locked() || active.current) return;
     let context: ReturnType<typeof prepare>;
     try {
-      context = prepare(id, altSplit ? "roll" : (mode as TimelineToolMode), edge ?? "right", altSplit);
+      // Alt on the Rate Stretch tool switches ripple off for a multi-selection.
+      context = prepare(
+        id,
+        altSplit ? "roll" : (mode as TimelineToolMode),
+        edge ?? "right",
+        altSplit,
+        !(mode === "stretch" && event.altKey),
+      );
     } catch (error) {
       toast.warning(
         "Cannot edit this item",
@@ -120,6 +158,7 @@ export function useTimelineToolGesture(
       );
       return;
     }
+    const noRipple = mode === "stretch" && event.altKey;
     const startX = event.clientX;
     const additive = event.shiftKey || event.metaKey || event.ctrlKey;
     const initialX = startX - lane.current.getBoundingClientRect().left;
@@ -169,6 +208,8 @@ export function useTimelineToolGesture(
       const neighbors = (value.neighbors ?? (value.neighbor ? [value.neighbor] : [])).map(
         (neighbor, index) => ({ ...neighbor, label: readout.neighbors[index] }),
       );
+      if (mode === "stretch" && noRipple && (value.neighbors?.length ?? 0) > 0)
+        readout.label += " · no ripple";
       useTimelineToolPreview.getState().setGhost({
         trackId: context.prepared.primary.trackId!,
         startTime: value.startTime,

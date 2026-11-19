@@ -7,7 +7,21 @@ import type { PreviewEffectDef } from "./preview-engine";
  */
 export const GRAIN_CARD_BOOST = 2.5;
 
+/**
+ * Card-scale compensation for the text burn-ins: at ~150 px wide a 5 % high timecode is a smudge, so the text is drawn
+ * 1.8x larger, and the clip name moves to the bottom where the card's "Sample text" badge does not cover it. The
+ * badge says the text is a sample; every other parameter is the real default.
+ */
+export const BURN_IN_CARD_SIZE_BOOST = 1.8;
+
 export function previewParams(def: PreviewEffectDef, resolved: Record<string, unknown>): Record<string, unknown> {
+  if ((def.type === "burn-in-timecode" || def.type === "burn-in-name") && typeof resolved.size === "number") {
+    return {
+      ...resolved,
+      size: Math.min(30, resolved.size * BURN_IN_CARD_SIZE_BOOST),
+      ...(def.type === "burn-in-name" ? { position: "bottom-left" } : {}),
+    };
+  }
   if (def.type === "grain" && typeof resolved.amount === "number") {
     return { ...resolved, amount: Math.min(100, resolved.amount * GRAIN_CARD_BOOST) };
   }
@@ -61,9 +75,16 @@ export function previewNote(def: PreviewEffectDef): string | null {
   if (def.kind === "transition") return null;
   switch (def.type) {
     case "chromaKey":
+    case "ultra-key":
       return "Sample key";
     case "stabilize":
       return "Needs analysis";
+    // A held frame is indistinguishable from the source in a still: the card shows it as it plays.
+    case "posterize-time":
+      return "Hover to play";
+    case "burn-in-timecode":
+    case "burn-in-name":
+      return "Sample text";
     default:
       return null;
   }

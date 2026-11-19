@@ -17,6 +17,7 @@ import {
   type ClipState,
   type EditorState,
 } from "./helpers";
+import { SOFTWARE_GPU } from "./env";
 
 const PPS = 100; // 12 frames = 0.4s = exactly 40px
 const TWELVE = 12 * FRAME;
@@ -44,12 +45,25 @@ const snapshot = (p: Pair) =>
 async function linkedPairs(page: Page): Promise<Pair> {
   await openEditor(page);
   const clip = videoOf(await readState(page))[0];
-  await page.evaluate(
-    (id) =>
-      (window as unknown as { __openreelE2E: { project: { getState(): { separateAudio(id: string): Promise<unknown> } } } })
-        .__openreelE2E.project.getState().separateAudio(id),
-    clip.id,
-  );
+  // Separating audio runs ffmpeg.wasm, whose core is fetched from a CDN. On a slow or flaky network that fetch can
+  // fail (CI saw a truncated wasm body: "FFmpeg load error", separateAudio resolved {success:false}). The result used
+  // to be ignored, so the test just waited out 30 s for audio that was never coming. Retry until the call succeeds
+  // (each attempt re-loads ffmpeg from scratch) and report the last failure if it never does.
+  let last: unknown;
+  await expect
+    .poll(
+      async () => {
+        last = await page.evaluate(
+          (id) =>
+            (window as unknown as { __openreelE2E: { project: { getState(): { separateAudio(id: string): Promise<{ success: boolean }> } } } })
+              .__openreelE2E.project.getState().separateAudio(id).catch((e: unknown) => ({ success: false, error: String(e) })),
+          clip.id,
+        );
+        return (last as { success: boolean }).success || (await pair(page)).a.length === 1;
+      },
+      { timeout: SOFTWARE_GPU ? 120_000 : 60_000, intervals: [0, 2_000, 5_000], message: () => `separateAudio never succeeded: ${JSON.stringify(last)}` },
+    )
+    .toBe(true);
   await expect.poll(async () => (await pair(page)).a.length, { timeout: 30_000 }).toBe(1);
   await splitIntoThree(page);
   await expect.poll(async () => (await pair(page)).a.length, { timeout: 10_000 }).toBe(3);

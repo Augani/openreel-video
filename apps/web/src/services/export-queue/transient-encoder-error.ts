@@ -37,3 +37,14 @@ export async function runWithEncoderRetry<T>(run: (attempt: number) => Promise<T
     }
   }
 }
+
+/** A re-run only helps when it can change something: an explicit Hardware choice would repeat the same failing encoder. */
+export function canRetryInSoftware(encoderChoice: string | undefined): boolean {
+  return encoderChoice !== "hardware";
+}
+
+export function hardwareEncoderFailureMessage(error: unknown): string {
+  const detail = (error as { message?: unknown } | null)?.message;
+  const reason = typeof detail === "string" && detail ? detail : "the hardware encoder failed";
+  return `The hardware encoder failed (${reason}). Hardware was chosen in the export settings, so the export was not retried in software. Choose Auto or Software and export again.`;
+}

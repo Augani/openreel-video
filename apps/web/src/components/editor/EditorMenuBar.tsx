@@ -42,6 +42,7 @@ import { useRouter } from "../../hooks/use-router";
 import { startTour, startMoGraphTour } from "./tour";
 import { DOCS_URL, ISSUES_URL } from "./about-links";
 import { useOnboardingStore } from "../../stores/onboarding-store";
+import { openAudioChannelsForSelection } from "../../services/audio-channels";
 import { canResetClipTransform, resetClipTransform } from "../../services/reset-clip-transform";
 
 // Reset Transform enablement is a boolean derived from the selection and the project. Reading it
@@ -238,6 +239,8 @@ export function EditorMenuBar({
       null,
       { label: "Insert selected media", action: command("editing.insert"), shortcut: "," },
       { label: "Overwrite with selected media", action: command("editing.overwrite"), shortcut: "." },
+      { label: "Replace clip from Source monitor", action: command("editing.replaceEdit"), shortcut: "⇧G" },
+      { label: "Fit to Fill from Source monitor", action: command("editing.fitToFill"), shortcut: "⌥⇧F" },
       { label: "Lift In/Out range", action: command("editing.lift"), shortcut: ";" },
       { label: "Extract In/Out range", action: command("editing.extract"), shortcut: "'" },
       { label: "Add edit to all tracks", action: command("editing.addEditAllTracks"), shortcut: "⇧⌘K" },
@@ -251,6 +254,10 @@ export function EditorMenuBar({
       { label: "J-cut (audio leads)", action: command("editing.jCut"), shortcut: "⌥J" },
       { label: "L-cut (audio trails)", action: command("editing.lCut"), shortcut: "⌥L" },
       { label: "Match frame", action: command("editing.matchFrame"), shortcut: "F" },
+      { label: "Reverse match frame", action: command("editing.reverseMatchFrame"), shortcut: "⇧F" },
+      null,
+      { label: "Audio channels…", description: "Map source channels: left only, swap, mono, stereo, 5.1", action: () => { if (!openAudioChannelsForSelection()) toast.info("Select a clip with audio", "Audio channels applies to the selected clips."); } },
+      { label: "Speed/Duration…", description: "Speed, duration, reverse and pitch for the selected clips, with ripple", action: command("editing.speedDuration"), shortcut: "⌥⌘R" },
       null,
       { label: "Replace with linked composition", action: command("linked.replace"), shortcut: "⌥⌘L" },
       { label: "Open linked composition", action: command("linked.open"), shortcut: "⌥⌘O" },

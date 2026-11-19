@@ -119,7 +119,7 @@ describe("premiere-parity agent tools: registration", () => {
       ...premiere.scopes.tools,
     ];
     for (const name of listed) expect(getTool(name), name).toBeDefined();
-    expect(proEffects).toHaveLength(44);
+    expect(proEffects).toHaveLength(47);
     expect(proEffects.map((e) => e.type)).toContain("halftone");
   });
 
@@ -491,13 +491,13 @@ describe("scopes tools", () => {
 });
 
 describe("pro effects through add_video_effect", () => {
-  it("lists all 44 pro effects with ranges, defaults and neutral values", async () => {
+  it("lists all 47 pro effects with ranges, defaults and neutral values", async () => {
     const { host } = setup();
     const all = await executeTool("list_pro_effects", {}, host);
     expect(all.ok).toBe(true);
     const list = all.data as Array<{ type: string; params: Array<{ key: string; default: unknown; neutral: unknown }> }>;
     expect(list.map((e) => e.type).sort()).toEqual([...PRO_EFFECT_TYPES].sort());
-    expect(list).toHaveLength(44);
+    expect(list).toHaveLength(47);
     for (const effect of list) {
       expect(effect.params.length).toBeGreaterThan(0);
       for (const p of effect.params) expect(p).toHaveProperty("neutral");

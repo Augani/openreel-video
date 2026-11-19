@@ -176,7 +176,7 @@ async function programSignature(page: Page): Promise<number[]> {
 }
 
 /** Opens the editor with real footage (a person, skin tones, shallow depth of field) as the only clip. */
-async function openRealFootage(page: Page, file = REAL_FOOTAGE): Promise<{ id: string }> {
+export async function openRealFootage(page: Page, file = REAL_FOOTAGE): Promise<{ id: string }> {
   await page.addInitScript(() => {
     try {
       localStorage.setItem("openreel-onboarding-complete", "true");

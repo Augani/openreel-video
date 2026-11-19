@@ -1,7 +1,7 @@
 import type { JSX } from "react";
 import React, { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import type { VideoExportSettings } from "@openreel/core";
-import { desktopExportRequiresNativeEncoder, setEncoderBackendFactory, WebCodecsBackend } from "@openreel/core";
+import { desktopExportRequiresNativeEncoder, encoderChoiceForcesNative, setEncoderBackendFactory, WebCodecsBackend, webCodecsEncoderOptions } from "@openreel/core";
 import { useUIStore } from "../../stores/ui-store";
 import { useProjectStore } from "../../stores/project-store";
 import { addDialogExportToQueue, isExportQueueBusy } from "../../stores/export-queue-store";
@@ -46,6 +46,7 @@ function shouldUseWebCodecs(settings: QuickVideoExportSettings): boolean {
   return (
     hasWebCodecs &&
     !desktopExportRequiresNativeEncoder(settings) &&
+    !encoderChoiceForcesNative(settings.encoderChoice, settings.codec) &&
     (settings.codec === "h264" || settings.codec === "h265") &&
     (mode === "fast" || mode === "balanced")
   );
@@ -123,7 +124,7 @@ export function DesktopExportButton({ compact = false }: { compact?: boolean } =
           setEncoderBackendFactory((mediabunny) =>
             mediabunny
               ? new WebCodecsBackend(mediabunny, {
-                  hardwareAcceleration: "prefer-hardware",
+                  ...webCodecsEncoderOptions(settings.encoderChoice),
                   videoCodecs: [videoCodec],
                   // Desktop streams frames to disk and uses the hardware encoder,
                   // so export at the full (matched) resolution — no browser clamp.

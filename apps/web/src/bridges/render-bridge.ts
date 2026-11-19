@@ -11,6 +11,7 @@ import {
   getVideoEffectsEngine,
   TransitionEngine,
   createTransitionEngine,
+  createBurnInSource,
   getAnimatedVideoEffects,
 } from "@openreel/core";
 import { useEngineStore } from "../stores/engine-store";
@@ -344,7 +345,7 @@ export class RenderBridge {
         const localTime =
           clipLocalTime ??
           Math.max(0, useTimelineStore.getState().playheadPosition - clip.startTime);
-        const effects = getAnimatedVideoEffects(clip, localTime);
+        const effects = getAnimatedVideoEffects(clip, localTime, createBurnInSource(project));
         if (effects.length === 0) return frame;
         return this.applyEffects(frame, effects);
       }

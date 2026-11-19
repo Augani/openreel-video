@@ -1,6 +1,7 @@
 import { PrimaryAudioProperties } from "../PrimaryAudioProperties";
 import { EssentialSoundSection } from "../EssentialSoundSection";
 import { SurroundPanSection } from "../SurroundPanSection";
+import { AudioChannelsSection } from "../AudioChannelsSection";
 import React from "react";
 import { getChannelLayout } from "@openreel/core";
 import { useProjectStore } from "../../../../stores/project-store";
@@ -46,6 +47,11 @@ export const AudioTab: React.FC<AudioTabProps> = ({
         </InspectorSection>
       )}
       {showAudioEffects && clip && <PrimaryAudioProperties clipId={clipId} />}
+      {showAudioEffects && clip && (
+        <InspectorSection title="Audio channels" sectionId="audio-channels" defaultOpen>
+          <AudioChannelsSection clipIds={[clipId]} />
+        </InspectorSection>
+      )}
       {showAudioEffects && clip && surround && (
         <InspectorSection title="Surround pan" sectionId="surround-pan" defaultOpen>
           <SurroundPanSection clipId={clipId} />

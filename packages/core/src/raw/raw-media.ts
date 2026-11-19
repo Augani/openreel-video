@@ -1,8 +1,10 @@
-import { developRaw, developedSize, type DevelopedFrame } from "./develop";
-import { decodeDng, looksLikeDng, type DngRaw } from "./dng";
-import { RawDecodeError } from "./tiff";
-import { defaultRawSettings, rawSettingsKey, type RawSourceSettings, type RawStillInfo } from "./settings";
-import { asShotKelvinTint } from "./color";
+import type { DevelopedFrame } from "./develop";
+import type { DngRaw } from "./dng";
+import { rawSettingsKey, type RawSourceSettings, type RawStillInfo } from "./settings";
+
+// develop/dng/tiff/color are the heavy RAW developer. The in-thread developer is only a
+// fallback (the app installs a worker), so it loads them on first use to keep them out of
+// the app's entry chunk.
 
 /**
  * Glue between camera files and the media library: inspecting a RAW file on
@@ -36,7 +38,8 @@ function decodeBlob(sourceKey: string, blob: Blob): Promise<DngRaw> {
     decodeCache.set(sourceKey, hit);
     return hit;
   }
-  const pending = blob.arrayBuffer().then((buffer) => {
+  const pending = blob.arrayBuffer().then(async (buffer) => {
+    const [{ decodeDng, looksLikeDng }, { RawDecodeError }] = await Promise.all([import("./dng"), import("./tiff")]);
     if (!looksLikeDng(buffer)) throw new RawDecodeError("This file is not a DNG.");
     return decodeDng(buffer);
   });
@@ -46,36 +49,14 @@ function decodeBlob(sourceKey: string, blob: Blob): Promise<DngRaw> {
   return pending;
 }
 
-export function describeCfa(raw: DngRaw): string {
-  return raw.samplesPerPixel === 3 ? "RGB" : raw.cfa.map((c) => "RGB"[c]).join("");
-}
-
-export function inspectDngRaw(raw: DngRaw): RawInspection {
-  const settings = defaultRawSettings(raw);
-  const size = developedSize(raw, settings);
-  const asShot = asShotKelvinTint(raw);
-  return {
-    info: {
-      format: "dng",
-      developedBy: "openreel",
-      make: raw.make,
-      model: raw.model,
-      bitDepth: raw.bitsPerSample,
-      cfa: describeCfa(raw),
-      settings,
-      asShot: { temperature: asShot.kelvin, tint: asShot.tint },
-    },
-    width: size.width,
-    height: size.height,
-  };
-}
-
 /** The default developer: decodes and develops on the calling thread. */
 export const inThreadRawDeveloper: RawDeveloper = {
   async develop({ sourceKey, blob, settings, maxLongEdge }) {
+    const { developRaw } = await import("./develop");
     return developRaw(await decodeBlob(sourceKey, blob), settings, maxLongEdge ? { maxLongEdge } : {});
   },
   async inspect({ sourceKey, blob }) {
+    const { inspectDngRaw } = await import("./inspect");
     return inspectDngRaw(await decodeBlob(sourceKey, blob));
   },
 };

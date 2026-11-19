@@ -34,6 +34,11 @@ import {
   getMotionShaderEffectDefs,
   defaultMotionShaderParams,
   isProEffectType,
+  isBurnInEffectType,
+  BURN_IN_SPECS,
+  resolveBurnInParams,
+  type BurnInEffectType,
+  type BurnInParamSpec,
   describePluginEffect,
   getPluginRegistry,
   isPluginEffectType,
@@ -130,9 +135,151 @@ const EffectSlider: React.FC<{
   />
 );
 
+const UltraKeyControls = React.lazy(() =>
+  import("./UltraKeyControls").then((m) => ({ default: m.UltraKeyControls })),
+);
+
 const PRO_EFFECT_LABELS = Object.fromEntries(
   PRO_EFFECT_TYPES.map((type) => [type, PRO_EFFECT_SPECS[type].label]),
 ) as Record<ProEffectType, string>;
+
+const BURN_IN_LABELS: Record<BurnInEffectType, string> = {
+  "burn-in-timecode": BURN_IN_SPECS["burn-in-timecode"].label,
+  "burn-in-name": BURN_IN_SPECS["burn-in-name"].label,
+};
+
+/** A text field that commits on Enter or blur, so typing a label is one undo step, not one per keystroke. */
+const BurnInTextField: React.FC<{
+  spec: Extract<BurnInParamSpec, { kind: "text" }>;
+  value: string;
+  disabled: boolean;
+  onCommit: (value: string) => void;
+}> = ({ spec, value, disabled, onCommit }) => {
+  const [draft, setDraft] = React.useState(value);
+  React.useEffect(() => setDraft(value), [value]);
+  const commit = () => {
+    if (draft !== value) onCommit(draft);
+  };
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-fg-2 font-normal text-[10px]">{spec.label}</span>
+      <Input
+        aria-label={spec.label}
+        value={draft}
+        disabled={disabled}
+        maxLength={spec.maxLength}
+        placeholder={spec.placeholder}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") commit();
+        }}
+        className="h-6 max-w-[150px] text-[10px] md:text-[10px]"
+      />
+    </div>
+  );
+};
+
+/**
+ * Inspector controls for the Timecode and Clip Name burn-ins, generated from BURN_IN_SPECS and grouped like
+ * Premiere's panel (source, layout, text, background). The box options only show while the box is on.
+ */
+const BurnInControls: React.FC<{
+  type: BurnInEffectType;
+  params: Record<string, unknown>;
+  onChange: (params: Record<string, unknown>) => void;
+  disabled: boolean;
+}> = ({ type, params, onChange, disabled }) => {
+  const values = resolveBurnInParams(type, params);
+  const visible = (spec: BurnInParamSpec): boolean => {
+    if (spec.key === "hideExtension") return values.nameSource === "file";
+    if (spec.key === "boxColor" || spec.key === "boxOpacity" || spec.key === "boxPadding") return values.box === true;
+    return true;
+  };
+  const groups: BurnInParamSpec["group"][] = ["Source", "Layout", "Text", "Background"];
+  return (
+    <div className="space-y-3" data-testid={`burn-in-controls-${type}`}>
+      {groups.map((group) => {
+        const specs = BURN_IN_SPECS[type].params.filter((spec) => spec.group === group && visible(spec));
+        if (specs.length === 0) return null;
+        return (
+          <section key={group} aria-label={`${group} options`} className="space-y-2">
+            <div className="text-[9px] font-bold uppercase tracking-[0.12em] text-fg-muted">{group}</div>
+            {specs.map((spec) => {
+              const value = values[spec.key];
+              switch (spec.kind) {
+                case "toggle":
+                  return (
+                    <div key={spec.key} className="flex items-center justify-between gap-2">
+                      <span className="text-fg-2 font-normal text-[10px]">{spec.label}</span>
+                      <Switch
+                        aria-label={spec.label}
+                        checked={value === true}
+                        disabled={disabled}
+                        onCheckedChange={(checked) => onChange({ [spec.key]: checked })}
+                      />
+                    </div>
+                  );
+                case "select":
+                  return (
+                    <div key={spec.key} className="flex items-center justify-between gap-2">
+                      <span className="text-fg-2 font-normal text-[10px]">{spec.label}</span>
+                      <Select value={String(value)} disabled={disabled} onValueChange={(next) => onChange({ [spec.key]: next })}>
+                        <SelectTrigger aria-label={spec.label} className="h-6 max-w-[150px] text-[10px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {spec.options.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                case "text":
+                  return (
+                    <BurnInTextField
+                      key={spec.key}
+                      spec={spec}
+                      value={String(value)}
+                      disabled={disabled}
+                      onCommit={(next) => onChange({ [spec.key]: next })}
+                    />
+                  );
+                case "color":
+                  return (
+                    <EffectColorField
+                      key={spec.key}
+                      disabled={disabled}
+                      label={spec.label}
+                      value={String(value)}
+                      onChange={(next) => onChange({ [spec.key]: next })}
+                    />
+                  );
+                default:
+                  return (
+                    <EffectSlider
+                      key={spec.key}
+                      disabled={disabled}
+                      label={spec.label}
+                      value={Number(value)}
+                      onChange={(next) => onChange({ [spec.key]: next })}
+                      min={spec.min}
+                      max={spec.max}
+                      step={spec.step}
+                      unit={spec.unit}
+                    />
+                  );
+              }
+            })}
+          </section>
+        );
+      })}
+    </div>
+  );
+};
 
 /** Inspector controls for the pro effects library, generated from PRO_EFFECT_SPECS. */
 const ProEffectControls: React.FC<{
@@ -396,6 +543,7 @@ const EffectItem: React.FC<{
     "radial-blur": "Radial Blur",
     "chromatic-aberration": "Chromatic Aberration",
     ...PRO_EFFECT_LABELS,
+    ...BURN_IN_LABELS,
     shader: "Shader",
   };
 
@@ -468,6 +616,29 @@ const EffectItem: React.FC<{
         <span className="text-fg-2 font-normal text-[10px]">
           Edit this secondary in the Color tab, HSL Secondary.
         </span>
+      );
+    }
+    if (isBurnInEffectType(effect.type)) {
+      return (
+        <BurnInControls
+          type={effect.type}
+          params={effect.params}
+          disabled={editingDisabled}
+          onChange={(params) => onUpdate(effect.id, params)}
+        />
+      );
+    }
+    if (effect.type === "ultra-key") {
+      return (
+        <React.Suspense fallback={null}>
+          <UltraKeyControls
+            clipId={clipId}
+            effectId={effect.id}
+            params={effect.params}
+            disabled={editingDisabled}
+            onChange={(params) => onUpdate(effect.id, params)}
+          />
+        </React.Suspense>
       );
     }
     if (isProEffectType(effect.type)) {

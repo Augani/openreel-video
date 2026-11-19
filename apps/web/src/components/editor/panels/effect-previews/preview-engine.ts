@@ -2,6 +2,7 @@ import { transitionPosterProgress } from "./preview-params";
 import type { ClipColorGrading } from "@openreel/core";
 import { CostLruCache } from "./preview-cache";
 import { PriorityTaskQueue, TaskCancelledError, whenIdle, type TaskPriority } from "./task-queue";
+import { isTemporalCard, planTemporalCard, type TemporalCardPlan } from "./temporal-preview";
 import { isSameSource, previewSourceKey, type PreviewSource } from "./source-selection";
 
 /** The part of an effect card the preview needs. Mirrors EditorEffectPreviewDef without importing the panel. */
@@ -74,6 +75,10 @@ export interface RenderInput {
   /** Transitions only: 0..1 progress of the blend. */
   readonly progress: number;
   readonly sourceTime: number;
+  /** Echo cards: the footage frames drawn behind `frame` (earlier moments of the window) and their opacity. */
+  readonly trail?: readonly { readonly frame: ImageBitmap; readonly weight: number }[];
+  /** Echo cards: the parameters the trail was planned with. */
+  readonly temporal?: TemporalCardPlan;
   /**
    * True when this render is the card's poster (the at-rest tile), false for a hover frame. Time-driven cards use it
    * to pick the instant, or the set of instants, that shows what the preset does at rest.
@@ -126,7 +131,12 @@ export const previewDefKey = (def: PreviewEffectDef): string => {
 };
 
 /** Cards with their own timeline (a blend, a preset's keyframes): the poster is a moment of it, not the playhead frame. */
-const hasOwnTimeline = (def: PreviewEffectDef): boolean => def.kind === "transition" || def.kind === "overlay" || !!def.loop;
+const hasOwnTimeline = (def: PreviewEffectDef): boolean =>
+  def.kind === "transition" ||
+  def.kind === "overlay" ||
+  !!def.loop ||
+  // Echo rests a few frames into the window so it has footage behind it (see temporal-preview.ts).
+  ((def.kind === undefined || def.kind === "effect") && isTemporalCard(def.type));
 
 /**
  * Owns the shared footage window and the rendered-frame cache for the Effects
@@ -410,9 +420,23 @@ export class EffectPreviewEngine {
     const transition = def.kind === "transition";
     const loop = def.loop;
     // Looping cards animate their own clock over the poster frame; everything else walks the footage window.
-    const frameIndex = index === POSTER_INDEX || loop ? window.posterIndex : index;
+    // Time effects (Echo, Posterize Time) pick other frames of the window: see temporal-preview.ts.
+    const temporal =
+      !loop && (def.kind === undefined || def.kind === "effect") && isTemporalCard(def.type)
+        ? planTemporalCard(def.type, def.params, window, index === POSTER_INDEX ? -1 : index)
+        : null;
+    const frameIndex = temporal ? temporal.frameIndex : index === POSTER_INDEX || loop ? window.posterIndex : index;
     const frame = await window.frame(frameIndex);
     if (!frame || generation !== this.generation || this.disposed) return null;
+    let trail: { frame: ImageBitmap; weight: number }[] | undefined;
+    if (temporal && temporal.trail.length > 0) {
+      const frames = await Promise.all(temporal.trail.map((entry) => window.frame(entry.index)));
+      if (generation !== this.generation || this.disposed) return null;
+      trail = [];
+      frames.forEach((trailFrame, at) => {
+        if (trailFrame) trail?.push({ frame: trailFrame, weight: temporal.trail[at].weight });
+      });
+    }
     let partner: ImageBitmap | null = null;
     // Transitions blend by it; overlay cards read it as the position in the window (-1 at the poster).
     let progress = index === POSTER_INDEX ? -1 : frameIndex / Math.max(window.count - 1, 1);
@@ -431,6 +455,8 @@ export class EffectPreviewEngine {
         partner,
         progress,
         sourceTime: loop ? progress * loop.seconds : (window.times[frameIndex] ?? 0),
+        trail,
+        temporal: temporal ?? undefined,
         poster: index === POSTER_INDEX,
       });
     } catch (error) {

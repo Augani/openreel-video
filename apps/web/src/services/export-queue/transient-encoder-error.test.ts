@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { isTransientEncoderError, runWithEncoderRetry } from "./transient-encoder-error";
+import { canRetryInSoftware, hardwareEncoderFailureMessage, isTransientEncoderError, runWithEncoderRetry } from "./transient-encoder-error";
 
 const encodingError = () => new DOMException("Encoding error.", "EncodingError");
 
@@ -49,5 +49,22 @@ describe("runWithEncoderRetry", () => {
     const cancelled = vi.fn().mockRejectedValue(encodingError());
     await expect(runWithEncoderRetry(cancelled, { delayMs: 0, shouldRetry: () => false })).rejects.toThrow();
     expect(cancelled).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("hardware-only retry policy", () => {
+  it("only retries in software unless the user chose Hardware", () => {
+    expect(canRetryInSoftware(undefined)).toBe(true);
+    expect(canRetryInSoftware("auto")).toBe(true);
+    expect(canRetryInSoftware("software")).toBe(true);
+    expect(canRetryInSoftware("hardware")).toBe(false);
+  });
+  it("explains why a hardware failure was not retried", () => {
+    expect(hardwareEncoderFailureMessage(encodingError())).toMatch(/Encoding error.*not retried in software.*Auto or Software/);
+  });
+  it("shouldRetry=false for Hardware surfaces the first error without a second run", async () => {
+    const run = vi.fn().mockRejectedValue(encodingError());
+    await expect(runWithEncoderRetry(run, { delayMs: 0, shouldRetry: () => canRetryInSoftware("hardware") })).rejects.toThrow("Encoding error");
+    expect(run).toHaveBeenCalledTimes(1);
   });
 });

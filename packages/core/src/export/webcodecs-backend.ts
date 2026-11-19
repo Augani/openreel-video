@@ -30,6 +30,8 @@ type VideoCodecName = Parameters<
 
 interface WebCodecsBackendOptions {
   hardwareAcceleration?: HardwarePreference;
+  /** An explicit Hardware or Software choice: never retry with no-preference, fail instead of silently switching encoder kind. */
+  strictHardwareAcceleration?: boolean;
   videoCodecs?: VideoCodecName[];
   // The resolution clamp (export-engine) exists to bound browser-tab memory.
   // On desktop, frames stream to disk one at a time and the hardware encoder
@@ -45,6 +47,7 @@ export class WebCodecsBackend implements EncoderBackend {
 
   private readonly mediabunny: MediaBunnyModule;
   private readonly hardwareAcceleration: HardwarePreference;
+  private readonly strictHardwareAcceleration: boolean;
   private readonly videoCodecPreference?: VideoCodecName[];
   private output: OutputInstance | null = null;
   private videoSource: VideoSampleSourceInstance | null = null;
@@ -107,6 +110,7 @@ export class WebCodecsBackend implements EncoderBackend {
   constructor(mediabunny: MediaBunnyModule, options?: WebCodecsBackendOptions) {
     this.mediabunny = mediabunny;
     this.hardwareAcceleration = options?.hardwareAcceleration ?? "prefer-hardware";
+    this.strictHardwareAcceleration = options?.strictHardwareAcceleration === true;
     this.videoCodecPreference = options?.videoCodecs;
     this.requiresWebCodecsClamping = options?.clampResolution ?? true;
   }
@@ -188,7 +192,9 @@ export class WebCodecsBackend implements EncoderBackend {
     const hardwarePreferences: HardwarePreference[] =
       this.hardwareAcceleration === "no-preference"
         ? ["no-preference"]
-        : [this.hardwareAcceleration, "no-preference"];
+        : this.strictHardwareAcceleration
+          ? [this.hardwareAcceleration]
+          : [this.hardwareAcceleration, "no-preference"];
     let selectedHardwareAcceleration: HardwarePreference = "no-preference";
     let videoCodec: VideoCodecName | null = null;
 
@@ -531,7 +537,11 @@ export class WebCodecsBackend implements EncoderBackend {
     const level = area <= 414_720 ? "1e" : area <= 921_600 ? "1f" : area <= 2_097_152 ? "28" : area <= 8_912_896 ? "33" : "34";
     const codecs = [`avc1.6400${level}`, `avc1.4d00${level}`, `avc1.4200${level}`];
     const preferences: HardwarePreference[] =
-      this.hardwareAcceleration === "no-preference" ? ["no-preference"] : [this.hardwareAcceleration, "no-preference"];
+      this.hardwareAcceleration === "no-preference"
+        ? ["no-preference"]
+        : this.strictHardwareAcceleration
+          ? [this.hardwareAcceleration]
+          : [this.hardwareAcceleration, "no-preference"];
     let chosen: VideoEncoderConfig | null = null;
     for (const hardwareAcceleration of preferences) {
       for (const codec of codecs) {

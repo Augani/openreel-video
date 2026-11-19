@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { useProjectStore } from "../stores/project-store";
 import { useTimelineStore } from "../stores/timeline-store";
 import { useUIStore } from "../stores/ui-store";
+import { useSourceMonitorStore, pushSourceHistory } from "../stores/source-monitor-store";
 import { useEngineStore } from "../stores/engine-store";
 import { useEditorWorkspaceStore } from "../stores/editor-workspace-store";
 import { createEmptyProject } from "../stores/project/project-helpers";
@@ -14,6 +15,7 @@ import {
   liftRange,
   matchFrame,
   overwriteSelectedMedia,
+  reverseMatchFrame,
 } from "./premiere-edit-commands";
 
 const transform = {
@@ -144,6 +146,31 @@ describe("premiere edit commands", () => {
     expect(outcome.message).toContain("Source.mp4");
     expect(outcome.message).toContain("00:00:11:00");
     expect(useUIStore.getState().selectedItems.map((i) => i.id)).toEqual(["source"]);
+  });
+
+  it("reverse match frame moves the playhead to the topmost instance, or reports not found", () => {
+    const project = useProjectStore.getState().project;
+    const sm = useSourceMonitorStore.getState();
+    useSourceMonitorStore.setState({ mediaId: null, history: [] });
+    expect(reverseMatchFrame().success).toBe(false);
+    sm.open("source", project.id, 12);
+    const found = reverseMatchFrame();
+    expect(found.success).toBe(true);
+    expect(useTimelineStore.getState().playheadPosition).toBeCloseTo(6, 2);
+    sm.open("source", project.id, 18);
+    const missing = reverseMatchFrame();
+    expect(missing.success).toBe(false);
+    expect(useTimelineStore.getState().playheadPosition).toBeCloseTo(6, 2);
+  });
+
+  it("source history is most-recent-first, de-duplicated and capped", () => {
+    expect(pushSourceHistory(["a", "b", "c"], "b")).toEqual(["b", "a", "c"]);
+    expect(pushSourceHistory(Array.from({ length: 10 }, (_, i) => `m${i}`), "n")).toHaveLength(10);
+    const project = useProjectStore.getState().project;
+    useSourceMonitorStore.setState({ history: [], projectId: project.id });
+    useSourceMonitorStore.getState().open("x", project.id);
+    useSourceMonitorStore.getState().open("source", project.id);
+    expect(useSourceMonitorStore.getState().history).toEqual(["source", "x"]);
   });
 
   it("match frame on a specific clip uses that clip, not the topmost one", () => {

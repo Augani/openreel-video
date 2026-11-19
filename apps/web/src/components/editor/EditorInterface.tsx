@@ -6,6 +6,7 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Button, Button as ShadcnButton, Dialog, DialogContent, DialogTitle, ScrollArea } from "@openreel/ui";
 
 import { ChangesPanel } from "./chat/ChangesPanel";
+import { BackgroundTasksIndicator } from "./BackgroundTasksPanel";
 import { Toolbar } from "./Toolbar";
 import { EditorActionRail } from "./EditorActionRail";
 import { AssetsPanel } from "./AssetsPanel";
@@ -17,18 +18,20 @@ import { Timeline } from "./Timeline";
 import { useLatch } from "./use-latch";
 import { PanelErrorBoundary } from "../ErrorBoundary";
 import { SpotlightTour, MoGraphTour } from "./tour";
-import { useProjectStore } from "../../stores/project-store";
+import { useProjectStore, registerSmoothKeyframeRefresh } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
+import { useAudioChannelsStore } from "../../stores/audio-channels-store";
 import {
   useDockSize,
   MIN_MEDIA_W, MAX_MEDIA_W, MIN_INSPECTOR_W, MAX_INSPECTOR_W, MIN_CHAT_W, MAX_CHAT_W, MIN_TIMELINE_VH, MAX_TIMELINE_VH,
 } from "../../stores/workspace-layout-store";
 import { WorkspaceSaveDialog } from "./WorkspaceSaveDialog";
+import { ClipSpeedDialog } from "./ClipSpeedDialog";
 import { ProjectLockBanner } from "./ProjectLockBanner";
 import { MissingFontsBanner } from "./MissingFontsBanner";
 import { applyPendingWorkspace } from "../../services/workspace-apply";
 import { useTimelineStore } from "../../stores/timeline-store";
-import { copyKeyframeSet, pasteKeyframeSet } from "@openreel/core";
+import { copyKeyframeSet, pasteKeyframeSet, applyKeyframeInterpolation, refreshSmoothKeyframesAfterEdit, type KeyframeInterpolationOp, type KeyframeInterpolationSide } from "@openreel/core";
 import { useInspectorNavigationStore } from "../../stores/inspector-navigation-store";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import { useEditorInitialization } from "../../hooks/useEditorInitialization";
@@ -38,6 +41,7 @@ import { usePreviewProxyPreference } from "../../hooks/use-preview-proxy-prefere
 import { startProxyIngest } from "../../services/proxy-ingest";
 import { useMediaWaveforms } from "../../hooks/use-media-waveforms";
 import { startAudioRackSync } from "../../services/audio-rack-sync";
+import { startAudioOutputService } from "../../services/audio-output-service";
 import { startLinkedCompHost } from "../../services/linked-comp-host";
 import "./editor-responsive.css";
 
@@ -77,6 +81,7 @@ const KeyframeEditorPanel = React.lazy(() =>
 const AudioMixer = React.lazy(() =>
   loadAudioMixer().then((module) => ({ default: module.AudioMixer })),
 );
+const AudioChannelsDialog = React.lazy(() => import("./AudioChannelsDialog").then(module => ({ default: module.AudioChannelsDialog })));
 const MultiCameraDialog = React.lazy(() =>
   loadMultiCameraDialog().then((module) => ({ default: module.MultiCameraDialog })),
 );
@@ -120,6 +125,11 @@ const useIdlePanelPrefetch = (enabled: boolean) => {
   }, [enabled]);
 };
 
+/** Applies the remembered monitor output device and reports unplug / replug while the editor is open. */
+const useAudioOutputDevice = () => {
+  useEffect(() => startAudioOutputService(), []);
+};
+
 /**
  * Auto-save initialization hook
  */
@@ -148,6 +158,8 @@ const useAutoSave = () => {
  * dividers between panels. Values are persisted to CSS custom
  * properties on the root grid so panels can pick them up.
  */
+registerSmoothKeyframeRefresh(refreshSmoothKeyframesAfterEdit);
+
 export const EditorInterface: React.FC = () => {
   const compact = useCompactEditor();
   const phone = usePhoneEditor();
@@ -160,6 +172,7 @@ export const EditorInterface: React.FC = () => {
     useKeyboardShortcuts();
   const shortcutsOverlayLatched = useLatch(showShortcutsOverlay);
   useAutoSave();
+  useAudioOutputDevice();
   // Onboarding Pro row: apply the workspace picked on the welcome screen, once.
   useEffect(() => { applyPendingWorkspace(); }, []);
   usePreviewProxyPreference();
@@ -168,6 +181,7 @@ export const EditorInterface: React.FC = () => {
   useIdlePanelPrefetch(initialized);
 
   const sourceTab = useSourceMonitorStore((state) => state.tab);
+  const audioChannelsOpen = useAudioChannelsStore((state) => state.open);
   const keyframeEditorOpen = useUIStore((state) => state.keyframeEditorOpen);
   const setKeyframeEditorOpen = useUIStore((state) => state.setKeyframeEditorOpen);
   // Selection only matters here while the keyframe editor is open (or as a boolean for the
@@ -231,7 +245,18 @@ export const EditorInterface: React.FC = () => {
         for (const [field, value] of Object.entries(updates)) if (value === undefined) delete next[field];
         return next as unknown as import("@openreel/core").Keyframe;
       });
-      if (changed) updateClipKeyframes(clip.id, keyframes);
+      if (changed) {
+        updateClipKeyframes(clip.id, keyframes);
+      }
+    },
+    [selectedClip, getEditableKeyframeClip, updateClipKeyframes],
+  );
+
+  const handleApplyInterpolation = React.useCallback(
+    (keyframeIds: string[], op: KeyframeInterpolationOp, side: KeyframeInterpolationSide) => {
+      const clip = selectedClip && getEditableKeyframeClip(selectedClip.id);
+      if (!clip?.keyframes || !keyframeIds.length) return;
+      updateClipKeyframes(clip.id, applyKeyframeInterpolation(clip.keyframes, keyframeIds, op, side), { derived: true });
     },
     [selectedClip, getEditableKeyframeClip, updateClipKeyframes],
   );
@@ -642,6 +667,7 @@ export const EditorInterface: React.FC = () => {
                     onClose={() => setKeyframeEditorOpen(false)}
                     disabled={keyframeExporting || keyframeOperationLocked || keyframeTrackLocked}
                     onUpdateKeyframes={handleUpdateKeyframes}
+                    onApplyInterpolation={handleApplyInterpolation}
                     onDeleteKeyframes={handleDeleteKeyframes}
                     onCopyKeyframes={handleCopyKeyframes}
                     onPasteKeyframes={handlePasteKeyframes}
@@ -657,6 +683,12 @@ export const EditorInterface: React.FC = () => {
         </div>
       </div>
       </div>
+
+      {!phone && (
+        <footer data-testid="editor-status-bar" className="flex h-7 shrink-0 items-center justify-between border-t border-border bg-bg-1 px-1">
+          <BackgroundTasksIndicator />
+        </footer>
+      )}
 
       {phone && <React.Suspense fallback={<div style={{ height: 66, flexShrink: 0 }} role="status" aria-label="Loading mobile tools"/>}><MobileEditorTools onPanel={openCompactPanel}/></React.Suspense>}
       {compact && !phone && (
@@ -679,6 +711,13 @@ export const EditorInterface: React.FC = () => {
             onClose={() => setShowShortcutsOverlay(false)}
           />
         </React.Suspense>
+      )}
+      {audioChannelsOpen && (
+        <PanelErrorBoundary name="Audio channels" silent>
+          <React.Suspense fallback={null}>
+            <AudioChannelsDialog />
+          </React.Suspense>
+        </PanelErrorBoundary>
       )}
       <PanelErrorBoundary name="Multicam" silent>
         <React.Suspense fallback={null}>
@@ -707,6 +746,7 @@ export const EditorInterface: React.FC = () => {
       </Dialog>
 
       <WorkspaceSaveDialog />
+      <ClipSpeedDialog />
       <SpotlightTour />
       <MoGraphTour />
     </div>

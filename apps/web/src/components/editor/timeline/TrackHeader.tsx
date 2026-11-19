@@ -50,6 +50,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
     hideTrack,
     muteTrack,
     soloTrack,
+    setTrackSoloSafe,
     removeTrack,
     consolidateTrack,
     groupTracks,
@@ -60,6 +61,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
     hideTrack: state.hideTrack,
     muteTrack: state.muteTrack,
     soloTrack: state.soloTrack,
+    setTrackSoloSafe: state.setTrackSoloSafe,
     removeTrack: state.removeTrack,
     consolidateTrack: state.consolidateTrack,
     groupTracks: state.groupTracks,
@@ -171,6 +173,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
       {kind === "context" && isAudio && <>
         <ContextMenuCheckboxItem checked={track.muted} onCheckedChange={checked => void muteTrack(track.id, checked === true)}>{`Mute ${track.name}`}</ContextMenuCheckboxItem>
         <ContextMenuCheckboxItem checked={track.solo} onCheckedChange={checked => void soloTrack(track.id, checked === true)}>{`Solo ${track.name}`}</ContextMenuCheckboxItem>
+        <ContextMenuCheckboxItem checked={track.soloSafe === true} onCheckedChange={checked => void setTrackSoloSafe(track.id, checked === true)}>{`Solo Safe ${track.name}`}</ContextMenuCheckboxItem>
         <Separator />
       </>}
       <Item onSelect={startRename}><Pencil size={14} aria-hidden />Rename Track</Item>
@@ -280,6 +283,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
               {isAudio && <>
                 <DropdownMenuItem onSelect={() => void muteTrack(track.id, !track.muted)}>{track.muted ? "Unmute track" : "Mute track"}</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => void soloTrack(track.id, !track.solo)}>{track.solo ? "Clear solo" : "Solo track"}</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void setTrackSoloSafe(track.id, track.soloSafe !== true)}>{track.soloSafe === true ? "Turn off Solo Safe" : "Turn on Solo Safe"}</DropdownMenuItem>
               </>}
               <DropdownMenuItem onSelect={() => void lockTrack(track.id, !track.locked)}>{track.locked ? "Unlock track" : "Lock track"}</DropdownMenuItem>
               <DropdownMenuSeparator />{trackActions("dropdown")}

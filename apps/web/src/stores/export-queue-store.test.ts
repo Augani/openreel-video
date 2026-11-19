@@ -9,6 +9,7 @@ const hoisted = vi.hoisted(() => ({
     reject: (error: unknown) => void;
     isCancelled: () => boolean;
     onProgress: (p: number, phase: string) => void;
+    encoder?: string;
   }>,
   persisted: { current: null as unknown },
   cancelEngine: vi.fn(),
@@ -43,6 +44,7 @@ vi.mock("../services/export-queue/export-queue-runner", () => {
       job: { id: string },
       project: unknown,
       hooks: { isCancelled: () => boolean; onProgress: (p: number, phase: string) => void },
+      encoder?: string,
     ) =>
       new Promise((resolve, reject) => {
         hoisted.runs.push({
@@ -52,6 +54,7 @@ vi.mock("../services/export-queue/export-queue-runner", () => {
           reject,
           isCancelled: hooks.isCancelled,
           onProgress: hooks.onProgress,
+          encoder,
         });
       }),
   };
@@ -254,6 +257,39 @@ describe("export queue store", () => {
     hoisted.runs[1].resolve(done);
     await flush();
     expect(status()).toEqual(["A:completed"]);
+  });
+
+  it("re-runs on the software encoder with progress and ETA reset, in the same single job row", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    useExportQueueStore.getState().enqueue({ settings, presetLabel: "A" });
+    useExportQueueStore.getState().start();
+    await flush();
+    expect(hoisted.runs[0].encoder).toBe("prefer-hardware");
+    hoisted.runs[0].onProgress(0.9, "Encoding");
+    expect(useExportQueueStore.getState().queue.jobs[0].progress).toBe(0.9);
+    hoisted.runs[0].reject(new DOMException("Encoding error.", "EncodingError"));
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    expect(hoisted.runs).toHaveLength(2);
+    expect(hoisted.runs[1].encoder).toBe("prefer-software");
+    expect(useExportQueueStore.getState().queue.jobs).toHaveLength(1);
+    expect(useExportQueueStore.getState().queue.jobs[0]).toMatchObject({ progress: 0, status: "running", phase: "Preparing" });
+    hoisted.runs[1].onProgress(0.2, "Rendering");
+    expect(useExportQueueStore.getState().queue.jobs[0].progress).toBe(0.2);
+    hoisted.runs[1].resolve(done);
+    await flush();
+    expect(status()).toEqual(["A:completed"]);
+  });
+
+  it("does not retry an explicit Hardware choice and fails right away with a clear message", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    useExportQueueStore.getState().enqueue({ settings: { ...settings, encoderChoice: "hardware" }, presetLabel: "A" });
+    useExportQueueStore.getState().start();
+    await flush();
+    hoisted.runs[0].reject(new DOMException("Encoding error.", "EncodingError"));
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    expect(hoisted.runs).toHaveLength(1);
+    expect(status()).toEqual(["A:failed"]);
+    expect(useExportQueueStore.getState().queue.jobs[0].error).toMatch(/hardware encoder failed.*not retried in software/i);
   });
 
   it("cancels a running job (the runner sees it and the engine is told) and moves on", async () => {

@@ -5,6 +5,7 @@ import {
   createEmptyTrack,
   createMediaClip,
   findTopmostVisualClipAt,
+  findReverseMatch,
   planAddEdit,
   planAddEditToAllTracks,
   planExtract,
@@ -294,6 +295,35 @@ export function matchFrame(clipId?: string): CommandOutcome {
     .getState()
     .open(media.id, project.id, clipSourceTimeAt(clip, time));
   return { success: true, message: `${media.name} at ${timecode}` };
+}
+
+/**
+ * Reverse Match Frame (Shift+F): find the frame showing in the Source monitor
+ * in the active sequence and park the playhead there. The topmost instance
+ * wins; with none, nothing moves and the outcome explains why.
+ */
+export function reverseMatchFrame(): CommandOutcome {
+  const source = useSourceMonitorStore.getState();
+  const project = useProjectStore.getState().project;
+  const media = source.mediaId
+    ? project.mediaLibrary.items.find((item) => item.id === source.mediaId)
+    : undefined;
+  if (!media) return fail("Open a clip in the Source monitor first.");
+  const frameRate = media.metadata.frameRate || project.settings.frameRate || 30;
+  const hit = findReverseMatch(
+    project,
+    media.id,
+    source.position,
+    useTimelineStore.getState().playheadPosition,
+    1 / frameRate,
+  );
+  if (!hit) return fail(`This frame of ${media.name} is not in the sequence.`);
+  useTimelineStore.getState().seekTo(hit.time);
+  useUIStore.getState().select({ type: "clip", id: hit.clipId });
+  return {
+    success: true,
+    message: `${media.name} at ${formatFrameTimecode(hit.time, project.settings.frameRate || frameRate)}`,
+  };
 }
 
 /** The track a paste lands on: the first targeted track of the copied track

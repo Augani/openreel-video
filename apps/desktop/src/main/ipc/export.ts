@@ -9,6 +9,7 @@ import { SmartExportSession, type SmartStreamMatch } from "../sidecar/smart-expo
 import { CfrWriter } from "../sidecar/cfr";
 import { selectEncoder, getVerifiedEncoders, isHardwareEncoder } from "../sidecar/encoder-probe";
 import { join } from "node:path";
+import { resolveEncoderChoice, type EncoderChoice } from "../../../../../packages/core/src/export/encoder-choice";
 import { appTempDir, newTempPathReady, releaseTemp, releaseTempSync } from "../temp-dir";
 import { acquirePowerHold, releasePowerHold, releaseAllPowerHolds } from "../power";
 import { isBroadcastExportCodec, isProres4444, type BroadcastScan, type DnxhrProfile, type ExportCodec, type EncodeMode } from "../sidecar/encode-args";
@@ -30,6 +31,8 @@ interface ExportStartArgs {
   audioSampleRate: number;
   audioChannels: number;
   encodeMode?: "fast" | "balanced" | "smallest";
+  /** Encoder picker. Absent or "auto" keeps the encode-mode ordering. */
+  encoderChoice?: EncoderChoice;
   quality?: number;
   proresProfile?: "proxy" | "lt" | "standard" | "hq" | "4444" | "4444xq";
   dnxhrProfile?: DnxhrProfile;
@@ -118,6 +121,8 @@ interface JobEntry {
   /** True once the renderer's "finish" has been delivered to the current job. */
   finishDelivered: boolean;
   retried: boolean;
+  /** Hardware was chosen explicitly: a failure is reported, never retried on the software encoder. */
+  strictHardware: boolean;
   cancelled: boolean;
   cfr: CfrWriter | null;
   port: MessagePortMain;
@@ -208,6 +213,18 @@ export function broadcastExportFields(args: ExportStartArgs): Pick<ExportArgs, "
   return out;
 }
 
+/**
+ * Honour an explicit Hardware / Software choice for H.264, H.265 and AV1. Auto (or no choice) returns
+ * null so the encode-mode ordering decides. Hardware never falls back: it throws with the reason.
+ */
+function pickChosenEncoder(args: ExportStartArgs, platform: NodeJS.Platform, usable: string[]): string | null {
+  if (args.encoderChoice !== "hardware" && args.encoderChoice !== "software") return null;
+  if (!["h264", "h265", "hevc", "av1"].includes(args.codec)) return null;
+  const resolved = resolveEncoderChoice({ codec: args.codec, choice: args.encoderChoice, platform, available: usable });
+  if (!resolved.encoder) throw new Error(resolved.reason ?? "The chosen encoder is not available.");
+  return resolved.encoder;
+}
+
 export function resolveExportArgs(
   args: ExportStartArgs,
   platform: NodeJS.Platform,
@@ -235,6 +252,14 @@ export function resolveExportArgs(
     );
   }
   const twoPass = args.rateControl === "vbr2";
+  const chosen = args.encoderChoice === "hardware" || args.encoderChoice === "software" ? args.encoderChoice : null;
+  const choiceApplies = chosen !== null && (codec === "h264" || codec === "hevc" || codec === "av1");
+  if (twoPass && choiceApplies && chosen === "hardware") {
+    throw new Error("Hardware encoders have no two-pass mode. Choose Software or Auto for Two-pass VBR, or pick another rate control for Hardware.");
+  }
+  if (color && choiceApplies && chosen === "hardware") {
+    throw new Error("Hardware encoding is not available with Rec.2020 / HDR output (it needs libx265 for the HDR metadata). Choose Software or Auto, or set the sequence colour space to Rec.709.");
+  }
   if (twoPass) {
     if (codec !== "h264" && codec !== "hevc") throw new Error("Two-pass VBR is available for H.264 and H.265 only.");
     if (color) throw new Error("Two-pass VBR is not available with Rec.2020 / HDR output; use one-pass VBR or constant quality.");
@@ -247,8 +272,11 @@ export function resolveExportArgs(
     throw new Error(`Two-pass VBR needs the ${twoPassEncoder} encoder, which this ffmpeg build does not include.`);
   }
   const encoder = twoPass ? twoPassEncoder : (broadcastEncoder ?? (color
-    ? selectColorEncoder(codec, color, usable, platform, mode)
-    : (selectEncoder(args.codec, platform, usable, mode) ?? "libx264")));
+    ? (color.transfer === "bt709" && choiceApplies && chosen === "software" ? pickChosenEncoder(args, platform, usable) : null) ?? selectColorEncoder(codec, color, usable, platform, mode)
+    : (pickChosenEncoder(args, platform, usable) ?? selectEncoder(args.codec, platform, usable, mode) ?? "libx264")));
+  if (choiceApplies && chosen === "software" && isHardwareEncoder(encoder)) {
+    throw new Error(`Software was chosen, but this export would use the hardware encoder ${encoder}. Choose Auto or Hardware, or install an ffmpeg build with the software encoder.`);
+  }
   const hdrProres = !!color && codec === "prores" && color.transfer !== "bt709";
   return {
     ...(color ? { color } : {}),
@@ -348,6 +376,7 @@ export async function startExport(wc: WebContents, args: ExportStartArgs): Promi
     replayBytes: 0,
     finishDelivered: false,
     retried: false,
+    strictHardware: args.encoderChoice === "hardware",
     cancelled: false,
     cfr: null,
     port: port1,
@@ -523,7 +552,7 @@ function handleJobError(jobId: string, entry: JobEntry, failed: ExportJob, msg: 
   const { encoder, codec, outputPath } = entry.exportArgs;
   const hardwareFailure = isHardwareEncoder(encoder) && !isOutputIoFailure(msg, outputPath);
   const software =
-    entry.retried || !hardwareFailure ? null : softwareFallbackEncoder(codec, encoder, entry.encoders);
+    entry.retried || entry.strictHardware || !hardwareFailure ? null : softwareFallbackEncoder(codec, encoder, entry.encoders);
   if (software && entry.replay) {
     entry.retried = true;
     console.warn(`[export] ${encoder} failed, retrying with ${software}: ${msg}`);
@@ -534,7 +563,11 @@ function handleJobError(jobId: string, entry: JobEntry, failed: ExportJob, msg: 
   }
   entry.port.postMessage({
     type: "error",
-    message: hardwareFailure ? hardwareFailureMessage(encoder, msg) : msg,
+    message: hardwareFailure
+      ? entry.strictHardware
+        ? `${msg}\nThe hardware encoder ${encoder} failed on this system. Hardware was chosen explicitly, so OpenReel did not switch to software. Choose Auto or Software and export again.`
+        : hardwareFailureMessage(encoder, msg)
+      : msg,
   });
   cleanupJob(jobId);
 }

@@ -9,6 +9,7 @@ const hoisted = vi.hoisted(() => ({
   singletonUsed: vi.fn(),
   disposed: vi.fn(async () => undefined),
   isolatedCreated: vi.fn(),
+  options: [] as unknown[],
 }));
 
 vi.mock("@openreel/core", async (importOriginal) => {
@@ -28,8 +29,9 @@ vi.mock("@openreel/core", async (importOriginal) => {
             if (hoisted.initFail.current) throw new Error("init failed");
           },
           cancel: () => hoisted.calls.push("engine.cancel"),
-          async *exportVideo() {
+          async *exportVideo(_project: unknown, _settings: unknown, _writable: unknown, options: unknown) {
             hoisted.calls.push("engine.exportVideo");
+            hoisted.options.push(options);
             yield { phase: "rendering", progress: 0.5 };
             if (hoisted.fail.current) throw new Error("encoder crashed");
             return {
@@ -96,6 +98,7 @@ const hooks = { onProgress: vi.fn(), isCancelled: () => false };
 
 beforeEach(() => {
   hoisted.calls.length = 0;
+  hoisted.options.length = 0;
   calls.length = 0;
   hoisted.fail.current = false;
   hoisted.initFail.current = false;
@@ -112,6 +115,13 @@ describe("runExportJob isolation from the live preview", () => {
     // restore the LIVE project, unlock, release the job's engines.
     expect(hoisted.calls).toEqual(["pause", "lock", "sync(snapshot)", "engine.exportVideo", "sync(live)", "unlock", "engine.dispose"]);
     expect(result.smartRender).toEqual({ copiedPercent: 62, summary: "Smart render: 62% copied", copiedFrames: 62, totalFrames: 100, copiedRuns: 1, reasons: [] });
+  });
+
+  it("passes the software preference to the browser engine for this run only", async () => {
+    await runExportJob(job, snapshot, hooks, "prefer-software");
+    await runExportJob(job, snapshot, hooks);
+    expect(hoisted.options[0]).toMatchObject({ encoderPreference: "prefer-software" });
+    expect(hoisted.options[1]).not.toHaveProperty("encoderPreference");
   });
 
   it("restores and unlocks when the export fails midway", async () => {

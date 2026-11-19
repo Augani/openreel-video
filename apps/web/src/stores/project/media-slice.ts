@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
+import { backgroundTasks } from "@openreel/core/tasks/task-registry";
 import type { StoreApi } from "zustand";
 import { claimNativeSource, probeFootageShape, isRawFileName, type Action, type MediaItem, type SourceColorSpace } from "@openreel/core";
 import { buildRawMediaItem } from "../../services/raw-import";
@@ -6,6 +7,7 @@ import type { ProjectState } from "../project-store";
 import { getMediaBridge, initializeMediaBridge } from "../../bridges/media-bridge";
 import { saveMediaBlob, deleteMediaBlob } from "../../services/media-storage";
 import { toast } from "../notification-store";
+import { useSettingsStore } from "../settings-store";
 import { nativePathForFile } from "../../services/native-path";
 import { sourceTimecodeMetadata } from "../../services/source-timecode";
 
@@ -58,7 +60,7 @@ type MediaSlice = Pick<
 export function createMediaSlice(set: Set, get: Get): MediaSlice {
   const replacementRequests = new Map<string, symbol>();
 
-  return {
+  const slice: MediaSlice = {
     importMedia: async (file, onProgress, source, options) => {
       const { project, actionExecutor } = get();
       const cancelled = () => options?.signal?.aborted || options?.isCurrent?.() === false;
@@ -121,7 +123,7 @@ export function createMediaSlice(set: Set, get: Get): MediaSlice {
         if (!ownsRequest()) return unavailableResult();
 
         const isLargeFile = file.size > 50 * 1024 * 1024;
-        const importResult = await mediaBridge.importFile(file, true, isLargeFile, onProgress);
+        const importResult = await mediaBridge.importFile(file, true, isLargeFile, onProgress, { untracked: true, signal: options?.signal });
         if (!ownsRequest()) return unavailableResult();
 
         if (!importResult.success || !importResult.media) {
@@ -245,6 +247,10 @@ export function createMediaSlice(set: Set, get: Get): MediaSlice {
             ...(nativePathForFile(file) ? { path: nativePathForFile(file) } : {}),
           },
           importedAt: Date.now(),
+          // Preferences > Default audio channels: a mono/stereo default is stamped on files that carry audio.
+          ...(processedMedia.metadata.hasAudio && useSettingsStore.getState().defaultAudioChannels !== "file"
+            ? { channelPreset: useSettingsStore.getState().defaultAudioChannels }
+            : {}),
           // Import into the bin being viewed (Premiere imports into the active bin).
           ...(importBinId(get().project) ? { binId: importBinId(get().project) } : {}),
         };
@@ -632,4 +638,43 @@ export function createMediaSlice(set: Set, get: Get): MediaSlice {
     getMediaItem: (mediaId: string) =>
       get().project.mediaLibrary.items.find((item) => item.id === mediaId),
   };
+
+  // Every import is one background task covering the whole action (decode and adding to the project),
+  // so Cancel stops before the media is added and Retry re-runs the same row with the same follow-up.
+  const importInner = slice.importMedia;
+  const taskId = (): string => `import:${uuidv4()}`;
+  const runTracked = (id: string, args: Parameters<MediaSlice["importMedia"]>): ReturnType<MediaSlice["importMedia"]> => {
+    const [file, onProgress, source, options] = args;
+    return backgroundTasks
+      .track(
+        { id, kind: "import", source: "import", title: `Import \u00b7 ${file.name}`, retry: () => void runTracked(id, args).catch(() => undefined) },
+        async (ctx) => {
+          const merged = new AbortController();
+          const forward = () => merged.abort();
+          for (const signal of [ctx.signal, options?.signal]) {
+            if (signal?.aborted) forward();
+            else signal?.addEventListener("abort", forward, { once: true });
+          }
+          try {
+            const result = await importInner(file, (stage) => { ctx.progress(null, stage); onProgress?.(stage); }, source, { ...options, signal: merged.signal });
+            if (!result.success && !ctx.signal.aborted) throw new ImportActionFailure(result);
+            return result;
+          } finally {
+            ctx.signal.removeEventListener("abort", forward);
+            options?.signal?.removeEventListener("abort", forward);
+          }
+        },
+      )
+      .catch((error) => {
+        if (error instanceof ImportActionFailure) return error.result;
+        throw error;
+      });
+  };
+  return { ...slice, importMedia: (...args) => runTracked(taskId(), args) };
+}
+
+class ImportActionFailure extends Error {
+  constructor(readonly result: Awaited<ReturnType<MediaSlice["importMedia"]>>) {
+    super(result.error?.message ?? "Import failed");
+  }
 }

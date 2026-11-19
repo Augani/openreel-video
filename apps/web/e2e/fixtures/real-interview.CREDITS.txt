@@ -1,1 +1,3 @@
 real-interview.mp4: 3 s, 640x360 cut of Pexels "woman talking in front of the camera" https://www.pexels.com/video/woman-talking-in-front-of-the-camera-5940726/ (Pexels license, free to use).
+
+two-voices.mp4: 29 s, 640x360 flat colour with six passages read alternately by two macOS synthetic voices (Daniel, Samantha), AAC 32 kbps. Generated for the speaker diarization e2e; no third-party material.

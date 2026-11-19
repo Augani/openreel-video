@@ -914,6 +914,17 @@ export class ActionExecutor {
         );
         break;
       }
+
+      case "track/setSoloSafe": {
+        const params = action.params as { trackId: string; soloSafe: boolean };
+        timeline.tracks = timeline.tracks.map((t: MutableTrack) => {
+          if (t.id !== params.trackId) return t;
+          const { soloSafe: _previous, ...rest } = t as MutableTrack & { soloSafe?: boolean };
+          void _previous;
+          return params.soloSafe ? { ...rest, soloSafe: true } : rest;
+        });
+        break;
+      }
     }
   }
 

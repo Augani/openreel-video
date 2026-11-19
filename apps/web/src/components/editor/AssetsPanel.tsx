@@ -34,10 +34,6 @@ import { RAW_FILE_ACCEPT, groupCinemaDng, interpretedDisplaySize, type MediaItem
 import { enqueueImportBatch, takeNextImportBatch, type PendingImportBatch } from "../../services/import-batch-queue";
 import { importCinemaDngSequence, looksLikeCinemaDngFrame } from "../../services/cinemadng-sequence";
 import { AspectRatioMatchDialog } from "./dialogs/AspectRatioMatchDialog";
-import { WorkspaceGeneratePanel } from "./WorkspaceGeneratePanel";
-import { WorkspaceRecipesPanel } from "./panels/WorkspaceRecipesPanel";
-import { MarkersPanel } from "./MarkersPanel";
-import { CommentsPanel } from "./CommentsPanel";
 import { VersionsPanel } from "./VersionsPanel";
 import { TemplatesTab } from "./panels/TemplatesTab";
 import {
@@ -66,6 +62,12 @@ import { LabelChip, MediaItemContextMenu, MediaOrganizeItems } from "./project-p
 import { ProjectPanelBar, ProjectPanelDialogs, useMediaSelectionCount } from "./project-panel/ProjectPanelBar";
 import { writeMediaDrag } from "./project-panel/dnd";
 import { Scissors } from "@/icons/lucide-compat";
+
+const panelFallback = <div className="h-full" role="status" aria-label="Loading panel" />;
+const WorkspaceGeneratePanel = React.lazy(() => import("./WorkspaceGeneratePanel").then((m) => ({ default: m.WorkspaceGeneratePanel })));
+const WorkspaceRecipesPanel = React.lazy(() => import("./panels/WorkspaceRecipesPanel").then((m) => ({ default: m.WorkspaceRecipesPanel })));
+const MarkersPanel = React.lazy(() => import("./MarkersPanel").then((m) => ({ default: m.MarkersPanel })));
+const CommentsPanel = React.lazy(() => import("./CommentsPanel").then((m) => ({ default: m.CommentsPanel })));
 
 const formatDuration = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
@@ -1491,25 +1493,25 @@ export const AssetsPanel: React.FC = () => {
       case "ai":
         return (
           <div className="flex min-h-0 flex-1 flex-col bg-background-secondary content-area-fix">
-            <WorkspaceGeneratePanel />
+            <React.Suspense fallback={panelFallback}><WorkspaceGeneratePanel /></React.Suspense>
           </div>
         );
       case "recipes":
         return (
           <div className="flex min-h-0 flex-1 flex-col bg-background-secondary content-area-fix">
-            <WorkspaceRecipesPanel key={projectId} />
+            <React.Suspense fallback={panelFallback}><WorkspaceRecipesPanel key={projectId} /></React.Suspense>
           </div>
         );
       case "markers":
         return (
           <div className="flex min-h-0 flex-1 flex-col bg-background-secondary content-area-fix">
-            <MarkersPanel />
+            <React.Suspense fallback={panelFallback}><MarkersPanel /></React.Suspense>
           </div>
         );
       case "comments":
         return (
           <div className="flex min-h-0 flex-1 flex-col bg-background-secondary content-area-fix">
-            <CommentsPanel />
+            <React.Suspense fallback={panelFallback}><CommentsPanel /></React.Suspense>
           </div>
         );
       case "versions":

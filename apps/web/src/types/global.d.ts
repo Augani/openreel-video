@@ -23,6 +23,7 @@ interface OpenReelExportStartArgs {
   audioSampleRate: number;
   audioChannels: number;
   encodeMode?: "fast" | "balanced" | "smallest";
+  encoderChoice?: "auto" | "hardware" | "software";
   quality?: number;
   proresProfile?: "proxy" | "lt" | "standard" | "hq" | "4444" | "4444xq";
   dnxhrProfile?: "lb" | "sq" | "hq" | "hqx" | "444";
@@ -353,7 +354,7 @@ export interface OpenReelProxyJob {
   srcPath: string;
   outDir: string;
   fileName: string;
-  profile: { codec: "prores-proxy" | "h264"; size: "half" | "quarter" | "720p" | "1080p" };
+  profile: { codec: "prores-proxy" | "h264" | "dnxhr-lb"; size: "half" | "quarter" | "720p" | "1080p" };
   previewTwin: boolean;
   status: "queued" | "running" | "done" | "failed";
   progress: number;
@@ -379,7 +380,7 @@ export interface OpenReelIngestProject {
   projectId: string;
   projectPath?: string | null;
   config?: {
-    proxyProfile?: { codec: "prores-proxy" | "h264"; size: "half" | "quarter" | "720p" | "1080p" };
+    proxyProfile?: { codec: "prores-proxy" | "h264" | "dnxhr-lb"; size: "half" | "quarter" | "720p" | "1080p" };
     proxyFolder?: string;
     mediaFolder?: string;
     concurrency?: 1 | 2;
@@ -394,7 +395,7 @@ export interface OpenReelIngestBridge {
         mediaId: string;
         name: string;
         srcPath: string;
-        profile: { codec: "prores-proxy" | "h264"; size: "half" | "quarter" | "720p" | "1080p" };
+        profile: { codec: "prores-proxy" | "h264" | "dnxhr-lb"; size: "half" | "quarter" | "720p" | "1080p" };
         previewTwin: boolean;
       }>;
       force?: boolean;
@@ -446,6 +447,12 @@ declare global {
       };
       ollama?: {
         probe(): Promise<OpenReelOllamaProbeResult>;
+      };
+      /** OS microphone permission (macOS/Windows privacy settings); the desktop app only. */
+      microphone?: {
+        status(): Promise<"not-determined" | "granted" | "denied" | "restricted">;
+        request(): Promise<"not-determined" | "granted" | "denied" | "restricted">;
+        openSettings(): Promise<boolean>;
       };
       /** Main-process helpers for fonts; Brotli for WOFF2 licence checks (Electron's Chromium has no Brotli DecompressionStream). */
       fonts?: {

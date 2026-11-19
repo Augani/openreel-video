@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { desktopPreviewTwinName } from "../../../../../packages/core/src/media/desktop-ingest";
+import { isIntermediateProxyCodec } from "../../../../../packages/core/src/media/proxy-presets";
 import { resolveFfmpegPath } from "../sidecar/ffmpeg-path";
 import { buildProxyArgs, parseProgressSeconds } from "./proxy-args";
 import { probeMediaFile } from "./probe-media";
@@ -82,8 +83,8 @@ export async function runProxyJob(
   if (!probe?.hasVideo || !probe.width || !probe.height) throw new Error("ffmpeg could not read a video stream from this file.");
   await fs.mkdir(job.outDir, { recursive: true });
   const outPath = path.join(job.outDir, job.fileName);
-  const prores = job.profile.codec === "prores-proxy";
-  const previewPath = prores && job.previewTwin ? path.join(job.outDir, desktopPreviewTwinName(job.fileName)) : undefined;
+  const intermediate = isIntermediateProxyCodec(job.profile.codec);
+  const previewPath = intermediate && job.previewTwin ? path.join(job.outDir, desktopPreviewTwinName(job.fileName)) : undefined;
   const part = `${outPath}.part`;
   const previewPart = previewPath ? `${previewPath}.part` : undefined;
   const cleanup = async (): Promise<void> => {
@@ -133,7 +134,7 @@ export async function runProxyJob(
     height: out.height,
     duration: out.duration ?? duration,
     frameRate: out.frameRate ?? probe.frameRate ?? 0,
-    codec: out.videoCodec ?? (prores ? "prores" : "h264"),
+    codec: out.videoCodec ?? (job.profile.codec === "prores-proxy" ? "prores" : job.profile.codec === "dnxhr-lb" ? "dnxhd" : "h264"),
     fileSize: stat.size,
   };
 }

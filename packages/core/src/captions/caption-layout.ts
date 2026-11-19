@@ -32,6 +32,24 @@ export interface CaptionLayout {
 }
 
 export const DEFAULT_CAPTION_FONT_SIZE = 24;
+
+/** The caption look an imported cue starts from before a format overrides individual properties. */
+export const DEFAULT_CAPTION_STYLE: SubtitleStyle = {
+  fontFamily: "Inter",
+  fontSize: DEFAULT_CAPTION_FONT_SIZE,
+  color: "#ffffff",
+  backgroundColor: "rgba(0, 0, 0, 0.7)",
+  position: "bottom",
+};
+
+const GENERIC_CSS_FAMILIES = new Set(["serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui"]);
+
+/** CSS font shorthand for a caption. Generic families must not be quoted or the browser treats them as a missing font name (serif fallback). */
+export function captionFont(fontSize: number, fontFamily: string | undefined): string {
+  const family = (fontFamily || "Inter").trim();
+  const css = GENERIC_CSS_FAMILIES.has(family.toLowerCase()) ? family.toLowerCase() : `"${family}"`;
+  return `bold ${fontSize}px ${css}, sans-serif`;
+}
 const LINE_HEIGHT_RATIO = 1.3;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
@@ -199,7 +217,7 @@ export function drawCaption(ctx: Ctx2D, subtitle: Subtitle, canvasWidth: number,
   const style: Partial<SubtitleStyle> = subtitle.style ?? {};
   const fontSize = style.fontSize || DEFAULT_CAPTION_FONT_SIZE;
   ctx.save();
-  ctx.font = `bold ${fontSize}px "${style.fontFamily || "Inter"}"`;
+  ctx.font = captionFont(fontSize, style.fontFamily);
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
   const layout = layoutCaption(subtitle, canvasWidth, canvasHeight, (t) => ctx.measureText(t).width);

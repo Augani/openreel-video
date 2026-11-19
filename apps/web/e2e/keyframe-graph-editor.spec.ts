@@ -141,4 +141,85 @@ test.describe("Premiere-parity: keyframe graph editor", () => {
     // Source clip is untouched by the paste.
     expect(await keyframesOf(page, first.id)).toHaveLength(4);
   });
+
+  test("temporal interpolation: context menu and toolbar apply per-side types to the selection", async ({ page }) => {
+    const { first, panel } = await setup(page);
+    await panel.getByRole("combobox", { name: "Property" }).click();
+    await page.getByRole("option", { name: "opacity" }).click();
+    await panel.getByRole("button", { name: /^Keyframe at 0.000s/ }).click();
+    await panel.getByRole("button", { name: /^Keyframe at 1.000s/ }).click({ modifiers: ["Shift"] });
+    const depth = await historyDepth(page);
+    const key = async (id: string) => (await keyframesOf(page, first.id)).find((k) => k.id === id)!;
+
+    // Context menu on a selected keyframe row acts on the whole selection, one undo step.
+    await panel.getByRole("button", { name: /^Keyframe at 1.000s/ }).click({ button: "right" });
+    await page.getByRole("menuitemcheckbox", { name: "Auto Bezier" }).click();
+    await expect.poll(async () => (await key("o1")).interpolationOut).toBe("auto-bezier");
+    expect((await key("o2")).interpolationIn).toBe("auto-bezier");
+    expect((await key("o1")).easing).toBe("bezier");
+    expect(await historyDepth(page)).toBe(depth + 1);
+    // The menu marks the current type of the clicked key.
+    await panel.getByRole("button", { name: /^Keyframe at 1.000s/ }).click({ button: "right" });
+    await expect(page.getByRole("menuitemcheckbox", { name: "Auto Bezier" })).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
+
+    // Out-only Linear leaves the in side's Auto Bezier alone.
+    await panel.getByRole("combobox", { name: "Interpolation side" }).click();
+    await page.getByRole("option", { name: "Out only" }).click();
+    await panel.getByRole("combobox", { name: "Interpolation", exact: true }).click();
+    await page.getByRole("option", { name: "Linear" }).click();
+    await expect.poll(async () => (await key("o1")).interpolationOut).toBeUndefined();
+    expect((await key("o2")).interpolationIn).toBe("auto-bezier");
+    expect((await key("o1")).interpolationIn ?? "auto-bezier").toBe("auto-bezier");
+
+    await panel.getByRole("combobox", { name: "Interpolation side" }).click();
+    await page.getByRole("option", { name: "Both sides" }).click();
+    await panel.getByRole("combobox", { name: "Interpolation", exact: true }).click();
+    await page.getByRole("option", { name: "Continuous Bezier" }).click();
+    await expect.poll(async () => (await key("o1")).interpolationOut).toBe("continuous-bezier");
+
+    await panel.getByRole("combobox", { name: "Interpolation", exact: true }).click();
+    await page.getByRole("option", { name: "Hold" }).click();
+    await expect.poll(async () => (await key("o1")).easing).toBe("hold");
+    expect((await key("o1")).interpolationOut).toBeUndefined();
+    await undo(page);
+    expect((await key("o1")).interpolationOut).toBe("continuous-bezier");
+  });
+
+  test("dragging a handle on an Auto Bezier key keeps the drag and converts that side to Bezier", async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 1300 });
+    const { first, panel } = await setup(page);
+    await panel.getByRole("combobox", { name: "Property" }).click();
+    await page.getByRole("option", { name: "opacity" }).click();
+    await panel.getByRole("button", { name: /^Keyframe at 0.000s/ }).click();
+    await panel.getByRole("button", { name: /^Keyframe at 1.000s/ }).click({ modifiers: ["Shift"] });
+    await panel.getByRole("combobox", { name: "Interpolation", exact: true }).click();
+    await page.getByRole("option", { name: "Auto Bezier" }).click();
+    await panel.getByRole("button", { name: /^Keyframe at 0.000s/ }).click();
+    await settle(page, 300);
+    const canvas = panel.getByLabel("Keyframe value graph");
+    await canvas.scrollIntoViewIfNeeded();
+    await settle(page, 300);
+    const box = (await canvas.boundingBox())!;
+    const pad = 40, plotW = box.width - pad * 2, plotH = box.height - pad * 2;
+    const duration = clipsOf(await readState(page), "Main")[0].duration;
+    const tx = (t: number) => box.x + pad + (t / Math.max(1, duration)) * plotW;
+    const vy = (v: number) => box.y + pad + (1 - (v + 0.1) / 1.2) * plotH;
+    const depth = await historyDepth(page);
+
+    // The first key is flat (Auto): its outgoing handle sits at (1/3, 0).
+    await page.mouse.move(tx(1 / 3), vy(0));
+    await page.mouse.down();
+    await page.mouse.move(tx(0.6), vy(0.8), { steps: 8 });
+    await page.mouse.up();
+
+    await expect.poll(async () => (await keyframesOf(page, first.id)).find((k) => k.id === "o1")?.bezierHandles?.in.y ?? 0).toBeGreaterThan(0.5);
+    const o1 = (await keyframesOf(page, first.id)).find((k) => k.id === "o1")!;
+    const o2 = (await keyframesOf(page, first.id)).find((k) => k.id === "o2")!;
+    expect(o1.interpolationOut).toBeUndefined();
+    expect(o2.interpolationIn).toBe("auto-bezier");
+    // The other end of the shared segment keeps its own Auto handle (flat).
+    expect(o1.bezierHandles.out.y).toBeCloseTo(1, 6);
+    expect(await historyDepth(page)).toBe(depth + 1);
+  });
 });

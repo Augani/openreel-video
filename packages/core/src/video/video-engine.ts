@@ -53,6 +53,14 @@ import { titleEngine } from "../text/title-engine";
 import type { ThreeJSLayerRenderer } from "./overlay-three-renderer";
 import { graphicsEngine } from "../graphics/graphics-engine";
 import { VideoEffectsEngine } from "./video-effects-engine";
+import { EchoCompositor } from "./echo-compositor";
+import {
+  clipHasTemporalEffects,
+  findActiveEcho,
+  isTemporalEffectType,
+  planEcho,
+  posterizedClipTime,
+} from "./temporal-effects";
 import {
   ColorGradingEngine,
   type ClipColorGrading,
@@ -96,6 +104,7 @@ import { GPUCompositor, initializeGPUCompositor } from "./gpu-compositor";
 import { getRendererFactory, type Renderer } from "./renderer-factory";
 import { keyframeEngine } from "./keyframe-engine";
 import { getAnimatedVideoEffects, isRenderableVideoEffect } from "./animated-video-effects";
+import { createBurnInSource, drawBurnIn, timecodeBurnInOverlay, withBurnInText, type BurnInSource, type TimecodeBurnInSettings } from "./burn-in";
 import { getAnimatedColorGrading } from "./animated-color-grading";
 import { getBackgroundRemovalEngine } from "../ai/background-removal-engine";
 import {
@@ -148,12 +157,25 @@ interface FrameRenderOptions {
   textClips?: TextClip[];
   shapeClips?: ShapeClip[];
   realtime?: boolean;
+  /** Export "Timecode burn-in": drawn last, over every track, adjustment layer and caption. */
+  timecodeBurnIn?: TimecodeBurnInSettings;
 }
 
 type RenderableClipColorGrading = Omit<ClipColorGrading, "lut" | "inputLut"> & {
   lut?: LUTData;
   inputLut?: LUTData;
 };
+
+/** What a clip's effect stack needs to read other moments of the same clip (Echo). */
+interface TemporalClipContext {
+  readonly clip: Clip;
+  readonly media: MediaItem;
+  /** Clip-local time of the frame being rendered, with Posterize Time already applied. */
+  readonly localTime: number;
+  /** Size echo frames are decoded at (the project size the main frame was decoded at). */
+  readonly decodeWidth: number;
+  readonly decodeHeight: number;
+}
 
 /**
  * VideoEngine handles video frame rendering and composition.
@@ -175,6 +197,8 @@ export class VideoEngine {
   private frameCache: Map<string, CachedFrame> = new Map();
   /** Pixel aspect of the sequence being rendered (1 = square); clips are squeezed by it so they keep their display shape. */
   private sequencePixelAspect = 1;
+  /** Burn-in source of the project being composed (frames are serialized, so one slot is enough). */
+  private burnInSource: BurnInSource | undefined;
   private gifFrameCache: Map<string, GifFrameCache> = new Map();
   private staticImageCache: Map<string, ImageBitmap> = new Map();
   private cacheConfig: FrameCacheConfig;
@@ -209,6 +233,7 @@ export class VideoEngine {
   private gpuCompositor: GPUCompositor | null = null;
   private gpuRenderer: Renderer | null = null;
   private effectsEngine: VideoEffectsEngine | null = null;
+  private readonly echoCompositor = new EchoCompositor();
   private colorGradingEngine: ColorGradingEngine | null = null;
   private transitionEngine: TransitionEngine | null = null;
   private maskEngine: MaskEngine | null = null;
@@ -877,6 +902,7 @@ export class VideoEngine {
     const scaleX = width / settings.width;
     const scaleY = height / settings.height;
     this.sequencePixelAspect = normalizeSequencePar(settings.pixelAspectRatio);
+    this.burnInSource = createBurnInSource(project);
 
     const activeTextClips = this.getActiveTextClips(timeline, time);
     const activeShapeClips = this.getActiveShapeClips(timeline, time);
@@ -999,7 +1025,7 @@ export class VideoEngine {
       isolatedTrack = null;
       try {
         for (const placement of placements) {
-          await this.applyAdjustmentLayerToCtx(ctx, placement.layer, width, height);
+          await this.applyAdjustmentLayerToCtx(ctx, placement.layer, width, height, time);
         }
         ctx.save();
         ctx.globalCompositeOperation = "destination-over";
@@ -1014,7 +1040,7 @@ export class VideoEngine {
     for (const { track, originalIndex } of allRenderableTracks) {
       await closeIsolatedTrack();
       for (const placement of adjustmentSchedule.takeCompositeBefore(originalIndex)) {
-        await this.applyAdjustmentLayerToCtx(ctx, placement.layer, width, height);
+        await this.applyAdjustmentLayerToCtx(ctx, placement.layer, width, height, time);
       }
       const scopedPlacements = adjustmentSchedule.scopedFor(track.id);
       if (
@@ -1368,6 +1394,13 @@ export class VideoEngine {
               getAnimatedColorGrading(clip, time - clip.startTime),
               width,
               height,
+              {
+                clip,
+                media: mediaItem,
+                localTime: posterizedClipTime(clipInfo.effects ?? [], time - clip.startTime),
+                decodeWidth: settings.width,
+                decodeHeight: settings.height,
+              },
             );
 
             const vidstabEng = getVidstabEngine();
@@ -1487,7 +1520,7 @@ export class VideoEngine {
     subjectFrame?.close();
     await closeIsolatedTrack();
     for (const placement of adjustmentSchedule.takeRemainingComposite()) {
-      await this.applyAdjustmentLayerToCtx(ctx, placement.layer, width, height);
+      await this.applyAdjustmentLayerToCtx(ctx, placement.layer, width, height, time);
     }
 
     // Particles and subtitles sit above every track, so no adjustment layer reaches them.
@@ -1497,6 +1530,13 @@ export class VideoEngine {
 
     for (const subtitle of activeSubtitles) {
       this.renderSubtitleToCanvasCtx(ctx, subtitle, width, height);
+    }
+
+    const burnInOverlay = timecodeBurnInOverlay(project, options.timecodeBurnIn, time);
+    if (burnInOverlay) {
+      withDisplaySpace(ctx, width, this.sequencePixelAspect, (layoutWidth) => {
+        drawBurnIn(ctx, "burn-in-timecode", burnInOverlay.params, layoutWidth, height);
+      });
     }
 
     if (hdr) {
@@ -1729,9 +1769,16 @@ export class VideoEngine {
     layer: NonNullable<Project["adjustmentLayers"]>[number],
     width: number,
     height: number,
+    time: number,
   ): Promise<void> {
     {
-      const effects = layer.effects.filter((effect) => effect.enabled !== false);
+      // Burn-ins on an adjustment layer count from the layer's first frame, like a clip's.
+      const effects = withBurnInText(
+        layer.effects.filter((effect) => effect.enabled !== false),
+        { id: layer.id, startTime: layer.startTime, inPoint: 0 },
+        time - layer.startTime,
+        this.burnInSource,
+      ) as Effect[];
       if (effects.length === 0) return;
 
       let source: ImageBitmap | null = null;
@@ -2442,7 +2489,7 @@ export class VideoEngine {
       await this.drawOverlayCanvasWithEffects(
         ctx,
         renderer.render(),
-        getAnimatedVideoEffects(textClip, clipLocalTime),
+        getAnimatedVideoEffects(textClip, clipLocalTime, this.burnInSource),
         width,
         height,
       );
@@ -2463,7 +2510,7 @@ export class VideoEngine {
     await this.drawOverlayCanvasWithEffects(
       ctx,
       result.canvas,
-      getAnimatedVideoEffects(textClip, clipLocalTime),
+      getAnimatedVideoEffects(textClip, clipLocalTime, this.burnInSource),
       width,
       height,
     );
@@ -2488,7 +2535,7 @@ export class VideoEngine {
     await this.drawOverlayCanvasWithEffects(
       ctx,
       result.canvas,
-      getAnimatedVideoEffects(shapeClip, clipLocalTime),
+      getAnimatedVideoEffects(shapeClip, clipLocalTime, this.burnInSource),
       width,
       height,
     );
@@ -2513,7 +2560,7 @@ export class VideoEngine {
     await this.drawOverlayCanvasWithEffects(
       ctx,
       result.canvas,
-      getAnimatedVideoEffects(svgClip, clipLocalTime),
+      getAnimatedVideoEffects(svgClip, clipLocalTime, this.burnInSource),
       width,
       height,
     );
@@ -2538,7 +2585,7 @@ export class VideoEngine {
     await this.drawOverlayCanvasWithEffects(
       ctx,
       result.canvas,
-      getAnimatedVideoEffects(stickerClip, clipLocalTime),
+      getAnimatedVideoEffects(stickerClip, clipLocalTime, this.burnInSource),
       width,
       height,
     );
@@ -2589,7 +2636,8 @@ export class VideoEngine {
   private getActiveSubtitles(timeline: Timeline, time: number): Subtitle[] {
     const subtitles = timeline.subtitles || [];
     return subtitles.filter((sub) => {
-      return time >= sub.startTime && time < sub.endTime;
+      // Hidden cues (e.g. the other language of a translation) stay out of the picture on every path.
+      return !sub.hidden && time >= sub.startTime && time < sub.endTime;
     });
   }
 
@@ -2681,8 +2729,11 @@ export class VideoEngine {
     time: number,
     width: number,
     height: number,
+    sourceLocalTime?: number,
   ): Promise<ImageBitmap | null> {
     if (!mediaItem.blob) return null;
+    // Clip-local time the frame is read at: Posterize Time holds it, Echo frames pass their own.
+    const frameLocalTime = sourceLocalTime ?? this.posterizedLocalTime(clip, time - clip.startTime);
 
     if (mediaItem.type === "image") {
       try {
@@ -2696,8 +2747,7 @@ export class VideoEngine {
             }
           }
           if (gifCache && gifCache.frames.length > 0) {
-            const clipLocalTime = time - clip.startTime;
-            const idx = getGifFrameAtTime(gifCache, getAnimatedImageSourceTime(clip, clipLocalTime) * 1000);
+            const idx = getGifFrameAtTime(gifCache, getAnimatedImageSourceTime(clip, frameLocalTime) * 1000);
             return gifCache.frames[idx];
           }
         }
@@ -2716,12 +2766,11 @@ export class VideoEngine {
     }
 
     const speedEngine = getSpeedEngine();
-    const localTime = time - clip.startTime;
     const sourceTime = Math.max(
       clip.inPoint,
       Math.min(
         clip.outPoint,
-        clip.inPoint + speedEngine.getSourceTimeAtPlaybackTime(clip.id, localTime),
+        clip.inPoint + speedEngine.getSourceTimeAtPlaybackTime(clip.id, frameLocalTime),
       ),
     );
 
@@ -2795,25 +2844,42 @@ export class VideoEngine {
       if (!bitmapA || !bitmapB) {
         return rendered;
       }
+      const effectsA = this.getAnimatedEffects(clipA, time - clipA.startTime);
       processedA = await this.applyClipVideoProcessing(
         clipA.id,
         bitmapA,
         bitmapA,
-        this.getAnimatedEffects(clipA, time - clipA.startTime),
+        effectsA,
         getAnimatedColorGrading(clipA, time - clipA.startTime),
         width,
         height,
+        {
+          clip: clipA,
+          media: mediaA,
+          localTime: posterizedClipTime(effectsA, time - clipA.startTime),
+          decodeWidth: width,
+          decodeHeight: height,
+        },
       );
+      const effectsB =
+        clipB && mediaB ? this.getAnimatedEffects(clipB, time - clipB.startTime) : [];
       processedB =
         clipB && mediaB
           ? await this.applyClipVideoProcessing(
               clipB.id,
               bitmapB,
               bitmapB,
-              this.getAnimatedEffects(clipB, time - clipB.startTime),
+              effectsB,
               getAnimatedColorGrading(clipB, time - clipB.startTime),
               width,
               height,
+              {
+                clip: clipB,
+                media: mediaB,
+                localTime: posterizedClipTime(effectsB, time - clipB.startTime),
+                decodeWidth: width,
+                decodeHeight: height,
+              },
             )
           : bitmapB;
 
@@ -2862,13 +2928,17 @@ export class VideoEngine {
   private createClipRenderInfo(clip: Clip, time: number): VideoClipRenderInfo {
     const clipLocalTime = time - clip.startTime;
 
+    const animatedTransform = this.getAnimatedTransform(clip, clipLocalTime);
+    const animatedEffects = this.getAnimatedEffects(clip, clipLocalTime);
+
+    // Posterize Time holds the frame: the source is read at the start of the posterized frame, not at `time`.
     const speedEngine = getSpeedEngine();
     const sourceTime =
       clip.inPoint +
-      speedEngine.getSourceTimeAtPlaybackTime(clip.id, clipLocalTime);
-
-    const animatedTransform = this.getAnimatedTransform(clip, clipLocalTime);
-    const animatedEffects = this.getAnimatedEffects(clip, clipLocalTime);
+      speedEngine.getSourceTimeAtPlaybackTime(
+        clip.id,
+        posterizedClipTime(animatedEffects, clipLocalTime),
+      );
 
     return {
       clipId: clip.id,
@@ -2926,6 +2996,7 @@ export class VideoEngine {
     colorGrading: ClipColorGrading | undefined,
     width: number,
     height: number,
+    temporal?: TemporalClipContext,
   ): Promise<ImageBitmap> {
     image = await this.applyClipInputTransform(clipId, image, sourceImage);
     let processed = await this.applyClipEffects(
@@ -2935,6 +3006,7 @@ export class VideoEngine {
       effects,
       width,
       height,
+      temporal,
     );
     processed = await this.applyClipColorGrading(
       clipId,
@@ -2954,10 +3026,25 @@ export class VideoEngine {
     effects: Effect[],
     width: number,
     height: number,
+    temporal?: TemporalClipContext,
   ): Promise<ImageBitmap> {
     const enabledEffects = effects.filter((effect) => effect.enabled);
     if (enabledEffects.length === 0) {
       return image;
+    }
+
+    const echo = temporal ? findActiveEcho(enabledEffects) : null;
+    if (echo && temporal) {
+      return this.applyEchoStack(
+        clipId,
+        image,
+        sourceImage,
+        enabledEffects,
+        echo,
+        temporal,
+        width,
+        height,
+      );
     }
 
     try {
@@ -3163,6 +3250,111 @@ export class VideoEngine {
     }
   }
 
+  /** Clip-local time a frame is read at once Posterize Time is applied (the time itself without the effect). */
+  private posterizedLocalTime(clip: Clip, localTime: number): number {
+    if (!clipHasTemporalEffects(clip)) return localTime;
+    return posterizedClipTime(this.getAnimatedEffects(clip, localTime), localTime);
+  }
+
+  /**
+   * Runs an effect stack that contains an active Echo. Effects above the echo
+   * see every frame it combines (each echo frame is decoded at its own
+   * clip-local time and graded with the stack sampled at that time), the echo
+   * combines them, and the effects below it see the combined frame. The set of
+   * source frames is a pure function of the clip-local time and the echo
+   * parameters, so preview, scrubbing and export agree.
+   */
+  private async applyEchoStack(
+    clipId: string,
+    image: ImageBitmap,
+    sourceImage: ImageBitmap,
+    enabledEffects: Effect[],
+    active: NonNullable<ReturnType<typeof findActiveEcho>>,
+    temporal: TemporalClipContext,
+    width: number,
+    height: number,
+  ): Promise<ImageBitmap> {
+    const { clip, localTime } = temporal;
+    const echoEffect = enabledEffects[active.index];
+    const above = enabledEffects.slice(0, active.index).filter((e) => !isTemporalEffectType(e.type));
+    const below = enabledEffects.slice(active.index + 1);
+    const samples = planEcho(localTime, clip.duration, active.echo);
+
+    let current = above.length > 0
+      ? await this.applyClipEffects(clipId, image, sourceImage, above, width, height)
+      : image;
+    if (samples.length > 0) {
+      const echoes: { frame: ImageBitmap; owned: boolean; weight: number }[] = [];
+      try {
+        for (const sample of samples) {
+          const frame = await this.decodeEchoFrame(temporal, echoEffect.id, sample.localTime, width, height);
+          if (!frame) {
+            if (this.exportMode) {
+              throw new Error(`Echo frame at ${sample.localTime.toFixed(3)}s of clip ${clipId} could not be decoded`);
+            }
+            continue;
+          }
+          echoes.push({ ...frame, weight: sample.weight });
+        }
+        const composed = await this.echoCompositor.compose(
+          current,
+          echoes.map((e) => ({ image: e.frame, weight: e.weight })),
+          active.echo,
+        );
+        current = this.adoptProcessedBitmap(current, sourceImage, composed);
+      } finally {
+        for (const echoFrame of echoes) {
+          if (echoFrame.owned) this.closeBitmap(echoFrame.frame);
+        }
+      }
+    }
+    return below.length > 0
+      ? this.applyClipEffects(clipId, current, sourceImage, below, width, height)
+      : current;
+  }
+
+  /**
+   * One echo frame: the clip's source frame at clip-local `localTime`, through
+   * the input transform and the effects stacked above the echo, sampled at
+   * that time. `owned` says whether the caller must close the bitmap (stills
+   * come from the shared image cache and must not be closed).
+   */
+  private async decodeEchoFrame(
+    temporal: TemporalClipContext,
+    echoEffectId: string,
+    localTime: number,
+    width: number,
+    height: number,
+  ): Promise<{ frame: ImageBitmap; owned: boolean } | null> {
+    const { clip, media } = temporal;
+    const decoded = await this.decodeClipBitmap(
+      clip,
+      media,
+      clip.startTime + localTime,
+      temporal.decodeWidth,
+      temporal.decodeHeight,
+      localTime,
+    );
+    if (!decoded) return null;
+    const isVideo = media.type !== "image";
+    let current = decoded;
+    try {
+      current = await this.applyClipInputTransform(clip.id, current, decoded);
+      const stack = this.getAnimatedEffects(clip, localTime).filter((e) => e.enabled);
+      const cut = stack.findIndex((e) => e.id === echoEffectId);
+      const above = (cut < 0 ? stack : stack.slice(0, cut)).filter((e) => !isTemporalEffectType(e.type));
+      if (above.length > 0) {
+        current = await this.applyClipEffects(clip.id, current, decoded, above, width, height);
+      }
+    } catch (error) {
+      if (current !== decoded) this.closeBitmap(current);
+      if (isVideo) this.closeBitmap(decoded);
+      throw error;
+    }
+    if (current !== decoded && isVideo) this.closeBitmap(decoded);
+    return { frame: current, owned: current !== decoded || isVideo };
+  }
+
   private async ensureEffectsEngine(
     width: number,
     height: number,
@@ -3293,7 +3485,7 @@ export class VideoEngine {
   }
 
   private getAnimatedEffects(clip: Clip, localTime: number): Effect[] {
-    return getAnimatedVideoEffects(clip, localTime);
+    return getAnimatedVideoEffects(clip, localTime, this.burnInSource);
   }
 
   private getAnimatedTransform(clip: Clip, localTime: number): Transform {
@@ -4515,6 +4707,7 @@ export class VideoEngine {
     this.motionRenderer = null;
     this.effectsEngine?.dispose();
     this.effectsEngine = null;
+    this.echoCompositor.dispose();
     this.colorGradingEngine?.dispose();
     this.colorGradingEngine = null;
     this.maskEngine = null;

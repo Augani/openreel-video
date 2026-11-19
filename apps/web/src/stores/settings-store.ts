@@ -50,6 +50,7 @@ export const SERVICE_REGISTRY: readonly ServiceConfig[] = [
 export type TtsProvider = "elevenlabs";
 export type LlmProvider = "openai-compatible" | "anthropic-compatible";
 export type AggregatorProvider = "kie-ai" | "freepik";
+import type { ChannelPreset } from "@openreel/core";
 export type SettingsTab = "general" | "ai-editor" | "api-keys" | "mcp";
 
 function isLlmProvider(value: unknown): value is LlmProvider {
@@ -61,6 +62,12 @@ interface SettingsState {
   autoSave: boolean;
   autoSaveInterval: number;
   language: string;
+  /** Preview monitor device (setSinkId); "" = system default. Remembered across sessions. */
+  audioOutputDeviceId: string;
+  /** Last known name of that device, so an unplugged device can still be named. */
+  audioOutputDeviceLabel: string;
+  /** Modify > Audio Channels default for newly imported files with audio. */
+  defaultAudioChannels: ChannelPreset;
 
   // AI/Service preferences
   defaultTtsProvider: TtsProvider;
@@ -94,6 +101,8 @@ interface SettingsState {
   setAutoSave: (enabled: boolean) => void;
   setAutoSaveInterval: (minutes: number) => void;
   setLanguage: (lang: string) => void;
+  setAudioOutputDevice: (deviceId: string, label?: string) => void;
+  setDefaultAudioChannels: (preset: ChannelPreset) => void;
   setDefaultTtsProvider: (provider: TtsProvider) => void;
   setDefaultLlmProvider: (provider: LlmProvider | null) => void;
   setLlmBaseUrl: (url: string) => void;
@@ -123,6 +132,9 @@ export const useSettingsStore = create<SettingsState>()(
         autoSave: true,
         autoSaveInterval: 5,
         language: "en",
+        audioOutputDeviceId: "",
+        audioOutputDeviceLabel: "",
+        defaultAudioChannels: "file" as ChannelPreset,
 
         defaultTtsProvider: "elevenlabs" as TtsProvider,
         defaultLlmProvider: null,
@@ -150,6 +162,12 @@ export const useSettingsStore = create<SettingsState>()(
           set({ autoSaveInterval: Math.max(1, Math.min(30, minutes)) }),
 
         setLanguage: (lang: string) => set({ language: lang }),
+
+        setAudioOutputDevice: (deviceId: string, label = "") => {
+          const id = deviceId === "default" ? "" : deviceId;
+          set({ audioOutputDeviceId: id, audioOutputDeviceLabel: id ? label : "" });
+        },
+        setDefaultAudioChannels: (preset: ChannelPreset) => set({ defaultAudioChannels: preset }),
 
         setDefaultTtsProvider: (provider: TtsProvider) =>
           set({ defaultTtsProvider: provider }),
@@ -268,6 +286,9 @@ export const useSettingsStore = create<SettingsState>()(
           autoSave: state.autoSave,
           autoSaveInterval: state.autoSaveInterval,
           language: state.language,
+          audioOutputDeviceId: state.audioOutputDeviceId,
+          audioOutputDeviceLabel: state.audioOutputDeviceLabel,
+          defaultAudioChannels: state.defaultAudioChannels,
           defaultTtsProvider: state.defaultTtsProvider,
           defaultLlmProvider: state.defaultLlmProvider,
           llmBaseUrl: state.llmBaseUrl,

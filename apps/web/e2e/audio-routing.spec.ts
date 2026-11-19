@@ -247,55 +247,107 @@ test.describe("Audio buses, sends and submix routing", () => {
           return analyser;
         };
         const w = window as unknown as { __taps: Record<string, AnalyserNode> };
-        w.__taps = { master: tap(graph.getMasterGain()), bus: tap(graph.getBusOutputGain(musBus)) };
+        w.__ctx = ctx; w.__taps = { master: tap(graph.getMasterGain()), bus: tap(graph.getBusOutputGain(musBus)) };
       },
       [mus[0]] as const,
     );
-    const measure = (which: "master" | "bus", ms: number) =>
+    // Samples the named taps over the same window and returns each one's 75th-percentile RMS. Measuring the
+    // master and the Music bus in one window halves the time spent inside the 4 s tones, which matters on
+    // a starved machine where the page can stall for seconds between phases.
+    const measureAll = <K extends "master" | "bus">(names: readonly K[], ms: number) =>
       page.evaluate(
-        async ([name, duration]) => {
-          const analyser = (window as unknown as { __taps: Record<string, AnalyserNode> }).__taps[name];
-          const buf = new Float32Array(analyser.fftSize);
-          const frames: number[] = [];
+        async ([taps, duration]) => {
+          const all = (window as unknown as { __taps: Record<string, AnalyserNode> }).__taps;
+          const buf = new Float32Array(2048);
+          const frames: Record<string, number[]> = Object.fromEntries((taps as string[]).map((n) => [n, []]));
           const t0 = performance.now();
           while (performance.now() - t0 < (duration as number)) {
-            analyser.getFloatTimeDomainData(buf);
-            let s = 0;
-            for (const v of buf) s += v * v;
-            frames.push(Math.sqrt(s / buf.length));
+            for (const name of taps as string[]) {
+              all[name].getFloatTimeDomainData(buf);
+              let s = 0;
+              for (const v of buf) s += v * v;
+              frames[name].push(Math.sqrt(s / buf.length));
+            }
             await new Promise((r) => setTimeout(r, 30));
           }
-          frames.sort((a, b) => a - b);
           // The tones are steady, so a high-ish percentile equals the median on a quiet machine. On a
           // starved one the page can stall past the 4 s tone's end and the tail frames are silence;
-          // the 75th percentile still reads the live tone (a flaky run under a load average of ~50
-          // measured the master 2.7 dB low through exactly that).
-          return frames[Math.floor(frames.length * 0.75)];
+          // the 75th percentile still reads the live tone.
+          return Object.fromEntries(
+            Object.entries(frames).map(([name, list]) => {
+              list.sort((a, b) => a - b);
+              return [name, list[Math.floor(list.length * 0.75)]];
+            }),
+          );
         },
-        [which, ms] as const,
-      );
-    const play = async () => {
+        [names, ms] as const,
+      ) as Promise<Record<K, number>>;
+    const measure = async (which: "master" | "bus", ms: number) => (await measureAll([which], ms))[which];
+    const play = async (opts: { musicBus?: boolean } = { musicBus: true }) => {
       await page.evaluate(() => {
         const t = E().timeline.getState();
         t.pause();
         t.seekTo(0.2);
       });
       await settle(page, 300);
-      await page.evaluate(() => E().timeline.getState().play());
-      await settle(page, 700);
+      await page.evaluate(() => {
+        // The tones end 3.8 s after play starts (they are 4 s long and playback starts at 0.2 s); remember a
+        // conservative end on the audio clock so a measurement can tell it ran off the end of the tone.
+        const w = window as unknown as { __ctx: AudioContext; __toneEnd: number };
+        w.__toneEnd = w.__ctx.currentTime + 3.7;
+        E().timeline.getState().play();
+      });
+      // Wait for the taps to carry signal rather than assuming a fixed start latency: the first play
+      // builds the live graph and schedules the clips on the main thread, which a starved CPU (software
+      // GPU, shared CI runner) can delay past a second. The master always carries the Dialogue track, so
+      // it is audible in every phase; while the Music bus tap is still wired in (before the send edit rebuilds
+      // the bus nodes) it must carry the Music clip too, otherwise a measurement could span the moment Music joins in.
+      await page.evaluate(
+        async (needBus) => {
+          const taps = (window as unknown as { __taps: Record<string, AnalyserNode> }).__taps;
+          const buf = new Float32Array(2048);
+          const peakOf = (analyser: AnalyserNode) => {
+            analyser.getFloatTimeDomainData(buf);
+            let peak = 0;
+            for (const v of buf) peak = Math.max(peak, Math.abs(v));
+            return peak;
+          };
+          const t0 = performance.now();
+          while (performance.now() - t0 < 20_000) {
+            if (peakOf(taps.master) > 0.01 && (!needBus || peakOf(taps.bus) > 0.004)) return;
+            await new Promise((r) => setTimeout(r, 20));
+          }
+        },
+        opts.musicBus === true,
+      );
+      await settle(page, 250); // the gate already proved signal; keep the measured window inside the 4 s tones
     };
 
-    await play();
-    const unity = await measure("master", 900);
-    const busUnity = await measure("bus", 600);
+    // Plays and measures one phase. A starved machine can stall the page for seconds, which pushes the
+    // measurement window past the end of the 4 s tones and reads silence; such a window says nothing about
+    // routing, so it is discarded and the phase is replayed (the assertions on the values never relax).
+    const phase = async <K extends "master" | "bus">(names: readonly K[], opts?: { musicBus?: boolean }) => {
+      let result: Record<K, number> | undefined;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        await play(opts);
+        result = await measureAll(names, 800);
+        const inTone = await page.evaluate(() => {
+          const w = window as unknown as { __ctx: AudioContext; __toneEnd: number };
+          return w.__ctx.currentTime < w.__toneEnd;
+        });
+        if (inTone) break;
+      }
+      return result as Record<K, number>;
+    };
+
+    const { master: unity, bus: busUnity } = await phase(["master", "bus"]);
     expect(unity, "both tones are audible live").toBeGreaterThan(0.01);
     expect(busUnity, "the Music bus carries the music track").toBeGreaterThan(0.004);
 
     // Edits apply to the playing graph: -12 dB on the Music bus.
     await page.evaluate((id) => E().project.getState().setAudioRack(id, { effects: [], volume: 0.25 }), mus[0]);
-    await play(); // the tones are 4 s long: restart so every phase measures live audio
-    const lowered = await measure("master", 900);
-    const busLowered = await measure("bus", 600);
+    // The tones are 4 s long: every phase restarts them so it measures live audio.
+    const { master: lowered, bus: busLowered } = await phase(["master", "bus"]);
     expect(db(busLowered / busUnity)).toBeGreaterThan(-12.8);
     expect(db(busLowered / busUnity)).toBeLessThan(-11.2);
     expect(db(lowered / unity)).toBeCloseTo(db((1 + 0.25) / 2), 0);
@@ -309,14 +361,14 @@ test.describe("Audio buses, sends and submix routing", () => {
       },
       [ids.dialogue, fx[0]] as const,
     );
-    await play();
-    const withSend = await measure("master", 900);
+    // The routing edit rebuilds the live bus nodes, so the Music bus tap made above no longer carries signal.
+    const { master: withSend } = await phase(["master"], { musicBus: false });
     expect(db(withSend / lowered)).toBeGreaterThan(3.2); // dialogue doubles: (2 + 0.25) / (1 + 0.25) = 5.1 dB
     expect(db(withSend / lowered)).toBeLessThan(6.5);
 
     // Muting the Music bus mid-playback silences its bus meter and drops the master to dialogue x2.
     await page.getByTestId(`bus-mute-${mus[0]}`).click();
-    await play();
+    await play({ musicBus: false });
     expect(await measure("bus", 500)).toBeLessThan(1e-4);
     await page.evaluate(() => E().timeline.getState().pause());
   });

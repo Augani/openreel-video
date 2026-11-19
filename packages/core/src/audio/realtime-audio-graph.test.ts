@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MasterTimelineClock } from "../playback/master-timeline-clock";
-import { RealtimeAudioGraph, type AudioClipSchedule } from "./realtime-audio-graph";
+import { RealtimeAudioGraph, SCHEDULE_START_LOOKAHEAD_SECONDS as LEAD, type AudioClipSchedule } from "./realtime-audio-graph";
 
 function createAudioFixture() {
   const sources: Array<{
@@ -73,7 +73,7 @@ describe("RealtimeAudioGraph seek scheduling", () => {
     expect(sources[0].stop).toHaveBeenCalledOnce();
     expect(provider).toHaveBeenLastCalledWith(2);
     expect(sources).toHaveLength(2);
-    expect(sources[1].start).toHaveBeenCalledWith(0, 2, 8);
+    expect(sources[1].start).toHaveBeenCalledWith(LEAD, expect.closeTo(2 + LEAD, 9), expect.closeTo(8 - LEAD, 9));
     graph.dispose();
   });
 
@@ -90,7 +90,7 @@ describe("RealtimeAudioGraph seek scheduling", () => {
     state.position = 2.5;
     graph.seekTo(2.5);
     expect(sources).toHaveLength(2);
-    expect(sources[1].start).toHaveBeenCalledWith(0, 0.5, 7.5);
+    expect(sources[1].start).toHaveBeenCalledWith(LEAD, expect.closeTo(0.5 + LEAD, 9), expect.closeTo(7.5 - LEAD, 9));
     state.position = 2.6;
     vi.advanceTimersByTime(100);
     expect(sources).toHaveLength(2);
@@ -114,7 +114,7 @@ describe("RealtimeAudioGraph seek scheduling", () => {
     state.playing = true;
     graph.startScheduler(provider);
     expect(sources).toHaveLength(2);
-    expect(sources[1].start).toHaveBeenCalledWith(0, 4, 6);
+    expect(sources[1].start).toHaveBeenCalledWith(LEAD, expect.closeTo(4 + LEAD, 9), expect.closeTo(6 - LEAD, 9));
     graph.dispose();
   });
 

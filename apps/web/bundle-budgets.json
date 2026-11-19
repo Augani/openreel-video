@@ -3,8 +3,8 @@
   "budgets": {
     "entry": {
       "rawKb": 640,
-      "gzipKb": 190,
-      "note": "startup entry chunk: everything the first paint compiles and evaluates. w9: video/motion/audio engines, action handlers, export engine and schema normalizers are behind services/lazy-engines (1988 KB / 568.8 KB gzip before; 608.5 / 179.0 after)"
+      "gzipKb": 180,
+      "note": "startup entry chunk: everything the first paint compiles and evaluates. w9: video/motion/audio engines, action handlers, export engine and schema normalizers are behind services/lazy-engines (1988 KB / 568.8 KB gzip before; 608.5 / 179.0 after). Entry diet: the desktop-only native ffmpeg backend, native decode, path hydration and smart-render load lazily inside main.tsx's isDesktop branch, and the in-thread RAW developer (dng, develop, tiff, color) loads on first use (621.0 / 190.0 before; 577.3 / 174.7 after)"
     },
     "initialJs": {
       "rawKb": 1230,

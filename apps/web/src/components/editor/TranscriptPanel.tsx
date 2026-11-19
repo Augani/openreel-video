@@ -5,7 +5,12 @@ import {
   DEFAULT_FILLER_PHRASES,
   buildTranscript,
   cutDuration,
+  SPEAKER_PALETTE,
+  defaultSpeakerName,
   findFillerWords,
+  findSpeakerProfile,
+  type SpeakerPosition,
+  type SpeakerProfile,
   findPauses,
   listCaptionTracks,
   listSpeakers,
@@ -27,6 +32,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Switch,
 } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
@@ -36,7 +42,12 @@ import {
   exportCaptionBytes,
   importCaptionBytes,
   renameTranscriptSpeaker,
+  setCaptionSpeaker,
+  setCaptionTrackInPicture,
+  updateSpeakerProfile,
 } from "../../services/transcript-commands";
+import { diarizeCaptions } from "../../services/diarization";
+import { CaptionTranslateSection } from "./CaptionTranslateSection";
 import { formatFrameTimecode } from "../../utils/frame-timecode";
 
 /** Programme start timecode written into / read out of broadcast caption files. */
@@ -54,8 +65,16 @@ function broadcastFrameRate(format: CaptionExportFormat | "import", fps: number)
   return [24, 25, 29.97, 30].find(near);
 }
 
+/** Parse errors of an import as panel notes (one per skipped cue / block). */
+function skippedNotes(errors: readonly string[] | undefined): CaptionFormatIssue[] {
+  return (errors ?? []).slice(0, 50).map((message) => ({ severity: "warning" as const, code: "import-skipped", message: `Skipped: ${message}` }));
+}
+
 /** Radix Select items cannot have an empty value; the default caption track ("") uses this. */
 const DEFAULT_TRACK_VALUE = "__default__";
+
+/** Used only until a speaker has a stored profile (same order as the core palette). */
+const SPEAKER_FALLBACK = SPEAKER_PALETTE;
 
 const seconds = (value: number) => `${(Math.round(value * 100) / 100).toFixed(2)}s`;
 
@@ -89,7 +108,7 @@ const Word = memo(function Word({ word, active, selected, matched, removing }: W
   );
 });
 
-function SpeakerLabel({ name, onRename }: { name?: string; onRename: (from: string, to: string) => void }) {
+function SpeakerLabel({ name, color, onRename }: { name?: string; color?: string; onRename: (from: string, to: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(name ?? "");
   useEffect(() => setDraft(name ?? ""), [name]);
@@ -122,14 +141,101 @@ function SpeakerLabel({ name, onRename }: { name?: string; onRename: (from: stri
       title="Rename speaker"
       aria-label={`Speaker ${name}. Click to rename`}
       onClick={() => setEditing(true)}
-      className="select-none rounded px-1 text-[11px] font-semibold text-accent hover:bg-bg-3"
+      className="flex select-none items-center gap-1 rounded px-1 text-[11px] font-semibold text-accent hover:bg-bg-3"
+      style={color ? { color } : undefined}
     >
+      {color && <span aria-hidden className="size-2 rounded-full" style={{ backgroundColor: color }} />}
       {name}
     </button>
   );
 }
 
-type Tool = "fillers" | "pauses" | null;
+const NEW_SPEAKER = "__new__";
+const NO_SPEAKER = "__none__";
+
+function SpeakerReassign({
+  current,
+  names,
+  onAssign,
+}: {
+  current?: string;
+  names: string[];
+  onAssign: (speaker: string) => void;
+}) {
+  return (
+    <select
+      aria-label="Reassign speaker for this passage"
+      title="Reassign this passage to another speaker"
+      value={current ?? NO_SPEAKER}
+      onChange={(e) => {
+        const v = e.currentTarget.value;
+        if (v === NEW_SPEAKER) {
+          let n = names.length + 1;
+          while (names.includes(defaultSpeakerName(n))) n++;
+          onAssign(defaultSpeakerName(n));
+        } else onAssign(v === NO_SPEAKER ? "" : v);
+      }}
+      onKeyDown={(e) => e.stopPropagation()}
+      className="h-5 max-w-[88px] rounded border border-border bg-bg-2 px-0.5 text-[10px] text-fg-3 hover:text-fg"
+    >
+      <option value={NO_SPEAKER}>No speaker</option>
+      {names.map((n) => (
+        <option key={n} value={n}>
+          {n}
+        </option>
+      ))}
+      <option value={NEW_SPEAKER}>New speaker</option>
+    </select>
+  );
+}
+
+const POSITION_AUTO = "auto";
+
+function SpeakerRow({
+  profile,
+  onRename,
+}: {
+  profile: SpeakerProfile;
+  onRename: (from: string, to: string) => void;
+}) {
+  const report = (outcome: { success: boolean; message?: string }) => {
+    if (!outcome.success) toast.error("Speaker update failed", outcome.message);
+  };
+  return (
+    <li className="flex items-center gap-1.5">
+      <input
+        type="color"
+        aria-label={`Colour for ${profile.name}`}
+        title="Speaker and caption colour"
+        value={/^#[0-9a-f]{6}$/i.test(profile.color) ? profile.color : "#ffffff"}
+        onChange={(e) => void updateSpeakerProfile(profile.name, { color: e.currentTarget.value }).then(report)}
+        className="size-5 shrink-0 cursor-pointer rounded border border-border bg-transparent p-0"
+      />
+      <span className="min-w-0 flex-1">
+        <SpeakerLabel name={profile.name} onRename={onRename} />
+      </span>
+      <select
+        aria-label={`Caption position for ${profile.name}`}
+        title="Where this speaker's captions sit"
+        value={profile.position ?? POSITION_AUTO}
+        onChange={(e) => {
+          const v = e.currentTarget.value;
+          void updateSpeakerProfile(profile.name, {
+            position: v === POSITION_AUTO ? undefined : (v as SpeakerPosition),
+          }).then(report);
+        }}
+        className="h-6 rounded border border-border bg-bg-2 px-1 text-[10px] text-fg-2"
+      >
+        <option value={POSITION_AUTO}>Position: as is</option>
+        <option value="top">Top</option>
+        <option value="center">Centre</option>
+        <option value="bottom">Bottom</option>
+      </select>
+    </li>
+  );
+}
+
+type Tool = "fillers" | "pauses" | "translate" | null;
 
 export function TranscriptPanel() {
   const subtitles = useProjectStore((s) => s.project.timeline.subtitles);
@@ -140,11 +246,49 @@ export function TranscriptPanel() {
   const tracks = useMemo(() => listCaptionTracks(subtitles), [subtitles]);
   const [trackId, setTrackId] = useState<string>("");
   const activeTrack = tracks.some((t) => t.id === trackId) ? trackId : (tracks[0]?.id ?? "");
+  const trackHidden = useMemo(
+    () => !subtitles.some((c) => (c.captionTrackId ?? "") === activeTrack && !c.hidden),
+    [subtitles, activeTrack],
+  );
   const transcript = useMemo(
     () => buildTranscript(subtitles, tracks.length > 1 ? { captionTrackId: activeTrack } : {}),
     [subtitles, tracks.length, activeTrack],
   );
   const speakers = useMemo(() => listSpeakers(subtitles), [subtitles]);
+  const storedProfiles = useProjectStore((s) => s.project.speakers);
+  const profiles = useMemo<SpeakerProfile[]>(
+    () => speakers.map((name, i) => findSpeakerProfile(storedProfiles, name) ?? { name, color: SPEAKER_FALLBACK[i % SPEAKER_FALLBACK.length] }),
+    [speakers, storedProfiles],
+  );
+  const [detect, setDetect] = useState<{ progress: number; message: string } | null>(null);
+  const [speakerCount, setSpeakerCount] = useState("auto");
+  const [speakersOpen, setSpeakersOpen] = useState(false);
+  const detectAbort = useRef<AbortController | null>(null);
+  useEffect(() => () => detectAbort.current?.abort(), []);
+  const detectSpeakers = async () => {
+    const controller = new AbortController();
+    detectAbort.current = controller;
+    setDetect({ progress: 0, message: "Reading audio…" });
+    try {
+      const outcome = await diarizeCaptions({
+        speakerCount: speakerCount === "auto" ? undefined : Number(speakerCount),
+        signal: controller.signal,
+        onProgress: (progress, message) => setDetect({ progress, message }),
+      });
+      if (outcome.success)
+        toast.success(
+          `${outcome.speakers} speaker${outcome.speakers === 1 ? "" : "s"} found`,
+          "Voice matching is approximate, so check the labels. Rename, recolour or reassign a passage below. Undo restores the previous labels.",
+        );
+      else toast.error("Speaker detection failed", outcome.message);
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError"))
+        toast.error("Speaker detection failed", error instanceof Error ? error.message : undefined);
+    } finally {
+      detectAbort.current = null;
+      setDetect(null);
+    }
+  };
   const { words, sentences } = transcript;
 
   const [query, setQuery] = useState("");
@@ -333,12 +477,15 @@ export function TranscriptPanel() {
     });
     if (outcome.success) {
       if (lang) setTrackId(lang);
-      setExportNotes(outcome.issues ?? []);
+      setExportNotes([...skippedNotes(outcome.errors), ...(outcome.issues ?? [])]);
       toast.success(
         `Imported ${outcome.added} caption${outcome.added === 1 ? "" : "s"}`,
-        outcome.errors?.length ? `${outcome.errors.length} skipped` : undefined,
+        outcome.errors?.length ? `${outcome.errors.length} skipped, see the notes in the Transcript panel` : undefined,
       );
-    } else toast.error("Import failed", outcome.message);
+    } else {
+      setExportNotes([...skippedNotes(outcome.errors), ...(outcome.issues ?? [])]);
+      toast.error(`Could not import ${file.name}`, outcome.message);
+    }
   };
 
   const broadcast = exportFormat === "scc" || exportFormat === "stl";
@@ -369,6 +516,12 @@ export function TranscriptPanel() {
   const onRename = async (from: string, to: string) => {
     const outcome = await renameTranscriptSpeaker(from, to);
     if (!outcome.success) toast.error("Rename failed", outcome.message);
+  };
+
+  const onReassign = async (wordStart: number, wordEnd: number, speaker: string) => {
+    const ids = [...new Set(words.slice(wordStart, wordEnd).map((w) => w.subtitleId))];
+    const outcome = await setCaptionSpeaker(ids, speaker);
+    if (!outcome.success) toast.error("Reassign failed", outcome.message);
   };
 
   const fillerTotal = cutDuration(chosenFillers);
@@ -442,6 +595,54 @@ export function TranscriptPanel() {
           >
             Remove pauses
           </Button>
+          {detect ? (
+            <Button
+              type="button"
+              variant="ghost"
+              className={toolbarButton}
+              onClick={() => detectAbort.current?.abort()}
+              aria-label="Cancel speaker detection"
+            >
+              {detect.message} {Math.round(detect.progress * 100)}% · Cancel
+            </Button>
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                className={toolbarButton}
+                disabled={!words.length}
+                onClick={() => void detectSpeakers()}
+                title="Label who is speaking, on this device. Approximate: best with clearly different voices and one person talking at a time."
+              >
+                Detect speakers
+              </Button>
+              <select
+                aria-label="Number of speakers"
+                value={speakerCount}
+                onChange={(e) => setSpeakerCount(e.currentTarget.value)}
+                onKeyDown={(e) => e.stopPropagation()}
+                className="h-7 rounded border border-border bg-bg-2 px-1 text-[11px] text-fg-2"
+              >
+                <option value="auto">Auto</option>
+                {[1, 2, 3, 4, 5, 6].map((n) => (
+                  <option key={n} value={n}>
+                    {n} speaker{n === 1 ? "" : "s"}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            className={toolbarButton}
+            aria-pressed={tool === "translate"}
+            disabled={!subtitles.length}
+            onClick={() => setTool(tool === "translate" ? null : "translate")}
+          >
+            Translate
+          </Button>
           <Button
             type="button"
             variant="ghost"
@@ -453,6 +654,18 @@ export function TranscriptPanel() {
             Delete{selectedCount ? ` ${selectedCount} word${selectedCount === 1 ? "" : "s"}` : ""}
           </Button>
         </div>
+
+        {tool === "translate" && (
+          <CaptionTranslateSection
+            trackId={activeTrack}
+            trackLanguage={tracks.find((t) => t.id === activeTrack)?.language}
+            cueCount={tracks.find((t) => t.id === activeTrack)?.cueCount ?? 0}
+            onTranslated={(id) => {
+              setTrackId(id);
+              setTool(null);
+            }}
+          />
+        )}
 
         {tool === "fillers" && (
           <section
@@ -553,9 +766,18 @@ export function TranscriptPanel() {
             const speakerChanged = sentence.speaker !== previous?.speaker;
             return (
               <p key={sentence.index} data-sentence-index={sentence.index} className="m-0">
-                {(speakerChanged || i === 0) && sentence.speaker && (
+                {(speakerChanged || i === 0) && (sentence.speaker || speakers.length > 0) && (
                   <span className="mb-0.5 flex items-center gap-1.5">
-                    <SpeakerLabel name={sentence.speaker} onRename={onRename} />
+                    <SpeakerLabel
+                      name={sentence.speaker}
+                      color={profiles.find((p) => p.name === sentence.speaker)?.color}
+                      onRename={onRename}
+                    />
+                    <SpeakerReassign
+                      current={sentence.speaker}
+                      names={speakers}
+                      onAssign={(name) => void onReassign(sentence.wordStart, sentence.wordEnd, name)}
+                    />
                     <span className="font-mono text-[10px] text-fg-3">
                       {formatFrameTimecode(sentence.start, frameRate)}
                     </span>
@@ -579,15 +801,62 @@ export function TranscriptPanel() {
       </ScrollArea>
 
       <div className="shrink-0 space-y-1.5 border-t border-border px-2.5 py-2">
-        {speakers.length > 0 && (
-          <p className="text-[10px] text-fg-3">
-            {speakers.length} speaker{speakers.length === 1 ? "" : "s"}: click a name to rename it everywhere.
+        {profiles.length > 0 && (
+          <section aria-label="Speakers">
+            <button
+              type="button"
+              aria-expanded={speakersOpen}
+              aria-controls="transcript-speaker-list"
+              title="Colour and position carry into the captions"
+              onClick={() => setSpeakersOpen((open) => !open)}
+              className="flex w-full items-center gap-2 rounded px-0.5 py-0.5 text-left hover:bg-bg-3"
+            >
+              <span className="shrink-0 text-[11px] font-semibold text-fg-2">Speakers</span>
+              <span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+                {profiles.map((profile) => (
+                  <span key={profile.name} className="flex min-w-0 items-center gap-1 text-[10px] text-fg-3">
+                    <span aria-hidden className="size-2 shrink-0 rounded-full" style={{ backgroundColor: profile.color }} />
+                    <span className="truncate">{profile.name}</span>
+                  </span>
+                ))}
+              </span>
+              <span aria-hidden className="shrink-0 text-[10px] text-fg-3">
+                {speakersOpen ? "Hide" : "Edit"}
+              </span>
+            </button>
+            {speakersOpen && (
+              <ul id="transcript-speaker-list" className="m-0 mt-1 max-h-24 list-none space-y-1 overflow-y-auto p-0 pr-1">
+                {profiles.map((profile) => (
+                  <SpeakerRow key={profile.name} profile={profile} onRename={onRename} />
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
+        {profiles.length > 0 && (
+          <p className="text-[10px] text-fg-3" data-testid="speaker-limits-note">
+            Speakers are matched by voice on this device. It is approximate: similar voices can merge, one voice can
+            split, and overlapping speech is not separated. Check the labels and fix any passage with its menu.
           </p>
         )}
         {estimated && (
           <p className="text-[10px] text-fg-3">
             Some captions have no word timings; their word times are estimated from the caption.
           </p>
+        )}
+        {tracks.length > 1 && (
+          <label className="flex items-center justify-between gap-2 text-[11px] text-fg-2">
+            <span>Show this track in the picture</span>
+            <Switch
+              aria-label="Show this caption track in the picture"
+              checked={!trackHidden}
+              onCheckedChange={(visible) => {
+                void setCaptionTrackInPicture(activeTrack, visible).then((o) => {
+                  if (!o.success) toast.error("Could not change the picture", o.message);
+                });
+              }}
+            />
+          </label>
         )}
         {tracks.length > 1 && (
           <Select value={activeTrack || DEFAULT_TRACK_VALUE} onValueChange={(v) => setTrackId(v === DEFAULT_TRACK_VALUE ? "" : v)}>
@@ -615,7 +884,7 @@ export function TranscriptPanel() {
           <input
             ref={fileRef}
             type="file"
-            accept=".srt,.vtt,.json,.txt,.scc,.stl"
+            accept=".srt,.vtt,.sbv,.ttml,.dfxp,.xml,.json,.txt,.scc,.stl"
             data-testid="transcript-import-input"
             className="hidden"
             onChange={(e) => {

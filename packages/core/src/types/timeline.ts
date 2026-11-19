@@ -146,6 +146,11 @@ export interface Track {
   readonly hidden: boolean;
   readonly muted: boolean;
   readonly solo: boolean;
+  /**
+   * Solo Safe: while other tracks are soloed this track keeps playing (live and in the export
+   * mixdown) instead of being silenced. Mute still wins. Absent = false.
+   */
+  readonly soloSafe?: boolean;
   /** Tracks with the same id move and trim their related items together. */
   readonly groupId?: string;
   /** Premiere-style per-track effect rack (Audio Track Mixer). Absent on old projects. */
@@ -332,6 +337,8 @@ export interface Clip {
   readonly volume: number;
   /** 5.1 sequences: this clip's surround position; absent = the track's. */
   readonly surroundPan?: import("../audio/surround").SurroundPan;
+  /** Modify > Audio Channels: which source channels the clip plays. Absent = the file's import preset (default: the file as it is). */
+  readonly channelMap?: import("../audio/channel-map").ClipChannelMap;
   readonly fade?: ClipFade;
   readonly automation?: {
     volume?: AutomationPoint[];
@@ -365,6 +372,11 @@ export interface Clip {
   readonly audioTrackIndex?: number;
   /** Timeline label colour; when unset the clip shows its media's label. */
   readonly label?: import("./project").MediaLabelId | null;
+  /**
+   * Clip markers (Premiere): `time` is in the clip's SOURCE media seconds, so they follow the
+   * footage through trims, speed changes and reverse. See `editing/clip-markers.ts`.
+   */
+  readonly markers?: Marker[];
   readonly metadata?: ClipMetadata;
 }
 
@@ -414,6 +426,16 @@ export interface Keyframe {
     readonly out: { readonly x: number; readonly y: number };
   };
   readonly roving?: boolean;
+  /**
+   * Temporal interpolation type of this key's INCOMING side (the handle ending the previous
+   * segment). "auto-bezier" keeps that handle derived from neighbours; "continuous-bezier" tangent-links
+   * it with the outgoing side. Other types are fully described by the segments' easing + handles.
+   * Absent on legacy keyframes. Handles are always baked into bezierHandles, so every engine
+   * evaluates identically.
+   */
+  readonly interpolationIn?: "auto-bezier" | "continuous-bezier";
+  /** Temporal interpolation type of this key's OUTGOING side (the handle leaving it); see interpolationIn. */
+  readonly interpolationOut?: "auto-bezier" | "continuous-bezier";
 }
 
 export const EASING_TYPES = [
@@ -544,6 +566,16 @@ export interface Subtitle {
   readonly animationStyle?: CaptionAnimationStyle;
   /** Who is speaking (shown in the transcript, exported as a WebVTT voice tag). */
   readonly speaker?: string;
+  /**
+   * What the cue looked like before a speaker profile's colour/position was
+   * baked onto it, so clearing or changing the speaker can put it back.
+   */
+  readonly speakerBase?: {
+    readonly hadStyle: boolean;
+    readonly color?: string;
+    readonly position?: SubtitleStyle["position"];
+    readonly cueSettings?: CueSettings;
+  };
   /** BCP-47 language of the text. Captions without one belong to the default track. */
   readonly language?: string;
   /**
@@ -551,6 +583,12 @@ export interface Subtitle {
    * Cues without an id are on the default track.
    */
   readonly captionTrackId?: string;
+  /**
+   * Keep this cue out of the picture (Preview and burned-in export). The cue stays in the
+   * transcript and in sidecar / embedded caption files. Set per track so two language
+   * versions never draw on top of each other.
+   */
+  readonly hidden?: boolean;
   /** WebVTT cue settings (line / position / size / align). Overrides `style.position` when set. */
   readonly cueSettings?: CueSettings;
 }

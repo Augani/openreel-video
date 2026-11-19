@@ -5,6 +5,7 @@ import {
   insertFromSource,
   overwriteFromSource,
 } from "./source-monitor-commands";
+import { addSourceMarker } from "./clip-marker-commands";
 import { runWithToast } from "./premiere-edit-commands";
 
 /**
@@ -116,6 +117,8 @@ export function handleSourceMonitorAction(action: string): boolean {
     case "playback.goToEnd": seekSource(Number.POSITIVE_INFINITY); return true;
     case "playback.markLoopStart": markSource("in"); return true;
     case "playback.markLoopEnd": markSource("out"); return true;
+    case "tools.addMarker":
+    case "tools.addClipMarker": void addSourceMarker(); return true;
     case "editing.insert": runWithToast("Insert", () => insertFromSource()); return true;
     case "editing.overwrite": runWithToast("Overwrite", () => overwriteFromSource()); return true;
     default: return false;

@@ -7,3 +7,4 @@ export * from "./settings";
 export * from "./develop";
 export * from "./formats";
 export * from "./raw-media";
+export * from "./inspect";

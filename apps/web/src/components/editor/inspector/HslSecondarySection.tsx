@@ -166,7 +166,7 @@ const MiniWheel: React.FC<{
   );
 };
 
-const KeyButton: React.FC<{
+export const KeyButton: React.FC<{
   clipId: string;
   effectId: string;
   paramKey: string;

@@ -24,7 +24,7 @@ const ALGORITHMS = [
   { id: "feature", name: "Feature Match", description: "Follow distinct visual corners" },
 ] as const;
 
-function RegionInput({ label, value, onChange, min, max, disabled }: {
+export function RegionInput({ label, value, onChange, min, max, disabled }: {
   label: string; value: number; onChange: (value: number) => void; min?: number; max?: number; disabled?: boolean;
 }) {
   const id = useId();

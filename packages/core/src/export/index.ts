@@ -1,6 +1,7 @@
 export * from "./types";
 export * from "./color-output";
 export * from "./broadcast";
+export * from "./encoder-choice";
 export * from "./export-engine";
 export * from "./loudness-export";
 export * from "./export-queue";

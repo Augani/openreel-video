@@ -4,7 +4,8 @@ import { volumeToDb, formatDb, formatPan } from "./types";
 import { Button, Slider, cn } from "@openreel/ui";
 import { Film, Music } from "@/icons/lucide-compat";
 
-import { resolveSurroundPan, type AudioBus } from "@openreel/core";
+import { isTrackSoloSuppressed, resolveSurroundPan, type AudioBus } from "@openreel/core";
+import { useProjectStore } from "../../stores/project-store";
 import { SurroundPanner } from "./SurroundPanner";
 import { setSurroundPan } from "../../services/surround-audio";
 import { MixerLevelMeters } from "./MixerLevelMeters";
@@ -147,13 +148,15 @@ export const ChannelStrip = memo(
       onSoloToggle(channel.trackId);
     }, [channel.trackId, onSoloToggle]);
 
-    // Determine if this channel is effectively muted
-    // (either explicitly muted, or not soloed when other tracks are soloed)
-    const isEffectivelyMuted = useMemo(() => {
-      if (channel.muted) return true;
-      if (hasSoloedTracks && !channel.solo) return true;
-      return false;
-    }, [channel.muted, channel.solo, hasSoloedTracks]);
+    const handleSoloSafeClick = useCallback(() => {
+      void useProjectStore.getState().setTrackSoloSafe(channel.trackId, channel.soloSafe !== true);
+    }, [channel.trackId, channel.soloSafe]);
+
+    // Effectively muted: explicitly muted, or silenced by another track's solo (solo-safe tracks are exempt).
+    const isEffectivelyMuted = useMemo(
+      () => channel.muted || isTrackSoloSuppressed(channel, hasSoloedTracks),
+      [channel.muted, channel.solo, channel.soloSafe, hasSoloedTracks], // eslint-disable-line react-hooks/exhaustive-deps
+    );
 
     // Track type icon
     const TrackTypeIcon = channel.trackType === "audio" ? Music : Film;
@@ -262,6 +265,26 @@ export const ChannelStrip = memo(
           >
             <span className="truncate">{"S"}</span>
           </Button>
+
+          {/* Solo Safe: keeps this track playing while other tracks are soloed */}
+          <Button
+            aria-label={`Solo Safe ${channel.trackName}`}
+            aria-pressed={channel.soloSafe === true}
+            title={channel.soloSafe === true ? "Solo Safe on: this track keeps playing while other tracks are soloed" : "Solo Safe: keep this track playing while other tracks are soloed"}
+            data-testid={`solo-safe-${channel.trackId}`}
+            onClick={handleSoloSafeClick}
+            type="button"
+            variant="outline"
+            size="sm"
+            className={cn(
+              "h-7 rounded px-1.5 text-[10px] font-bold",
+              channel.soloSafe === true
+                ? "bg-accent text-bg hover:bg-accent/90"
+                : "bg-border-strong text-fg-muted hover:bg-hover",
+            )}
+          >
+            <span className="truncate">{"SF"}</span>
+          </Button>
         </div>
       </div>
     );
@@ -277,6 +300,7 @@ export const ChannelStrip = memo(
       a.pan === b.pan &&
       a.muted === b.muted &&
       a.solo === b.solo &&
+      a.soloSafe === b.soloSafe &&
       a.levels === b.levels &&
       a.rack === b.rack &&
       a.output === b.output &&

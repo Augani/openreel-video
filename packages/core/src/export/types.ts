@@ -2,6 +2,7 @@ import type { LoudnessTargetSettings } from "../audio/loudness/loudness-normaliz
 import type { LoudnessExportReport } from "./loudness-export";
 import type { ProxyExportReport } from "../media/proxy-workflow";
 import type { CaptionExportSettings } from "../captions/caption-export";
+import type { TimecodeBurnInSettings } from "../video/burn-in";
 import type { BroadcastCodec, BroadcastDeliverySettings } from "./broadcast";
 export type UpscaleQuality = "fast" | "balanced" | "quality";
 
@@ -66,6 +67,8 @@ export interface VideoExportSettings {
   rateControl?: RateControl;
   maxBitrate?: number;
   encodeMode?: "fast" | "balanced" | "smallest";
+  /** Encoder picker: Auto (hardware when it works), Hardware (never falls back) or Software. Absent = Auto. */
+  encoderChoice?: "auto" | "hardware" | "software";
   quality: number;
   keyframeInterval: number;
   audioSettings: AudioExportSettings;
@@ -91,6 +94,11 @@ export interface VideoExportSettings {
    * track. Omitted = every caption is burned in and nothing else is written.
    */
   captions?: CaptionExportSettings;
+  /**
+   * One-click "Burn in timecode": the sequence timecode (or the topmost clip's source timecode) is drawn into
+   * every exported frame, over all tracks and captions. Frames are always re-rendered (no stream copy).
+   */
+  burnInTimecode?: TimecodeBurnInSettings;
 }
 
 export interface AudioExportSettings {
@@ -227,6 +235,12 @@ export interface ExportFrameSource {
 
 export interface ExportVideoOptions {
   cachedFrames?: ExportFrameSource;
+  /**
+   * Per-run encoder preference for the browser (WebCodecs) backend, used by the queue's automatic re-run after a
+   * hardware session failed. Only takes effect when the export's encoderChoice is auto/undefined; scoped to this
+   * run, never stored globally.
+   */
+  encoderPreference?: "prefer-hardware" | "prefer-software";
 }
 
 export const DEFAULT_VIDEO_SETTINGS: VideoExportSettings = {

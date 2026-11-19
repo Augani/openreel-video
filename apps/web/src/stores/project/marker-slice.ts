@@ -8,7 +8,7 @@ type Set = StoreApi<ProjectState>["setState"];
 
 type MarkerSlice = Pick<
   ProjectState,
-  "addMarker" | "removeMarker" | "updateMarker" | "getMarker" | "getMarkers"
+  "addMarker" | "removeMarker" | "updateMarker" | "getMarker" | "getMarkers" | "setClipMarkers"
 >;
 
 export function createMarkerSlice(set: Set, get: Get): MarkerSlice {
@@ -50,6 +50,21 @@ export function createMarkerSlice(set: Set, get: Get): MarkerSlice {
         id: uuidv4(),
         timestamp: Date.now(),
         params: { markerId, updates },
+      };
+      const result = await actionExecutor.execute(action, project);
+      if (result.success) {
+        set({ project: { ...project, modifiedAt: Date.now() } });
+      }
+      return result;
+    },
+
+    setClipMarkers: async (target, markers) => {
+      const { project, actionExecutor } = get();
+      const action: Action = {
+        type: "clipmarker/set",
+        id: uuidv4(),
+        timestamp: Date.now(),
+        params: { ...target, markers },
       };
       const result = await actionExecutor.execute(action, project);
       if (result.success) {

@@ -18,8 +18,10 @@ import {
   proEffectGpuUniforms,
   type ProEffectType,
 } from "./pro-effects";
+import { isTemporalEffectType } from "./temporal-effects";
 import { PRO_EFFECT_SHADER_DEFS } from "./pro-effect-shaders";
 import { isPluginEffectType } from "../plugins/manifest";
+import { drawBurnIn, isBurnInEffectType } from "./burn-in";
 import { getPluginHost } from "../plugins/plugin-host";
 
 interface ResolvedShaderEffect {
@@ -1307,6 +1309,14 @@ export class VideoEffectsEngine {
   ): Promise<void> {
     const params = effect.params as Record<string, unknown>;
     if (effect.type === "mask" && applyIrisMaskToContext(ctx, params, width, height)) return;
+    if (isBurnInEffectType(effect.type)) {
+      // Text burn-ins (timecode, names) are drawn with Canvas2D on every path; the text was resolved per frame.
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      drawBurnIn(ctx, effect.type, params, width, height);
+      ctx.restore();
+      return;
+    }
     if (isProEffectType(effect.type)) {
       this.applyProEffectToContext(ctx, effect.type, params, width, height);
       return;
@@ -1537,6 +1547,8 @@ export class VideoEffectsEngine {
     width: number,
     height: number,
   ): void {
+    // Echo / Posterize Time pick source frames upstream (VideoEngine); there is nothing to draw per pixel.
+    if (isTemporalEffectType(type)) return;
     if (isProEffectNeutral(type, params)) return;
     if (this.applyProEffectGpu(ctx, type, params, width, height)) return;
     const imageData = ctx.getImageData(0, 0, width, height);

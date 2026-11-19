@@ -1,10 +1,12 @@
 import type { CueSettings, Subtitle, SubtitleStyle } from "../types/timeline";
 import { encodeScc, isSccContent, parseScc, type CaptionFormatIssue } from "./scc";
 import { encodeStl, isStlContent, parseStl } from "./ebu-stl";
+import { encodeSbv, isSbvContent, parseSbv } from "./sbv";
+import { isTtmlContent, parseTtml } from "./ttml";
 
 /**
- * Caption interchange: SRT and WebVTT import, SRT / WebVTT / TTML (IMSC1 text
- * profile) export. Pure functions over `Subtitle[]`; the editor commits the
+ * Caption interchange: SRT, WebVTT, SBV and TTML / DFXP import, SRT / WebVTT / SBV / TTML
+ * (IMSC1 text profile) export. Pure functions over `Subtitle[]`; the editor commits the
  * result through the action system.
  *
  * Speakers travel as WebVTT voice tags (`<v Name>`); SRT has no standard for
@@ -19,7 +21,7 @@ import { encodeStl, isStlContent, parseStl } from "./ebu-stl";
 export interface CaptionParseResult {
   subtitles: Subtitle[];
   errors: Array<{ line: number; message: string }>;
-  format: "srt" | "vtt" | "scc" | "stl";
+  format: "srt" | "vtt" | "scc" | "stl" | "ttml" | "sbv";
   /** Format-specific notes (SCC / STL decoding). */
   issues?: CaptionFormatIssue[];
 }
@@ -184,11 +186,24 @@ export interface CaptionImportOptions {
 
 /** Parse SRT, WebVTT or SCC (auto-detected). Malformed blocks are reported, not fatal. */
 export function parseCaptions(content: string, options: CaptionImportOptions = {}): CaptionParseResult {
+  if (isTtmlContent(content)) {
+    const r = parseTtml(content, options);
+    return { subtitles: r.subtitles, errors: r.errors, format: "ttml", issues: r.issues };
+  }
+  // XML / HTML that is not TTML. A plain SRT/VTT/SBV whose first cue merely starts with an inline tag
+  // (`<i>`, `<b>`...) has timing arrows and is parsed normally below.
+  if (/^\s*(?:\uFEFF)?<(?:\?xml|!|[A-Za-z])/.test(content) && !/-->|^\s*\d+:\d{2}:\d{2}[.,]\d+\s*,/m.test(content.slice(0, 4096))) {
+    return { subtitles: [], errors: [{ line: 1, message: "Not a TTML caption file: no <tt> root element was found." }], format: "ttml" };
+  }
+  if (isSbvContent(content)) {
+    const r = parseSbv(content, options);
+    return { subtitles: r.subtitles, errors: r.errors, format: "sbv", issues: r.issues };
+  }
   if (isSccContent(content)) {
     const r = parseScc(content, options);
     return { subtitles: r.subtitles, errors: r.errors, format: "scc", issues: r.issues };
   }
-  const text = content.replace(/^﻿/, "").replace(/\r\n?/g, "\n");
+  const text = content.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
   const format: "srt" | "vtt" = text.trimStart().startsWith("WEBVTT") ? "vtt" : "srt";
   const lines = text.split("\n");
   const subtitles: Subtitle[] = [];
@@ -294,10 +309,44 @@ export function exportTtml(
     (name) =>
       `      <ttm:agent xml:id="${agentId.get(name)}" type="person"><ttm:name type="alias">${escapeXml(name)}</ttm:name></ttm:agent>`,
   );
+  // Cues positioned away from the default bottom edge get their own region (box bottom edge = line %).
+  const regionKeys = new Map<number, string>();
+  const lineOf = (cue: Subtitle): number => {
+    const settings = cue.cueSettings;
+    if (settings && settings.snapToLines === false && typeof settings.line === "number") return Math.min(100, Math.max(18, Math.round(settings.line * 100) / 100));
+    const pos = cue.style?.position;
+    return pos === "top" ? 23 : pos === "center" ? 59 : 96;
+  };
+  for (const cue of cues) {
+    const line = lineOf(cue);
+    if (line !== 96 && !regionKeys.has(line)) regionKeys.set(line, `r${regionKeys.size + 2}`);
+  }
+  // One <style> per distinct cue look (colour, box, font, outline); cues without a custom style share the default s1.
+  const toTtmlFont = (family: string): string => {
+    const f = family.toLowerCase();
+    return f === "monospace" ? "monospace" : f === "serif" ? "serif" : f === "sans-serif" ? "proportionalSansSerif" : family;
+  };
+  const styleAttrs = (cue: Subtitle): string => {
+    const st = cue.style;
+    if (!st) return "";
+    const parts: string[] = [];
+    if (st.fontFamily && st.fontFamily !== "Inter") parts.push(`tts:fontFamily="${escapeXml(toTtmlFont(st.fontFamily))}"`);
+    if (st.color) parts.push(`tts:color="${escapeXml(st.color)}"`);
+    if (st.backgroundColor) parts.push(`tts:backgroundColor="${escapeXml(st.backgroundColor)}"`);
+    if (st.strokeColor && (st.strokeWidth ?? 0) > 0) parts.push(`tts:textOutline="${escapeXml(st.strokeColor)} ${st.strokeWidth}px"`);
+    return parts.join(" ");
+  };
+  const styleIds = new Map<string, string>();
+  for (const cue of cues) {
+    const attrs = styleAttrs(cue);
+    if (attrs && !styleIds.has(attrs)) styleIds.set(attrs, `s${styleIds.size + 2}`);
+  }
   const paragraphs = cues.map((cue, index) => {
+    const regionId = regionKeys.get(lineOf(cue)) ?? "r1";
+    const styleId = styleIds.get(styleAttrs(cue)) ?? "s1";
     const lines = cue.text.split("\n").map(escapeXml).join("<br/>");
     const agent = cue.speaker ? ` ttm:agent="${agentId.get(cue.speaker)}"` : "";
-    return `      <p xml:id="c${index + 1}" begin="${formatVttTime(cue.startTime)}" end="${formatVttTime(cue.endTime)}" region="r1" style="s1"${agent}>${lines}</p>`;
+    return `      <p xml:id="c${index + 1}" begin="${formatVttTime(cue.startTime)}" end="${formatVttTime(cue.endTime)}" region="${regionId}" style="${styleId}"${agent}>${lines}</p>`;
   });
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,
@@ -306,9 +355,14 @@ export function exportTtml(
     ...(agents.length ? [`    <metadata>`, ...agents, `    </metadata>`] : []),
     `    <styling>`,
     `      <style xml:id="s1" tts:fontFamily="proportionalSansSerif" tts:fontSize="100%" tts:color="#FFFFFF" tts:backgroundColor="#000000B3" tts:textAlign="center"/>`,
+    ...[...styleIds].map(([attrs, id]) => `      <style xml:id="${id}" style="s1" ${attrs}/>`),
     `    </styling>`,
     `    <layout>`,
     `      <region xml:id="r1" tts:origin="10% 78%" tts:extent="80% 18%" tts:displayAlign="after" tts:textAlign="center"/>`,
+    ...[...regionKeys].map(
+      ([line, id]) =>
+        `      <region xml:id="${id}" tts:origin="10% ${line - 18}%" tts:extent="80% 18%" tts:displayAlign="after" tts:textAlign="center"/>`,
+    ),
     `    </layout>`,
     `  </head>`,
     `  <body>`,
@@ -321,8 +375,8 @@ export function exportTtml(
   ].join("\n");
 }
 
-export type CaptionExportFormat = "srt" | "vtt" | "ttml" | "scc" | "stl";
-export const CAPTION_EXPORT_FORMATS: readonly CaptionExportFormat[] = ["srt", "vtt", "ttml", "scc", "stl"];
+export type CaptionExportFormat = "srt" | "vtt" | "sbv" | "ttml" | "scc" | "stl";
+export const CAPTION_EXPORT_FORMATS: readonly CaptionExportFormat[] = ["srt", "vtt", "sbv", "ttml", "scc", "stl"];
 
 export interface CaptionExportOptions extends CaptionTrackSelect {
   includeSpeakers?: boolean;
@@ -342,6 +396,7 @@ export const CAPTION_FORMAT_INFO: Readonly<
 > = {
   srt: { label: "SRT", extension: "srt", mimeType: "application/x-subrip", binary: false },
   vtt: { label: "WebVTT", extension: "vtt", mimeType: "text/vtt", binary: false },
+  sbv: { label: "SBV (YouTube)", extension: "sbv", mimeType: "text/plain", binary: false },
   ttml: { label: "TTML (IMSC1)", extension: "ttml", mimeType: "application/ttml+xml", binary: false },
   scc: { label: "SCC (CEA-608)", extension: "scc", mimeType: "text/x-scc", binary: false },
   stl: { label: "EBU-STL", extension: "stl", mimeType: "application/octet-stream", binary: true },
@@ -356,6 +411,7 @@ export function exportCaptions(
   if (format === "srt") return exportSrt(subtitles, options);
   if (format === "vtt") return exportVtt(subtitles, options);
   if (format === "ttml") return exportTtml(subtitles, options);
+  if (format === "sbv") return encodeSbv(select(subtitles, options)).content;
   if (format === "scc") return encodeScc(subtitles, options).content;
   if (format === "stl") throw new Error("EBU-STL is a binary format: use exportCaptionFile.");
   throw new Error(`Unsupported caption format "${String(format)}". Use ${CAPTION_EXPORT_FORMATS.join(", ")}.`);
@@ -389,8 +445,19 @@ export function exportCaptionFile(
     bytes: new TextEncoder().encode(exportCaptions(subtitles, format, options)),
     mimeType: info.mimeType,
     extension: info.extension,
-    issues: [],
+    issues: format === "sbv" ? encodeSbv(select(subtitles, options)).issues : [],
   };
+}
+
+/** Text caption bytes -> string: UTF-16 by BOM, UTF-8, else Windows-1252 (legacy SRT files). */
+export function decodeCaptionText(bytes: Uint8Array): string {
+  if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder("utf-16le").decode(bytes.subarray(2));
+  if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder("utf-16be").decode(bytes.subarray(2));
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder("windows-1252").decode(bytes);
+  }
 }
 
 /** Parse caption file bytes: EBU-STL is detected by its GSI block, everything else is decoded as text. */
@@ -399,7 +466,7 @@ export function parseCaptionBytes(bytes: Uint8Array, options: CaptionImportOptio
     const r = parseStl(bytes, options);
     return { subtitles: r.subtitles, errors: r.errors, format: "stl", issues: r.issues };
   }
-  return parseCaptions(new TextDecoder("utf-8").decode(bytes), options);
+  return parseCaptions(decodeCaptionText(bytes), options);
 }
 
 /** A caption track is a distinct `captionTrackId`; "" is the default track. */

@@ -1,3 +1,4 @@
+import { currentBurnInSource } from "../../../utils/burn-in-source";
 import {
   titleEngine,
   getAnimatedVideoEffects,
@@ -35,6 +36,7 @@ import { overlayBlendAlpha } from "@openreel/core";
 import { displayLayoutWidth, normalizeSequencePar, withDisplaySpace } from "@openreel/core/video/sequence-par";
 import {
   DEFAULT_CAPTION_FONT_SIZE,
+  captionFont,
   drawCaption,
   drawCaptionText,
   fillCaptionBox,
@@ -1528,7 +1530,7 @@ const renderAnimatedSubtitle = (
   const fontFamily = style.fontFamily || "Inter";
   const baseColor = style.color || "#ffffff";
 
-  ctx.font = `bold ${fontSize}px "${fontFamily}"`;
+  ctx.font = captionFont(fontSize, fontFamily);
   ctx.textBaseline = "middle";
   ctx.textAlign = "left";
 
@@ -1814,7 +1816,7 @@ const applyEffectsToFrameGraded = async (
 
     const effectsBridge = getEffectsBridge();
     const animated = effectFrame && hasAnimatedVideoEffects(effectFrame.clip)
-      ? getAnimatedVideoEffects(effectFrame.clip, effectFrame.time - effectFrame.clip.startTime)
+      ? getAnimatedVideoEffects(effectFrame.clip, effectFrame.time - effectFrame.clip.startTime, currentBurnInSource())
       : null;
     const isInit = effectsBridge.isInitialized();
     if (!isInit) {

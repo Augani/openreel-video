@@ -76,13 +76,13 @@ function audioClipHash(clip: Clip): string {
     clip.mediaId, clip.startTime, clip.duration, clip.inPoint, clip.outPoint,
     clip.volume, clip.fade, clip.automation, clip.speed, clip.reversed,
     clip.pitchCorrection, clip.audioTrackIndex, clip.speedKeyframes, clip.freezeFrames,
-    clip.audioEffects, clip.effects, clip.keyframes, clip.metadata, clip.surroundPan,
+    clip.audioEffects, clip.effects, clip.keyframes, clip.metadata, clip.surroundPan, clip.channelMap,
   ]);
 }
 
 function trackLevelHash(track: Track): string {
   return hashOf(track, () => [
-    track.id, track.hidden, track.muted, track.solo, track.audioRack, track.transitions,
+    track.id, track.hidden, track.muted, track.solo, track.soloSafe, track.audioRack, track.transitions,
     // Output assignment and sends decide where this track's signal goes.
     track.output, track.sends, track.surroundPan,
   ]);
@@ -108,7 +108,7 @@ function mediaHash(project: Project, ids: ReadonlySet<string>): string {
   for (const item of project.mediaLibrary.items) {
     if (!ids.has(item.id)) continue;
     parts.push(
-      `${hashOf(item, () => [item.id, item.name, item.type, item.metadata, item.isPlaceholder, item.sourceFile])}:${blobId(item.blob)}`,
+      `${hashOf(item, () => [item.id, item.name, item.type, item.metadata, item.isPlaceholder, item.sourceFile, item.channelPreset])}:${blobId(item.blob)}`,
     );
   }
   return parts.join(",");

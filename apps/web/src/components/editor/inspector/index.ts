@@ -52,6 +52,7 @@ export { EmphasisAnimationSection } from "./EmphasisAnimationSection";
 
 // Advanced Features
 export { MotionTrackingSection } from "./MotionTrackingSection";
+export { PlanarTrackingSection } from "./PlanarTrackingSection";
 export { NestedSequenceSection } from "./NestedSequenceSection";
 export { AdjustmentLayerSection } from "./AdjustmentLayerSection";
 export { AutoReframeSection } from "./AutoReframeSection";

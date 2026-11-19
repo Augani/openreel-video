@@ -20,6 +20,11 @@ contextBridge.exposeInMainWorld("openreel", {
   ollama: {
     probe: () => ipcRenderer.invoke(CHANNELS.ollamaProbe, undefined),
   },
+  microphone: {
+    status: () => ipcRenderer.invoke(CHANNELS.microphoneStatus, undefined),
+    request: () => ipcRenderer.invoke(CHANNELS.microphoneRequest, undefined),
+    openSettings: () => ipcRenderer.invoke(CHANNELS.microphoneOpenSettings, undefined),
+  },
   samples: {
     list: () => ipcRenderer.invoke(CHANNELS.samplesList, undefined),
     get: (id: string) => ipcRenderer.invoke(CHANNELS.samplesGet, { id }),
@@ -98,8 +103,8 @@ contextBridge.exposeInMainWorld("openreel", {
   },
   export: {
     start: (args: unknown) =>
-      new Promise((resolve) => {
-        ipcRenderer.once("openreel:export-port", (event, meta) => {
+      new Promise((resolve, reject) => {
+        const onPort = (event: Electron.IpcRendererEvent, meta: unknown) => {
           const { jobId } = meta as { jobId: string };
           const [port] = event.ports;
           // A live MessagePort cannot survive contextBridge serialization into
@@ -107,8 +112,13 @@ contextBridge.exposeInMainWorld("openreel", {
           // documented Electron path) and resolve with just the jobId.
           window.postMessage({ __openreelExportPort: true, jobId }, "*", [port]);
           resolve({ jobId });
+        };
+        ipcRenderer.once("openreel:export-port", onPort);
+        // A refused start (for example Hardware with Two-pass VBR) rejects here instead of waiting for a port that never arrives.
+        ipcRenderer.invoke(CHANNELS.exportStart, args).catch((error: unknown) => {
+          ipcRenderer.removeListener("openreel:export-port", onPort);
+          reject(error);
         });
-        ipcRenderer.invoke(CHANNELS.exportStart, args);
       }),
     writeAudioWav: (jobId: string, wav: ArrayBuffer) =>
       ipcRenderer.invoke(CHANNELS.exportWriteAudioWav, { jobId, wav }),

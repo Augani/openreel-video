@@ -1,4 +1,5 @@
 import { trackIdAtOffset } from "./track-hit-test";
+import { useChannelWaveform } from "./use-channel-waveform";
 import { setDragResolvesOverlap } from "../../../stores/project/drag-placement";
 import { useEditorWorkspaceStore } from "../../../stores/editor-workspace-store";
 import { useTimelineTouchGesture, listenTimelineGesture } from "./touch-gestures";
@@ -11,6 +12,7 @@ import { Box, Image, Layers } from "@/icons/lucide-compat";
 import { getCompoundClipId, type Clip, type Track, type TransitionType } from "@openreel/core";
 import { computeLaneInfos, type ClipLaneInfo } from "./clip-lane-info";
 import { useProjectStore } from "../../../stores/project-store";
+import { ClipMarkerFlags } from "./ClipMarkerFlags";
 import { useUIStore } from "../../../stores/ui-store";
 import { useEditPointStore } from "../../../stores/edit-point-store";
 import { selectEditPoint } from "../../../services/edit-point-commands";
@@ -895,6 +897,7 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
     { length: thumbnailRange.end - thumbnailRange.start },
     (_, index) => thumbnailRange.start + index,
   );
+  const channelWaveform = useChannelWaveform(clip, mediaItem, drawWaveform);
   const waveformBarCount = Math.max(1, Math.floor((width - 8) / 3));
   const waveformRange = getVisibleRepeatRange(
     left,
@@ -906,7 +909,7 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
   const waveformAmplitudes = React.useMemo(
     () =>
       drawWaveform
-        ? getClipWaveformBarAmplitudes(mediaItem?.waveformData, {
+        ? getClipWaveformBarAmplitudes(channelWaveform, {
             barCount: waveformBarCount,
             startBar: waveformRange.start,
             endBar: waveformRange.end,
@@ -918,7 +921,7 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
         : [],
     [
       drawWaveform,
-      mediaItem?.waveformData,
+      channelWaveform,
       mediaItem?.metadata.duration,
       waveformBarCount,
       waveformRange.start,
@@ -1214,6 +1217,9 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
         </div>
       )}
 
+      {(clip.markers?.length || mediaItem?.markers?.length) ? (
+        <ClipMarkerFlags clip={clip} media={mediaItem} pixelsPerSecond={pixelsPerSecond} />
+      ) : null}
       {splitOffset && <SplitEditBadge offsets={splitOffset} frameRate={frameRate} />}
       {(isVideo || isImage || isAudio) && onTrimClip && (
         <>

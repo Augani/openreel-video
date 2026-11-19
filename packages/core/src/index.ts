@@ -46,11 +46,13 @@ export {
   validateGifOptions,
 } from "./export/gif-encoder";
 export * from "./export/broadcast";
+export * from "./export/encoder-choice";
 export * from "./color/source-color";
 export * from "./color/cube-lut";
 export * from "./color/lut-json";
 export * from "./color/looks";
 export * from "./color/input-transform";
+export * from "./color/camera-log";
 export * from "./color/hdr-working";
 export * from "./color/hdr-effects";
 export * from "./color/hdr-light-level";
@@ -152,6 +154,7 @@ export { planTrackSelect, type TrackSelectItem, type TrackSelectKind, type Track
 export { zoomAtPoint, zoomToRange, type ViewState, type ZoomLimits } from "./editing/timeline-view";
 export { planRippleDelete, planCloseGap, planCloseGapBeforeClip, planRemoveGaps, planSilenceCut } from "./editing/ripple-delete";
 export { planClipDropResolution, clipDropOptionsFromModifiers, snapshotClipOrigins, type ClipDropMode, type ClipDropOptions, type ClipOrigin } from "./editing/clip-drop";
+export { planClipSpeedEdit, prepareMultiRateStretch, type MultiRateStretch, resolveClipRate, type ClipSpeedEdit, type ClipSpeedOptions } from "./editing/clip-speed-edit";
 export { planRippleTrimToPlayhead, type RippleTrimToPlayheadOptions } from "./editing/ripple-trim-playhead";
 export {
   isSyncLocked,
@@ -178,6 +181,22 @@ export {
   sourceDropError,
   sourceTargetKind,
 } from "./editing/source-edit";
+export {
+  findReplaceTarget,
+  planFitToFill,
+  planReplaceEdit,
+  resolveFitToFill,
+} from "./editing/replace-fit";
+export type {
+  FitToFillPlan,
+  FitToFillRequest,
+  ReplaceAlignment,
+  ReplaceEditPlan,
+  ReplaceEditRequest,
+  ResolvedFitToFill,
+  ResolvedReplace,
+} from "./editing/replace-fit";
+export { CLIP_SPEED_MAX, CLIP_SPEED_MIN } from "./editing/speed-limits";
 export type {
   ResolvedSourceEdit,
   SourceComponent,
@@ -191,10 +210,13 @@ export * from "./media/interpretation";
 export * from "./media/smart-bins";
 export * from "./media/proxy-workflow";
 export * from "./media/desktop-ingest";
+export * from "./media/proxy-presets";
 export type { MediaItemPatch, ClipLabelPatch, MediaOrganizeParams } from "./actions/handlers/media-organize";
 export { buildBenchProject } from "./perf/bench-project";
 export type { BenchProjectOptions } from "./perf/bench-project";
 export type { ClipPlacement, NewTrackPlacement } from "./editing/premiere-edits";
+export { findReverseMatch, timelineTimeForSource } from "./editing/reverse-match-frame";
+export type { ReverseMatch } from "./editing/reverse-match-frame";
 export {
   canTargetTrack,
   chooseTrackForMedia,
@@ -221,6 +243,7 @@ export {
   formatSrtTime,
   CAPTION_EXPORT_FORMATS,
   CAPTION_FORMAT_INFO,
+  decodeCaptionText,
   exportCaptionFile,
   parseCaptionBytes,
 } from "./captions/caption-formats";
@@ -232,6 +255,8 @@ export type {
   CaptionParseResult,
   CaptionTrackSummary,
 } from "./captions/caption-formats";
+export { parseTtml, isTtmlContent } from "./captions/ttml";
+export { parseSbv, encodeSbv, isSbvContent } from "./captions/sbv";
 export { encodeScc, exportScc, parseScc, isSccContent } from "./captions/scc";
 export type { CaptionFormatIssue, SccExportResult, SccOptions, SccParseOptions, SccParseResult } from "./captions/scc";
 export { encodeStl, exportStl, parseStl, isStlContent } from "./captions/ebu-stl";
@@ -263,6 +288,26 @@ export type {
   EmbeddedCaptionPlan,
   SidecarFile,
 } from "./captions/caption-export";
+export {
+  SPEAKER_PALETTE,
+  defaultSpeakerName,
+  paletteColor,
+  cosineDistance,
+  clusterEmbeddings,
+  labelCuesBySpeaker,
+  findSpeakerProfile,
+  ensureSpeakerProfiles,
+  renameSpeakerProfile,
+  applySpeakerStyles,
+  detectionCues,
+  mirrorSpeakersToTranslations,
+} from "./captions/diarization";
+export type { SpeakerProfile, SpeakerPosition, ClusterOptions } from "./captions/diarization";
+export {
+  computeSpeakerEmbedding,
+  EMBEDDING_SAMPLE_RATE,
+  SPEAKER_EMBEDDING_DIMENSIONS,
+} from "./captions/speaker-embedding";
 export {
   buildTranscript,
   wordRange,
@@ -297,6 +342,15 @@ export * from "./review/review-comments";
 export { nextMarker, prevMarker, markersInRange, markerAt, sortMarkers } from "./editing/marker-nav";
 export type { MarkerNavOptions } from "./editing/marker-nav";
 export {
+  sourceToTimelineTime,
+  timelineToSourceTime,
+  sourceTimeInClip,
+  resolveClipMarkers,
+  sourceTimeForTimelineMarker,
+  flattenClipMarkers,
+} from "./editing/clip-markers";
+export type { ClipMarkerScope, ResolvedClipMarker } from "./editing/clip-markers";
+export {
   chaptersText,
   markersCsv,
   markersEdlLocs,
@@ -318,3 +372,18 @@ export type {
   ParsedLoc,
 } from "./interchange/marker-export";
 export * from "./export/surround-export";
+
+export {
+  translateCaptionTrack,
+  uniqueCaptionTrackId,
+  buildTranslationPrompt,
+  parseTranslationReply,
+  isAbortError,
+} from "./captions/caption-translate";
+export type {
+  CaptionTranslator,
+  CaptionTranslationProgress,
+  CaptionTranslationResult,
+  TranslateCaptionTrackOptions,
+} from "./captions/caption-translate";
+export * from "./tasks";

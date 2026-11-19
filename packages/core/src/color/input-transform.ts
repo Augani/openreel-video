@@ -1,5 +1,6 @@
 import { BT709_TO_BT2020, HLG_SDR_WHITE_SCENE, PQ_SDR_WHITE_NITS, linearToSrgb, pqDecodeToNits, srgbToLinear } from "../export/color-output";
-import { needsInputTransform, type SourceColorSpace } from "./source-color";
+import { cameraGamutToBt709, decodeCameraLog, type CameraGamutId } from "./camera-log";
+import { isCameraLogTransfer, needsInputTransform, type SourceColorSpace } from "./source-color";
 
 /**
  * Input transform: footage in its own colour space -> the editor's working
@@ -71,6 +72,7 @@ export function hlgInverseOetf(signal: number): number {
 
 /** Signal 0..1 to linear light where 1.0 = SDR reference white. */
 export function decodeSourceTransfer(signal: number, transfer: SourceColorSpace["transfer"]): number {
+  if (isCameraLogTransfer(transfer)) return decodeCameraLog(signal, transfer);
   switch (transfer) {
     case "pq":
       return pqDecodeToNits(signal) / PQ_SDR_WHITE_NITS;
@@ -100,6 +102,20 @@ export interface InputTransform {
   readonly decodeLut: Float32Array;
 }
 
+function primariesToBt709(primaries: SourceColorSpace["primaries"]): Matrix3 | null {
+  switch (primaries) {
+    case "bt2020":
+      return BT2020_TO_BT709;
+    case "p3":
+      return P3_TO_BT709;
+    case "bt709":
+    case "bt601":
+      return null;
+    default:
+      return cameraGamutToBt709(primaries as CameraGamutId);
+  }
+}
+
 export function inputTransformKey(source: SourceColorSpace): string {
   return `${source.primaries}/${source.transfer}`;
 }
@@ -112,8 +128,9 @@ export function createInputTransform(source: SourceColorSpace): InputTransform |
   return {
     source,
     key: inputTransformKey(source),
-    toneMap: source.transfer === "pq" || source.transfer === "hlg",
-    matrix: source.primaries === "bt2020" ? BT2020_TO_BT709 : source.primaries === "p3" ? P3_TO_BT709 : null,
+    // Camera log scene light goes through the same shoulder: log footage holds highlights far above white.
+    toneMap: source.transfer === "pq" || source.transfer === "hlg" || isCameraLogTransfer(source.transfer),
+    matrix: primariesToBt709(source.primaries),
     decodeLut,
   };
 }

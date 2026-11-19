@@ -127,8 +127,7 @@ describe("recipe progress cards", () => {
     );
     useEditorWorkspaceStore.getState().setSection("recipes");
     render(<AssetsPanel />);
-    const card = screen
-      .getByRole("heading", { name: "Remove silences" })
+    const card = (await screen.findByRole("heading", { name: "Remove silences" }))
       .closest("article")!;
     fireEvent.click(within(card).getByRole("button", { name: "Run" }));
     fireEvent.click(screen.getByRole("button", { name: "Analyze" }));

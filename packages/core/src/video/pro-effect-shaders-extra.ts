@@ -7,6 +7,8 @@
  */
 import { PRELUDE } from "./pro-effect-prelude";
 import type { ExtraProEffectType } from "./pro-effects-extra";
+import { ULTRA_KEY_GLSL } from "./ultra-key-shader";
+import { ULTRA_KEY_UNIFORM_NAMES } from "./ultra-key";
 
 const HELPERS = `${PRELUDE}
 float hashU(int a, int b, int c) {
@@ -573,6 +575,7 @@ export const EXTRA_GLSL: Readonly<Record<ExtraProEffectType, string>> = {
   "tilt-shift": TILT_SHIFT,
   "luma-key": LUMA_KEY,
   "color-key": COLOR_KEY,
+  "ultra-key": ULTRA_KEY_GLSL,
   "alpha-adjust": ALPHA_ADJUST,
   "leave-color": LEAVE_COLOR,
   "change-to-color": CHANGE_TO_COLOR,
@@ -607,6 +610,7 @@ export const EXTRA_UNIFORMS: Readonly<Record<ExtraProEffectType, readonly string
   "tilt-shift": ["blur", "count", "nx", "ny", "shiftPct", "bandPct", "fadePct"],
   "luma-key": ["dark", "threshold", "softness"],
   "color-key": ["keyR", "keyG", "keyB", "tolerance", "softness", "invert"],
+  "ultra-key": ULTRA_KEY_UNIFORM_NAMES,
   "alpha-adjust": ["opacity", "ignore", "invert", "matte"],
   "leave-color": ["keyR", "keyG", "keyB", "amount", "tolerance", "softness"],
   "change-to-color": ["fromR", "fromG", "fromB", "dR", "dG", "dB", "tolerance", "softness"],

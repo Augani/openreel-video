@@ -43,6 +43,16 @@ export interface SeqMedia {
   readonly mediaItemId?: string;
 }
 
+/** A marker on a clip (clip + master-clip markers merged); `sec` is in the media's own (source) time. */
+export interface SeqClipMarker {
+  readonly sec: number;
+  readonly name: string;
+  readonly durationSec?: number;
+  readonly comment?: string;
+  readonly color?: string;
+  readonly kind?: MarkerKind;
+}
+
 export interface SeqClip {
   readonly id: string;
   readonly name: string;
@@ -73,6 +83,8 @@ export interface SeqClip {
    * clips of the active angle's media). FCPXML turns it into an `mc-clip`; the other formats ignore it.
    */
   readonly multicam?: { readonly sourceId: string; readonly angleId: string };
+  /** Clip markers merged with the media's master-clip markers, in source time (XMEML writes them in the clipitem). */
+  readonly markers?: readonly SeqClipMarker[];
   /** EDL import: the event's reel name and source timecodes, kept on the clip as `metadata.edl`. */
   readonly edl?: { readonly reel: string; readonly sourceIn: string; readonly sourceOut: string; readonly event: number };
 }
@@ -389,6 +401,17 @@ export function projectToSequence(
     const speedRaw = clip.speed ?? 1;
     const speed = Math.abs(speedRaw) > 0 ? Math.abs(speedRaw) : 1;
     const multicam = noteMulticam(clip);
+    const clipMarkers = [...(mediaById.get(clip.mediaId)?.markers ?? []), ...(clip.markers ?? [])]
+      .filter((m) => options.includeMarkers !== false && m.time >= clip.inPoint - 1e-6 && m.time <= clip.outPoint + 1e-6)
+      .sort((a, b) => a.time - b.time)
+      .map((m) => ({
+        sec: m.time,
+        name: m.label,
+        ...(m.duration ? { durationSec: m.duration } : {}),
+        ...(m.comment ? { comment: m.comment } : {}),
+        ...(m.color ? { color: m.color } : {}),
+        ...(m.kind && m.kind !== "comment" ? { kind: m.kind } : {}),
+      }));
     return {
       id: clip.id,
       name: media.name,
@@ -403,6 +426,7 @@ export function projectToSequence(
       volume: clip.volume ?? 1,
       withAudio: isVisualTrack(track) && media.kind === "video" && media.hasAudio,
       ...(multicam ? { multicam } : {}),
+      ...(clipMarkers.length ? { markers: clipMarkers } : {}),
     };
   };
 
@@ -815,6 +839,19 @@ export function sequenceToTimeline(
           : {}),
         ...(sc.speed !== 1 ? { speed: sc.speed } : {}),
         ...(sc.reversed ? { reversed: true } : {}),
+        ...(sc.markers?.length
+          ? {
+              markers: sc.markers.map((m) => ({
+                id: `marker-${makeId()}`,
+                time: m.sec,
+                label: m.name,
+                color: m.color ?? DEFAULT_IMPORTED_MARKER_COLOR,
+                ...(m.durationSec && m.durationSec > 0 ? { duration: m.durationSec } : {}),
+                ...(m.comment ? { comment: m.comment } : {}),
+                ...(m.kind ? { kind: m.kind } : {}),
+              })),
+            }
+          : {}),
       };
       idForSeq.set(sc, clip.id);
       clips.push(clip);

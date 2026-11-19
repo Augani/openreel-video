@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { useProjectStore } from "./project-store";
+import { useProjectStore, registerSmoothKeyframeRefresh } from "./project-store";
 import { useEngineStore } from "./engine-store";
 import { useTimelineStore } from "./timeline-store";
 import { useUIStore } from "./ui-store";
@@ -9,6 +9,8 @@ import {
   getAnimatedVideoEffects,
   getPluginRegistry,
   parsePluginPackage,
+  applyKeyframeInterpolation,
+  refreshSmoothKeyframesAfterEdit,
 } from "@openreel/core";
 import type {
   Project,
@@ -2344,5 +2346,95 @@ describe("ProjectStore - generated shader registry lifecycle", () => {
     expect(
       useProjectStore.getState().project.generatedShaders?.map((d) => d.id),
     ).toEqual([shaderA.id]);
+  });
+});
+
+describe("ProjectStore - smooth keyframe interpolation", () => {
+    const createProjectWithVideoClip = (): Project => ({
+      id: "effects-project",
+      name: "Effects Project",
+      createdAt: Date.now(),
+      modifiedAt: Date.now(),
+      settings: {
+        width: 1920,
+        height: 1080,
+        frameRate: 30,
+        sampleRate: 48000,
+        channels: 2,
+      },
+      mediaLibrary: { items: [] },
+      timeline: {
+        tracks: [
+          {
+            id: "video-track-1",
+            type: "video",
+            name: "Video",
+            clips: [
+              {
+                id: "video-clip-1",
+                mediaId: "video-media-1",
+                trackId: "video-track-1",
+                startTime: 0,
+                duration: 8,
+                inPoint: 0,
+                outPoint: 8,
+                effects: [],
+                audioEffects: [],
+                transform: {
+                  position: { x: 0.5, y: 0.5 },
+                  scale: { x: 1, y: 1 },
+                  rotation: 0,
+                  anchor: { x: 0.5, y: 0.5 },
+                  opacity: 1,
+                },
+                volume: 1,
+                keyframes: [],
+              },
+            ],
+            transitions: [],
+            locked: false,
+            hidden: false,
+            muted: false,
+            solo: false,
+          },
+        ],
+        subtitles: [],
+        duration: 8,
+        markers: [],
+      },
+    });
+
+  const key = (id: string, time: number, value: number) => ({ id, time, property: "opacity", value, easing: "linear" as const });
+  const keysOf = () => useProjectStore.getState().getClip("video-clip-1")!.keyframes!;
+
+  beforeEach(() => {
+    useProjectStore.getState().loadProject(createProjectWithVideoClip());
+    registerSmoothKeyframeRefresh(refreshSmoothKeyframesAfterEdit);
+  });
+
+  it("re-derives Auto Bezier sides when a neighbour changes, whichever path edits the keys", () => {
+    const store = useProjectStore.getState();
+    const auto = applyKeyframeInterpolation([key("a", 0, 0), key("b", 1, 1), key("c", 2, 3)], ["b"], "auto-bezier");
+    store.updateClipKeyframes("video-clip-1", auto, { derived: true });
+    const before = keysOf().find((k) => k.id === "b")!.bezierHandles;
+    store.updateClipKeyframes("video-clip-1", keysOf().map((k) => (k.id === "c" ? { ...k, value: 9 } : k)));
+    expect(keysOf().find((k) => k.id === "b")!.bezierHandles).not.toEqual(before);
+    expect(keysOf().find((k) => k.id === "b")).toMatchObject({ interpolationIn: "auto-bezier", interpolationOut: "auto-bezier" });
+  });
+
+  it("an easing change through any path drops the stale Auto tag so the label matches the curve", () => {
+    const store = useProjectStore.getState();
+    store.updateClipKeyframes("video-clip-1", applyKeyframeInterpolation([key("a", 0, 0), key("b", 1, 1), key("c", 2, 3)], ["b"], "auto-bezier"), { derived: true });
+    store.updateClipKeyframes("video-clip-1", keysOf().map((k) => (k.id === "b" ? { ...k, easing: "ease-out" as const } : k)));
+    const b = keysOf().find((k) => k.id === "b")!;
+    expect(b.easing).toBe("ease-out");
+    expect(b.interpolationOut).toBeUndefined();
+    expect(b.interpolationIn).toBe("auto-bezier");
+  });
+
+  it("leaves legacy keyframes untouched", () => {
+    const legacy = [key("a", 0, 0), key("b", 1, 1)];
+    useProjectStore.getState().updateClipKeyframes("video-clip-1", legacy);
+    expect(keysOf()).toEqual(legacy);
   });
 });

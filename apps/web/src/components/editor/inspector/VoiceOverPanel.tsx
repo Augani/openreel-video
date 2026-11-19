@@ -1,61 +1,28 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo } from "react";
 import { Button, Card } from "@openreel/ui";
 import { AlertCircle, Mic, Square } from "@/icons/lucide-compat";
 import { useUIStore } from "../../../stores/ui-store";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
+import { useVoiceOverStore } from "../../../services/voiceover/voiceover-recorder";
+import {
+  MAX_PRE_ROLL_SECONDS,
+  audioTrackChoices,
+  formatClock,
+  listVoiceOverTakes,
+  peakLevel,
+  punchRange,
+  resolveRecordPlan,
+  selectVoiceOverMimeType as selectMimeType,
+  type PlacementTrack,
+} from "../../../services/voiceover/voiceover-logic";
+
+export { listVoiceOverTakes, peakLevel };
 
 export function selectVoiceOverMimeType(
   supports: (mimeType: string) => boolean = MediaRecorder.isTypeSupported,
 ): { mimeType: string; extension: string } | null {
-  const candidates = [
-    { mimeType: "audio/webm;codecs=opus", extension: "webm" },
-    { mimeType: "audio/mp4", extension: "m4a" },
-    { mimeType: "audio/webm", extension: "webm" },
-    { mimeType: "audio/ogg;codecs=opus", extension: "ogg" },
-  ];
-  return candidates.find((candidate) => supports(candidate.mimeType)) ?? null;
-}
-
-function formatElapsed(milliseconds: number): string {
-  const seconds = Math.floor(milliseconds / 1_000);
-  return `${Math.floor(seconds / 60).toString().padStart(2, "0")}:${(seconds % 60)
-    .toString()
-    .padStart(2, "0")}`;
-}
-
-/** Peak level 0..1 of 8-bit time-domain samples (128 is silence). */
-export function peakLevel(samples: ArrayLike<number>): number {
-  let peak = 0;
-  for (let i = 0; i < samples.length; i++) {
-    const v = Math.abs(samples[i] - 128) / 128;
-    if (v > peak) peak = v;
-  }
-  return Math.min(1, peak);
-}
-
-export interface VoiceOverTake {
-  clipId: string;
-  trackId: string;
-  startTime: number;
-  duration: number;
-}
-
-/** Clips on the "Voice Over" tracks, newest position last. */
-export function listVoiceOverTakes(
-  tracks: ReadonlyArray<{ id: string; name: string; clips: ReadonlyArray<{ id: string; startTime: number; duration: number }> }>,
-): VoiceOverTake[] {
-  return tracks
-    .filter((track) => track.name === "Voice Over")
-    .flatMap((track) =>
-      track.clips.map((clip) => ({
-        clipId: clip.id,
-        trackId: track.id,
-        startTime: clip.startTime,
-        duration: clip.duration,
-      })),
-    )
-    .sort((a, b) => a.startTime - b.startTime);
+  return selectMimeType(supports);
 }
 
 const INPUT_METER_BARS = 24;
@@ -90,284 +57,309 @@ export const VoiceOverMeter: React.FC<{ level: number; active: boolean }> = ({ l
   );
 };
 
+const FIELD = "h-7 min-w-0 flex-1 truncate rounded-md border border-border bg-bg-1 px-2 text-[11px] text-fg disabled:opacity-60";
+const ROW = "flex items-center justify-between gap-2";
+const LABEL = "text-[11px] font-semibold text-fg shrink-0";
+
+const Toggle: React.FC<{
+  id: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (checked: boolean) => void;
+  title: string;
+  hint: string;
+}> = ({ id, checked, disabled, onChange, title, hint }) => (
+  <label htmlFor={id} className={`flex cursor-pointer items-start gap-2 ${disabled ? "opacity-60" : ""}`}>
+    <input
+      id={id}
+      data-testid={id}
+      type="checkbox"
+      checked={checked}
+      disabled={disabled}
+      onChange={(event) => onChange(event.target.checked)}
+      className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-[var(--accent,#3b82f6)]"
+    />
+    <span className="min-w-0">
+      <span className="block text-[11px] font-semibold text-fg">{title}</span>
+      <span className="block text-[9px] text-fg-muted">{hint}</span>
+    </span>
+  </label>
+);
+
+function timecode(seconds: number): string {
+  const whole = Math.max(0, seconds);
+  const minutes = Math.floor(whole / 60);
+  return `${minutes}:${(whole - minutes * 60).toFixed(1).padStart(4, "0")}`;
+}
+
 export const VoiceOverPanel: React.FC = () => {
-  const importMedia = useProjectStore((state) => state.importMedia);
-  const addClipToNewTrack = useProjectStore((state) => state.addClipToNewTrack);
-  const renameTrack = useProjectStore((state) => state.renameTrack);
-  const playheadPosition = useTimelineStore((state) => state.playheadPosition);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const startedAtRef = useRef(0);
-  const saveRecordingRef = useRef(true);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [level, setLevel] = useState(0);
-  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
-  const [deviceId, setDeviceId] = useState("");
+  const phase = useVoiceOverStore((state) => state.phase);
+  const countdown = useVoiceOverStore((state) => state.countdown);
+  const elapsedMs = useVoiceOverStore((state) => state.elapsedMs);
+  const level = useVoiceOverStore((state) => state.level);
+  const error = useVoiceOverStore((state) => state.error);
+  const errorKind = useVoiceOverStore((state) => state.errorKind);
+  const devices = useVoiceOverStore((state) => state.devices);
+  const prefs = useVoiceOverStore((state) => state.prefs);
+  const lastTake = useVoiceOverStore((state) => state.lastTake);
+  const setPrefs = useVoiceOverStore((state) => state.setPrefs);
   const tracks = useProjectStore((state) => state.project.timeline.tracks);
-  const takes = useMemo(() => listVoiceOverTakes(tracks), [tracks]);
-  const meterRef = useRef<{ context: AudioContext; frame: number } | null>(null);
+  const mediaItems = useProjectStore((state) => state.project.mediaLibrary.items);
+  const playhead = useTimelineStore((state) => state.playheadPosition);
+  const markIn = useTimelineStore((state) => state.loopStart);
+  const markOut = useTimelineStore((state) => state.loopEnd);
 
-  const stopMeter = useCallback(() => {
-    if (meterRef.current) {
-      cancelAnimationFrame(meterRef.current.frame);
-      void meterRef.current.context.close().catch(() => undefined);
-      meterRef.current = null;
-    }
-    setLevel(0);
-  }, []);
-
-  const startMeter = useCallback((stream: MediaStream) => {
-    try {
-      const context = new AudioContext();
-      const analyser = context.createAnalyser();
-      analyser.fftSize = 512;
-      context.createMediaStreamSource(stream).connect(analyser);
-      const data = new Uint8Array(analyser.fftSize);
-      const state = { context, frame: 0 };
-      const tick = () => {
-        analyser.getByteTimeDomainData(data);
-        setLevel((previous) => Math.max(peakLevel(data), previous * 0.85));
-        state.frame = requestAnimationFrame(tick);
-      };
-      state.frame = requestAnimationFrame(tick);
-      meterRef.current = state;
-    } catch {
-      // The meter is informational; recording works without it.
-    }
-  }, []);
+  const busy = phase === "countdown" || phase === "recording" || phase === "saving";
+  const range = punchRange(markIn, markOut);
+  const audioTracks = useMemo(() => audioTrackChoices(tracks as unknown as PlacementTrack[]), [tracks]);
+  const takes = useMemo(
+    () => listVoiceOverTakes(tracks, new Map(mediaItems.map((item) => [item.id, item.name]))),
+    [tracks, mediaItems],
+  );
+  const plan = resolveRecordPlan({ playhead, preRoll: prefs.preRoll, punch: prefs.punch, markIn, markOut });
+  const targetName = audioTracks.find((track) => track.id === prefs.targetTrackId)?.name ?? "a new Voice Over track";
+  const savedDeviceMissing = Boolean(prefs.deviceId) && devices.length > 0 && !devices.some((device) => device.deviceId === prefs.deviceId);
 
   useEffect(() => {
     const media = navigator.mediaDevices;
-    if (!media?.enumerateDevices) return;
-    let active = true;
-    const refresh = () => {
-      media
-        .enumerateDevices()
-        .then((list) => {
-          if (!active) return;
-          const inputs = list.filter((device) => device.kind === "audioinput" && device.deviceId);
-          setDevices(inputs);
-          setDeviceId((current) => (inputs.some((device) => device.deviceId === current) ? current : ""));
-        })
-        .catch(() => undefined);
-    };
-    refresh();
-    media.addEventListener?.("devicechange", refresh);
+    void useVoiceOverStore.getState().refreshDevices();
+    const refresh = () => void useVoiceOverStore.getState().refreshDevices();
+    media?.addEventListener?.("devicechange", refresh);
     return () => {
-      active = false;
-      media.removeEventListener?.("devicechange", refresh);
+      media?.removeEventListener?.("devicechange", refresh);
+      // A level check holds the microphone open; a take in progress must keep running when the panel closes.
+      useVoiceOverStore.getState().stopMonitor();
     };
-  }, [isRecording]);
-
-  const releaseStream = useCallback(() => {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-    recorderRef.current = null;
-    stopMeter();
-  }, [stopMeter]);
+  }, []);
 
   useEffect(() => {
-    if (!isRecording) return;
-    const timer = window.setInterval(
-      () => setElapsed(Date.now() - startedAtRef.current),
-      200,
-    );
-    return () => window.clearInterval(timer);
-  }, [isRecording]);
-
-  useEffect(
-    () => () => {
-      saveRecordingRef.current = false;
-      if (recorderRef.current?.state !== "inactive") recorderRef.current?.stop();
-      releaseStream();
-    },
-    [releaseStream],
-  );
-
-  const saveVoiceOver = useCallback(
-    async (blob: Blob, extension: string, startTime: number) => {
-      if (blob.size === 0) throw new Error("The microphone recording was empty.");
-      setIsSaving(true);
-      const beforeMediaIds = new Set(
-        useProjectStore.getState().project.mediaLibrary.items.map((item) => item.id),
-      );
-      const file = new File(
-        [blob],
-        `Voice-over ${new Date().toISOString().replace(/[:.]/g, "-")}.${extension}`,
-        { type: blob.type, lastModified: Date.now() },
-      );
-      const importResult = await importMedia(file);
-      if (!importResult.success) {
-        throw new Error(importResult.error?.message ?? "Could not import the recording.");
+    if (phase !== "countdown" && phase !== "recording") return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        useVoiceOverStore.getState().cancel();
       }
-      const mediaItem = useProjectStore
-        .getState()
-        .project.mediaLibrary.items.find((item) => !beforeMediaIds.has(item.id));
-      if (!mediaItem) throw new Error("The recorded audio could not be found after import.");
-      const addResult = await addClipToNewTrack(mediaItem.id, startTime);
-      if (!addResult.success) {
-        throw new Error(addResult.error?.message ?? "Could not add the voice over to the timeline.");
-      }
-      const voiceTrack = useProjectStore
-        .getState()
-        .project.timeline.tracks.find((track) =>
-          track.clips.some((clip) => clip.mediaId === mediaItem.id),
-        );
-      if (voiceTrack) await renameTrack(voiceTrack.id, "Voice Over");
-    },
-    [addClipToNewTrack, importMedia, renameTrack],
-  );
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [phase]);
 
-  const startRecording = useCallback(async () => {
-    setError(null);
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-      setError("Voice-over recording is not supported by this browser.");
-      return;
-    }
-    const format = selectVoiceOverMimeType();
-    if (!format) {
-      setError("This browser does not provide a supported microphone recording format.");
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
-      const recorder = new MediaRecorder(stream, {
-        mimeType: format.mimeType,
-        audioBitsPerSecond: 128_000,
-      });
-      const timelineStart = playheadPosition;
-      chunksRef.current = [];
-      saveRecordingRef.current = true;
-      streamRef.current = stream;
-      recorderRef.current = recorder;
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) chunksRef.current.push(event.data);
-      };
-      recorder.onerror = () => {
-        setError("The microphone recording stopped unexpectedly.");
-      };
-      recorder.onstop = () => {
-        const shouldSave = saveRecordingRef.current;
-        const blob = new Blob(chunksRef.current, { type: format.mimeType });
-        chunksRef.current = [];
-        releaseStream();
-        setIsRecording(false);
-        if (!shouldSave) return;
-        void saveVoiceOver(blob, format.extension, timelineStart)
-          .catch((reason) => {
-            setError(reason instanceof Error ? reason.message : "Could not save the voice over.");
-          })
-          .finally(() => setIsSaving(false));
-      };
-      startedAtRef.current = Date.now();
-      setElapsed(0);
-      recorder.start(250);
-      startMeter(stream);
-      setIsRecording(true);
-    } catch (reason) {
-      releaseStream();
-      setError(
-        reason instanceof DOMException && reason.name === "NotAllowedError"
-          ? "Allow microphone access to record a voice over."
-          : reason instanceof Error
-            ? reason.message
-            : "Could not start microphone recording.",
-      );
-    }
-  }, [deviceId, playheadPosition, releaseStream, saveVoiceOver, startMeter]);
-
-  const stopRecording = () => {
-    saveRecordingRef.current = true;
-    recorderRef.current?.stop();
-  };
+  const headline =
+    phase === "countdown"
+      ? "Get ready"
+      : phase === "recording"
+        ? plan.punched ? "Recording punch" : "Recording"
+        : phase === "saving"
+          ? "Adding to timeline"
+          : "Record at playhead";
+  const subline =
+    phase === "countdown"
+      ? `Recording starts at ${timecode(plan.recordStart)}. Playback is running.`
+      : phase === "recording"
+        ? plan.recordEnd !== null
+          ? `Stops automatically at ${timecode(plan.recordEnd)}.`
+          : "Press Stop when you are done."
+        : plan.punched
+          ? `Punches ${timecode(plan.recordStart)} to ${timecode(plan.recordEnd ?? plan.recordStart)} on ${targetName}.`
+          : `Starts at ${timecode(plan.recordStart)} on ${targetName}.`;
 
   return (
-    <div className="space-y-3">
-      <Card className="min-w-0 rounded-[7px] shadow-none bg-bg-2 text-fg p-3 flex items-center justify-between border border-border">
-        <div>
-          <span className="font-bold block text-[11px] text-fg">
-            Record at playhead
-          </span>
-          <span className="text-fg-2 font-normal block text-[9px]">
-            Starts at {playheadPosition.toFixed(1)}s on a new Voice Over track.
-          </span>
+    <div className="space-y-3" data-testid="voiceover-panel" data-phase={phase}>
+      <Card className="min-w-0 rounded-[7px] shadow-none bg-bg-2 text-fg p-3 flex items-center justify-between gap-3 border border-border">
+        <div className="min-w-0">
+          <span className="font-bold block text-[11px] text-fg">{headline}</span>
+          <span className="text-fg-2 font-normal block text-[9px]" data-testid="voiceover-subline">{subline}</span>
         </div>
-        <span className={`font-mono text-sm ${isRecording ? "text-red-400" : "text-fg-2"}`}>
-          {formatElapsed(elapsed)}
-        </span>
+        {phase === "countdown" ? (
+          <span
+            className="font-mono text-2xl font-bold leading-none text-status-warning tabular-nums"
+            role="timer"
+            aria-live="assertive"
+            data-testid="voiceover-countdown"
+          >
+            {countdown}
+          </span>
+        ) : (
+          <span
+            className={`flex items-center gap-1.5 font-mono text-sm tabular-nums ${phase === "recording" ? "text-red-400" : "text-fg-2"}`}
+            data-testid="voiceover-elapsed"
+          >
+            {phase === "recording" && <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" aria-hidden />}
+            {formatClock(elapsedMs)}
+          </span>
+        )}
       </Card>
-      <div className="space-y-1.5 rounded-[7px] border border-border bg-bg-2 p-3">
-        <div className="flex items-center justify-between gap-2">
-          <label htmlFor="voiceover-input" className="text-[11px] font-semibold text-fg">
-            Input
-          </label>
+
+      <div className="space-y-2 rounded-[7px] border border-border bg-bg-2 p-3">
+        <div className={ROW}>
+          <label htmlFor="voiceover-input" className={LABEL}>Input</label>
           <select
             id="voiceover-input"
             data-testid="voiceover-device"
-            value={deviceId}
-            disabled={isRecording}
-            onChange={(event) => setDeviceId(event.target.value)}
-            className="h-7 min-w-0 max-w-[190px] flex-1 truncate rounded-md border border-border bg-bg-1 px-2 text-[11px] text-fg disabled:opacity-60"
+            value={devices.some((device) => device.deviceId === prefs.deviceId) ? prefs.deviceId : ""}
+            disabled={busy}
+            onChange={(event) => setPrefs({ deviceId: event.target.value })}
+            className={FIELD}
           >
             <option value="">System default microphone</option>
-            {devices.map((device, index) => (
-              <option key={device.deviceId} value={device.deviceId}>
-                {device.label || `Microphone ${index + 1}`}
-              </option>
+            {devices.map((device) => (
+              <option key={device.deviceId} value={device.deviceId}>{device.label}</option>
             ))}
           </select>
         </div>
-        <VoiceOverMeter level={level} active={isRecording} />
-        <p className="text-[9px] text-fg-muted">
-          {isRecording ? "Live input level. Keep peaks out of the red." : "The level meter moves while you record."}
-        </p>
+        {savedDeviceMissing && (
+          <p className="text-[9px] text-status-warning" data-testid="voiceover-device-missing">
+            Your saved microphone is not connected. The system default will be used.
+          </p>
+        )}
+        <VoiceOverMeter level={level} active={phase !== "idle" && phase !== "saving"} />
+        <div className={ROW}>
+          <p className="text-[9px] text-fg-muted">
+            {phase === "idle" ? "Check your level before recording." : "Live input level. Keep peaks out of the red."}
+          </p>
+          {(
+            <button
+              type="button"
+              disabled={busy}
+              data-testid="voiceover-monitor"
+              onClick={() => (phase === "monitoring" ? useVoiceOverStore.getState().stopMonitor() : void useVoiceOverStore.getState().startMonitor())}
+              className="shrink-0 rounded-md border border-border bg-bg-1 px-2 py-1 text-[10px] font-semibold text-fg hover:bg-bg-3 focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
+            >
+              {phase === "monitoring" ? "Stop check" : "Check level"}
+            </button>
+          )}
+        </div>
       </div>
+
+      <div className="space-y-2 rounded-[7px] border border-border bg-bg-2 p-3">
+        <div className={ROW}>
+          <label htmlFor="voiceover-track" className={LABEL}>Record to</label>
+          <select
+            id="voiceover-track"
+            data-testid="voiceover-track"
+            value={audioTracks.some((track) => track.id === prefs.targetTrackId) ? prefs.targetTrackId : ""}
+            disabled={busy}
+            onChange={(event) => setPrefs({ targetTrackId: event.target.value })}
+            className={FIELD}
+          >
+            <option value="">New Voice Over track</option>
+            {audioTracks.map((track) => (
+              <option key={track.id} value={track.id}>{track.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className={ROW}>
+          <label htmlFor="voiceover-preroll" className={LABEL}>Pre-roll</label>
+          <select
+            id="voiceover-preroll"
+            data-testid="voiceover-preroll"
+            value={prefs.preRoll}
+            disabled={busy}
+            onChange={(event) => setPrefs({ preRoll: Number(event.target.value) })}
+            className={FIELD}
+          >
+            {Array.from({ length: MAX_PRE_ROLL_SECONDS + 1 }, (_, seconds) => (
+              <option key={seconds} value={seconds}>{seconds === 0 ? "None" : `${seconds} s countdown`}</option>
+            ))}
+          </select>
+        </div>
+        <Toggle
+          id="voiceover-punch"
+          checked={prefs.punch && range !== null}
+          disabled={busy || range === null}
+          onChange={(punch) => setPrefs({ punch })}
+          title="Punch in / out"
+          hint={
+            range
+              ? `Record only between In ${timecode(range.start)} and Out ${timecode(range.end)}.`
+              : "Set In and Out marks (I and O) on the timeline to enable."
+          }
+        />
+        <Toggle
+          id="voiceover-mute"
+          checked={prefs.muteDuringRecord}
+          disabled={busy}
+          onChange={(muteDuringRecord) => setPrefs({ muteDuringRecord })}
+          title="Mute playback while recording"
+          hint="Silences the timeline once recording starts so speakers do not feed back into the microphone."
+        />
+      </div>
+
       {error && (
-        <Card className="min-w-0 rounded-[7px] shadow-none text-fg p-2 flex items-start gap-2 border border-red-500/30 bg-red-500/10">
+        <Card
+          className="min-w-0 rounded-[7px] shadow-none text-fg p-2 flex items-start gap-2 border border-red-500/30 bg-red-500/10"
+          role="alert"
+          data-testid="voiceover-error"
+        >
           <AlertCircle size={14} className="mt-0.5 shrink-0 text-red-400" aria-hidden />
-          <span className="font-normal text-[10px] text-red-400">{error}</span>
+          <div className="min-w-0 space-y-1">
+            <span className="block font-normal text-[10px] text-red-400">{error}</span>
+            {(errorKind === "blocked" || errorKind === "denied") && typeof window !== "undefined" && window.openreel?.microphone && (
+              <button
+                type="button"
+                data-testid="voiceover-open-settings"
+                onClick={() => void window.openreel?.microphone?.openSettings()}
+                className="rounded-md border border-red-500/40 px-2 py-0.5 text-[10px] font-semibold text-red-300 hover:bg-red-500/10 focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Open microphone settings
+              </button>
+            )}
+          </div>
         </Card>
       )}
-      {isRecording ? (
-        <Button onClick={stopRecording} type="button" aria-label="Stop & Add to Timeline" className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] text-accent-fg w-full justify-center bg-red-500 hover:bg-red-600">
-          <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Square size={13} aria-hidden />}</span>
-          <span className="truncate">{"Stop & Add to Timeline"}</span>
+      {lastTake?.note && (
+        <p className="text-[10px] text-fg-2" data-testid="voiceover-note">{lastTake.note}</p>
+      )}
+
+      {phase === "countdown" ? (
+        <Button
+          onClick={() => useVoiceOverStore.getState().cancel()}
+          type="button"
+          aria-label="Cancel recording"
+          className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-8 px-3 text-[12px] w-full justify-center bg-bg-3 text-fg hover:bg-bg-3/80"
+        >
+          <span className="truncate">Cancel (Esc)</span>
+        </Button>
+      ) : phase === "recording" ? (
+        <Button
+          onClick={() => useVoiceOverStore.getState().stop()}
+          type="button"
+          aria-label="Stop & Add to Timeline"
+          className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] text-accent-fg w-full justify-center bg-red-500 hover:bg-red-600"
+        >
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center"><Square size={13} aria-hidden /></span>
+          <span className="truncate">Stop & Add to Timeline</span>
         </Button>
       ) : (
-        <Button onClick={startRecording} type="button" aria-label={(isSaving ? "Adding Voice Over…" : "Record Voice Over").trim() || undefined} disabled={(isSaving)} className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-accent text-accent-fg hover:bg-accent/90 w-full justify-center">
-          <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Mic size={14} aria-hidden />}</span>
-          <span className="truncate">{isSaving ? "Adding Voice Over…" : "Record Voice Over"}</span>
+        <Button
+          onClick={() => void useVoiceOverStore.getState().start()}
+          type="button"
+          aria-label={phase === "saving" ? "Adding Voice Over…" : "Record Voice Over"}
+          disabled={phase === "saving"}
+          className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-accent text-accent-fg hover:bg-accent/90 w-full justify-center"
+        >
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center"><Mic size={14} aria-hidden /></span>
+          <span className="truncate">{phase === "saving" ? "Adding Voice Over…" : "Record Voice Over"}</span>
         </Button>
       )}
+
       {takes.length > 0 && (
         <section aria-label="Takes" data-testid="voiceover-takes" className="space-y-1">
-          <h4 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-muted">
-            Takes · {takes.length}
-          </h4>
-          {takes.map((take, index) => (
+          <h4 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-muted">Takes · {takes.length}</h4>
+          {takes.map((take) => (
             <button
               key={take.clipId}
               type="button"
+              data-testid="voiceover-take"
               onClick={() => {
                 useTimelineStore.getState().seekTo(take.startTime);
                 useUIStore.getState().select({ type: "clip", id: take.clipId, trackId: take.trackId });
               }}
-              className="flex w-full items-center justify-between rounded-md border border-border bg-bg-2 px-2.5 py-1.5 text-left text-[11px] text-fg hover:bg-bg-3 focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex w-full items-center justify-between gap-2 rounded-md border border-border bg-bg-2 px-2.5 py-1.5 text-left text-[11px] text-fg hover:bg-bg-3 focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <span>Take {index + 1}</span>
-              <span className="font-mono text-fg-muted">
-                {formatElapsed(take.startTime * 1000)} · {formatElapsed(take.duration * 1000)} long
+              <span className="min-w-0 truncate">{take.name}</span>
+              <span className="shrink-0 font-mono text-fg-muted">
+                {timecode(take.startTime)} · {formatClock(take.duration * 1000)}
               </span>
             </button>
           ))}

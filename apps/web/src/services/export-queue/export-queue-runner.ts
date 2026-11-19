@@ -4,7 +4,9 @@ import {
   desktopExportRequiresNativeEncoder,
   planInvalidation,
   setEncoderBackendFactory,
+  encoderChoiceForcesNative,
   WebCodecsBackend,
+  webCodecsEncoderOptions,
   type ExportEngine,
   type ExportFrameSource,
   type ExportJob,
@@ -83,7 +85,9 @@ const webCodecsFactoryFor = (settings: VideoExportSettings, clamp: boolean, enco
   return (mediabunny: unknown) =>
     mediabunny
       ? new WebCodecsBackend(mediabunny as ConstructorParameters<typeof WebCodecsBackend>[0], {
-          hardwareAcceleration: encoder,
+          ...webCodecsEncoderOptions(settings.encoderChoice),
+          // The automatic re-run after a hardware session failed to open asks for software, unless the user chose Hardware.
+          ...(encoder === "prefer-software" && settings.encoderChoice !== "hardware" ? { hardwareAcceleration: "prefer-software" as const } : {}),
           videoCodecs: [videoCodec],
           clampResolution: clamp,
         })
@@ -156,7 +160,7 @@ async function runExportJobWith(engine: ExportEngine, job: ExportJob, project: P
   if (desktop) {
     const fs = window.openreel!.fs;
     const path = await fs.tempFilePath(ext, true);
-    const native = desktopExportRequiresNativeEncoder(settings) || settings.encodeMode === "smallest" || settings.codec === "av1";
+    const native = desktopExportRequiresNativeEncoder(settings) || settings.encodeMode === "smallest" || settings.codec === "av1" || encoderChoiceForcesNative(settings.encoderChoice, settings.codec);
     (window as { __openreelExportPath?: string }).__openreelExportPath = path;
     if (native) {
       setEncoderBackendFactory(() => new NativeFFmpegBackend(() => path));
@@ -186,7 +190,11 @@ async function runExportJobWith(engine: ExportEngine, job: ExportJob, project: P
       lockedPlayback = true;
       useProjectStore.getState().syncRenderProcessingFrom(project);
     }
-    generator = engine.exportVideo(project, settings, writable, frameSource ? { cachedFrames: frameSource } : {});
+    // Desktop carries the preference in its encoder factory; the browser passes it per run so it never outlives this job.
+    generator = engine.exportVideo(project, settings, writable, {
+      ...(frameSource ? { cachedFrames: frameSource } : {}),
+      ...(!desktop && encoder === "prefer-software" ? { encoderPreference: "prefer-software" as const } : {}),
+    });
     let framesFromCache = 0;
     let smartRender: RunJobResult["smartRender"];
     let sourceMedia: string | undefined;

@@ -290,6 +290,36 @@ describe("direct shadcn mixer controls", () => {
   });
 });
 
+describe("solo safe", () => {
+  it("keeps a solo-safe strip live while another track is soloed, as one undo step", async () => {
+    render(<AudioMixer />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Solo Safe Camera" }));
+    });
+    expect(state().project.timeline.tracks[1].soloSafe).toBe(true);
+    expect(screen.getByRole("button", { name: "Solo Safe Camera" })).toHaveAttribute("aria-pressed", "true");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Solo Voice" }));
+    });
+    // The silent third track is silenced by the solo; the solo-safe Camera keeps playing.
+    expect(screen.getByRole("slider", { name: "Camera pan control" })).not.toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Solo Safe Camera" })).toHaveAttribute("aria-pressed", "true");
+    await act(async () => {
+      await state().undo();
+    });
+    await act(async () => {
+      await state().undo();
+    });
+    expect(state().project.timeline.tracks[1].soloSafe).toBeUndefined();
+    expect(screen.getByRole("button", { name: "Solo Safe Camera" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("offers the output device picker in the mixer header", () => {
+    render(<AudioMixer />);
+    expect(screen.getByTestId("mixer-audio-output-trigger")).toBeInTheDocument();
+  });
+});
+
 describe("meter lifecycle", () => {
   it("updates actual sample values and stops every tap and interval on pause", () => {
     useTimelineStore.setState({ playbackState: "playing" });

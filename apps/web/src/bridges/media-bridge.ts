@@ -5,6 +5,7 @@ import type {
   WaveformData,
   MediaTrackInfo,
 } from "@openreel/core";
+import { backgroundTasks, type TrackContext } from "@openreel/core/tasks/task-registry";
 import { useProjectStore } from "../stores/project-store";
 import { loadEngineModules } from "../services/lazy-engines";
 import { toast } from "../stores/notification-store";
@@ -13,6 +14,12 @@ import { thumbnailSizeFor } from "@openreel/core/media/interpretation";
 const CODEC_UNSUPPORTED_PREFIX = "This browser cannot decode this video's codec";
 // Matches core's PRO_MEDIA_PROXY_PREFIX (pro media converted to a browser proxy).
 const PRO_MEDIA_PROXY_PREFIX = "Pro media proxy:";
+
+class ImportTaskFailure extends Error {
+  constructor(readonly result: MediaBridgeImportResult) {
+    super(result.error ?? "Import failed");
+  }
+}
 
 /**
  * Import progress callback type
@@ -187,7 +194,45 @@ export class MediaBridge {
    * @param generateWaveform - Whether to generate waveform data (default: true)
    * @returns Import result with processed media or error
    */
-  async importFile(
+  importFile(
+    file: File,
+    generateWaveform = true,
+    quickMode = false,
+    onProgress?: (stage: string) => void,
+    options: { untracked?: boolean; signal?: AbortSignal } = {},
+  ): Promise<MediaBridgeImportResult> {
+    // Callers that own a wider task (the project store's import action) pass `untracked`.
+    // Otherwise imports are reported to the task registry; a failed result is a failed task, never an exception.
+    const cancelled: MediaBridgeImportResult = { success: false, error: "Import cancelled", hasWaveform: false };
+    const withSignal = (signal: AbortSignal | undefined, stage?: (s: string) => void): Promise<MediaBridgeImportResult> => {
+      if (signal?.aborted) return Promise.resolve(cancelled);
+      const work = this.importFileUntracked(file, generateWaveform, quickMode, stage);
+      if (!signal) return work;
+      // The decode cannot be interrupted, so Cancel detaches from it: its result is discarded, never published.
+      return new Promise((resolve, reject) => {
+        const onAbort = () => resolve(cancelled);
+        signal.addEventListener("abort", onAbort, { once: true });
+        work.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
+      });
+    };
+    if (options.untracked) return withSignal(options.signal, onProgress);
+    const run = (ctx: TrackContext): Promise<MediaBridgeImportResult> =>
+      withSignal(ctx.signal, (stage) => {
+        ctx.progress(null, stage);
+        onProgress?.(stage);
+      }).then((result) => {
+        if (!result.success && !ctx.signal.aborted) throw new ImportTaskFailure(result);
+        return result;
+      });
+    return backgroundTasks
+      .track({ kind: "import", source: "import", title: `Import \u00b7 ${file.name}` }, run)
+      .catch((error) => {
+        if (error instanceof ImportTaskFailure) return error.result;
+        throw error;
+      });
+  }
+
+  private async importFileUntracked(
     file: File,
     generateWaveform = true,
     quickMode = false,

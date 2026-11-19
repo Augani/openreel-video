@@ -31,6 +31,7 @@ import FilterLooksPanel from "./FilterLooksPanel";
 import type { ColorGradingSettings } from "../../../../bridges/effects-bridge";
 import { LookCard, lookIconButton } from "./LookCard";
 import { CompareToggle, useLookCompare } from "./compare-context";
+import CameraInputPicker from "./CameraInputPicker";
 
 /** Clips an apply action targets: the timeline selection, or the inspected clip. */
 function targetClipIds(clipId: string): string[] {
@@ -315,6 +316,8 @@ const LooksAndLuts: React.FC<Props> = ({ clipId }) => {
           </div>
         )}
       </div>
+
+      <CameraInputPicker clipId={clipId} />
 
       <div className="space-y-2">
         <div className={sectionTitle}>Input LUT</div>

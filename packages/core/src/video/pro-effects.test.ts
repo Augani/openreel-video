@@ -26,6 +26,7 @@ import {
 } from "./pro-effects";
 import { PRO_EFFECT_SHADER_DEFS } from "./pro-effect-shaders";
 import { EXTRA_PRO_EFFECT_TYPES } from "./pro-effects-extra";
+import { TEMPORAL_PRO_EFFECT_TYPES, isTemporalEffectType } from "./temporal-effects";
 
 function makeImage(width: number, height: number): Uint8ClampedArray {
   const data = new Uint8ClampedArray(width * height * 4);
@@ -84,6 +85,7 @@ describe("pro effects registration", () => {
         "skew",
         "hsl-secondary",
         ...EXTRA_PRO_EFFECT_TYPES,
+        ...TEMPORAL_PRO_EFFECT_TYPES,
       ].sort(),
     );
   });
@@ -111,7 +113,8 @@ describe("pro effects neutral-parameter identity", () => {
       expect(isProEffectNeutral(type, {})).toBe(true);
     });
 
-    it(`${type} changes the image with its default params and is not neutral`, () => {
+    // Temporal effects choose frames, not pixels: their pixel pass is the identity (temporal-effects.test.ts).
+    it.skipIf(isTemporalEffectType(type))(`${type} changes the image with its default params and is not neutral`, () => {
       const original = makeImage(W, H);
       const data = new Uint8ClampedArray(original);
       applyProEffect(type, { ...PRO_EFFECT_DEFAULTS[type] }, data, W, H);

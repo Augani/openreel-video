@@ -14,6 +14,7 @@ import type { OutputColorSpec } from "../export/color-output";
 import { packRgbToRgba } from "../color/lut-tables";
 import { HUE_CURVES_GLSL, HUE_CURVE_LUT_SIZE, packHueCurveLuts } from "./hue-curves";
 import { BT2020_TO_BT709, TONE_MAP_KNEE } from "../color/input-transform";
+import { cameraLogGlsl } from "../color/camera-log";
 import { BLUR_MAX_HALF, GLOW_BRIGHTNESS, GLOW_CONTRAST, gaussianKernel, glowWeight, type HdrLayerEffect } from "../color/hdr-effects";
 
 /**
@@ -93,7 +94,9 @@ uniform int u_depth;
 uniform int u_transfer;
 uniform mat3 u_toBt2020;
 
+${cameraLogGlsl()}
 vec3 decodeTransfer(vec3 c) {
+  if (u_transfer >= 4) return decodeCameraLog(c, u_transfer);
   if (u_transfer == 1) return pqDecodeNitsV(c) / SDR_WHITE_NITS;
   if (u_transfer == 2) return hlgInverseV(c) / HLG_SDR_WHITE_SCENE;
   if (u_transfer == 3) return c;

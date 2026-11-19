@@ -1,4 +1,5 @@
 import type { FootageInterpretation } from "../media/interpretation";
+import type { SpeakerProfile } from "../captions/diarization";
 import type { FootageColorPreset, SourceColorSpace } from "../color/source-color";
 import type { RawStillInfo } from "../raw/settings";
 import type { ParticleEffect } from "../effects/particle-types";
@@ -96,6 +97,8 @@ export interface Project {
   readonly textClips?: TextClip[];
   /** Named text and caption styles (save once, apply to many). */
   readonly savedStyles?: SavedStyleLibrary;
+  /** Caption speakers: colour and caption position per `Subtitle.speaker` name. */
+  readonly speakers?: readonly SpeakerProfile[];
   readonly shapeClips?: ShapeClip[];
   readonly svgClips?: SVGClip[];
   readonly stickerClips?: StickerClip[];
@@ -162,8 +165,8 @@ export interface MediaLibrary {
   readonly desktopIngest?: DesktopIngestConfig;
 }
 
-/** Codec of a desktop (native ffmpeg) proxy: ProRes 422 Proxy in .mov, or H.264 in .mp4. */
-export type DesktopProxyCodec = "prores-proxy" | "h264";
+/** Codec of a desktop (native ffmpeg) proxy: ProRes 422 Proxy or DNxHR LB in .mov, or H.264 in .mp4. */
+export type DesktopProxyCodec = "prores-proxy" | "h264" | "dnxhr-lb";
 /** Proxy frame size: half or quarter of the source, or a fixed height (never upscaled). */
 export type DesktopProxySize = "half" | "quarter" | "720p" | "1080p";
 
@@ -232,6 +235,8 @@ export interface MediaItem {
   readonly metadata: MediaMetadata;
   readonly thumbnailUrl: string | null;
   readonly waveformData: Float32Array | null;
+  /** Preferences > Default audio channels, stamped at import: clips of this file start with that channel format. Absent = use file. */
+  readonly channelPreset?: import("../audio/channel-map").ChannelPreset;
   readonly filmstripThumbnails?: FilmstripThumbnail[];
   readonly isPlaceholder?: boolean;
   readonly originalUrl?: string;
@@ -259,6 +264,8 @@ export interface MediaItem {
   readonly kieaiError?: boolean;
   /** KieAI task ID used to poll for completion */
   readonly kieaiTaskId?: string;
+  /** Master-clip markers (Source monitor): `time` is source-media seconds; shown on every timeline instance. */
+  readonly markers?: import("./timeline").Marker[];
   /** "Interpret footage": the user's override of the file's colour tags. Absent means as tagged. */
   readonly colorInterpretation?: FootageColorPreset;
   /** "Interpret footage": frame rate / pixel aspect ratio / field order overrides. Absent means as the file says. */

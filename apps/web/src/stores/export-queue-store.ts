@@ -16,6 +16,7 @@ import {
   isStemsJob,
   removeExportJob,
   reportExportProgress,
+  resetExportProgress,
   retryExportJob,
   setExportQueuePaused,
   startExportJob,
@@ -32,7 +33,7 @@ import { extForFormat } from "../services/export-runner";
 import { renderCacheService } from "../services/render-cache-service";
 import { ExportJobCancelled, cancelRunningExportJob, runExportJob } from "../services/export-queue/export-queue-runner";
 import { cancelRunningStemsJob, runStemsJob } from "../services/export-queue/stems-job-runner";
-import { runWithEncoderRetry } from "../services/export-queue/transient-encoder-error";
+import { canRetryInSoftware, hardwareEncoderFailureMessage, isTransientEncoderError, runWithEncoderRetry } from "../services/export-queue/transient-encoder-error";
 import { isExportQueueRunning, setExportQueueRunning } from "../services/export-queue/export-queue-activity";
 import {
   deleteBrowserOutput,
@@ -176,7 +177,7 @@ export const useExportQueueStore = create<ExportQueueStore>((set, get) => {
     let project = snapshots.get(job.id) ?? null;
     let lastReport = 0;
     // Wall-clock ETA that counts down, converges and stays hidden until it means something.
-    const estimator = new ProgressEstimator(Date.now);
+    let estimator = new ProgressEstimator(Date.now);
     estimator.start();
     try {
       project ??= await loadSnapshot(job.id);
@@ -202,9 +203,25 @@ export const useExportQueueStore = create<ExportQueueStore>((set, get) => {
             // A transient encoder failure (reclaimed session, or a hardware encoder that could not be opened, as on
             // machines and VMs without a video encode accelerator) is retried once, on the software encoder.
             ...(await runWithEncoderRetry(
-              (attempt) => runExportJob(fresh, project!, hooks, attempt === 1 ? "prefer-hardware" : "prefer-software"),
-              { shouldRetry: () => !hooks.isCancelled() },
-            )),
+              (attempt) => {
+                if (attempt > 1) {
+                  // The re-run starts over: drop the failed attempt's progress, phase and ETA so the bar and the
+                  // background-task row count up again instead of freezing at the old value.
+                  estimator = new ProgressEstimator(Date.now);
+                  estimator.start();
+                  lastReport = 0;
+                  apply((s) => resetExportProgress(s, job.id, Date.now()), true);
+                }
+                return runExportJob(fresh, project!, hooks, attempt === 1 ? "prefer-hardware" : "prefer-software");
+              },
+              { shouldRetry: () => !hooks.isCancelled() && canRetryInSoftware(fresh.settings.encoderChoice) },
+            ).catch((error: unknown) => {
+              // An explicit Hardware choice cannot fall back, so a re-run would repeat the failure: say so right away.
+              if (!canRetryInSoftware(fresh.settings.encoderChoice) && isTransientEncoderError(error) && !hooks.isCancelled()) {
+                throw new Error(hardwareEncoderFailureMessage(error));
+              }
+              throw error;
+            })),
             stemOutputs: undefined,
           };
       if (!ownsJob()) {

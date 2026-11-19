@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import {
   createProxyRef,
   getMediaEngine,
+  isIntermediateProxyCodec,
   matchRelinkCandidates,
   relinkTargetFor,
   resolveDesktopProxyProfile,
@@ -232,11 +233,11 @@ export function queueDesktopProxies(mediaIds: readonly string[], force = false):
 async function submitBatch(batch: Array<{ mediaId: string; name: string; srcPath: string; profile: DesktopProxyProfile }>, force: boolean): Promise<void> {
   const api = bridge();
   if (!api) return;
-  const previewTwin = batch.some((entry) => entry.profile.codec === "prores-proxy") && !(await rendererDecodesProres());
+  const previewTwin = batch.some((entry) => isIntermediateProxyCodec(entry.profile.codec)) && !(await rendererDecodesProres());
   try {
     const jobs = await api.enqueueProxies({
       ...ingestProject(),
-      items: batch.map((entry) => ({ ...entry, previewTwin: entry.profile.codec === "prores-proxy" && previewTwin })),
+      items: batch.map((entry) => ({ ...entry, previewTwin: isIntermediateProxyCodec(entry.profile.codec) && previewTwin })),
       force,
     });
     patchState((s) => ({ jobs: { ...s.jobs, ...Object.fromEntries(jobs.map((job) => [job.mediaId, job])) } }));

@@ -30,6 +30,13 @@ import {
   isExtraNeutral,
   isExtraProEffectType,
 } from "./pro-effects-extra";
+import {
+  TEMPORAL_EFFECTS_WRITING_ALPHA,
+  TEMPORAL_PRO_EFFECT_SPECS,
+  TEMPORAL_PRO_EFFECT_TYPES,
+  isTemporalEffectType,
+  isTemporalNeutral,
+} from "./temporal-effects";
 
 const BASE_PRO_EFFECT_TYPES = [
   "mosaic",
@@ -55,6 +62,7 @@ const BASE_PRO_EFFECT_TYPES = [
 export const PRO_EFFECT_TYPES = [
   ...BASE_PRO_EFFECT_TYPES,
   ...EXTRA_PRO_EFFECT_TYPES,
+  ...TEMPORAL_PRO_EFFECT_TYPES,
 ] as const;
 
 export type ProEffectType = (typeof PRO_EFFECT_TYPES)[number];
@@ -71,6 +79,7 @@ export const PRO_EFFECTS_WRITING_ALPHA: readonly ProEffectType[] = [
   "crop",
   "skew",
   ...EXTRA_EFFECTS_WRITING_ALPHA,
+  ...TEMPORAL_EFFECTS_WRITING_ALPHA,
 ];
 
 export type MirrorMode = "none" | "horizontal" | "vertical" | "quad";
@@ -82,7 +91,8 @@ export type ProEffectCategory =
   | "Color"
   | "Keying"
   | "Distort"
-  | "Generate";
+  | "Generate"
+  | "Time";
 
 export interface ProEffectParamSpec {
   readonly key: string;
@@ -140,6 +150,7 @@ const toggle = (
 
 export const PRO_EFFECT_SPECS: Readonly<Record<ProEffectType, ProEffectSpec>> = {
   ...EXTRA_PRO_EFFECT_SPECS,
+  ...TEMPORAL_PRO_EFFECT_SPECS,
   mosaic: {
     type: "mosaic",
     label: "Mosaic",
@@ -584,6 +595,7 @@ export function isProEffectNeutral(
 ): boolean {
   const p = resolveProEffectParams(type, rawParams);
   if (isExtraProEffectType(type)) return isExtraNeutral(type, p);
+  if (isTemporalEffectType(type)) return isTemporalNeutral(type, p);
   switch (type) {
     case "mosaic":
       return Math.floor(n(p, "size")) <= 1;
@@ -1391,6 +1403,8 @@ export function applyProEffect(
     applyExtraProEffect(type, p, data, width, height);
     return true;
   }
+  // Temporal effects choose frames rather than recolour one: the pixel pass is the identity.
+  if (isTemporalEffectType(type)) return true;
   switch (type) {
     case "mosaic":
       applyMosaic(data, width, height, n(p, "size"));
@@ -1526,6 +1540,7 @@ export function proEffectGpuUniforms(
 ): Record<string, number> {
   const p = resolveProEffectParams(type, rawParams);
   if (isExtraProEffectType(type)) return extraProEffectGpuUniforms(type, p);
+  if (isTemporalEffectType(type)) return {};
   switch (type) {
     case "mosaic":
       return { size: Math.floor(clamp(n(p, "size"), 1, 400)) };

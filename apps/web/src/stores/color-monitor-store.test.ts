@@ -8,6 +8,9 @@ const reset = () =>
     secondary: { clipId: null, effectId: null, matteView: 0, eyedropper: null },
     captureBusy: false,
     referenceRevision: 0,
+    whiteBalancePick: null,
+    whiteBalanceSize: 5,
+    keyPicker: null,
   });
 
 describe("color monitor store", () => {
@@ -40,5 +43,43 @@ describe("color monitor store", () => {
     const stills = useColorMonitorStore.getState().stills;
     expect(stills).toHaveLength(12);
     expect(stills[0].id).toBe("s3");
+  });
+
+  it("arming the white balance eyedropper disarms the secondary one and vice versa", () => {
+    const store = useColorMonitorStore.getState();
+    store.setSecondaryView({ clipId: "c", effectId: "e", eyedropper: "set" });
+    store.setWhiteBalancePick({ clipId: "c" });
+    expect(useColorMonitorStore.getState().secondary.eyedropper).toBeNull();
+    expect(useColorMonitorStore.getState().whiteBalancePick).toEqual({ clipId: "c" });
+    store.setSecondaryView({ eyedropper: "add" });
+    expect(useColorMonitorStore.getState().whiteBalancePick).toBeNull();
+    store.setWhiteBalancePick({ clipId: "c" });
+    store.setSecondaryView({ matteView: 2 });
+    expect(useColorMonitorStore.getState().whiteBalancePick).toEqual({ clipId: "c" });
+    store.setWhiteBalanceSize(1);
+    expect(useColorMonitorStore.getState().whiteBalanceSize).toBe(1);
+  });
+
+  it("arming any one of the Ultra Key picker, White Balance and Secondary eyedroppers disarms the others", () => {
+    const get = () => useColorMonitorStore.getState();
+    const key = { clipId: "c", effectId: "e" };
+    get().setKeyPicker(key);
+    get().setWhiteBalancePick({ clipId: "c" });
+    expect(get().keyPicker).toBeNull();
+    expect(get().whiteBalancePick).toEqual({ clipId: "c" });
+
+    get().setSecondaryView({ clipId: "c", effectId: "s", eyedropper: "add" });
+    expect(get().whiteBalancePick).toBeNull();
+    expect(get().keyPicker).toBeNull();
+
+    get().setKeyPicker(key);
+    expect(get().keyPicker).toEqual(key);
+    expect(get().secondary.eyedropper).toBeNull();
+    expect(get().whiteBalancePick).toBeNull();
+
+    get().setKeyPicker(null);
+    get().setWhiteBalancePick({ clipId: "c" });
+    get().setWhiteBalancePick(null);
+    expect(get().keyPicker).toBeNull();
   });
 });

@@ -1,8 +1,14 @@
 import { v4 as uuidv4 } from "uuid";
 import {
+  applySpeakerStyles,
   assignSpeaker,
+  mirrorSpeakersToTranslations,
+  ensureSpeakerProfiles,
+  renameSpeakerProfile,
+  type SpeakerProfile,
   buildTranscript,
   cutDuration,
+  decodeCaptionText,
   exportCaptionFile,
   exportCaptions,
   findFillerWords,
@@ -13,6 +19,9 @@ import {
   parseTranscriptJson,
   planTranscriptCut,
   renameSpeaker,
+  translateCaptionTrack,
+  type CaptionTranslationProgress,
+  type CaptionTranslator,
   type CaptionExportFormat,
   type CaptionExportOptions,
   type CaptionFile,
@@ -104,7 +113,7 @@ export async function importCaptionBytes(
   bytes: Uint8Array,
   options: CaptionImportOptions = {},
 ): Promise<CaptionImportOutcome> {
-  if (!isStlContent(bytes)) return importCaptionText(new TextDecoder("utf-8").decode(bytes), options);
+  if (!isStlContent(bytes)) return importCaptionText(decodeCaptionText(bytes), options);
   const r = parseCaptionBytes(bytes, options);
   const errors = r.errors.map((e) => e.message);
   if (!r.subtitles.length)
@@ -113,19 +122,58 @@ export async function importCaptionBytes(
   return { ...outcome, added: r.subtitles.length, errors, issues: r.issues };
 }
 
-/** Rename a speaker on every cue (one undo step). */
+const getProfiles = (): readonly SpeakerProfile[] => useProjectStore.getState().project.speakers ?? [];
+
+/** Profiles of speakers that still have cues (unused ones are dropped). */
+const used = (subtitles: readonly Subtitle[], profiles: SpeakerProfile[]) =>
+  profiles.filter((p) => subtitles.some((cue) => cue.speaker === p.name));
+
+/** Commit cues and speaker profiles together as one undo step. */
+async function applySpeakers(subtitles: Subtitle[], profiles: SpeakerProfile[]): Promise<CommandOutcome> {
+  const result = await useProjectStore.getState().executeAction({
+    type: "speaker/apply",
+    id: uuidv4(),
+    timestamp: Date.now(),
+    params: { subtitles: applySpeakerStyles(subtitles, used(subtitles, profiles)), profiles: used(subtitles, profiles) },
+  });
+  return result.success
+    ? { success: true }
+    : { success: false, message: result.error?.message ?? "The speaker change failed." };
+}
+
+/** Rename a speaker on every cue and its profile (one undo step). Renaming onto another speaker merges them. */
 export async function renameTranscriptSpeaker(from: string, to: string): Promise<CommandOutcome> {
   const current = getSubtitles();
   const next = renameSpeaker(current, from, to);
   if (next === current) return { success: false, message: `No captions are labelled "${from}".` };
-  return setSubtitles(next);
+  const profiles = ensureSpeakerProfiles(next, renameSpeakerProfile(ensureSpeakerProfiles(current, getProfiles()), from, to));
+  return applySpeakers(next, profiles);
 }
 
+/** Reassign cues to a speaker (an empty name clears it); a new name gets the next palette colour. */
 export async function setCaptionSpeaker(
   subtitleIds: readonly string[],
   speaker: string,
 ): Promise<CommandOutcome> {
-  return setSubtitles(assignSpeaker(getSubtitles(), subtitleIds, speaker));
+  const next = mirrorSpeakersToTranslations(
+    assignSpeaker(getSubtitles(), subtitleIds, speaker),
+    new Set(subtitleIds),
+  );
+  return applySpeakers(next, ensureSpeakerProfiles(next, getProfiles()));
+}
+
+/** Change a speaker's colour / caption position; their cues are restyled in the same undo step. */
+export async function updateSpeakerProfile(
+  name: string,
+  patch: Partial<Pick<SpeakerProfile, "color" | "position">>,
+): Promise<CommandOutcome> {
+  const current = getSubtitles();
+  const profiles = ensureSpeakerProfiles(current, getProfiles()).map((p) => {
+    if (p.name !== name) return p;
+    const { position, ...rest } = { ...p, ...patch };
+    return position ? { ...rest, position } : rest;
+  });
+  return applySpeakers(current, profiles);
 }
 
 /** Cut time ranges out of the sequence (linked tracks together), one undo step. */
@@ -170,3 +218,50 @@ export const exportCaptionBytes = (
   format: CaptionExportFormat,
   options: CaptionExportOptions = {},
 ): CaptionFile => exportCaptionFile(getSubtitles(), format, options);
+
+export type CaptionTranslateOutcome = CommandOutcome & { trackId?: string; added?: number; cancelled?: boolean };
+
+/**
+ * Choose which caption track is drawn in the picture (Preview and burned-in export).
+ * Showing a track hides every other track so two languages never overlap; hiding
+ * a track just hides it. One undo step. Transcript, sidecar and embedded captions are unaffected.
+ */
+export async function setCaptionTrackInPicture(trackId: string, visible: boolean): Promise<CommandOutcome> {
+  const next = getSubtitles().map((cue): Subtitle => {
+    const mine = (cue.captionTrackId ?? "") === trackId;
+    if (mine) return visible ? omitHidden(cue) : { ...cue, hidden: true };
+    return visible ? { ...cue, hidden: true } : cue;
+  });
+  return setSubtitles(next);
+}
+
+function omitHidden(cue: Subtitle): Subtitle {
+  const { hidden: _hidden, ...rest } = cue;
+  void _hidden;
+  return rest;
+}
+
+/**
+ * Translate a caption track into a new track (one undo step: removing the track's cues).
+ * Nothing is committed unless every batch succeeded.
+ */
+export async function translateCaptionTrackCommand(options: {
+  sourceTrackId: string;
+  targetLanguage: string;
+  translator: CaptionTranslator;
+  signal?: AbortSignal;
+  onProgress?: (progress: CaptionTranslationProgress) => void;
+}): Promise<CaptionTranslateOutcome> {
+  const result = await translateCaptionTrack({
+    subtitles: getSubtitles(),
+    sourceTrackId: options.sourceTrackId,
+    targetLanguage: options.targetLanguage,
+    translator: options.translator,
+    signal: options.signal,
+    onProgress: options.onProgress,
+    idFactory: () => `tr-${uuidv4()}`,
+  });
+  if (!result.ok) return { success: false, message: result.message, cancelled: result.reason === "cancelled" };
+  const outcome = await setSubtitles([...getSubtitles(), ...result.cues]);
+  return outcome.success ? { success: true, trackId: result.trackId, added: result.cues.length } : outcome;
+}

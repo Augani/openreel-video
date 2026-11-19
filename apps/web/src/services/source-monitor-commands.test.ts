@@ -92,3 +92,70 @@ describe("source monitor commands", () => {
     expect(useSourceMonitorStore.getState().rate).toBe(1);
   });
 });
+
+describe("Replace and Fit to Fill commands", () => {
+  const seedTimeline = () => {
+    const base = createEmptyProject("t");
+    const old = { id: "old", name: "old.mp4", type: "video", fileHandle: null, blob: null, thumbnailUrl: null, waveformData: null,
+      metadata: { duration: 10, width: 640, height: 360, frameRate: 30, sampleRate: 48000, channels: 2, codec: "x", fileSize: 1, hasAudio: false } } as unknown as MediaItem;
+    const clip = {
+      id: "target", mediaId: "old", trackId: "v", startTime: 2, duration: 4, inPoint: 0, outPoint: 4,
+      effects: [{ id: "fx", type: "blur", params: {}, enabled: true }], audioEffects: [],
+      transform: { position: { x: 0, y: 0 }, scale: { x: 1, y: 1 }, rotation: 0, anchor: { x: 0.5, y: 0.5 }, opacity: 1 },
+      volume: 1, keyframes: [],
+    };
+    useProjectStore.setState({
+      hasOpenProject: true,
+      project: {
+        ...base,
+        mediaLibrary: { items: [old, media("vid", "video")] },
+        timeline: { ...base.timeline, tracks: [{ ...track("v", "video"), clips: [clip] } as unknown as Track] },
+      },
+    });
+    useSourceMonitorStore.setState({ projectId: null, marks: {}, mediaId: null, position: 0, replaceKeepsAttributes: true });
+    useSourceMonitorStore.getState().open("vid", useProjectStore.getState().project.id);
+  };
+
+  beforeEach(seedTimeline);
+
+  it("Replace keeps the clip and its effects, and one undo restores the old footage", async () => {
+    const { useTimelineStore } = await import("../stores/timeline-store");
+    const { replaceFromSource } = await import("./source-monitor-commands");
+    useTimelineStore.getState().seekTo(3);
+    useSourceMonitorStore.getState().setPosition(5);
+    const outcome = replaceFromSource();
+    expect(outcome.success, outcome.message).toBe(true);
+    const clip = () => useProjectStore.getState().project.timeline.tracks[0].clips[0];
+    expect(clip()).toMatchObject({ id: "target", mediaId: "vid", startTime: 2, duration: 4, inPoint: 4, outPoint: 8 });
+    expect(clip().effects).toHaveLength(1);
+    await useProjectStore.getState().undo();
+    expect(clip()).toMatchObject({ mediaId: "old", inPoint: 0, outPoint: 4 });
+  });
+
+  it("Replace without Keep resets effects; a too-short source changes nothing", async () => {
+    const { useTimelineStore } = await import("../stores/timeline-store");
+    const { replaceFromSource } = await import("./source-monitor-commands");
+    useTimelineStore.getState().seekTo(2);
+    expect(replaceFromSource({ keepAttributes: false }).success).toBe(true);
+    expect(useProjectStore.getState().project.timeline.tracks[0].clips[0].effects).toHaveLength(0);
+    seedTimeline();
+    useTimelineStore.getState().seekTo(2);
+    useSourceMonitorStore.getState().setPosition(8);
+    const refused = replaceFromSource();
+    expect(refused.success).toBe(false);
+    expect(useProjectStore.getState().project.timeline.tracks[0].clips[0].mediaId).toBe("old");
+  });
+
+  it("Fit to Fill needs timeline marks, then retimes into them", async () => {
+    const { useTimelineStore } = await import("../stores/timeline-store");
+    const { fitToFillFromSource } = await import("./source-monitor-commands");
+    useTimelineStore.getState().clearLoopRange();
+    expect(fitToFillFromSource().success).toBe(false);
+    setSourceMarks("vid", { in: 0, out: 8 });
+    useTimelineStore.getState().setLoopRange(10, 14);
+    const outcome = fitToFillFromSource();
+    expect(outcome.success, outcome.message).toBe(true);
+    const placed = useProjectStore.getState().project.timeline.tracks.flatMap((t) => t.clips).find((c) => c.id === outcome.clipId)!;
+    expect(placed).toMatchObject({ startTime: 10, duration: 4, speed: 2, inPoint: 0, outPoint: 8 });
+  });
+});

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { clickClip, clipsOf, importInput, openEditor, readState, seek, settle, waitForPresentedPlayhead } from "./helpers";
 import { FIXTURE_PATH } from "./global-setup";
+import { SOFTWARE_GPU } from "./env";
 
 /**
  * Graphics > Overlays cards and the template gallery render the real thing on real pixels:
@@ -626,7 +627,11 @@ export function registerOverlayTemplateTests(): void {
     const max = Math.max(0, ...tasks);
     console.log(`templates long tasks 4K ${JSON.stringify(tasks)} ${JSON.stringify(await page.evaluate(() => (window as any).__loaf))}`);
     await page.screenshot({ path: `${SHOTS}/${testInfo.project.name}-templates-4k-longtask.png` });
-    expect(max, `longest Templates-tab task ${max} ms on 4K (all: ${tasks.join(", ")})`).toBeLessThan(50);
+    // Hardware: no task over 50 ms. On SwiftShader (no GPU) the card canvases rasterize on the CPU and a single hover
+    // frame can spike past 90 ms on a loaded runner (one 98 ms task on CI; steady frames cost ~10 ms), so allow 3x:
+    // still far below the multi-hundred-ms stall of decoding or resampling the 4K frame on the main thread.
+    const budget = SOFTWARE_GPU ? 150 : 50;
+    expect(max, `longest Templates-tab task ${max} ms on 4K (all: ${tasks.join(", ")}), budget ${budget} ms`).toBeLessThan(budget);
   });
 
   const traces: Record<string, { settled: number; count: number; max: number; total: number }> = {};

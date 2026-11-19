@@ -174,5 +174,12 @@
  "gpu|w7-composition.spec.ts secondary + new effect + pen mask render identically before and after nesting, and undo restores them": 58,
  "gpu|w8-composition.spec.ts a DeHum in a bus rack cleans that bus's stem only, and editing the rack invalidates the cached mixdown": 28,
  "gpu|w8-composition.spec.ts an Essential Graphics template and burned-in captions are in the same export, and each can be removed alone": 56,
- "gpu|w8-composition.spec.ts multicam angles decode the proxy while proxies are on and the original when off; export reads full resolution": 34
+ "gpu|w8-composition.spec.ts multicam angles decode the proxy while proxies are on and the original when off; export reads full resolution": 34,
+ "gpu|color-wb-eyedropper.spec.ts white balance eyedropper neutralises the sampled grey as one undo step; Esc cancels": 14,
+ "gpu|color-wb-eyedropper.spec.ts white balance eyedropper on real footage neutralises a patch under a cast + contrast (pipeline v1)": 12,
+ "gpu|color-wb-eyedropper.spec.ts white balance eyedropper on real footage neutralises a patch under a cast + contrast (pipeline v2)": 11,
+ "fallback-nowebgpu|fallback-color-wb-eyedropper.spec.ts fallback: white balance eyedropper neutralises the sampled grey as one undo step; Esc cancels": 16,
+ "fallback-nowebgpu|fallback-color-wb-eyedropper.spec.ts fallback: white balance eyedropper on real footage neutralises a patch under a cast + contrast (pipeline v2)": 13,
+ "fallback-software|fallback-color-wb-eyedropper.spec.ts fallback: white balance eyedropper neutralises the sampled grey as one undo step; Esc cancels": 26,
+ "fallback-software|fallback-color-wb-eyedropper.spec.ts fallback: white balance eyedropper on real footage neutralises a patch under a cast + contrast (pipeline v2)": 15
 }

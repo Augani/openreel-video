@@ -67,6 +67,11 @@ export function ExportCaptionOptions({
     [subtitles, value, format, isDesktop, frameRate],
   );
 
+  const hiddenTracks = useMemo(() => {
+    const shown = new Set(subtitles.filter((c) => !c.hidden).map((c) => c.captionTrackId ?? ""));
+    return new Set(tracks.filter((t) => !shown.has(t.id)).map((t) => t.id));
+  }, [subtitles, tracks]);
+
   const update = (id: string, patch: Partial<CaptionTrackExportSettings>) => {
     const next = { ...trackExportSettings(value, id), ...patch };
     const others = value.tracks.filter((t) => t.captionTrackId !== id);
@@ -113,12 +118,14 @@ export function ExportCaptionOptions({
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]">
                 <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-start sm:justify-start">
                   <Label htmlFor={`caption-burn-${key}`} className="text-[10px] text-fg-muted">
-                    Burn in
+                    {hiddenTracks.has(track.id) ? "Burn in (hidden)" : "Burn in"}
                   </Label>
                   <Switch
                     id={`caption-burn-${key}`}
                     aria-label={`Burn in ${trackName(track.id, track.language)}`}
-                    checked={settings.burnIn}
+                    title={hiddenTracks.has(track.id) ? "This track is hidden in the picture. Choose it with Show in picture in the Transcript panel." : undefined}
+                    disabled={hiddenTracks.has(track.id)}
+                    checked={settings.burnIn && !hiddenTracks.has(track.id)}
                     onCheckedChange={(burnIn) => update(track.id, { burnIn })}
                   />
                 </div>

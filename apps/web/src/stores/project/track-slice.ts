@@ -21,6 +21,7 @@ type TrackSlice = Pick<
   | "muteTrack"
   | "soloTrack"
   | "setTrackSyncLock"
+  | "setTrackSoloSafe"
   | "setAudioRack"
   | "applyAudioRouting"
   | "setTrackAutomation"
@@ -179,6 +180,21 @@ export function createTrackSlice(set: Set, get: Get): TrackSlice {
         id: uuidv4(),
         timestamp: Date.now(),
         params: { trackId, syncLock },
+      };
+      const result = await actionExecutor.execute(action, project);
+      if (result.success) {
+        set({ project: { ...project } });
+      }
+      return result;
+    },
+
+    setTrackSoloSafe: async (trackId, soloSafe) => {
+      const { project, actionExecutor } = get();
+      const action: Action = {
+        type: "track/setSoloSafe",
+        id: uuidv4(),
+        timestamp: Date.now(),
+        params: { trackId, soloSafe },
       };
       const result = await actionExecutor.execute(action, project);
       if (result.success) {

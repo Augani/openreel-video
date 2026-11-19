@@ -4,7 +4,7 @@ import {
   type Track,
 } from "@openreel/core";
 
-type MixerTrack = Pick<Track, "id" | "name" | "type" | "muted" | "solo" | "audioRack" | "output" | "sends" | "surroundPan">;
+type MixerTrack = Pick<Track, "id" | "name" | "type" | "muted" | "solo" | "soloSafe" | "audioRack" | "output" | "sends" | "surroundPan">;
 
 /** Index audio capability once per library change and retain stable control/meter identities. */
 export function createMixerChannelSelector() {
@@ -33,12 +33,13 @@ export function createMixerChannelSelector() {
           track.type === "audio" ||
           track.clips.some((clip) => resolveAudio(clip).audio),
       )
-      .map(({ id, name, type, muted, solo, audioRack, output, sends, surroundPan }) => ({
+      .map(({ id, name, type, muted, solo, soloSafe, audioRack, output, sends, surroundPan }) => ({
         id,
         name,
         type,
         muted,
         solo,
+        soloSafe,
         audioRack,
         output,
         sends,
@@ -54,6 +55,7 @@ export function createMixerChannelSelector() {
           track.type === previous.type &&
           track.muted === previous.muted &&
           track.solo === previous.solo &&
+          track.soloSafe === previous.soloSafe &&
           track.audioRack === previous.audioRack &&
           track.output === previous.output &&
           track.sends === previous.sends &&

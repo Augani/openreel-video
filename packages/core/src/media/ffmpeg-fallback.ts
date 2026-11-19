@@ -1,6 +1,35 @@
 import type { ExportProgress } from "../export/types";
 
 const FFMPEG_CORE_BASE_URL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm";
+const FFMPEG_DOWNLOAD_ATTEMPTS = 3;
+
+/**
+ * Downloads one ffmpeg core file. A CDN can answer 200 and then cut the body short (seen on CI: a 26.9 MB wasm
+ * arrived as ~0.3 MB and failed to compile, which broke every ffmpeg-backed feature for that page load), so the
+ * byte count is checked against Content-Length and a short or failed download is retried.
+ */
+async function fetchCoreFile(filename: string, signal: AbortSignal): Promise<ArrayBuffer> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= FFMPEG_DOWNLOAD_ATTEMPTS; attempt++) {
+    try {
+      const response = await fetch(`${FFMPEG_CORE_BASE_URL}/${filename}`, { signal, ...(attempt > 1 ? { cache: "reload" as const } : {}) });
+      if (!response.ok) throw new Error(`FFmpeg download failed (${response.status}): ${filename}`);
+      const bytes = await response.arrayBuffer();
+      const expected = Number(response.headers?.get("content-length"));
+      // Content-Length is the encoded size; only compare when the body was not transparently decompressed.
+      if (!response.headers?.get("content-encoding") && Number.isFinite(expected) && expected > 0 && bytes.byteLength !== expected) {
+        throw new Error(`FFmpeg download truncated (${bytes.byteLength} of ${expected} bytes): ${filename}`);
+      }
+      return bytes;
+    } catch (error) {
+      if (signal.aborted) throw error;
+      lastError = error;
+      if (attempt < FFMPEG_DOWNLOAD_ATTEMPTS) await new Promise((r) => setTimeout(r, 500 * attempt));
+    }
+  }
+  throw lastError;
+}
+
 type FFmpegInstance = {
   load(options?: {
     coreURL?: string;
@@ -151,9 +180,7 @@ export class FFmpegFallback {
       this.ffmpeg = instance;
       const download = async (filename: string, mime: string): Promise<string> => {
         try {
-          const response = await fetch(`${FFMPEG_CORE_BASE_URL}/${filename}`, { signal: controller.signal });
-          if (!response.ok) throw new Error(`FFmpeg download failed (${response.status}): ${filename}`);
-          const bytes = await response.arrayBuffer();
+          const bytes = await fetchCoreFile(filename, controller.signal);
           checkAborted();
           const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
           urls.push(url);
