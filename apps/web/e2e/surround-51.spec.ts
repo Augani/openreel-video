@@ -305,10 +305,34 @@ async function exportCurrent(page: Page, testInfo: { outputPath(name: string): s
   await page.locator("#export-format").click();
   await page.getByRole("option", { name: container, exact: true }).click();
   const download = page.waitForEvent("download", { timeout: 360_000 });
+  // An export that fails shows a dismissable error banner and never downloads: surface that at once instead of waiting
+  // out the download timeout (a CI run burned 6 minutes on exactly this).
+  const banner = page.getByRole("button", { name: "Dismiss export error" });
+  const failed = banner.waitFor({ timeout: 360_000 }).then(async () => {
+    throw new Error(`${container} export failed: ${(await banner.getAttribute("title").catch(() => null)) ?? "(no message)"}`);
+  });
+  failed.catch(() => undefined);
+  download.catch(() => undefined);
   await page.getByRole("button", { name: "Export Video" }).last().click();
   const out = testInfo.outputPath(name);
-  await (await download).saveAs(out);
+  await (await Promise.race([download, failed])).saveAs(out);
   return out;
+}
+
+/** Whether this browser can encode six-channel AAC (WebCodecs AudioEncoder): Chrome on Linux ships no AAC encoder. */
+async function canEncodeSurroundAac(page: Page): Promise<boolean> {
+  return page.evaluate(async (sampleRate) => {
+    if (typeof AudioEncoder === "undefined") return false;
+    for (const bitrate of [384_000, 192_000, 128_000]) {
+      try {
+        const support = await AudioEncoder.isConfigSupported({ codec: "mp4a.40.2", sampleRate, numberOfChannels: 6, bitrate });
+        if (support.supported) return true;
+      } catch {
+        /* try the next bitrate */
+      }
+    }
+    return false;
+  }, SR);
 }
 
 test("exporting a 5.1 sequence writes six AAC channels in MP4 and MOV: ffprobe layout 5.1 and per-channel energy", async ({ page }, testInfo) => {
@@ -360,6 +384,12 @@ test("exporting a 5.1 sequence writes six AAC channels in MP4 and MOV: ffprobe l
       });
     });
   };
+
+  // The exports below are real AAC encodes through the browser's WebCodecs encoder. Chrome on Linux (the GPU-less CI
+  // runner) has none, and the export then correctly refuses ("No supported audio encoder"), so there is nothing to
+  // inspect there. The six-channel order logic is covered by aac-surround-order.test.ts; this half runs wherever the
+  // browser can encode AAC (macOS, Windows).
+  test.skip(!(await canEncodeSurroundAac(page)), "this browser has no six-channel AAC encoder (WebCodecs AudioEncoder, mp4a.40.2); Chrome on Linux CI cannot encode AAC");
 
   const mp4 = await exportCurrent(page, testInfo, "surround.mp4", "MP4");
   check(mp4, "MP4");

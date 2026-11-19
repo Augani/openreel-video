@@ -234,6 +234,30 @@ export interface MatchResult {
   grade: Record<string, any> | undefined;
 }
 
+/**
+ * Opens the Match Color popover, picks the reference clip and presses "Apply match".
+ *
+ * The popover is portalled and anchored to the "Match Color…" button, which sits below the fold of a long, scrolling
+ * Inspector. Anything that re-lays-out the Inspector after the popover opens (late thumbnails and scopes on a slow
+ * runner) moves that button, and the popover with it, out of the viewport, where Playwright can neither scroll to it
+ * (it is fixed-position) nor click it (a CI run waited out the whole 300 s on exactly this). So keep the anchor in
+ * view until the Apply button is inside the viewport, then click with a bounded timeout.
+ */
+async function clickApplyMatch(page: Page, referenceId: string): Promise<void> {
+  const trigger = page.getByRole("button", { name: "Match Color…", exact: true });
+  await trigger.click();
+  await page.getByRole("combobox", { name: "Reference clip" }).selectOption(referenceId);
+  const apply = page.getByRole("button", { name: "Apply match" });
+  const inViewport = async (): Promise<boolean> => {
+    await trigger.scrollIntoViewIfNeeded().catch(() => undefined);
+    const box = await apply.boundingBox();
+    const view = page.viewportSize();
+    return !!box && !!view && box.y >= 0 && box.y + box.height <= view.height && box.x >= 0 && box.x + box.width <= view.width;
+  };
+  await expect.poll(inViewport, { message: "the Apply match button is inside the viewport", timeout: 20_000 }).toBe(true);
+  await apply.click({ timeout: 30_000 });
+}
+
 /** Cool clip A matched to warm clip B through the Match Color popover. */
 export async function runMatchFlow(page: Page): Promise<MatchResult> {
   const [a, b] = await openWithClips(page, ["lumetri-cool.mp4", "lumetri-warm.mp4"]);
@@ -246,9 +270,7 @@ export async function runMatchFlow(page: Page): Promise<MatchResult> {
   const bBefore = await mean(3, "match-b-before");
   await seek(page, 1);
   await openColorGrading(page, a);
-  await page.getByRole("button", { name: "Match Color…", exact: true }).click();
-  await page.getByRole("combobox", { name: "Reference clip" }).selectOption(b);
-  await page.getByRole("button", { name: "Apply match" }).click();
+  await clickApplyMatch(page, b);
   await expect.poll(async () => (await clipGrade(page, a))?.colorWheels, { timeout: 30_000 }).toBeTruthy();
   await expect(page.getByText(/^Applied\./)).toBeVisible();
   await page.keyboard.press("Escape");
