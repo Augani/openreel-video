@@ -50,7 +50,8 @@ async function enterIntensity(value: number) {
 }
 async function renderPanel() {
   render(<FilterPresetsPanel clipId="clip" />);
-  await screen.findByRole("button", { name: "Apply Film Noir filter preset" });
+  // The looks grid is lazy-loaded; under a loaded machine the chunk can take longer than findBy's 1 s default.
+  await screen.findByRole("button", { name: "Apply Film Noir filter preset" }, { timeout: 10_000 });
 }
 beforeEach(() => seedProject());
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
