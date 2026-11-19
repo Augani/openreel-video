@@ -91,11 +91,16 @@ const signatureDiff = (a: number[], b: number[]): number => {
 async function waitForPoster(page: Page, ariaLabel: string, atTime?: number): Promise<CardRead> {
   const canvas = page.locator(cardSelector(ariaLabel)).first();
   await canvas.scrollIntoViewIfNeeded();
+  // A card under the pointer loops its footage window on hover: a read taken then is some frame of the loop, not the
+  // poster at the playhead the monitor shows. A card slides under the pointer whenever the list re-lays out (an
+  // imported LUT, a click that leaves the pointer on a card), which is common on a slow runner where playback
+  // starts before the read. Park the pointer and only accept a resting poster.
+  await page.mouse.move(5, 5);
   await expect
     .poll(
       async () => {
         const read = await readCard(page, ariaLabel);
-        if (!["poster", "playing"].includes(read.state ?? "")) return false;
+        if (read.state !== "poster") return false;
         return atTime === undefined || (read.time !== undefined && Math.abs(read.time - atTime) < 0.15);
       },
       { timeout: 45_000, message: `poster for ${ariaLabel}${atTime === undefined ? "" : ` at ${atTime}s`}` },

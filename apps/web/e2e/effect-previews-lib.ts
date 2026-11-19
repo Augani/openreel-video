@@ -389,17 +389,34 @@ export function registerEffectPreviewTests(): void {
     const labels = ["Black & white", "Glow", "Vignette", "Sharpen", "Film grain", "Chroma key", "Stabilize", "LUT · Warm"];
     for (const label of labels) await waitForPoster(page, label);
     const quiet = await readStats(page);
+    // How long the pointer actually stays on each card: a nominal 90 ms visit takes several hundred ms (up to seconds)
+    // on a slow software-GL runner, and playback legitimately renders more frames the longer the card is hovered.
+    // The bound below therefore scales with the measured dwell instead of assuming a fast machine.
+    const hoverStarts: number[] = [];
     for (const label of labels) {
+      hoverStarts.push(Date.now());
       await page.locator(`button[aria-label^="${label}. Drag"]`).first().hover();
       await page.waitForTimeout(90);
     }
+    hoverStarts.push(Date.now());
     await page.mouse.move(5, 5);
     await page.waitForTimeout(500);
     const swept = await readStats(page);
     expect(swept.cachedPosters, "hover sweep did not evict any poster").toBeGreaterThanOrEqual(quiet.cachedPosters);
     expect(swept.cachedBytes).toBeLessThanOrEqual(48 * 1024 * 1024);
-    // A 90 ms visit renders a handful of frames ahead of playback, not the 24-frame window of every card.
-    expect(swept.rendersStarted - quiet.rendersStarted, "bounded hover work during a sweep").toBeLessThanOrEqual(labels.length * 10);
+    // A visit renders a handful of frames ahead of playback (HOVER_LEAD) plus what playback itself consumes at 12 fps
+    // while the pointer is there, and never more than the card's 24-frame window. A regression that decodes the whole
+    // window of every card on a brief hover (24 each) still exceeds the budget of a short visit.
+    const HOVER_LEAD = 8;
+    const PREVIEW_FPS = 12;
+    const WINDOW_FRAMES = 24;
+    const hoverBudget = hoverStarts.slice(1).reduce((sum, end, i) => {
+      const dwellSeconds = (end - hoverStarts[i]) / 1000;
+      return sum + Math.min(WINDOW_FRAMES, HOVER_LEAD + Math.ceil(dwellSeconds * PREVIEW_FPS));
+    }, 0);
+    const hoverRenders = swept.rendersStarted - quiet.rendersStarted;
+    console.log(`[hover-sweep ${project}] renders ${hoverRenders}, budget ${hoverBudget}, dwell ms ${hoverStarts.slice(1).map((end, i) => end - hoverStarts[i]).join(",")}`);
+    expect(hoverRenders, "bounded hover work during a sweep").toBeLessThanOrEqual(hoverBudget);
     expect((await readCard(page, "Black & white")).state).toBe("poster");
 
     // ── scrubbing with the panel open: preview work is held, long tasks are recorded ───────────────────────
