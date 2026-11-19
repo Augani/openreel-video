@@ -261,11 +261,26 @@ d("desktop ingest in real Electron", () => {
     expect(historyBefore + 3).toBe(await E(page, "h.project.getState().actionExecutor.getHistory().getUndoStackSize()"));
 
     // Preview: place the clip, look through the proxy, toggle, look at the original.
+    const rendererWarnings: string[] = [];
+    page.on("console", (m: any) => {
+      if (m.type() === "warning" || m.type() === "error") rendererWarnings.push(`${m.type()}: ${String(m.text()).slice(0, 240)}`);
+    });
     const clip = await placeClip(page, "clip4k.mp4");
-    await page.waitForFunction((mid: string) => (window as any).__openreelE2E.proxy.cache.store.getState().entries[mid]?.status === "ready", id, { timeout: 120_000 });
+    // The preview cache entry must be "ready" and stay that way while the clip is looked at. Fail at once, with the
+    // reason, if playback disables the proxy (status "error") instead of idling out the full timeout.
+    const proxyEntry = () => E(page, `(() => { const e = h.proxy.cache.store.getState().entries["${id}"]; return e ? { status: e.status, error: e.error ?? null } : null; })()`);
+    const watchStart = Date.now();
+    for (;;) {
+      const entry = await proxyEntry();
+      if (entry?.status === "ready") break;
+      if (entry?.status === "error") throw new Error(`the preview proxy was disabled: ${entry.error}; renderer: ${rendererWarnings.slice(-6).join(" | ")}`);
+      if (Date.now() - watchStart > 120_000) throw new Error(`preview cache entry never became ready (${JSON.stringify(entry)}); renderer: ${rendererWarnings.slice(-6).join(" | ")}`);
+      await sleep(250);
+    }
     await seekTo(page, clip.start + 1.2);
     await sleep(2000);
     const viaProxy = await decodeLog(page, id);
+    expect((await proxyEntry())?.status, `proxy still enabled after the first preview frame; renderer: ${rendererWarnings.slice(-6).join(" | ")}`).toBe("ready");
     console.log(`[desktop-ingest] preview decode log, proxies on: ${JSON.stringify(viaProxy)}`);
     expect(viaProxy?.source).toBe("proxy");
     expect(viaProxy!.proxy).toBeGreaterThan(0);

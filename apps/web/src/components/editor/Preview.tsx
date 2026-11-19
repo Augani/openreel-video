@@ -2775,17 +2775,20 @@ export const Preview: React.FC = () => {
           } catch (error) {
             if (!isStaleRequest()) {
               console.warn("Paused video frame decoding failed", error);
-              failProxyPlayback(clip.mediaId, mediaBlob);
               const cached = videoElementCacheRef.current.get(clip.mediaId);
               if (cached?.blob === mediaBlob) {
                 releaseVideoElement(cached);
                 videoElementCacheRef.current.delete(clip.mediaId);
               }
               if (!retried) {
+                // A slow or software decoder can fail once on a fresh element (metadata or seek timeout). Only a
+                // second failure on a new element means the proxy cannot play; disabling it on the first
+                // would drop a working proxy for good.
                 retried = true;
                 await decodePausedFrame();
                 return;
               }
+              failProxyPlayback(clip.mediaId, mediaBlob);
               scheduleScrubVideoRelease();
               if (fallbackMediaTime !== null) {
                 const fallback = await decodeFrameWithWebCodecs(mediaBlob, fallbackMediaTime).catch((fallbackError: unknown) => {
