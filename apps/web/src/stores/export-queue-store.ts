@@ -199,8 +199,12 @@ export const useExportQueueStore = create<ExportQueueStore>((set, get) => {
       const result = isStemsJob(fresh)
         ? { ...(await runStemsJob(fresh, project, hooks)), framesFromCache: undefined, smartRender: undefined, sourceMedia: undefined }
         : {
-            // A transient encoder failure (reclaimed/failed session under load) is retried once before it is shown.
-            ...(await runWithEncoderRetry(() => runExportJob(fresh, project!, hooks), { shouldRetry: () => !hooks.isCancelled() })),
+            // A transient encoder failure (reclaimed session, or a hardware encoder that could not be opened, as on
+            // machines and VMs without a video encode accelerator) is retried once, on the software encoder.
+            ...(await runWithEncoderRetry(
+              (attempt) => runExportJob(fresh, project!, hooks, attempt === 1 ? "prefer-hardware" : "prefer-software"),
+              { shouldRetry: () => !hooks.isCancelled() },
+            )),
             stemOutputs: undefined,
           };
       if (!ownsJob()) {

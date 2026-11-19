@@ -24,6 +24,17 @@ describe("runWithEncoderRetry", () => {
     await expect(runWithEncoderRetry(run, { delayMs: 0 })).resolves.toBe("ok");
     expect(run).toHaveBeenCalledTimes(2);
   });
+  it("tells each run its attempt number so the re-run can switch to a software encoder", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const accelerator = new DOMException("Encoding error. (Failed to initialize video encode accelerator.)", "EncodingError");
+    expect(isTransientEncoderError(accelerator)).toBe(true);
+    const run = vi.fn(async (attempt: number) => {
+      if (attempt === 1) throw accelerator;
+      return `software on attempt ${attempt}`;
+    });
+    await expect(runWithEncoderRetry(run, { delayMs: 0 })).resolves.toBe("software on attempt 2");
+    expect(run.mock.calls.map(([attempt]) => attempt)).toEqual([1, 2]);
+  });
   it("gives up after the attempts are used and surfaces the last error", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const run = vi.fn().mockRejectedValue(encodingError());

@@ -24,11 +24,12 @@ export interface EncoderRetryOptions {
   readonly delayMs?: number;
 }
 
-export async function runWithEncoderRetry<T>(run: () => Promise<T>, options: EncoderRetryOptions = {}): Promise<T> {
+/** `run` receives the 1-based attempt number so a re-run can change strategy (e.g. fall back to a software encoder). */
+export async function runWithEncoderRetry<T>(run: (attempt: number) => Promise<T>, options: EncoderRetryOptions = {}): Promise<T> {
   const attempts = options.attempts ?? 2;
   for (let attempt = 1; ; attempt++) {
     try {
-      return await run();
+      return await run(attempt);
     } catch (error) {
       if (attempt >= attempts || !isTransientEncoderError(error) || options.shouldRetry?.(error, attempt + 1) === false) throw error;
       console.warn(`[export-queue] transient encoder failure (${(error as { message?: string }).message ?? error}); running the job again (attempt ${attempt + 1} of ${attempts}).`);
