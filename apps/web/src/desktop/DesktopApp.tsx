@@ -45,6 +45,10 @@ const warmupSettled = new Promise<void>((resolve) => {
   resolveWarmupSettled = resolve;
 });
 const AGENT_STACK_MAX_WAIT_MS = 6000;
+// After the editor route mounts, wait this long (then an idle slot) before loading the agent stack.
+const AGENT_STACK_SETTLE_MS = 1200;
+// On the welcome screen, load the agent stack after this long without the editor opening.
+const AGENT_STACK_WELCOME_WAIT_MS = 8000;
 
 function whenIdle(callback: () => void, timeout: number): () => void {
   if (typeof window.requestIdleCallback === "function") {
@@ -239,17 +243,47 @@ export function DesktopApp(): JSX.Element {
       return listener.handleMcpBridgeRequest(req);
     });
     const maxWait = window.setTimeout(resolveWarmupSettled, AGENT_STACK_MAX_WAIT_MS);
+    const inEditor = () => window.location.hash.startsWith("#/editor");
+    let scheduled = false;
+    let welcomeTimer: number | undefined;
+    let settleTimer: number | undefined;
+    const scheduleAgentStack = () => {
+      if (scheduled || cancelled) return;
+      scheduled = true;
+      window.removeEventListener("hashchange", onHash);
+      window.clearTimeout(welcomeTimer);
+      // A beat after the editor mounted, then an idle slot: the ~1 MB agent chunk's compile + evaluate must
+      // not run between the click on "New project" and the editor being interactive.
+      settleTimer = window.setTimeout(() => {
+        if (cancelled) return;
+        cancelIdle = whenIdle(() => {
+          loadAgentStack().catch((error) => {
+            console.warn("[desktop] agent/MCP bridge failed to load", error);
+          });
+        }, 1500);
+      }, AGENT_STACK_SETTLE_MS);
+    };
+    function onHash(): void {
+      if (inEditor()) scheduleAgentStack();
+    }
     void warmupSettled.then(() => {
       if (cancelled) return;
-      cancelIdle = whenIdle(() => {
-        loadAgentStack().catch((error) => {
-          console.warn("[desktop] agent/MCP bridge failed to load", error);
-        });
-      }, 1500);
+      // The stack is only needed once something drives the editor, and an MCP request that arrives earlier
+      // loads it on demand (above). So it follows the editor opening; a session that stays on the welcome
+      // screen still gets it after a while, so the first agent call after a long idle is not cold.
+      if (inEditor()) {
+        scheduleAgentStack();
+        return;
+      }
+      window.addEventListener("hashchange", onHash);
+      welcomeTimer = window.setTimeout(scheduleAgentStack, AGENT_STACK_WELCOME_WAIT_MS);
     });
     return () => {
       cancelled = true;
       window.clearTimeout(maxWait);
+      window.clearTimeout(welcomeTimer);
+      window.clearTimeout(settleTimer);
+      window.removeEventListener("hashchange", onHash);
       cancelIdle?.();
       uninstall?.();
     };

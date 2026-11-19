@@ -1,4 +1,4 @@
-import { makeClientFromSend, withRetry, LLMHttpError, parseRetryAfterMs, type LLMClient } from "@openreel/agent";
+import { makeClientFromSend, withRetry, LLMHttpError, parseRetryAfterMs, type LLMClient } from "@openreel/agent/llm";
 import { isOllamaEndpoint, OLLAMA_ORIGINS_HINT } from "../ai-models";
 import type { AIProvider } from "../../stores/ai-connection-store";
 

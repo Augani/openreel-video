@@ -52,12 +52,12 @@
       "note": "main-thread tasks > 50 ms inside the enter-editor window"
     },
     "traceCold.median.totalCpuMs": {
-      "max": 600,
+      "max": 540,
       "note": "renderer main-thread CPU, navigation start -> editor interactive (clicking as soon as the welcome screen shows)"
     },
     "traceCold.median.totalCompileCpuMs": {
-      "max": 120,
-      "note": "all v8 compile on that path"
+      "max": 110,
+      "note": "all v8 compile on that path. 122 before the agent stack and three left the editor's static closure, 95 after (interleaved A/B at load ~10)"
     },
     "traceCold.median.totalChunksCompiled": {
       "max": 58,

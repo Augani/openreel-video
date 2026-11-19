@@ -5,7 +5,6 @@ import "./reference-workspace.css";
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Button, Button as ShadcnButton, Dialog, DialogContent, DialogTitle, ScrollArea } from "@openreel/ui";
 
-import { ChangesPanel } from "./chat/ChangesPanel";
 import { BackgroundTasksIndicator } from "./BackgroundTasksPanel";
 import { Toolbar } from "./Toolbar";
 import { EditorActionRail } from "./EditorActionRail";
@@ -48,6 +47,8 @@ import "./editor-responsive.css";
 const KeyboardShortcutsOverlay = React.lazy(() =>
   import("./KeyboardShortcutsOverlay").then((module) => ({ default: module.KeyboardShortcutsOverlay })),
 );
+// The AI changes list pulls in the agent tool registry (editing-tools); it only shows with the AI chat open.
+const ChangesPanel = React.lazy(() => import("./chat/ChangesPanel").then(module => ({ default: module.ChangesPanel })));
 const ChatPanel = React.lazy(() =>
   import("./chat/ChatPanel").then((module) => ({ default: module.ChatPanel })),
 );
@@ -586,7 +587,7 @@ export const EditorInterface: React.FC = () => {
           style={{ gridArea: "inspector" }}
         >
           <PanelErrorBoundary name="Inspector">
-            {chatVisible && !compact ? <ChangesPanel /> : <InspectorPanel />}
+            {chatVisible && !compact ? <React.Suspense fallback={null}><ChangesPanel /></React.Suspense> : <InspectorPanel />}
           </PanelErrorBoundary>
         </div></>
 

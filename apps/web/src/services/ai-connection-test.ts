@@ -1,4 +1,4 @@
-import { LLMHttpError, type LLMClient } from "@openreel/agent";
+import { LLMHttpError, type LLMClient } from "@openreel/agent/llm";
 import type { AIProvider } from "../stores/ai-connection-store";
 import { isOllamaEndpoint, OLLAMA_ORIGINS_HINT } from "./ai-models";
 import { makeDirectBYOKClient, validateAIEndpoint } from "./agent/direct-llm-transport";

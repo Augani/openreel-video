@@ -1,7 +1,4 @@
 import { create } from "zustand";
-import {
-  runTurn,
-} from "@openreel/agent";
 import type {
   AgentEvent,
   ConfirmDecision,
@@ -9,12 +6,16 @@ import type {
   ToolResult,
   LoopMessage,
 } from "@openreel/agent";
-import { runExclusive } from "../services/agent/host-singleton";
-import { makeDirectBYOKClient, validateAIEndpoint } from "../services/agent/direct-llm-transport";
-import { EditingSession } from "../services/agent/editing-session";
 import { resolveAIEditTarget, type AIEditTarget } from "../services/agent/edit-target";
 import { aiUndoCheckpoint } from "../services/agent/undo-checkpoint";
-import { editingToolDefs, editingToolReadOnly, executeEditingTool, EDITING_SYSTEM } from "../services/agent/editing-tools";
+
+// The agent runtime (tool registry, editing tools, LLM transport) loads on the first send, not with the
+// editor: this store is statically imported by the settings dialog.
+let chatRuntime: Promise<typeof import("../services/agent/chat-runtime")> | undefined;
+const loadChatRuntime = () => (chatRuntime ??= import("../services/agent/chat-runtime").catch((error) => {
+  chatRuntime = undefined;
+  throw error;
+}));
 import { useAIConnectionStore } from "./ai-connection-store";
 import {
   conversationTitle,
@@ -154,6 +155,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   conversationStartedAt: null,
 
   send: async (text: string) => {
+    // First, so the guards and the state they protect below still run in one synchronous stretch.
+    const { runTurn, runExclusive, makeDirectBYOKClient, validateAIEndpoint, EditingSession, editingToolDefs, editingToolReadOnly, executeEditingTool, EDITING_SYSTEM } = await loadChatRuntime();
     const trimmed = text.trim();
     if (!trimmed) return;
     const current = get();
