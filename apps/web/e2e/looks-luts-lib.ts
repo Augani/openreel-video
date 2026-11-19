@@ -15,7 +15,7 @@ import { clickClip, clipsOf, importInput, openEditor, programMean, readState, se
  */
 const REAL_FOOTAGE = process.env.OPENREEL_LOOKS_FOOTAGE ?? join(dirname(fileURLToPath(import.meta.url)), "fixtures", "real-interview.mp4");
 
-const SHOTS = process.env.OPENREEL_LOOKS_SHOTS ?? "/private/tmp/polish-b/looks-luts";
+const SHOTS = process.env.OPENREEL_LOOKS_SHOTS ?? join(tmpdir(), "polish-b", "looks-luts");
 
 interface CardRead {
   state: string | undefined;

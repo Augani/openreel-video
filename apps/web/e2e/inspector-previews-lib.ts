@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { existsSync, mkdirSync } from "node:fs";
-import { basename } from "node:path";
+import { basename, join } from "node:path";
+import { tmpdir } from "node:os";
 import { clickClip, clipsOf, importInput, openEditor, readState, seek, settle } from "./helpers";
 
 /**
@@ -9,7 +10,7 @@ import { clickClip, clipsOf, importInput, openEditor, readState, seek, settle } 
  * at rest as a poster and while hovered as a looping animation. Shared by the gpu project and the fallback projects.
  */
 
-const SHOTS = process.env.OPENREEL_PREVIEW_SHOTS ?? "/private/tmp/inspector-previews-shots";
+const SHOTS = process.env.OPENREEL_PREVIEW_SHOTS ?? join(tmpdir(), "inspector-previews-shots");
 
 interface Read {
   state: string | undefined;

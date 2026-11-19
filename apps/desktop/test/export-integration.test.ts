@@ -138,19 +138,27 @@ describe.skipIf(!HAS_FFMPEG)("native export integration", () => {
           proresOut,
         ]);
         let stderr = "";
+        let closed = false;
         proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+        // An unavailable encoder makes ffmpeg exit before reading every frame;
+        // the late writes then fail with EPIPE, which the close handler reports.
+        proc.stdin.on("error", () => undefined);
         proc.on("error", reject);
         proc.on("close", (code) => {
+          closed = true;
           if (code === 0) resolve();
           else reject(new Error(`ffmpeg (${encoder}) exited with code ${code}\n${stderr.slice(-2000)}`));
         });
         (async () => {
-          for (let i = 0; i < FPS; i++) {
+          for (let i = 0; i < FPS && !closed; i++) {
             if (!proc.stdin.write(frame)) {
-              await new Promise<void>((r) => proc.stdin.once("drain", r));
+              await new Promise<void>((r) => {
+                proc.stdin.once("drain", r);
+                proc.stdin.once("close", r);
+              });
             }
           }
-          proc.stdin.end();
+          if (!closed) proc.stdin.end();
         })().catch(reject);
       });
 

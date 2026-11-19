@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { existsSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { clickClip, clipsOf, importInput, openEditor, programMean, readState, seek, settle, splitIntoThree, track } from "./helpers";
 
 /**
@@ -8,7 +10,7 @@ import { clickClip, clipsOf, importInput, openEditor, programMean, readState, se
  * Shared by the gpu project (effect-previews.spec.ts) and the fallback projects (fallback-effect-previews.spec.ts).
  */
 
-const SHOTS = process.env.OPENREEL_PREVIEW_SHOTS ?? "/private/tmp/effect-previews-shots";
+const SHOTS = process.env.OPENREEL_PREVIEW_SHOTS ?? join(tmpdir(), "effect-previews-shots");
 const GRAYSCALE = "Black & white";
 const SOURCE_CARD = "Stabilize"; // footage with the stabilization crop: still the unaffected colours
 

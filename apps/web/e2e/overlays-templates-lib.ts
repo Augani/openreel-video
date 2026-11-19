@@ -14,7 +14,7 @@ import { FIXTURE_PATH } from "./global-setup";
  *    cards, no empty platform tabs.
  * Shared by the gpu project (overlays-templates.spec.ts) and the fallback projects (fallback-overlays-templates.spec.ts).
  */
-const SHOTS = process.env.OPENREEL_OVERLAY_SHOTS ?? "/private/tmp/polish-b/overlays-templates/e2e";
+const SHOTS = process.env.OPENREEL_OVERLAY_SHOTS ?? join(tmpdir(), "polish-b", "overlays-templates", "e2e");
 
 interface Region {
   x0: number;
