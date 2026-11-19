@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -13,9 +13,10 @@ const have = spawnSync("ffmpeg", ["-version"]).status === 0;
 
 // Runs every proxy preset through a real ffmpeg and checks the file it writes with ffprobe.
 describe.skipIf(!have)("proxy presets produce real files with ffmpeg", () => {
+  // describe.skipIf still runs this callback to collect tests, so the ffmpeg work must wait for beforeAll.
   const dir = mkdtempSync(join(tmpdir(), "openreel-proxy-preset-"));
   const src = join(dir, "src.mp4");
-  execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=24:duration=1", "-f", "lavfi", "-i", "sine=duration=1", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", "-y", src]);
+  beforeAll(() => execFileSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=24:duration=1", "-f", "lavfi", "-i", "sine=duration=1", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", "-y", src]));
   const probe = (file: string) =>
     JSON.parse(execFileSync("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name,width,height", "-of", "json", file]).toString()).streams[0] as { codec_name: string; width: number; height: number };
 
