@@ -30,6 +30,7 @@ import { getTimelineSelectionItem } from "../../../utils/timeline-item-actions";
 import { InspectorSection } from "./shell/InspectorSection";
 import { NestedSequenceSection } from "./NestedSequenceSection";
 import { EssentialSoundSection } from "./EssentialSoundSection";
+import { AudioChannelsSection } from "./AudioChannelsSection";
 import { TextSection } from "./TextSection";
 import {
   cloneVideoEffectStackWithFreshIds,
@@ -421,6 +422,11 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
       {audioClipIds.length > 0 && (
         <InspectorSection title="Essential Sound" sectionId="essential-sound" defaultOpen>
           <EssentialSoundSection clipIds={audioClipIds} />
+        </InspectorSection>
+      )}
+      {audioClipIds.length > 0 && (
+        <InspectorSection title="Audio channels" sectionId="audio-channels" defaultOpen>
+          <AudioChannelsSection clipIds={audioClipIds} />
         </InspectorSection>
       )}
 

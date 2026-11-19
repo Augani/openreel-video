@@ -315,6 +315,7 @@ export class ActionValidator {
       case "track/hide":
       case "track/mute":
       case "track/solo":
+      case "track/setSoloSafe":
         if (
           !action.params.trackId ||
           typeof action.params.trackId !== "string"
@@ -382,6 +383,16 @@ export class ActionValidator {
             code: "INVALID_PARAMS",
             message: "Solo parameter must be a boolean",
             path: "params.solo",
+          });
+        }
+        if (
+          action.type === "track/setSoloSafe" &&
+          typeof action.params.soloSafe !== "boolean"
+        ) {
+          errors.push({
+            code: "INVALID_PARAMS",
+            message: "soloSafe parameter must be a boolean",
+            path: "params.soloSafe",
           });
         }
         break;

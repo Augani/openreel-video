@@ -2,7 +2,7 @@
 
 # OpenReel Agent — Capability Reference
 
-The agent exposes **452 tools** spanning read/observe, project, track, clip, transform, effect, color, speed, audio, subtitle, keyframe, transition, marker, text and graphics domains — plus `execute_action` and `batch_actions` escape hatches for any capability without a dedicated tool.
+The agent exposes **453 tools** spanning read/observe, project, track, clip, transform, effect, color, speed, audio, subtitle, keyframe, transition, marker, text and graphics domains — plus `execute_action` and `batch_actions` escape hatches for any capability without a dedicated tool.
 
 ## Tools
 
@@ -267,6 +267,7 @@ The agent exposes **452 tools** spanning read/observe, project, track, clip, tra
 - **set_track_sync_lock** — Turn a track's Sync Lock on or off (default on). Ripple-type edits (ripple delete, ripple trim, insert, extract, paste-insert, close gap) keep sync-locked tracks in sync by shifting them with the edit, or are blocked (naming the track) when the removed range is not empty there; tracks with Sync Lock off are never touched by edits to other tracks. One undo step.
 - **hide_track** — Show/hide a track.
 - **mute_track** — Mute/unmute a track.
+- **set_track_solo_safe** — Turn Solo Safe on or off for a track. A solo-safe track keeps playing (preview and export mixdown) while other tracks are soloed; mute still silences it. Saved with the project. One undo step.
 - **solo_track** — Solo/unsolo a track.
 - **consolidate_track** — Remove Gaps: close every empty stretch on a track. Sync Lock: every other unlocked sync-locked track must be empty over each closed gap and shifts with it; otherwise the edit is blocked and the error names the track. Locked tracks are never changed. One undo step.
 - **delete_gap** — Ripple-delete the empty gap on a track that contains `time` (seconds, or timeFrame in frames): later clips move earlier to close it. Space after the last clip is not a gap. Sync Lock: every other unlocked sync-locked track must be empty over the gap and shifts with it; otherwise the edit is blocked and the error names the track. Locked tracks block it. One undo step.
@@ -350,7 +351,7 @@ The agent exposes **452 tools** spanning read/observe, project, track, clip, tra
 - **set_clip_blend_opacity** — Set a clip's blend opacity (0..1).
 
 ## effect
-- **add_video_effect** — Add a video effect to a clip. Standard effectType values include brightness, contrast, saturation, blur, sharpen, vignette, grain, temperature, tint, shadow, glow, motion-blur, radial-blur, chromatic-aberration. Pro effect types (params validated against their ranges; omitted params take the same defaults as adding the effect in the editor UI): mosaic (size 1..200); posterize (levels 2..256); mirror (mode none|horizontal|vertical|quad, center 0..100); lens-distortion (amount -100..100, zoom 10..400, compensate boolean); directional-blur (angle 0..360, length 0..200); find-edges (amount 0..100, invert boolean); emboss (amount 0..100, angle 0..360, relief 0..10); exposure (exposure -5..5, offset -0.5..0.5, gamma 0.2..3); threshold (level 0..255, mix 0..100); halftone (dotSize 2..100, angle 0..360, amount 0..100, invert boolean); vhs-glitch (scanlines 0..100, rgbSplit 0..100, jitter 0..200, noise 0..100, time 0..3600, seed 0..9999); unsharp-mask (amount 0..500, radius 0.1..50, threshold 0..255); gaussian-blur (blurX 0..100, blurY 0..100); crop (left 0..100, top 0..100, right 0..100, bottom 0..100, feather 0..100); vibrance (vibrance -100..100, saturation -100..100); skew (skewX -60..60, skewY -60..60); hsl-secondary (hueMin 0..360, hueMax 0..360, hueSoft 0..180, satMin 0..100, satMax 0..100, satSoft 0..100, lumMin 0..100, lumMax 0..100, lumSoft 0..100, denoise 0..100, blur 0..20, invert boolean, temperature -100..100, tint -100..100, contrast -100..100, sharpen 0..100, saturation -100..100, wheelX -1..1, wheelY -1..1, maskShape none|ellipse|rectangle, maskX 0..100, maskY 0..100, maskW 0..100, maskH 0..100, maskFeather 0..200, maskInvert boolean); camera-blur (radius 0..60); channel-blur (red 0..60, green 0..60, blue 0..60, alpha 0..60); tilt-shift (blur 0..40, angle 0..360, center 0..100, focus 0..100, falloff 1..100); luma-key (mode none|darker|brighter, threshold 0..100, softness 0..100); color-key (keyR 0..255, keyG 0..255, keyB 0..255, tolerance 0..100, softness 0..100, invert boolean); alpha-adjust (opacity 0..100, ignore boolean, invert boolean, matte boolean); leave-color (keyR 0..255, keyG 0..255, keyB 0..255, amount 0..100, tolerance 0..100, softness 0..100); change-to-color (fromR 0..255, fromG 0..255, fromB 0..255, toR 0..255, toG 0..255, toB 0..255, tolerance 0..100, softness 0..100); solarize (threshold 0..100); levels (inBlack 0..254, inWhite 1..255, gamma 0.1..10, outBlack 0..255, outWhite 0..255); channel-mixer (rr -200..200, rg -200..200, rb -200..200, gr -200..200, gg -200..200, gb -200..200, br -200..200, bg -200..200, bb -200..200, mono boolean); tint-map (blackR 0..255, blackG 0..255, blackB 0..255, whiteR 0..255, whiteG 0..255, whiteB 0..255, amount 0..100); spherize (amount -100..100, radius 1..200, centerX 0..100, centerY 0..100); twirl (angle -720..720, radius 1..200, centerX 0..100, centerY 0..100); ripple (amplitude 0..200, wavelength 4..1000, angle 0..360, phase 0..360, speed -10..10, time 0..3600); turbulent-displace (amount 0..300, size 4..1000, complexity 1..4, evolution 0..1000, seed 0..9999); offset (shiftX -100..100, shiftY -100..100, edge wrap|clamp|transparent); corner-pin (x0 -100..200, y0 -100..200, x1 -100..200, y1 -100..200, x2 -100..200, y2 -100..200, x3 -100..200, y3 -100..200); polar-coordinates (mode rect-to-polar|polar-to-rect, amount 0..100); replicate (count 1..16); color-emboss (amount 0..100, angle 0..360, relief 0..10); noise (amount 0..100, size 1..32, mono boolean, time 0..3600, seed 0..9999); bevel-alpha (thickness 1..50, angle 0..360, intensity 0..100); four-color-gradient (c1R 0..255, c1G 0..255, c1B 0..255, c2R 0..255, c2G 0..255, c2B 0..255, c3R 0..255, c3G 0..255, c3B 0..255, c4R 0..255, c4G 0..255, c4B 0..255, opacity 0..100, blend normal|multiply|screen|add); lens-flare (centerX 0..100, centerY 0..100, brightness 0..200, size 1..200); strobe-light (flashR 0..255, flashG 0..255, flashB 0..255, opacity 0..100, period 0.05..10, duration 0..10, phase -10..10, blend normal|add, time 0..3600); grid (size 4..500, border 1..50, lineR 0..255, lineG 0..255, lineB 0..255, opacity 0..100). Prefer the pro type where one supersedes a legacy effect (gaussian-blur over blur, mosaic over shader pixelate, mirror over shader mirror, lens-distortion over shader fisheye, posterize over shader posterize, vhs-glitch over shader vhs); the legacy types still render in existing projects. Omitted legacy params also take the editor's visible defaults. Pro effect params can be keyframed with add_keyframe property fx:<effectId>:<param> (effectId from get_clip or list_effect_params). Set effectType to 'shader' to run a GPU shader effect from the Motion shader library (only category 'effect' shaders, e.g. the Paper Design catalog like paper-halftone-dots or paper-liquid-metal — use list_motion_shaders with category 'effect' to discover ids); for shader effects, params MUST include a valid shaderId plus optional numeric params (name/value pairs from the shader's params) and an optional numeric time. Shader effects no-op gracefully when WebGL2 is unavailable.
+- **add_video_effect** — Add a video effect to a clip. Standard effectType values include brightness, contrast, saturation, blur, sharpen, vignette, grain, temperature, tint, shadow, glow, motion-blur, radial-blur, chromatic-aberration. Pro effect types (params validated against their ranges; omitted params take the same defaults as adding the effect in the editor UI): mosaic (size 1..200); posterize (levels 2..256); mirror (mode none|horizontal|vertical|quad, center 0..100); lens-distortion (amount -100..100, zoom 10..400, compensate boolean); directional-blur (angle 0..360, length 0..200); find-edges (amount 0..100, invert boolean); emboss (amount 0..100, angle 0..360, relief 0..10); exposure (exposure -5..5, offset -0.5..0.5, gamma 0.2..3); threshold (level 0..255, mix 0..100); halftone (dotSize 2..100, angle 0..360, amount 0..100, invert boolean); vhs-glitch (scanlines 0..100, rgbSplit 0..100, jitter 0..200, noise 0..100, time 0..3600, seed 0..9999); unsharp-mask (amount 0..500, radius 0.1..50, threshold 0..255); gaussian-blur (blurX 0..100, blurY 0..100); crop (left 0..100, top 0..100, right 0..100, bottom 0..100, feather 0..100); vibrance (vibrance -100..100, saturation -100..100); skew (skewX -60..60, skewY -60..60); hsl-secondary (hueMin 0..360, hueMax 0..360, hueSoft 0..180, satMin 0..100, satMax 0..100, satSoft 0..100, lumMin 0..100, lumMax 0..100, lumSoft 0..100, denoise 0..100, blur 0..20, invert boolean, temperature -100..100, tint -100..100, contrast -100..100, sharpen 0..100, saturation -100..100, wheelX -1..1, wheelY -1..1, maskShape none|ellipse|rectangle, maskX 0..100, maskY 0..100, maskW 0..100, maskH 0..100, maskFeather 0..200, maskInvert boolean); camera-blur (radius 0..60); channel-blur (red 0..60, green 0..60, blue 0..60, alpha 0..60); tilt-shift (blur 0..40, angle 0..360, center 0..100, focus 0..100, falloff 1..100); luma-key (mode none|darker|brighter, threshold 0..100, softness 0..100); color-key (keyR 0..255, keyG 0..255, keyB 0..255, tolerance 0..100, softness 0..100, invert boolean); ultra-key (keyR 0..255, keyG 0..255, keyB 0..255, transparency 0..100, highlight 0..100, shadow 0..100, tolerance 0..100, pedestal 0..100, choke 0..100, soften 0..100, contrast 0..100, midPoint 0..100, desaturate 0..100, range 0..100, spill 0..100, luma 0..100, saturation 0..200, hue -180..180, luminance 0..200, output composite|alpha|color|source); alpha-adjust (opacity 0..100, ignore boolean, invert boolean, matte boolean); leave-color (keyR 0..255, keyG 0..255, keyB 0..255, amount 0..100, tolerance 0..100, softness 0..100); change-to-color (fromR 0..255, fromG 0..255, fromB 0..255, toR 0..255, toG 0..255, toB 0..255, tolerance 0..100, softness 0..100); solarize (threshold 0..100); levels (inBlack 0..254, inWhite 1..255, gamma 0.1..10, outBlack 0..255, outWhite 0..255); channel-mixer (rr -200..200, rg -200..200, rb -200..200, gr -200..200, gg -200..200, gb -200..200, br -200..200, bg -200..200, bb -200..200, mono boolean); tint-map (blackR 0..255, blackG 0..255, blackB 0..255, whiteR 0..255, whiteG 0..255, whiteB 0..255, amount 0..100); spherize (amount -100..100, radius 1..200, centerX 0..100, centerY 0..100); twirl (angle -720..720, radius 1..200, centerX 0..100, centerY 0..100); ripple (amplitude 0..200, wavelength 4..1000, angle 0..360, phase 0..360, speed -10..10, time 0..3600); turbulent-displace (amount 0..300, size 4..1000, complexity 1..4, evolution 0..1000, seed 0..9999); offset (shiftX -100..100, shiftY -100..100, edge wrap|clamp|transparent); corner-pin (x0 -100..200, y0 -100..200, x1 -100..200, y1 -100..200, x2 -100..200, y2 -100..200, x3 -100..200, y3 -100..200); polar-coordinates (mode rect-to-polar|polar-to-rect, amount 0..100); replicate (count 1..16); color-emboss (amount 0..100, angle 0..360, relief 0..10); noise (amount 0..100, size 1..32, mono boolean, time 0..3600, seed 0..9999); bevel-alpha (thickness 1..50, angle 0..360, intensity 0..100); four-color-gradient (c1R 0..255, c1G 0..255, c1B 0..255, c2R 0..255, c2G 0..255, c2B 0..255, c3R 0..255, c3G 0..255, c3B 0..255, c4R 0..255, c4G 0..255, c4B 0..255, opacity 0..100, blend normal|multiply|screen|add); lens-flare (centerX 0..100, centerY 0..100, brightness 0..200, size 1..200); strobe-light (flashR 0..255, flashG 0..255, flashB 0..255, opacity 0..100, period 0.05..10, duration 0..10, phase -10..10, blend normal|add, time 0..3600); grid (size 4..500, border 1..50, lineR 0..255, lineG 0..255, lineB 0..255, opacity 0..100); echo (echoTime -2..2, echoes 0..32, startIntensity 0..1, decay 0..1, operator add|maximum|minimum|screen|composite-back|composite-front); posterize-time (frameRate 0..120). Prefer the pro type where one supersedes a legacy effect (gaussian-blur over blur, mosaic over shader pixelate, mirror over shader mirror, lens-distortion over shader fisheye, posterize over shader posterize, vhs-glitch over shader vhs); the legacy types still render in existing projects. Omitted legacy params also take the editor's visible defaults. Pro effect params can be keyframed with add_keyframe property fx:<effectId>:<param> (effectId from get_clip or list_effect_params). Set effectType to 'shader' to run a GPU shader effect from the Motion shader library (only category 'effect' shaders, e.g. the Paper Design catalog like paper-halftone-dots or paper-liquid-metal — use list_motion_shaders with category 'effect' to discover ids); for shader effects, params MUST include a valid shaderId plus optional numeric params (name/value pairs from the shader's params) and an optional numeric time. Shader effects no-op gracefully when WebGL2 is unavailable.
 - **remove_video_effect** — Remove a clip's video effect.
 - **update_video_effect** — Update a video effect's params. Pro effect params (see list_pro_effects) are range-checked.
 - **toggle_video_effect** — Enable/disable a video effect.
@@ -3169,6 +3170,196 @@ The agent exposes **452 tools** spanning read/observe, project, track, clip, tra
       ]
     },
     {
+      "type": "ultra-key",
+      "label": "Ultra Key",
+      "category": "Keying",
+      "params": [
+        {
+          "key": "keyR",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "keyG",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 255,
+          "neutral": 255
+        },
+        {
+          "key": "keyB",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "transparency",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 45,
+          "neutral": 0
+        },
+        {
+          "key": "highlight",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 10,
+          "neutral": 0
+        },
+        {
+          "key": "shadow",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 50,
+          "neutral": 0
+        },
+        {
+          "key": "tolerance",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 50,
+          "neutral": 0
+        },
+        {
+          "key": "pedestal",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "choke",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "soften",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "contrast",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "midPoint",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 50,
+          "neutral": 50
+        },
+        {
+          "key": "desaturate",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 15,
+          "neutral": 0
+        },
+        {
+          "key": "range",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 50,
+          "neutral": 0
+        },
+        {
+          "key": "spill",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 50,
+          "neutral": 0
+        },
+        {
+          "key": "luma",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 50,
+          "neutral": 0
+        },
+        {
+          "key": "saturation",
+          "kind": "number",
+          "min": 0,
+          "max": 200,
+          "step": 1,
+          "default": 100,
+          "neutral": 100
+        },
+        {
+          "key": "hue",
+          "kind": "number",
+          "min": -180,
+          "max": 180,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "luminance",
+          "kind": "number",
+          "min": 0,
+          "max": 200,
+          "step": 1,
+          "default": 100,
+          "neutral": 100
+        },
+        {
+          "key": "output",
+          "kind": "select",
+          "default": "composite",
+          "neutral": "composite",
+          "options": [
+            "composite",
+            "alpha",
+            "color",
+            "source"
+          ]
+        }
+      ]
+    },
+    {
       "type": "alpha-adjust",
       "label": "Alpha Adjust",
       "category": "Keying",
@@ -4372,6 +4563,79 @@ The agent exposes **452 tools** spanning read/observe, project, track, clip, tra
           "max": 100,
           "step": 1,
           "default": 60,
+          "neutral": 0
+        }
+      ]
+    },
+    {
+      "type": "echo",
+      "label": "Echo",
+      "category": "Time",
+      "params": [
+        {
+          "key": "echoTime",
+          "kind": "number",
+          "min": -2,
+          "max": 2,
+          "step": 0.001,
+          "default": 0.033,
+          "neutral": 0
+        },
+        {
+          "key": "echoes",
+          "kind": "number",
+          "min": 0,
+          "max": 32,
+          "step": 1,
+          "default": 2,
+          "neutral": 0
+        },
+        {
+          "key": "startIntensity",
+          "kind": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 1,
+          "neutral": 1
+        },
+        {
+          "key": "decay",
+          "kind": "number",
+          "min": 0,
+          "max": 1,
+          "step": 0.01,
+          "default": 0.5,
+          "neutral": 0.5
+        },
+        {
+          "key": "operator",
+          "kind": "select",
+          "default": "add",
+          "neutral": "add",
+          "options": [
+            "add",
+            "maximum",
+            "minimum",
+            "screen",
+            "composite-back",
+            "composite-front"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "posterize-time",
+      "label": "Posterize Time",
+      "category": "Time",
+      "params": [
+        {
+          "key": "frameRate",
+          "kind": "number",
+          "min": 0,
+          "max": 120,
+          "step": 1,
+          "default": 1,
           "neutral": 0
         }
       ]

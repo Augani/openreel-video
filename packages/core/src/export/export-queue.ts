@@ -203,6 +203,15 @@ export function reportExportProgress(
   });
 }
 
+/** A re-run of the same job (same attempt owner) starts from zero: progress, ETA and phase of the failed attempt are dropped. */
+export function resetExportProgress(state: ExportQueueState, id: string, now?: number): ExportQueueState {
+  return patch(state, id, (job) =>
+    job.status !== "running"
+      ? job
+      : { ...job, progress: 0, phase: "Preparing", elapsedMs: 0, etaMs: undefined, ...(now === undefined ? {} : { startedAt: now }) },
+  );
+}
+
 export function completeExportJob(
   state: ExportQueueState,
   id: string,

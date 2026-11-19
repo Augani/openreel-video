@@ -1,3 +1,4 @@
+import { isTrackAudible } from "@openreel/core";
 import type { PlaybackController, PlaybackEvent } from "@openreel/core";
 import { useTimelineStore, type PlaybackState } from "../stores/timeline-store";
 import { useEngineStore } from "../stores/engine-store";
@@ -393,20 +394,11 @@ export class PlaybackBridge {
    * @returns true if the track should be audible
    */
   isTrackAudible(
-    track: { muted: boolean; solo: boolean },
+    track: { muted: boolean; solo: boolean; soloSafe?: boolean },
     hasSoloTracks: boolean,
   ): boolean {
-    // If track is explicitly muted, it's not audible (Requirement 2.5)
-    if (track.muted) {
-      return false;
-    }
-
-    // If any track has solo enabled, only soloed tracks are audible (Requirement 2.6)
-    if (hasSoloTracks && !track.solo) {
-      return false;
-    }
-
-    return true;
+    // Muted never plays (Requirement 2.5); while anything is soloed only soloed or solo-safe tracks do (Requirement 2.6).
+    return isTrackAudible(track, hasSoloTracks);
   }
 
   /**
@@ -421,7 +413,7 @@ export class PlaybackBridge {
    * @returns Array of TrackAudibility objects
    */
   getTrackAudibility(
-    tracks: Array<{ id: string; muted: boolean; solo: boolean }>,
+    tracks: Array<{ id: string; muted: boolean; solo: boolean; soloSafe?: boolean }>,
   ): TrackAudibility[] {
     const hasSoloTracks = tracks.some((t) => t.solo);
 

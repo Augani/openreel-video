@@ -106,6 +106,34 @@ describe("EffectPreviewEngine", () => {
     expect(engine.peek(defs[0], 0)).toBe(a);
   });
 
+  it("hands Echo cards the earlier window frames, and Posterize Time cards the held frame", async () => {
+    const { engine, renderer, windows } = setup();
+    await engine.getWindow();
+    const frames = windows[0].frameBitmaps;
+    const echo: PreviewEffectDef = { id: "pro-echo", type: "echo" };
+    await engine.render(echo, 9, "hover");
+    const echoInput = vi.mocked(renderer.render).mock.calls.at(-1)?.[2];
+    expect(echoInput?.frame).toBe(frames[9]);
+    expect(echoInput?.trail?.map((entry) => entry.frame)).toEqual([frames[7], frames[5]]);
+    expect(echoInput?.trail?.map((entry) => entry.weight)).toEqual([0.5, 0.25]);
+    expect(echoInput?.temporal?.echo?.operator).toBe("add");
+
+    const poster = await engine.renderPoster(echo);
+    expect(poster).not.toBeNull();
+    const posterInput = vi.mocked(renderer.render).mock.calls.at(-1)?.[2];
+    expect(posterInput?.frame).toBe(frames[4]);
+    expect(posterInput?.trail).toHaveLength(2);
+
+    await engine.render({ id: "pro-posterize-time", type: "posterize-time" }, 4, "hover");
+    const heldInput = vi.mocked(renderer.render).mock.calls.at(-1)?.[2];
+    expect(heldInput?.frame).toBe(frames[3]);
+    expect(heldInput?.trail).toBeUndefined();
+
+    // Every other card keeps rendering the frame it is asked for
+    await engine.render(defs[0], 4, "hover");
+    expect(vi.mocked(renderer.render).mock.calls.at(-1)?.[2].frame).toBe(frames[4]);
+  });
+
   it("coalesces concurrent requests for the same frame", async () => {
     const { engine, renderer } = setup();
     const [a, b] = await Promise.all([engine.renderPoster(defs[1]), engine.renderPoster(defs[1])]);

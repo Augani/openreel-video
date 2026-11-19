@@ -1,3 +1,4 @@
+import { backgroundTasks } from "@openreel/core/tasks/task-registry";
 import {
   detectScenes,
   initializeMediaEngine,
@@ -101,7 +102,27 @@ export function sourceToTimelineTime(clip: Clip, sourceTime: number): number {
 }
 
 /** Decodes small frames across the clip's source range and finds hard cuts. */
-export async function analyseClipScenes(
+export function analyseClipScenes(
+  clipId: string,
+  options: SceneDetectionRunOptions,
+): Promise<SceneAnalysis> {
+  return backgroundTasks.track({ kind: "analysis", source: "scene-detection", title: "Scene edit detection" }, (ctx) => {
+    // The dialog's own signal and the task panel's cancel both stop the run.
+    const external = options.signal;
+    if (external?.aborted) backgroundTasks.cancel(ctx.id);
+    else external?.addEventListener("abort", () => backgroundTasks.cancel(ctx.id), { once: true });
+    return runSceneAnalysis(clipId, {
+      ...options,
+      signal: ctx.signal,
+      onProgress: (p) => {
+        ctx.progress(p.fraction);
+        options.onProgress?.(p);
+      },
+    });
+  });
+}
+
+async function runSceneAnalysis(
   clipId: string,
   options: SceneDetectionRunOptions,
 ): Promise<SceneAnalysis> {

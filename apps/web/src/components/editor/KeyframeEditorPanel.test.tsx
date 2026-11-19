@@ -159,4 +159,19 @@ describe("graph editor: handles, presets, overlay, speed, paste", () => {
     fireEvent.click(screen.getByRole("button", { name: "Paste" }));
     expect(props.onPasteKeyframes).toHaveBeenLastCalledWith("multi", 1.5, "opacity");
   });
+  it("names each side of a key's interpolation and applies a type to the chosen side", async () => {
+    const mixed: Keyframe[] = [
+      { ...keys[0], easing: "linear", interpolationOut: "auto-bezier" },
+      { ...keys[1], easing: "hold", interpolationIn: "auto-bezier" },
+      { id: "c", property: "opacity", time: 6, value: 0.5, easing: "linear" },
+    ];
+    const onApplyInterpolation = vi.fn();
+    mount({ clip: { ...clip, keyframes: mixed } as Clip, selectedKeyframeIds: ["a"], onApplyInterpolation });
+    // First key shows only its outgoing side; the held segment reads Hold on both of its ends.
+    expect(screen.getByRole("button", { name: /Keyframe at 0.000s.*Auto Bezier$/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Keyframe at 4.000s.*In Hold · Out Hold$|Keyframe at 4.000s.*Hold$/ })).toBeTruthy();
+    await selectOption(screen.getByRole("combobox", { name: "Interpolation side" }), "Out only");
+    await selectOption(screen.getByRole("combobox", { name: "Interpolation" }), "Linear");
+    expect(onApplyInterpolation).toHaveBeenCalledWith(["a"], "linear", "out");
+  });
 });

@@ -695,7 +695,13 @@ export function validateTimelineToolEdits(
             ?.type !== "image" &&
             !clip.metadata?.motionClip &&
             clip.outPoint >
-              sourceLimit(project, (edit.before ?? clip) as Clip) + EPS)
+              // A Replace edit swaps the footage: bound it by the NEW media.
+              sourceLimit(
+                project,
+                edit.before && (edit.before as Clip).mediaId === clip.mediaId
+                  ? (edit.before as Clip)
+                  : clip,
+              ) + EPS)
         )
           throw new Error("The edit exceeds the source bounds.");
       }

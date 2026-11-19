@@ -58,13 +58,14 @@ export function trackExportSettings(
   };
 }
 
-/** Cues that must be drawn into the picture (a track with no entry is burned in). */
+/** Cues that must be drawn into the picture (a track with no entry is burned in unless its cues are hidden). */
 export function burnedInSubtitles(
   subtitles: readonly Subtitle[],
   captions: CaptionExportSettings | undefined,
 ): Subtitle[] {
-  if (!captions || !captions.tracks.length) return subtitles.slice();
-  return subtitles.filter((cue) => trackExportSettings(captions, trackOf(cue)).burnIn);
+  const shown = subtitles.filter((cue) => !cue.hidden);
+  if (!captions || !captions.tracks.length) return shown;
+  return shown.filter((cue) => trackExportSettings(captions, trackOf(cue)).burnIn);
 }
 
 /** True when the settings remove cues from the picture, so cached preview frames cannot be reused. */

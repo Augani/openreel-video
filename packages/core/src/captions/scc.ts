@@ -657,11 +657,11 @@ export interface SccParseOptions {
 }
 
 export function isSccContent(content: string): boolean {
-  return /^﻿?\s*Scenarist_SCC/i.test(content);
+  return /^\uFEFF?\s*Scenarist_SCC/i.test(content);
 }
 
 export function parseScc(content: string, options: SccParseOptions = {}): SccParseResult {
-  const text = content.replace(/^﻿/, "").replace(/\r\n?/g, "\n");
+  const text = content.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
   const errors: SccParseResult["errors"] = [];
   const issues: CaptionFormatIssue[] = [];
   const keepTags = options.styleTags === "keep";

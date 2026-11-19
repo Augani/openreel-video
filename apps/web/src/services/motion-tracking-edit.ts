@@ -1,4 +1,4 @@
-import { interpretedDisplaySize, keyframeEngine, resolveCanvasFitDimensions, type Clip, type ClipMetadata, type Keyframe, type MediaItem, type Project, type TrackingData, type Transform } from "@openreel/core";
+import { interpretedDisplaySize, keyframeEngine, resolveCanvasFitDimensions, type Clip, type ClipMetadata, type Effect, type Keyframe, type MediaItem, type Project, type TrackingData, type Transform } from "@openreel/core";
 import { useProjectStore } from "../stores/project-store";
 import { useTimelineStore } from "../stores/timeline-store";
 import { useUIStore } from "../stores/ui-store";
@@ -54,7 +54,7 @@ export function readMotionTrackingApplication(targetId: string): Application | n
   return value?.version === 1 && Array.isArray(value.generatedIds) && Array.isArray(value.replacedKeys) ? value : null;
 }
 
-function replaceTarget(project: Project, id: string, changes: Pick<Target, "keyframes" | "metadata">): Project {
+export function replaceTarget(project: Project, id: string, changes: Pick<Target, "keyframes" | "metadata"> & { effects?: Effect[] }): Project {
   return { ...project,
     timeline: { ...project.timeline, tracks: project.timeline.tracks.map(track => ({ ...track, clips: track.clips.map(clip => clip.id === id ? { ...clip, ...changes } : clip) })) },
     textClips: project.textClips?.map(clip => clip.id === id ? { ...clip, ...changes } : clip),
@@ -64,7 +64,7 @@ function replaceTarget(project: Project, id: string, changes: Pick<Target, "keyf
   };
 }
 
-function assertEditable(project: Project, target: Target) {
+export function assertEditable(project: Project, target: Target) {
   if (!project.timeline.tracks.some(track => track.id === target.trackId && !track.locked)
     || useUIStore.getState().exportState.isExporting || useUIStore.getState().effectApplicationClipId !== null || useTimelineStore.getState().playbackLockedReason) throw new Error("Unlock the target and finish exporting before applying tracking");
 }
@@ -109,8 +109,22 @@ function animatedTransform(target: Target, time: number): Transform {
     scale: { x: sample("scale.x", base.scale.x), y: sample("scale.y", base.scale.y) }, rotation: sample("rotation", base.rotation) };
 }
 
+/** A tracked source-pixel point, mapped through the source clip's animated transform onto the canvas (pixels from the top left). */
+export function projectTrackedPoint(project: Project, source: Clip, media: MediaItem, position: { x: number; y: number }, localTime: number): { x: number; y: number; transform: Transform } {
+  const transform = animatedTransform(source, localTime), crop = transform.crop;
+  // Tracker samples are in stored pixels; the render fits the display shape (pixel aspect applied to the width).
+  const display = interpretedDisplaySize(media), parX = display.width / media.metadata.width;
+  const width = display.width * (crop?.width ?? 1), height = display.height * (crop?.height ?? 1);
+  const fitted = resolveCanvasFitDimensions(transform.fitMode, width, height, project.settings.width, project.settings.height);
+  const x = (position.x * parX - (crop?.x ?? 0) * display.width - width * transform.anchor.x) * fitted.width / width * transform.scale.x;
+  const y = (position.y - (crop?.y ?? 0) * media.metadata.height - height * transform.anchor.y) * fitted.height / height * transform.scale.y;
+  const radians = transform.rotation * Math.PI / 180;
+  return { x: project.settings.width / 2 + transform.position.x + x * Math.cos(radians) - y * Math.sin(radians),
+    y: project.settings.height / 2 + transform.position.y + x * Math.sin(radians) + y * Math.cos(radians), transform };
+}
+
 /** Remove only numerically collinear points; retain the authored sampled path. */
-function compactLinearKeys(keys: Keyframe[]): Keyframe[] {
+export function compactLinearKeys(keys: Keyframe[]): Keyframe[] {
   const output: Keyframe[] = [];
   for (const key of keys) {
     while (output.length > 1) {
@@ -154,18 +168,7 @@ function computeApplication(project: Project, source: Clip, media: MediaItem, ta
     const time = source.startTime + sample.frame / analysis.data.frameRate;
     return time > overlapStart && time < overlapEnd;
   }), atTime(overlapEnd - source.startTime)];
-  const projectPoint = (sample: typeof selected[number]) => {
-    const transform = animatedTransform(source, sample.frame / analysis.data.frameRate), crop = transform.crop;
-    // Tracker samples are in stored pixels; the render fits the display shape (pixel aspect applied to the width).
-    const display = interpretedDisplaySize(media), parX = display.width / media.metadata.width;
-    const width = display.width * (crop?.width ?? 1), height = display.height * (crop?.height ?? 1);
-    const fitted = resolveCanvasFitDimensions(transform.fitMode, width, height, project.settings.width, project.settings.height);
-    const x = (sample.position.x * parX - (crop?.x ?? 0) * display.width - width * transform.anchor.x) * fitted.width / width * transform.scale.x;
-    const y = (sample.position.y - (crop?.y ?? 0) * media.metadata.height - height * transform.anchor.y) * fitted.height / height * transform.scale.y;
-    const radians = transform.rotation * Math.PI / 180;
-    return { x: project.settings.width / 2 + transform.position.x + x * Math.cos(radians) - y * Math.sin(radians),
-      y: project.settings.height / 2 + transform.position.y + x * Math.sin(radians) + y * Math.cos(radians), transform };
-  };
+  const projectPoint = (sample: typeof selected[number]) => projectTrackedPoint(project, source, media, sample.position, sample.frame / analysis.data.frameRate);
   const first = selected[0], anchor = projectPoint(first), base = animatedTransform(target.clip, overlapStart - target.clip.startTime);
   const controlled = new Set(["position.x", "position.y", ...(options.applyScale ? ["scale.x", "scale.y"] : []), ...(options.applyRotation ? ["rotation"] : [])]);
   const localStart = overlapStart - target.clip.startTime, localEnd = overlapEnd - target.clip.startTime;

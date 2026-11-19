@@ -14,6 +14,7 @@ import {
   nextRunnableJob,
   removeExportJob,
   reportExportProgress,
+  resetExportProgress,
   retryExportJob,
   setExportQueuePaused,
   startExportJob,
@@ -60,6 +61,19 @@ describe("export queue model", () => {
     expect(s.jobs[0].progress).toBe(0.5);
     expect(estimateEtaMs(1000, 0)).toBeUndefined();
     expect(estimateEtaMs(1000, 1)).toBeUndefined();
+  });
+
+  it("resets progress, phase and ETA for a re-run so the failed attempt's value does not freeze the bar", () => {
+    let s = startExportJob(build("a"), "a", 0);
+    s = reportExportProgress(s, "a", 0.8, "Encoding", 4000);
+    expect(s.jobs[0].progress).toBe(0.8);
+    s = resetExportProgress(s, "a", 5000);
+    expect(s.jobs[0]).toMatchObject({ status: "running", progress: 0, phase: "Preparing", elapsedMs: 0, etaMs: undefined, startedAt: 5000, attempts: 1 });
+    s = reportExportProgress(s, "a", 0.1, "Rendering", 5500);
+    expect(s.jobs[0]).toMatchObject({ progress: 0.1, phase: "Rendering", elapsedMs: 500 });
+    expect(s.jobs).toHaveLength(1);
+    const queued = build("b");
+    expect(resetExportProgress(queued, "b")).toBe(queued);
   });
 
   it("ignores progress for jobs that are not running", () => {

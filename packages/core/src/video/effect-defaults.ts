@@ -1,4 +1,5 @@
 import { isProEffectType, PRO_EFFECT_DEFAULTS } from "./pro-effects";
+import { BURN_IN_DEFAULTS, isBurnInEffectType } from "./burn-in";
 import { isPluginEffectType, newPluginEffectParams } from "../plugins/manifest";
 import { getPluginRegistry } from "../plugins/registry";
 
@@ -44,6 +45,7 @@ export function getDefaultEffectParams(
   type: string,
 ): Record<string, unknown> | undefined {
   if (isProEffectType(type)) return { ...PRO_EFFECT_DEFAULTS[type] };
+  if (isBurnInEffectType(type)) return { ...BURN_IN_DEFAULTS[type] };
   if (isPluginEffectType(type)) {
     // Plugin effects seed every manifest default plus the plugin version they were authored with.
     const plugin = getPluginRegistry().forEffectType(type);
@@ -67,7 +69,7 @@ export function withEffectDefaults(
 ): Record<string, unknown> | undefined {
   const defaults = getDefaultEffectParams(type);
   if (!defaults) return params;
-  if (isProEffectType(type) || isPluginEffectType(type)) return { ...defaults, ...(params ?? {}) };
+  if (isProEffectType(type) || isBurnInEffectType(type) || isPluginEffectType(type)) return { ...defaults, ...(params ?? {}) };
   if (params && Object.keys(params).length > 0) return params;
   return defaults;
 }

@@ -1,3 +1,4 @@
+import { addClipMarkerAtPlayhead } from "../services/clip-marker-commands";
 import { v4 as uuidv4 } from "uuid";
 import { planRippleTrimToPlayhead } from "@openreel/core";
 import { useColorMonitorStore } from "../stores/color-monitor-store";
@@ -37,6 +38,7 @@ import {
   goToNextMarker,
   goToPreviousMarker,
 } from "../services/marker-commands";
+import { openClipSpeedDialog } from "../services/clip-speed-multi";
 import { flushEditorFieldDrafts } from "../services/editor-field-drafts";
 import {
   addEditToAllTracks,
@@ -45,6 +47,7 @@ import {
   insertSelectedMedia,
   liftRange,
   matchFrame,
+  reverseMatchFrame,
   overwriteSelectedMedia,
   pasteInsertClips,
   commit,
@@ -52,6 +55,7 @@ import {
   pickPasteTrack,
   runWithToast,
 } from "../services/premiere-edit-commands";
+import { fitToFillFromSource, replaceFromSource } from "../services/source-monitor-commands";
 import {
   toggleSyncLockOnSelectedTrack,
   toggleTargetOnSelectedTrack,
@@ -438,6 +442,8 @@ export function useKeyboardShortcuts() {
         if (editPointSelected()) trimEditPoint(1, false);
         else runWithToast("Overwrite", overwriteSelectedMedia);
       }],
+      ["editing.replaceEdit", () => runWithToast("Replace", () => replaceFromSource())],
+      ["editing.fitToFill", () => runWithToast("Fit to Fill", () => fitToFillFromSource())],
       ["editing.trimEditLeftLarge", () => trimEditPoint(-1, true)],
       ["editing.trimEditRightLarge", () => trimEditPoint(1, true)],
       ["editing.lift", () => runWithToast("Lift", liftRange)],
@@ -462,6 +468,8 @@ export function useKeyboardShortcuts() {
         if (!outcome.success) toast.warning("Sync Lock", outcome.message);
       })],
       ["editing.matchFrame", () => runWithToast("Match frame", matchFrame)],
+      ["editing.reverseMatchFrame", () => runWithToast("Reverse match frame", reverseMatchFrame)],
+      ["editing.speedDuration", () => runWithToast("Speed/Duration", openClipSpeedDialog)],
       ["linked.replace", () => void replaceSelectionWithLinkedComposition()],
       ["linked.open", () => void openSelectedLinkedComposition()],
       ["linked.render", () => void renderSelectedLinkedComposition()],
@@ -513,6 +521,7 @@ export function useKeyboardShortcuts() {
         });
       }],
       ["tools.addMarker", () => { void addMarkerAtPlayhead(); }],
+      ["tools.addClipMarker", () => { void addClipMarkerAtPlayhead(); }],
       ["tools.editMarker", editMarkerAtPlayhead],
       ["tools.nextMarker", () => { goToNextMarker(); }],
       ["tools.prevMarker", () => { goToPreviousMarker(); }],

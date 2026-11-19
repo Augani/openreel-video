@@ -13,6 +13,7 @@ import {
 import { createMotionTrackingSource } from "../services/motion-tracking-source";
 import { createWorkerTrackStepper } from "../services/motion-track-stepper";
 import { persistMotionTrackingAnalysis, readMotionTrackingAnalysis, applyMotionTracking, removeMotionTracking, type MotionTrackingApplyOptions } from "../services/motion-tracking-edit";
+import { backgroundTasks } from "@openreel/core/tasks/task-registry";
 import { useProjectStore } from "../stores/project-store";
 
 export interface MotionTrackingRunOptions extends TrackingOptions {
@@ -71,8 +72,40 @@ class MotionTrackingBridge {
     if (this.active && !this.active.controller.signal.aborted) this.pendingLostFrames.push(frameIndex);
   };
 
+  private taskId: string | null = null;
+  private taskClipId: string | null = null;
+  private taskTitle = "Motion tracking";
+
+  /** Mirror the run into the unified background-task registry (cancel forwards to cancelTracking). */
+  private reportTask(): void {
+    const state = this.currentState;
+    if (state.isTracking) {
+      if (!this.taskId) {
+        this.taskId = `tracking:${Date.now()}`;
+        const clipId = this.taskClipId;
+        const project = useProjectStore.getState();
+        const clip = clipId ? project.getClip(clipId) : undefined;
+        const media = clip ? project.getMediaItem(clip.mediaId) : undefined;
+        this.taskTitle = media ? `Tracking \u00b7 ${media.name}` : "Motion tracking";
+      }
+      backgroundTasks.upsert(
+        { id: this.taskId, kind: "tracking", source: "tracking", title: this.taskTitle, detail: state.lostFrames.length ? `${state.lostFrames.length} frames lost` : "Following the selected region", status: "running", progress: state.progress / 100 },
+        { cancel: () => this.cancelTracking() },
+      );
+    } else if (this.taskId) {
+      const id = this.taskId;
+      this.taskId = null;
+      backgroundTasks.upsert(
+        state.error
+          ? { id, kind: "tracking", source: "tracking", title: this.taskTitle, status: "failed", error: state.error }
+          : { id, kind: "tracking", source: "tracking", title: this.taskTitle, status: state.trackingData ? "completed" : "cancelled", progress: state.trackingData ? 1 : null },
+      );
+    }
+  }
+
   private updateState(partial: Partial<MotionTrackingState>): void {
     this.currentState = { ...this.currentState, ...partial };
+    this.reportTask();
     this.notifyListeners();
   }
 
@@ -117,6 +150,7 @@ class MotionTrackingBridge {
     const active: { controller: AbortController; source: ReturnType<typeof createMotionTrackingSource>; job?: TrackingJob } = { controller, source };
     this.active = active;
     this.lastProgressAt = 0; this.pendingLostFrames = [];
+    this.taskClipId = clipId;
     this.updateState({ isTracking: true, progress: 0, lostFrames: [], error: null, trackingData: null, currentJob: null });
     try {
       const job = await this.engine.startTracking(clipId, source.region, {

@@ -498,10 +498,16 @@ test("smart render copies a source whose start_time is nonzero and off the frame
   expect(vsFull.length).toBe(nSmart);
   const worst = Math.min(...vsFull);
   const shifted = psnrSeries(smartFile, fullFile, aligned, "setpts=(N+1)/(30*TB)");
-  const shiftedMean = shifted.filter(Number.isFinite).reduce((x, y) => x + y, 0) / shifted.filter(Number.isFinite).length;
-  console.log(`[smart-render-offset] PSNR vs full re-encode: worst frame ${worst.toFixed(1)} dB (frame ${vsFull.indexOf(worst)}); same pairing shifted by one frame: mean ${shiftedMean.toFixed(1)} dB`);
+  const meanOf = (series: number[]) => series.filter(Number.isFinite).reduce((x, y) => x + y, 0) / series.filter(Number.isFinite).length;
+  const shiftedMean = meanOf(shifted);
+  const alignedMean = meanOf(vsFull);
+  console.log(`[smart-render-offset] PSNR vs full re-encode: worst frame ${worst.toFixed(1)} dB (frame ${vsFull.indexOf(worst)}), aligned mean ${alignedMean.toFixed(1)} dB; same pairing shifted by one frame: mean ${shiftedMean.toFixed(1)} dB`);
   expect(worst).toBeGreaterThan(30);
-  expect(shiftedMean).toBeLessThan(25); // the check can see a one-frame slip
+  // The check can see a one-frame slip. An absolute ceiling is encoder dependent (the full re-encode goes through the
+  // platform's H.264 encoder, which differs between a hardware Mac and a software CI runner: the shifted mean was 24.0 dB
+  // on one and 25.4 dB on the other), so the shifted pairing must sit well below the aligned pairing measured in the same run.
+  expect(shiftedMean).toBeLessThan(alignedMean - 12);
+  expect(shiftedMean).toBeLessThan(30);
 
   // Copied frames are the source's own bytes, on the output frame that shows that source frame (output i = source i - LEAD).
   const vsSource = psnrSeries(smartFile, startFile, `trim=start_frame=${LEAD},setpts=N/(30*TB)`, aligned);

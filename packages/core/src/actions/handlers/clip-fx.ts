@@ -4,8 +4,7 @@ import { registerActionHandler } from "../registry";
 import type { ActionHandler } from "../registry";
 import { makeClipFieldHandler, findClip, patchClip } from "./clip-helpers";
 
-const SPEED_MIN = 0.1;
-const SPEED_MAX = 20;
+import { CLIP_SPEED_MIN as SPEED_MIN, CLIP_SPEED_MAX as SPEED_MAX } from "../../editing/speed-limits";
 
 const isNumber = (v: unknown): v is number =>
   typeof v === "number" && Number.isFinite(v);

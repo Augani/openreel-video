@@ -248,6 +248,8 @@ export class NativeFFmpegBackend implements EncoderBackend {
     });
 
     const portPromise = this.awaitExportPort();
+    // If the start request is refused, the port never arrives; its timeout must not surface as an unhandled rejection.
+    portPromise.catch(() => undefined);
 
     this.embeddedCaptions = undefined;
     let captions: Array<{ kind: "mov_text" | "cea608"; data: string; language?: string }> | undefined;
@@ -279,6 +281,7 @@ export class NativeFFmpegBackend implements EncoderBackend {
       audioSampleRate: settings.audioSettings.sampleRate,
       audioChannels: monoTracks || settings.audioSettings.channels,
       encodeMode: settings.encodeMode ?? "balanced",
+      ...(settings.encoderChoice && settings.encoderChoice !== "auto" ? { encoderChoice: settings.encoderChoice } : {}),
       quality: settings.quality,
       proresProfile: settings.proresProfile,
       ...(settings.codec === "dnxhr" ? { dnxhrProfile: settings.dnxhrProfile ?? "hq" } : {}),

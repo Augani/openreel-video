@@ -503,6 +503,14 @@ void main() {
 }
 `;
 
+/** Temporal effects never reach the pixel pass; this identity shader only keeps every type's def complete. */
+const TEMPORAL_PASSTHROUGH = `${PRELUDE}
+void main() {
+  vec4 c = texture(u_input, vUv);
+  fragColor = emit(c.rgb, c.a);
+}
+`;
+
 const GLSL: Readonly<Record<ProEffectType, string>> = {
   mosaic: MOSAIC,
   posterize: POSTERIZE,
@@ -521,6 +529,8 @@ const GLSL: Readonly<Record<ProEffectType, string>> = {
   vibrance: VIBRANCE,
   skew: SKEW,
   "hsl-secondary": HSL_SECONDARY,
+  echo: TEMPORAL_PASSTHROUGH,
+  "posterize-time": TEMPORAL_PASSTHROUGH,
   ...EXTRA_GLSL,
 };
 
@@ -543,6 +553,8 @@ const UNIFORMS: Readonly<Record<ProEffectType, readonly string[]>> = {
   vibrance: ["vibrance", "sat"],
   skew: ["a", "b", "c", "d", "valid"],
   "hsl-secondary": ["hMin", "hMax", "hSoft", "sMin", "sMax", "sSoft", "lMin", "lMax", "lSoft", "radius", "denoise", "invert", "mShape", "mCx", "mCy", "mHx", "mHy", "mFeather", "mInvert", "tempR", "tempG", "tempB", "wheelR", "wheelG", "wheelB", "contrast", "saturation", "sharpen", "view"],
+  echo: [],
+  "posterize-time": [],
   ...EXTRA_UNIFORMS,
 };
 

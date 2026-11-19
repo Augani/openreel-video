@@ -341,6 +341,24 @@ describe("ExportEngine", () => {
       }
     }
 
+    describe("timecode burn-in", () => {
+      beforeEach(() => mockRenderFrame.mockClear());
+
+      it("hands the burn-in setting to every rendered frame", async () => {
+        const burnInTimecode = { enabled: true, position: "top-left" as const };
+        await drainVideoExport({ ...DEFAULT_VIDEO_SETTINGS, frameRate: 1, width: 640, height: 360, burnInTimecode }, 2);
+        expect(mockRenderFrame.mock.calls.length).toBeGreaterThan(0);
+        for (const call of mockRenderFrame.mock.calls) expect(call[4]).toEqual({ timecodeBurnIn: burnInTimecode });
+      });
+
+      it("renders frames exactly as before when it is off or absent", async () => {
+        await drainVideoExport({ ...DEFAULT_VIDEO_SETTINGS, frameRate: 1, width: 640, height: 360, burnInTimecode: { enabled: false } }, 1);
+        await drainVideoExport({ ...DEFAULT_VIDEO_SETTINGS, frameRate: 1, width: 640, height: 360 }, 1);
+        expect(mockRenderFrame.mock.calls.length).toBeGreaterThan(0);
+        for (const call of mockRenderFrame.mock.calls) expect(call).toHaveLength(4);
+      });
+    });
+
     describe("frame pipelining", () => {
       afterEach(() => setEncoderBackendFactory(null));
 

@@ -36,6 +36,7 @@ import { applyWindowControl, windowIsMaximized } from "./window-controls";
 import { registerLinkedCompIpc } from "./linked-comp-windows";
 import { registerOnboardingIpc } from "./ipc/onboarding";
 import { registerOllamaIpc } from "./ipc/ollama";
+import { installMediaPermissionHandlers, registerMicrophoneIpc } from "./ipc/microphone";
 import { registerSamplesIpc } from "./ipc/samples";
 import { registerFontsIpc } from "./ipc/fonts";
 import { registerMcpFilesIpc } from "./ipc/mcp-files";
@@ -440,6 +441,8 @@ app.whenReady().then(() => {
   });
   registerOnboardingIpc();
   registerOllamaIpc();
+  registerMicrophoneIpc();
+  installMediaPermissionHandlers();
   registerSamplesIpc();
   registerFontsIpc();
   registerMcpFilesIpc();

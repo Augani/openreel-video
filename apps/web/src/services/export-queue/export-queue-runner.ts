@@ -4,7 +4,9 @@ import {
   desktopExportRequiresNativeEncoder,
   planInvalidation,
   setEncoderBackendFactory,
+  encoderChoiceForcesNative,
   WebCodecsBackend,
+  webCodecsEncoderOptions,
   type ExportEngine,
   type ExportFrameSource,
   type ExportJob,
@@ -75,12 +77,17 @@ export function createDiskWritable(path: string): Promise<FileSystemWritableFile
   });
 }
 
-const webCodecsFactoryFor = (settings: VideoExportSettings, clamp: boolean) => {
+/** Which encoder a job asks WebCodecs for. A re-run after a hardware session could not be opened asks for software. */
+export type EncoderPreference = "prefer-hardware" | "prefer-software";
+
+const webCodecsFactoryFor = (settings: VideoExportSettings, clamp: boolean, encoder: EncoderPreference = "prefer-hardware") => {
   const videoCodec = settings.codec === "h265" ? "hevc" : "avc";
   return (mediabunny: unknown) =>
     mediabunny
       ? new WebCodecsBackend(mediabunny as ConstructorParameters<typeof WebCodecsBackend>[0], {
-          hardwareAcceleration: "prefer-hardware",
+          ...webCodecsEncoderOptions(settings.encoderChoice),
+          // The automatic re-run after a hardware session failed to open asks for software, unless the user chose Hardware.
+          ...(encoder === "prefer-software" && settings.encoderChoice !== "hardware" ? { hardwareAcceleration: "prefer-software" as const } : {}),
           videoCodecs: [videoCodec],
           clampResolution: clamp,
         })
@@ -104,14 +111,14 @@ export interface RunJobHooks {
  * Encode one queued job from its project snapshot. The editor's live project is
  * never read here, which is what makes a queued job immune to later edits.
  */
-export async function runExportJob(job: ExportJob, project: Project, hooks: RunJobHooks): Promise<RunJobResult> {
+export async function runExportJob(job: ExportJob, project: Project, hooks: RunJobHooks, encoder: EncoderPreference = "prefer-hardware"): Promise<RunJobResult> {
   // A queued job renders with its own video/audio engines. The live preview's
   // engines are never put in export mode, never have their caches cleared, and
   // never see the job's frames.
   const isolated = createIsolatedExportEngine();
   activeJobEngine = isolated.engine;
   try {
-    return await runExportJobWith(isolated.engine, job, project, hooks);
+    return await runExportJobWith(isolated.engine, job, project, hooks, encoder);
   } finally {
     // Owned here so an early failure (engine init, fonts, output sink) cannot leak the engines.
     if (activeJobEngine === isolated.engine) activeJobEngine = null;
@@ -119,7 +126,7 @@ export async function runExportJob(job: ExportJob, project: Project, hooks: RunJ
   }
 }
 
-async function runExportJobWith(engine: ExportEngine, job: ExportJob, project: Project, hooks: RunJobHooks): Promise<RunJobResult> {
+async function runExportJobWith(engine: ExportEngine, job: ExportJob, project: Project, hooks: RunJobHooks, encoder: EncoderPreference): Promise<RunJobResult> {
   const settings: VideoExportSettings = { ...job.settings, ...(job.range ? { range: job.range } : {}) };
   const ext = extForFormat(settings.format, settings.codec);
   const desktop = isDesktop();
@@ -153,13 +160,13 @@ async function runExportJobWith(engine: ExportEngine, job: ExportJob, project: P
   if (desktop) {
     const fs = window.openreel!.fs;
     const path = await fs.tempFilePath(ext, true);
-    const native = desktopExportRequiresNativeEncoder(settings) || settings.encodeMode === "smallest" || settings.codec === "av1";
+    const native = desktopExportRequiresNativeEncoder(settings) || settings.encodeMode === "smallest" || settings.codec === "av1" || encoderChoiceForcesNative(settings.encoderChoice, settings.codec);
     (window as { __openreelExportPath?: string }).__openreelExportPath = path;
     if (native) {
       setEncoderBackendFactory(() => new NativeFFmpegBackend(() => path));
       writable = NOOP_WRITABLE;
     } else {
-      setEncoderBackendFactory(webCodecsFactoryFor(settings, false));
+      setEncoderBackendFactory(webCodecsFactoryFor(settings, false, encoder));
       writable = await createDiskWritable(path);
     }
     restoreFactory = () => setEncoderBackendFactory(() => new NativeFFmpegBackend(() => path));
@@ -183,7 +190,11 @@ async function runExportJobWith(engine: ExportEngine, job: ExportJob, project: P
       lockedPlayback = true;
       useProjectStore.getState().syncRenderProcessingFrom(project);
     }
-    generator = engine.exportVideo(project, settings, writable, frameSource ? { cachedFrames: frameSource } : {});
+    // Desktop carries the preference in its encoder factory; the browser passes it per run so it never outlives this job.
+    generator = engine.exportVideo(project, settings, writable, {
+      ...(frameSource ? { cachedFrames: frameSource } : {}),
+      ...(!desktop && encoder === "prefer-software" ? { encoderPreference: "prefer-software" as const } : {}),
+    });
     let framesFromCache = 0;
     let smartRender: RunJobResult["smartRender"];
     let sourceMedia: string | undefined;

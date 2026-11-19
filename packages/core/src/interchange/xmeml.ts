@@ -20,6 +20,7 @@ import type {
   InterchangeReport,
   Sequence,
   SeqClip,
+  SeqClipMarker,
   SeqMarker,
   SeqMedia,
   SeqMulticam,
@@ -153,6 +154,15 @@ export function serializeXmeml(input: Sequence): string {
       w.leaf("effectcategory", "motion").leaf("effecttype", "motion").leaf("mediatype", "video");
       writeFilterParam("opacity", "opacity", num(clip.opacity * 100), 0, 100);
       w.close("effect").close("filter");
+    }
+  };
+
+  /** Clip + master-clip markers as <marker> children of the clipitem; in/out are source frames of the media. */
+  const writeClipMarkers = (clip: SeqClip, media: SeqMedia): void => {
+    for (const m of clip.markers ?? []) {
+      const inF = sourceFrames(media, m.sec);
+      const outF = m.durationSec && m.durationSec > 0 ? sourceFrames(media, m.sec + m.durationSec) : -1;
+      w.open("marker").leaf("name", m.name).leaf("comment", m.comment ?? "").leaf("in", inF).leaf("out", outF).close("marker");
     }
   };
 
@@ -334,6 +344,7 @@ export function serializeXmeml(input: Sequence): string {
           w.leaf("in", sourceFrames(media, clip.inSec)).leaf("out", sourceFrames(media, clip.outSec));
           writeFile(media);
           writeMulticam(clip, seq);
+          writeClipMarkers(clip, media);
           writeVideoFilters(clip);
           const partner = audioIndexOfLinked.get(clip.id);
           writeLink(id, "video", vi + 1, ci + 1);
@@ -406,6 +417,7 @@ export function serializeXmeml(input: Sequence): string {
       w.leaf("start", clip.startFrame).leaf("end", clip.endFrame);
       w.leaf("in", sourceFrames(media, clip.inSec)).leaf("out", sourceFrames(media, clip.outSec));
       writeFile(media);
+      if (entry.pairedVideo === undefined) writeClipMarkers(clip, media);
       w.open("sourcetrack").leaf("mediatype", "audio").leaf("trackindex", 1).close("sourcetrack");
       writeAudioRetime(clip);
       writeAudioFilters(clip);
@@ -689,6 +701,20 @@ export function parseXmeml(source: string): { sequence: Sequence; report: Interc
         const volume = levelParam !== undefined && Number.isFinite(Number(levelParam)) ? Number(levelParam) : 1;
         if (!asBool(childText(el, "enabled"), true)) warnings.push(`Clip "${name}" is disabled in the source; it was imported enabled.`);
         const multicam = media && kind === "video" ? parseMulticam(el, media.key) : undefined;
+        const clipMarkers: SeqClipMarker[] = childrenNamed(el, "marker").flatMap((m) => {
+          const inM = childNumber(m, "in");
+          if (inM === undefined || inM < 0) return [];
+          const outM = childNumber(m, "out");
+          const comment = childText(m, "comment");
+          return [
+            {
+              sec: framesToSeconds(inM, clipRate),
+              name: childText(m, "name") ?? "",
+              ...(outM !== undefined && outM > inM ? { durationSec: framesToSeconds(outM - inM, clipRate) } : {}),
+              ...(comment ? { comment } : {}),
+            },
+          ];
+        });
         clips.push({
           clip: {
             id: el.attrs.id ?? `${kind}-${index}-${clips.length}`,
@@ -705,6 +731,7 @@ export function parseXmeml(source: string): { sequence: Sequence; report: Interc
             withAudio: false,
             ...(nested ? { nested } : {}),
             ...(multicam ? { multicam } : {}),
+            ...(clipMarkers.length && !nested ? { markers: clipMarkers } : {}),
           },
           elementId: el.attrs.id,
           linkRefs: childrenNamed(el, "link").map((l) => childText(l, "linkclipref") ?? ""),

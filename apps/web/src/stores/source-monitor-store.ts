@@ -17,6 +17,13 @@ export type MonitorTab = "program" | "source" | "multicam";
 export type MonitorFocus = "program" | "source";
 
 const MARKS_KEY = "openreel-source-marks:";
+/** Premiere's Source monitor keeps a short most-recent-first list of loaded clips. */
+export const SOURCE_HISTORY_LIMIT = 10;
+
+/** Push `mediaId` to the front of a history list, de-duplicated and capped. */
+export function pushSourceHistory(history: readonly string[], mediaId: string): string[] {
+  return [mediaId, ...history.filter((id) => id !== mediaId)].slice(0, SOURCE_HISTORY_LIMIT);
+}
 
 function readMarks(projectId: string): Record<string, SourceMarks> {
   try {
@@ -65,11 +72,17 @@ interface SourceMonitorState {
   rate: number;
   projectId: string | null;
   marks: Record<string, SourceMarks>;
+  /** Recently loaded media ids, most recent first (this project, this session). */
+  history: string[];
   /** Bumped on every open request so the view can re-focus/seek. */
   openNonce: number;
+  /** Replace edit keeps the replaced clip's effects, keyframes and audio
+   * settings (on) or resets them to a fresh clip (off). */
+  replaceKeepsAttributes: boolean;
 
   setTab: (tab: MonitorTab) => void;
   setFocus: (focus: MonitorFocus) => void;
+  setReplaceKeepsAttributes: (keep: boolean) => void;
   /** Load a media item into the source monitor and show the Source tab. */
   open: (mediaId: string, projectId: string, time?: number) => void;
   setPosition: (seconds: number) => void;
@@ -78,6 +91,8 @@ interface SourceMonitorState {
   stop: () => void;
   togglePlay: () => void;
   bindProject: (projectId: string) => void;
+  /** Drop a media id (deleted from the project) from the history. */
+  forgetHistory: (mediaId: string) => void;
   setMark: (mediaId: string, which: "in" | "out", seconds: number | null) => void;
   clearMarks: (mediaId: string) => void;
   getMarks: (mediaId: string) => SourceMarks;
@@ -91,13 +106,16 @@ export const useSourceMonitorStore = create<SourceMonitorState>((set, get) => ({
   rate: 0,
   projectId: null,
   marks: {},
+  history: [],
   openNonce: 0,
+  replaceKeepsAttributes: true,
 
   setTab: (tab) => set({ tab, ...(tab === "program" ? { rate: 0, focus: "program" as const } : {}) }),
   setFocus: (focus) => set({ focus }),
+  setReplaceKeepsAttributes: (replaceKeepsAttributes) => set({ replaceKeepsAttributes }),
   bindProject: (projectId) => {
     if (get().projectId === projectId) return;
-    set({ projectId, marks: readMarks(projectId), mediaId: null, position: 0, rate: 0 });
+    set({ projectId, marks: readMarks(projectId), mediaId: null, position: 0, rate: 0, history: [] });
   },
   open: (mediaId, projectId, time) => {
     const state = get();
@@ -110,6 +128,7 @@ export const useSourceMonitorStore = create<SourceMonitorState>((set, get) => ({
       rate: 0,
       projectId,
       marks: sameProject ? state.marks : readMarks(projectId),
+      history: pushSourceHistory(sameProject ? state.history : [], mediaId),
       openNonce: state.openNonce + 1,
     });
   },
@@ -118,6 +137,7 @@ export const useSourceMonitorStore = create<SourceMonitorState>((set, get) => ({
   shuttle: (direction) => set((s) => ({ rate: nextShuttleRate(s.rate, direction) })),
   stop: () => set({ rate: 0 }),
   togglePlay: () => set((s) => ({ rate: s.rate === 0 ? 1 : 0 })),
+  forgetHistory: (mediaId) => set((s) => ({ history: s.history.filter((id) => id !== mediaId) })),
   setMark: (mediaId, which, seconds) => {
     const { marks, projectId } = get();
     const current = { ...(marks[mediaId] ?? {}) };

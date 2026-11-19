@@ -1,18 +1,26 @@
 import { v4 as uuidv4 } from "uuid";
 import {
+  findReplaceTarget,
+  planFitToFill,
+  planReplaceEdit,
   planSourceEdit,
   sourceDropError,
   type MediaItem,
+  type ReplaceAlignment,
+  type ResolvedFitToFill,
+  type ResolvedReplace,
   type ResolvedSourceEdit,
   type SourceComponent,
 } from "@openreel/core";
 import { useProjectStore } from "../stores/project-store";
+import { useUIStore } from "../stores/ui-store";
 import { useTimelineStore } from "../stores/timeline-store";
 import { useSourceMonitorStore } from "../stores/source-monitor-store";
 import {
   commit,
   findSourceTracks,
   getMarkedRange,
+  getTargetedTrackIds,
   type CommandOutcome,
 } from "./premiere-edit-commands";
 
@@ -183,4 +191,121 @@ export function dropSourceRange(
   }, "Nothing to place.");
   if (outcome.success && resolved) useTimelineStore.getState().seekTo(resolved.at + resolved.duration);
   return { success: outcome.success, message: outcome.message };
+}
+
+export interface FitToFillOutcome extends CommandOutcome {
+  resolved?: ResolvedFitToFill;
+  clipId?: string;
+  trackId?: string;
+  audioTrackId?: string;
+}
+
+const percent = (speed: number) => `${Math.round(speed * 1000) / 10}%`;
+
+/**
+ * Fit to Fill: the Source monitor's In/Out range (the whole media when
+ * unmarked) is retimed to exactly fill the timeline In/Out range, and
+ * overwritten onto the patched / targeted tracks. Audio follows the speed
+ * with its pitch preserved. One undo step; no ripple, so Sync Lock has
+ * nothing to move.
+ */
+export function fitToFillFromSource(component: SourceComponent = "both"): FitToFillOutcome {
+  const sequence = getMarkedRange();
+  if (!sequence) return fail("Fit to Fill needs In and Out marks on the timeline.");
+  const media = getSourceMedia();
+  if (!media) return fail("Open a clip in the Source monitor first.");
+  if (media.type === "image") return fail("Fit to Fill needs video or audio; a still has no speed to change.");
+  const marks = useSourceMonitorStore.getState().getMarks(media.id);
+  const { primary, audio } = findSourceTracks(useProjectStore.getState().project, media, component);
+  const { track, created } = primary;
+  const clipId = uuidv4();
+  const audioClipId = uuidv4();
+  let resolved: ResolvedFitToFill | undefined;
+  const outcome = commit((project) => {
+    const planned = planFitToFill(project, {
+      media,
+      trackId: track.id,
+      clipId,
+      operationId: uuidv4(),
+      sourceIn: marks.in,
+      sourceOut: marks.out,
+      sequenceIn: sequence.start,
+      sequenceOut: sequence.end,
+      component,
+      newTrack: created,
+      audioPatch: audio
+        ? { trackId: audio.track.id, clipId: audioClipId, newTrack: audio.created }
+        : undefined,
+    });
+    resolved = planned.resolved;
+    return planned.plan;
+  }, "Nothing to place.");
+  if (!outcome.success || !resolved) return { success: false, message: outcome.message };
+  useTimelineStore.getState().seekTo(resolved.at + resolved.duration);
+  return {
+    success: true,
+    message: `Fit to Fill at ${percent(resolved.speed)} speed`,
+    resolved,
+    clipId,
+    trackId: track.id,
+    ...(audio ? { audioTrackId: audio.track.id } : {}),
+  };
+}
+
+export interface ReplaceOutcome extends CommandOutcome {
+  resolved?: ResolvedReplace;
+}
+
+/**
+ * Replace edit: swap the footage of the selected timeline clip (else the
+ * topmost clip under the playhead) for the Source monitor's clip. The clip
+ * keeps its place and length. By default the Source monitor's current frame is
+ * aligned with the timeline playhead; with the playhead outside the clip, or
+ * `alignment: "in"`, the source In (media start when unmarked) lands on the
+ * clip's first frame. Effects, keyframes and audio settings are kept unless
+ * the Source monitor's Keep toggle is off. One undo step.
+ */
+export function replaceFromSource(
+  options: { alignment?: ReplaceAlignment; keepAttributes?: boolean } = {},
+): ReplaceOutcome {
+  const playhead = useTimelineStore.getState().playheadPosition;
+  const media = getSourceMedia();
+  if (!media) return fail("Open a clip in the Source monitor first.");
+  const source = useSourceMonitorStore.getState();
+  const marks = source.getMarks(media.id);
+  const keepAttributes = options.keepAttributes ?? source.replaceKeepsAttributes;
+  const alignment = options.alignment ?? "playhead";
+  const selectedClipIds = useUIStore
+    .getState()
+    .selectedItems.filter((item) => item.type === "clip")
+    .map((item) => item.id);
+  let resolved: ResolvedReplace | undefined;
+  const outcome = commit((project) => {
+    const target = findReplaceTarget(project, {
+      media,
+      selectedClipIds,
+      playhead,
+      targetedTrackIds: getTargetedTrackIds(project),
+    });
+    if (!target) throw new Error("Select a timeline clip, or park the playhead over one, to replace.");
+    const planned = planReplaceEdit(project, {
+      clipId: target.id,
+      media,
+      alignment,
+      playhead,
+      sourcePosition: source.position,
+      sourceIn: marks.in,
+      keepAttributes,
+    });
+    resolved = planned.resolved;
+    return planned.plan;
+  }, "Nothing to replace.");
+  if (!outcome.success || !resolved) return { success: false, message: outcome.message };
+  return {
+    success: true,
+    resolved,
+    message: resolved.fellBackToIn
+      ? `Replaced with ${media.name}, aligned at the source In (the playhead is outside the clip)`
+      : `Replaced with ${media.name}`,
+  };
 }

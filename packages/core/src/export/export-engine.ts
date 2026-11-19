@@ -35,6 +35,7 @@ import { getWavEncoder } from "../wasm/wav";
 import type { EncoderBackend } from "./encoder-backend";
 import { getEncoderBackendFactory, setEncoderBackendFactory } from "./encoder-backend";
 import { WebCodecsBackend } from "./webcodecs-backend";
+import { webCodecsEncoderOptions } from "./encoder-choice";
 import { encodeGif, gifPlaybackFps, validateGifFrameBudget, validateGifOptions, type GifFrame } from "./gif-encoder";
 import { MAX_SEQUENCE_BYTES, packImageSequence, sequenceFrameRange, validateSequenceRange, type SequenceImageFormat } from "./image-sequence";
 import { declineSmartRender, formatSmartRenderSummary, planSmartRender, type SmartRenderPlan, type SmartRenderSourceInfo } from "./smart-render";
@@ -211,7 +212,8 @@ export class ExportEngine {
     const project = applyCaptionBurnIn(sourceProject, settings.captions);
     const burnInChanged = project !== sourceProject;
     // Cached preview frames contain every caption, so they cannot be reused when some are excluded.
-    const cachedFrames = burnInChanged ? undefined : exportOptions.cachedFrames;
+    // The timecode overlay is not in the preview cache either.
+    const cachedFrames = burnInChanged || settings.burnInTimecode?.enabled ? undefined : exportOptions.cachedFrames;
     let cachedFrameCount = 0;
 
     if (!this.mediabunny) {
@@ -241,7 +243,12 @@ export class ExportEngine {
     const encoderBackendFactory = getEncoderBackendFactory();
     const backend: EncoderBackend = encoderBackendFactory
       ? encoderBackendFactory(this.mediabunny)
-      : new WebCodecsBackend(this.mediabunny!);
+      : new WebCodecsBackend(this.mediabunny!, {
+          ...webCodecsEncoderOptions(fullSettings.encoderChoice),
+          ...(exportOptions.encoderPreference === "prefer-software" && fullSettings.encoderChoice !== "hardware"
+            ? { hardwareAcceleration: "prefer-software" as const }
+            : {}),
+        });
 
     if (backend.normalizesProResToH264 && (fullSettings.codec === "prores" || fullSettings.codec === "dnxhr" || isBroadcastCodec(fullSettings.codec) || fullSettings.format === "mxf" || hasBroadcastOptions(fullSettings.broadcast))) {
       return { success: false, error: this.createError("UNSUPPORTED_CODEC", "ProRes, DNxHR, XDCAM HD422, AVC-Intra, MXF, mono audio tracks and timecode tracks require the desktop encoder. Choose H.264 / MP4 for browser export.", "preparing") };
@@ -457,6 +464,7 @@ export class ExportEngine {
               exportStart + time,
               fullSettings.width,
               fullSettings.height,
+              ...(fullSettings.burnInTimecode?.enabled ? [{ timecodeBurnIn: fullSettings.burnInTimecode }] : []),
             ), abortController.signal, "rendering", (lateFrame) => lateFrame.image.close(), RENDER_FRAME_WATCHDOG_MS);
         renderMsTotal += performance.now() - renderStart;
         if (frame === segment.startFrame && segment.startFrame === 0) phase("first-frame-rendered");
@@ -645,6 +653,8 @@ export class ExportEngine {
     totalFrames: number,
   ): Promise<SmartRenderPlan | null> {
     if (!backend.smartRender || settings.smartRender === false || !this.mediabunny) return null;
+    // Stream-copied spans carry no overlay: a timecode burn-in re-renders every frame.
+    if (settings.burnInTimecode?.enabled) return null;
     // Smart render joins stream-copied spans with a stereo audio pass; a mono-track or broadcast delivery is rendered in full.
     if (isBroadcastCodec(settings.codec) || wantsMonoTracks(settings.broadcast) || settings.broadcast?.mxfPattern === "opatom") return null;
     // Stream-copied source packets carry the source's colour, so a Rec.2020 / HDR export re-renders everything.

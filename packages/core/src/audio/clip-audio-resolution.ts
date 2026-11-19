@@ -1,3 +1,4 @@
+import { resolveClipChannelMap, type ChannelPreset, type ClipChannelMap } from "./channel-map";
 import type {
   AutomationPoint,
   Clip,
@@ -119,10 +120,15 @@ export const resolveClipPitchCorrection = (
 export const resolveClipPlaybackAudioParams = (
   clip: Clip,
   timeline: TimelineWithTracks,
-): { panAutomation: AutomationPoint[]; pitchCorrection: boolean } => ({
-  panAutomation: resolveClipPanAutomation(clip, timeline),
-  pitchCorrection: resolveClipPitchCorrection(clip, timeline),
-});
+  media?: { readonly channelPreset?: ChannelPreset; readonly metadata?: { readonly channels?: number } },
+): { panAutomation: AutomationPoint[]; pitchCorrection: boolean; channelMap?: ClipChannelMap } => {
+  const channelMap = resolveClipChannelMap(clip, media);
+  return {
+    panAutomation: resolveClipPanAutomation(clip, timeline),
+    pitchCorrection: resolveClipPitchCorrection(clip, timeline),
+    ...(channelMap ? { channelMap } : {}),
+  };
+};
 
 /** The volume lane that is actually heard: the stored lane with live ducking under dialogue applied. */
 export const resolveClipVolumeAutomation = (

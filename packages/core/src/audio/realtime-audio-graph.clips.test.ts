@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   RealtimeAudioGraph,
+  SCHEDULE_START_LOOKAHEAD_SECONDS as LEAD,
   type AudioClipSchedule,
 } from "./realtime-audio-graph";
 import type { MasterTimelineClock } from "../playback/master-timeline-clock";
@@ -99,16 +100,21 @@ describe("each scheduled clip owns its effects and nodes", () => {
   it("schedules overlapping fades without losing their audible peak", () => {
     const { graph, gains } = fixture();
     graph.scheduleClip(schedule("overlap", { fadeIn: 5, fadeOut: 5 }));
-    expect(gains.map(({ gain }) => gain.linearRampToValueAtTime.mock.calls)).toContainEqual([[0.5, 2.5], [0, 5]]);
+    const ramps = gains.map(({ gain }) => gain.linearRampToValueAtTime.mock.calls as number[][]).find((calls) => calls.length === 2);
+    expect(ramps).toBeDefined();
+    expect(ramps![0][0]).toBeCloseTo(0.5, 9);
+    expect(ramps![0][1]).toBeCloseTo(2.5, 9);
+    expect(ramps![1][0]).toBeCloseTo(0, 9);
+    expect(ramps![1][1]).toBeCloseTo(5, 9);
   });
 
   it("keeps original-clock fades and local transition timing after a seek", () => {
     const { graph, gains, state } = fixture();
-    state.time = 0.5;
+    state.time = 0.5 - LEAD; // the clip starts LEAD ahead of the clock, i.e. at 0.5 on the timeline
     graph.scheduleClip(schedule("piece", { endTime: 2, fadeIn: 5, fadeOut: 4, fadeOrigin: { offset: 4, duration: 10 }, transitionFadeIn: 1 }));
-    const fade = gains.find(({ gain }) => gain.setValueAtTime.mock.calls.some(([value, time]) => Math.abs(value - 0.5) < 1e-8 && time === 0));
+    const fade = gains.find(({ gain }) => gain.setValueAtTime.mock.calls.some(([value, time]) => Math.abs(value - 0.5) < 1e-8 && Math.abs(time - LEAD) < 1e-8));
     expect(fade).toBeDefined();
-    expect(fade!.gain.linearRampToValueAtTime.mock.calls.some(([value, time]) => Math.abs(value - 1) < 1e-8 && Math.abs(time - 0.5) < 1e-8)).toBe(true);
+    expect(fade!.gain.linearRampToValueAtTime.mock.calls.some(([value, time]) => Math.abs(value - 1) < 1e-8 && Math.abs(time - (0.5 + LEAD)) < 1e-8)).toBe(true);
   });
 
   it("keeps overlapping sources and the root mixer tap while applying independent clip pan", () => {
@@ -160,12 +166,26 @@ describe("each scheduled clip owns its effects and nodes", () => {
   });
   it("seeks source audio using clip speed and keeps the requested timeline duration", () => {
     const { graph, state, sources } = fixture();
-    state.time = 3;
+    state.time = 3 - LEAD; // the clip starts LEAD ahead of the clock, i.e. at 3 on the timeline
     graph.scheduleClip(
       schedule("fast", { startTime: 1, endTime: 6, mediaOffset: 2, speed: 2, pitchCorrection: false }),
     );
-    expect(sources[0].start).toHaveBeenCalledWith(0, 6, 6);
+    expect(sources[0].start).toHaveBeenCalledWith(LEAD, expect.closeTo(6, 9), expect.closeTo(6, 9));
     expect(sources[0].stop).not.toHaveBeenCalled();
+    graph.dispose();
+  });
+  it("starts every clip of one batch from the same instant even while the clock advances between clips", () => {
+    const { graph, state, sources } = fixture();
+    // A starved main thread: the audio clock moves 5 ms each time it is read.
+    let now = 0.2;
+    Object.defineProperty(state, "time", { get: () => (now += 0.005) });
+    graph.scheduleClips([
+      schedule("dialogue", { startTime: 0, endTime: 4 }),
+      schedule("music", { startTime: 0, endTime: 4, trackId: "t2" }),
+    ]);
+    const offsets = sources.map((source) => source.start.mock.calls[0][1]);
+    expect(offsets).toHaveLength(2);
+    expect(offsets[1]).toBe(offsets[0]);
     graph.dispose();
   });
   const bigBuffer = (seconds: number, rate = 8000) => ({
@@ -227,7 +247,10 @@ describe("each scheduled clip owns its effects and nodes", () => {
     expect(seen).toEqual([16000]);
     graph.scheduleClip(schedule("fast-again", { audioBuffer, endTime: 1, speed: 2, mediaOffset: 100 }));
     expect(sources.at(-1)!.buffer?.duration).toBeCloseTo(1, 3);
-    expect(sources.at(-1)!.start).toHaveBeenCalledWith(0, 0, 1);
+    const [when, offset, duration] = sources.at(-1)!.start.mock.calls[0];
+    expect(when).toBe(LEAD);
+    expect(offset).toBeCloseTo(LEAD, 9); // the stretched render begins at the clip's first used sample, plus the start lead
+    expect(duration).toBeCloseTo(1 - LEAD, 9);
     graph.dispose();
   });
   it("lets a clip effect tail ring out when the resampled source is retired for the stretch", async () => {

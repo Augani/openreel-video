@@ -12,6 +12,8 @@ export interface ChannelStripState {
   readonly pan: number; // -1 (left) to 1 (right)
   readonly muted: boolean;
   readonly solo: boolean;
+  /** Solo Safe: stays audible while other tracks are soloed. */
+  readonly soloSafe?: boolean;
   readonly levels: StereoSignalLevels;
   readonly rack?: AudioRack;
   /** Output assignment: a bus id, absent = master. */

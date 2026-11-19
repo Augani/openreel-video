@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import {
-  EASING_TYPES, EASE_PRESETS, clampBezierHandles, effectiveBezierHandles, keyframeEngine, keyframeSpeedAt,
+  EASING_TYPES, EASE_PRESETS, KEYFRAME_INTERPOLATION_OPS, KEYFRAME_INTERPOLATION_LABELS, KEYFRAME_INTERPOLATION_SIDE_LABELS, keyframeSideTypes, type KeyframeInterpolationOp, type KeyframeInterpolationSide, type KeyframeSideType, clampBezierHandles, effectiveBezierHandles, keyframeEngine, keyframeSpeedAt,
   type BezierHandles, type EasePresetId, type Keyframe, type Clip,
 } from "@openreel/core";
 import { X, Copy, Clipboard, Trash2, ChevronLeft, ChevronRight } from "@/icons/lucide-compat";
-import { Button, ScrollArea, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, cn } from "@openreel/ui";
+import { Button, ScrollArea, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuCheckboxItem, ContextMenuLabel, cn } from "@openreel/ui";
 
 const PROPERTY_COLORS: Record<string, string> = {
   "position.x": "#22d3ee", "position.y": "#34d399", "scale.x": "#4ade80", "scale.y": "#86efac",
@@ -22,6 +22,45 @@ const PRESET_BUTTONS: { id: EasePresetId; label: string }[] = [
 ];
 const easingLabel = (value: string) => value === "bezier" ? "Custom Bézier" : value
   .replace(/([a-z])([A-Z])/g, "$1 $2").replaceAll("-", " ").replace(/\b\w/g, letter => letter.toUpperCase());
+const typeLabel = (type: KeyframeSideType) => type in KEYFRAME_INTERPOLATION_LABELS ? KEYFRAME_INTERPOLATION_LABELS[type as KeyframeInterpolationOp] : easingLabel(type);
+type SideTypes = { in?: KeyframeSideType; out?: KeyframeSideType };
+/** One label for a key: a single type when both sides agree, otherwise each side named. */
+function sideTypesLabel(types: SideTypes): string {
+  if (types.in && types.out) return types.in === types.out ? typeLabel(types.in) : `In ${typeLabel(types.in)} · Out ${typeLabel(types.out)}`;
+  const only = types.in ?? types.out;
+  return only ? typeLabel(only) : "";
+}
+
+/** Premiere-style "Temporal Interpolation" context menu; applies to the clicked key, or the whole selection when it was part of it. */
+function InterpolationMenu({ children, disabled, side, resolveIds, typesOf, onApply }: {
+  children: React.ReactNode; disabled: boolean; side: KeyframeInterpolationSide; resolveIds: (event: React.MouseEvent) => string[];
+  typesOf: (id: string) => SideTypes; onApply: (ids: string[], op: KeyframeInterpolationOp) => void;
+}) {
+  const ids = useRef<string[]>([]);
+  const [current, setCurrent] = useState<SideTypes>({});
+  const isCurrent = (op: KeyframeInterpolationOp) => {
+    const wanted = side === "both" ? [current.in, current.out] : [side === "in" ? current.in : current.out];
+    return op !== "ease-in" && op !== "ease-out" && wanted.some(Boolean) && wanted.filter(Boolean).every(type => type === op);
+  };
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild disabled={disabled}
+        onContextMenuCapture={(event: React.MouseEvent) => {
+          ids.current = resolveIds(event);
+          setCurrent(ids.current.length ? typesOf(ids.current[0]) : {});
+          if (!ids.current.length) event.preventDefault();
+        }}>
+        {children}
+      </ContextMenuTrigger>
+      <ContextMenuContent aria-label="Temporal interpolation">
+        <ContextMenuLabel>Temporal Interpolation ({KEYFRAME_INTERPOLATION_SIDE_LABELS[side].toLowerCase()})</ContextMenuLabel>
+        {KEYFRAME_INTERPOLATION_OPS.map(op => (
+          <ContextMenuCheckboxItem key={op} checked={isCurrent(op)} onSelect={() => onApply(ids.current, op)}>{KEYFRAME_INTERPOLATION_LABELS[op]}</ContextMenuCheckboxItem>
+        ))}
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
 const numericKey = (key: Keyframe): key is Keyframe & { value: number } =>
   typeof key.value === "number" && Number.isFinite(key.value) && Number.isFinite(key.time);
 function formatValue(value: unknown): string {
@@ -40,6 +79,7 @@ interface KeyframeEditorPanelProps {
   playheadTime?: number;
   onClose: () => void;
   onUpdateKeyframes: (ids: string[], updates: Partial<Keyframe>) => void;
+  onApplyInterpolation?: (ids: string[], op: KeyframeInterpolationOp, side: KeyframeInterpolationSide) => void;
   onDeleteKeyframes: (ids: string[]) => void;
   onCopyKeyframes: (ids: string[]) => void;
   onPasteKeyframes: (clipId: string, time: number, targetProperty?: string) => void;
@@ -98,13 +138,14 @@ function handlePoints(key: NumericKey, next: NumericKey, handles: BezierHandles)
   };
 }
 
-export function KeyframeEditorPanel({ clip, disabled = false, playheadTime = 0, onClose, onUpdateKeyframes, onDeleteKeyframes,
+export function KeyframeEditorPanel({ clip, disabled = false, playheadTime = 0, onClose, onUpdateKeyframes, onApplyInterpolation, onDeleteKeyframes,
   onCopyKeyframes, onPasteKeyframes, selectedKeyframeIds, onSelectKeyframe, copiedKeyframes }: KeyframeEditorPanelProps) {
   const [activeProperty, setActiveProperty] = useState<string | null>(null);
   const [overlay, setOverlay] = useState<string[]>([]);
   const [mode, setMode] = useState<"value" | "speed">("value");
   const [pasteIntoActive, setPasteIntoActive] = useState(false);
   const [page, setPage] = useState(1);
+  const [interpSide, setInterpSide] = useState<KeyframeInterpolationSide>("both");
   const [graphWidth, setGraphWidth] = useState(GRAPH_WIDTH);
   const [draft, setDraft] = useState<Draft | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -132,6 +173,12 @@ export function KeyframeEditorPanel({ clip, disabled = false, playheadTime = 0, 
       .map((group, index): PropertyGroup => ({ ...group, color: colorFor(group.property, index) }));
   }, [clip?.keyframes]);
   const activeGroup = propertyGroups.find(group => group.property === activeProperty) ?? propertyGroups[0] ?? null;
+  const typesOf = useCallback((id: string): SideTypes => {
+    const group = propertyGroups.find(g => g.keyframes.some(key => key.id === id));
+    const index = group ? group.keyframes.findIndex(key => key.id === id) : -1;
+    if (!group || index < 0) return {};
+    return keyframeSideTypes(group.keyframes[index - 1], group.keyframes[index], index < group.keyframes.length - 1);
+  }, [propertyGroups]);
   const selectedKeys = useMemo(() => {
     const ids = new Set(selectedKeyframeIds);
     return (clip?.keyframes ?? []).filter(key => ids.has(key.id));
@@ -394,16 +441,29 @@ export function KeyframeEditorPanel({ clip, disabled = false, playheadTime = 0, 
         </div>
       </div>}
         <div className="p-3">
+          <InterpolationMenu disabled={disabled || !onApplyInterpolation} side={interpSide} typesOf={typesOf} onApply={(ids, op) => onApplyInterpolation?.(ids, op, interpSide)} resolveIds={event => {
+            const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+            if (!activeLayer || rect.width <= 0) return selectedIds;
+            const x = (event.clientX - rect.left) * graphWidth / rect.width, y = (event.clientY - rect.top) * GRAPH_HEIGHT / rect.height;
+            const hit = layers.flatMap(layer => layer.keys.map(key => ({ key, layer }))).find(({ key, layer }) => Math.hypot(x - timeToX(key.time), y - valueToY(layer.range, key.value)) < HIT_RADIUS);
+            if (!hit) return selectedIds;
+            if (!selectedIdSet.has(hit.key.id)) onSelectKeyframe(hit.key.id, false);
+            return selectedIdSet.has(hit.key.id) ? selectedIds : [hit.key.id];
+          }}>
           <canvas ref={canvasRef} width={GRAPH_WIDTH} height={GRAPH_HEIGHT} data-graph-mode={mode} aria-label="Keyframe value graph" className={cn("w-full touch-none rounded-md border border-border bg-bg-1", disabled || mode === "speed" ? "cursor-default" : "cursor-crosshair")} style={{ height: GRAPH_HEIGHT }} onPointerDown={startDrag} onPointerMove={moveDrag}/>
+          </InterpolationMenu>
           {!numericActive && <p className="mt-2 text-[11px] text-fg-muted">{activeGroup ? "This property has no numeric curve." : "Add keyframes in the inspector to start animating."}</p>}
           {numericActive && mode === "value" && <p className="mt-2 text-[10px] text-fg-muted">Select a keyframe to drag its Bézier handles. {layers.length > 1 ? "Overlaid curves are each scaled to their own range." : ""}</p>}
           {mode === "speed" && <p className="mt-2 text-[10px] text-fg-muted">Speed graph: rate of change per second. Each curve is scaled to its own peak.</p>}
         </div>
         {!!rows.length && <div className="border-t border-border px-2 py-1">
           <div aria-hidden className="grid grid-cols-[1fr_1fr_2fr] gap-2 px-2 py-1 text-[10px] text-fg-muted"><span>Time</span><span>Value</span><span>Easing</span></div>
-          {rows.map(key => <Button key={key.id} variant="ghost" aria-pressed={selectedIdSet.has(key.id)} aria-label={`Keyframe at ${key.time.toFixed(3)}s, value ${formatValue(key.value)}, ${easingLabel(key.easing)}`} onClick={event => onSelectKeyframe(key.id, event.shiftKey || event.metaKey || event.ctrlKey)} className={cn("grid h-auto w-full grid-cols-[1fr_1fr_2fr] gap-2 whitespace-normal rounded px-2 py-1.5 text-left text-[11px] font-normal", selectedIdSet.has(key.id) && "bg-accent/10 text-accent")}>
-            <span className="font-mono">{key.time.toFixed(3)}s</span><span className="min-w-0 break-words font-mono">{formatValue(key.value)}</span><span>{easingLabel(key.easing)}</span>
-          </Button>)}
+          {rows.map(key => <InterpolationMenu key={key.id} disabled={disabled || !onApplyInterpolation} side={interpSide} typesOf={typesOf} onApply={(ids, op) => onApplyInterpolation?.(ids, op, interpSide)} resolveIds={() => {
+            if (!selectedIdSet.has(key.id)) onSelectKeyframe(key.id, false);
+            return selectedIdSet.has(key.id) ? selectedIds : [key.id];
+          }}><Button variant="ghost" aria-pressed={selectedIdSet.has(key.id)} aria-label={`Keyframe at ${key.time.toFixed(3)}s, value ${formatValue(key.value)}, ${sideTypesLabel(typesOf(key.id))}`} onClick={event => onSelectKeyframe(key.id, event.shiftKey || event.metaKey || event.ctrlKey)} className={cn("grid h-auto w-full grid-cols-[1fr_1fr_2fr] gap-2 whitespace-normal rounded px-2 py-1.5 text-left text-[11px] font-normal", selectedIdSet.has(key.id) && "bg-accent/10 text-accent")}>
+            <span className="font-mono">{key.time.toFixed(3)}s</span><span className="min-w-0 break-words font-mono">{formatValue(key.value)}</span><span>{sideTypesLabel(typesOf(key.id))}</span>
+          </Button></InterpolationMenu>)}
           {pageCount > 1 && <div className="flex items-center justify-between py-2">
             <Button variant="ghost" size="icon-sm" aria-label="Previous keyframe page" disabled={visiblePage === 1} onClick={() => setPage(visiblePage - 1)}><ChevronLeft size={14}/></Button>
             <span className="text-[10px] text-fg-muted">Page {visiblePage} of {pageCount}</span>
@@ -411,11 +471,18 @@ export function KeyframeEditorPanel({ clip, disabled = false, playheadTime = 0, 
           </div>}
         </div>}
       </ScrollArea>
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-border bg-bg-2 px-3 py-2 text-[11px]">
-        <span className="text-fg-2">Easing</span>
-        <Select value={selectedEasing} onValueChange={value => onUpdateKeyframes(selectedIds, { easing: value as Keyframe["easing"] })} disabled={disabled || !selectedIds.length}>
-          <SelectTrigger aria-label="Easing" className="h-7 w-40 bg-bg-1 px-2 text-[12px]"><SelectValue placeholder={selectedIds.length ? "Mixed" : "Select keyframes"}/></SelectTrigger>
+      <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-t border-border bg-bg-2 px-3 py-1.5 text-[11px]">
+                <Select value={selectedEasing} onValueChange={value => onUpdateKeyframes(selectedIds, { easing: value as Keyframe["easing"] })} disabled={disabled || !selectedIds.length}>
+          <SelectTrigger aria-label="Easing" className="h-7 w-32 bg-bg-1 px-2 text-[12px]"><SelectValue placeholder={selectedIds.length ? "Mixed" : "Select keyframes"}/></SelectTrigger>
           <SelectContent>{EASING_TYPES.map(easing => <SelectItem key={easing} value={easing}>{easingLabel(easing)}</SelectItem>)}</SelectContent>
+        </Select>
+        <Select value={interpSide} onValueChange={value => setInterpSide(value as KeyframeInterpolationSide)} disabled={disabled}>
+          <SelectTrigger aria-label="Interpolation side" title="Which side of each selected keyframe an interpolation type applies to" className="h-7 w-24 bg-bg-1 px-2 text-[12px]"><SelectValue/></SelectTrigger>
+          <SelectContent>{(Object.keys(KEYFRAME_INTERPOLATION_SIDE_LABELS) as KeyframeInterpolationSide[]).map(sideId => <SelectItem key={sideId} value={sideId}>{KEYFRAME_INTERPOLATION_SIDE_LABELS[sideId]}</SelectItem>)}</SelectContent>
+        </Select>
+        <Select value="" onValueChange={value => onApplyInterpolation?.(selectedIds, value as KeyframeInterpolationOp, interpSide)} disabled={disabled || !selectedIds.length || !onApplyInterpolation}>
+          <SelectTrigger aria-label="Interpolation" className="h-7 w-32 bg-bg-1 px-2 text-[12px]"><SelectValue placeholder="Interpolation"/></SelectTrigger>
+          <SelectContent>{KEYFRAME_INTERPOLATION_OPS.map(op => <SelectItem key={op} value={op}>{KEYFRAME_INTERPOLATION_LABELS[op]}</SelectItem>)}</SelectContent>
         </Select>
         <div role="group" aria-label="Ease presets" className="flex flex-wrap gap-1">
           {PRESET_BUTTONS.map(preset => <Button key={preset.id} variant="ghost" size="sm" aria-label={`Apply ${preset.label}`}

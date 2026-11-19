@@ -15,7 +15,7 @@ import { clickClip, clipsOf, importInput, openEditor, programMean, readState, se
  */
 const REAL_FOOTAGE = process.env.OPENREEL_LOOKS_FOOTAGE ?? join(dirname(fileURLToPath(import.meta.url)), "fixtures", "real-interview.mp4");
 
-const SHOTS = process.env.OPENREEL_LOOKS_SHOTS ?? "/private/tmp/polish-b/looks-luts";
+const SHOTS = process.env.OPENREEL_LOOKS_SHOTS ?? join(tmpdir(), "polish-b", "looks-luts");
 
 interface CardRead {
   state: string | undefined;
@@ -91,11 +91,16 @@ const signatureDiff = (a: number[], b: number[]): number => {
 async function waitForPoster(page: Page, ariaLabel: string, atTime?: number): Promise<CardRead> {
   const canvas = page.locator(cardSelector(ariaLabel)).first();
   await canvas.scrollIntoViewIfNeeded();
+  // A card under the pointer loops its footage window on hover: a read taken then is some frame of the loop, not the
+  // poster at the playhead the monitor shows. A card slides under the pointer whenever the list re-lays out (an
+  // imported LUT, a click that leaves the pointer on a card), which is common on a slow runner where playback
+  // starts before the read. Park the pointer and only accept a resting poster.
+  await page.mouse.move(5, 5);
   await expect
     .poll(
       async () => {
         const read = await readCard(page, ariaLabel);
-        if (!["poster", "playing"].includes(read.state ?? "")) return false;
+        if (read.state !== "poster") return false;
         return atTime === undefined || (read.time !== undefined && Math.abs(read.time - atTime) < 0.15);
       },
       { timeout: 45_000, message: `poster for ${ariaLabel}${atTime === undefined ? "" : ` at ${atTime}s`}` },
@@ -171,7 +176,7 @@ async function programSignature(page: Page): Promise<number[]> {
 }
 
 /** Opens the editor with real footage (a person, skin tones, shallow depth of field) as the only clip. */
-async function openRealFootage(page: Page, file = REAL_FOOTAGE): Promise<{ id: string }> {
+export async function openRealFootage(page: Page, file = REAL_FOOTAGE): Promise<{ id: string }> {
   await page.addInitScript(() => {
     try {
       localStorage.setItem("openreel-onboarding-complete", "true");

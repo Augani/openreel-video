@@ -18,13 +18,18 @@ import { SCRUB_GRAIN_SECONDS, SCRUB_MAX_GRAINS, planScrubGrains } from "./scrub-
 import { StretchCache, getSharedStretchCache, type StretchRequest, type StretchRunner } from "./stretch-cache";
 import { createRackBus, rackPan, rackVolume, type RackBusLike } from "./track-audio-rack";
 import { createLinkedCompressorStage, createMultichannelConvolver, needsMultichannelNodes, pinChannels } from "./multichannel-fx";
+import { mapAudioBuffer, type ClipChannelMap } from "./channel-map";
 import { createSurroundPanner, resolveSurroundPan, type ChannelLayout, type SurroundPannerNodes } from "./surround";
 import { effectChainLatencySamples, rackLatencySamples } from "./effect-latency";
+import { isTrackAudible } from "./track-audibility";
+import { getAudioOutputRouter } from "./audio-output-device";
 
 export interface AudioClipSchedule {
   clipId: string;
   trackId: string;
   audioBuffer: AudioBuffer;
+  /** Audio Channels mapping applied to `audioBuffer` when the clip is scheduled. */
+  channelMap?: ClipChannelMap;
   startTime: number;
   endTime: number;
   mediaOffset: number;
@@ -50,6 +55,8 @@ interface TrackConfig {
   pan: number;
   muted: boolean;
   solo: boolean;
+  /** Solo Safe: stays audible while other tracks are soloed. */
+  soloSafe?: boolean;
   effects: Effect[];
 }
 
@@ -111,6 +118,9 @@ interface TrackNodes {
   preFaderGate: GainNode;
 }
 
+/** How far ahead of "now" a clip that is already playing is started (see scheduleClip). */
+export const SCHEDULE_START_LOOKAHEAD_SECONDS = 0.02;
+
 export class RealtimeAudioGraph {
   private audioContext: AudioContext;
   private masterClock: MasterTimelineClock;
@@ -158,6 +168,8 @@ export class RealtimeAudioGraph {
     this.masterGain.connect(this.masterBus.input);
     this.masterBus.output.connect(this.masterOutput);
     this.masterOutput.connect(this.audioContext.destination);
+    // Monitor device chosen in Preferences / the mixer (no-op until one is picked).
+    getAudioOutputRouter().attach(this.audioContext, this.masterOutput);
     this.routing = new AudioRoutingGraph(this.audioContext, this.masterGain, {
       live: true,
       getTimelineTime: () => this.masterClock.currentTime,
@@ -319,7 +331,7 @@ export class RealtimeAudioGraph {
     const now = this.audioContext.currentTime;
     const hasVolume = (lanes?.volume?.length ?? 0) > 0;
     const hasPan = (lanes?.pan?.length ?? 0) > 0;
-    const audible = !config.muted && (!this.hasSoloTracks || config.solo);
+    const audible = isTrackAudible(config, this.hasSoloTracks);
     const time = timelineTime ?? this.masterClock.currentTime;
     const ctxStart = now + (this.trackLatencySeconds.get(trackId) ?? 0) - this.routing.getTotalLatencySeconds();
     if (hasVolume && audible && lanes?.volume) {
@@ -816,19 +828,28 @@ export class RealtimeAudioGraph {
     }
   }
 
+  setTrackSoloSafe(trackId: string, soloSafe: boolean): void {
+    const config = this.trackConfigs.get(trackId);
+    if (config) {
+      config.soloSafe = soloSafe;
+      this.updateTrackAudibility(trackId);
+    }
+  }
+
   /**
    * Mirrors the timeline's mute/solo state into the graph without recreating existing tracks. Tracks are otherwise
    * only created when playback starts, so scrubbing (or a solo toggled after the last play) needs this to be audible correctly.
    */
-  syncTrackStates(states: ReadonlyArray<{ trackId: string; muted: boolean; solo: boolean }>): void {
+  syncTrackStates(states: ReadonlyArray<{ trackId: string; muted: boolean; solo: boolean; soloSafe?: boolean }>): void {
     for (const state of states) {
       const config = this.trackConfigs.get(state.trackId);
       if (!config) {
-        this.createTrack({ trackId: state.trackId, volume: 1, pan: 0, muted: state.muted, solo: state.solo, effects: [] });
+        this.createTrack({ trackId: state.trackId, volume: 1, pan: 0, muted: state.muted, solo: state.solo, soloSafe: state.soloSafe === true, effects: [] });
         continue;
       }
       config.muted = state.muted;
       config.solo = state.solo;
+      config.soloSafe = state.soloSafe === true;
     }
     this.updateSoloState();
   }
@@ -847,12 +868,7 @@ export class RealtimeAudioGraph {
     const config = this.trackConfigs.get(trackId);
     if (!nodes || !config) return;
 
-    let audible = true;
-    if (config.muted) {
-      audible = false;
-    } else if (this.hasSoloTracks && !config.solo) {
-      audible = false;
-    }
+    const audible = isTrackAudible(config, this.hasSoloTracks);
 
     const targetGain = audible ? config.volume : 0;
     nodes.outputGain.gain.setValueAtTime(
@@ -942,10 +958,44 @@ export class RealtimeAudioGraph {
         rebuild.push(scheduled.schedule);
       }
     }
-    for (const schedule of rebuild) this.scheduleClip(schedule, { fadeInSeconds: STRETCH_SWAP_FADE_SECONDS });
+    this.scheduleBatch(() => { for (const schedule of rebuild) this.scheduleClip(schedule, { fadeInSeconds: STRETCH_SWAP_FADE_SECONDS }); });
   }
 
-  scheduleClip(schedule: AudioClipSchedule, options: { fadeInSeconds?: number } = {}): void {
+  /**
+   * One (audio-context time, timeline time) pair for a whole scheduling batch. Clips that start
+   * "now" begin at the audio thread's next render quantum, so their media offsets must all be
+   * computed from the same instant: reading the clock per clip lets the audio clock advance
+   * between two clips of one batch (several ms on a starved main thread), which starts them with
+   * offsets that disagree by that gap and leaves sibling tracks out of sync (and out of phase).
+   */
+  private scheduleAnchor: { contextTime: number; timelineTime: number } | null = null;
+
+  private captureScheduleAnchor(): { contextTime: number; timelineTime: number } {
+    // The clock derives from the context time, so re-read until both reads saw the same context time.
+    let contextTime = this.audioContext.currentTime;
+    let timelineTime = this.masterClock.currentTime;
+    for (let attempt = 0; attempt < 8 && this.audioContext.currentTime !== contextTime; attempt++) {
+      contextTime = this.audioContext.currentTime;
+      timelineTime = this.masterClock.currentTime;
+    }
+    return { contextTime, timelineTime };
+  }
+
+  private scheduleBatch(run: () => void): void {
+    if (this.scheduleAnchor) { run(); return; }
+    this.scheduleAnchor = this.captureScheduleAnchor();
+    try { run(); } finally { this.scheduleAnchor = null; }
+  }
+
+  /** The schedule with its source buffer swapped for the clip's channels (cached per buffer + map), so stretch, rebuilds and scrub grains all see them. */
+  private withChannelMap(schedule: AudioClipSchedule): AudioClipSchedule {
+    if (!schedule.channelMap) return schedule;
+    const { channelMap, ...rest } = schedule;
+    return { ...rest, audioBuffer: mapAudioBuffer(this.audioContext, schedule.audioBuffer, channelMap) };
+  }
+
+  scheduleClip(rawSchedule: AudioClipSchedule, options: { fadeInSeconds?: number } = {}): void {
+    const schedule = this.withChannelMap(rawSchedule);
     if (!this.trackNodes.has(schedule.trackId)) {
       this.createTrack({ trackId: schedule.trackId, volume: 1, pan: 0, muted: false, solo: false, effects: [] });
     }
@@ -1000,16 +1050,22 @@ export class RealtimeAudioGraph {
     // lookahead effects `lead` is 0 and this is the plain schedule.
     const chainLatency = chain ? effectChainLatencySamples(processingEffects, this.audioContext.sampleRate || 48000) / (this.audioContext.sampleRate || 48000) : 0;
     const lead = this.routing.getTotalLatencySeconds() + chainLatency;
-    const effectiveNow = this.masterClock.currentTime + lead;
+    const anchor = this.scheduleAnchor ?? this.captureScheduleAnchor();
+    // Clips already under the playhead start SCHEDULE_START_LOOKAHEAD_SECONDS ahead of the anchor, at an
+    // explicit context time, with their offset advanced by the same amount. A start("now") takes effect at
+    // whichever render quantum the audio thread reaches when it handles that message, so two clips
+    // scheduled in one batch can land quanta apart (2.7 ms each) and play out of phase; an explicit time
+    // keeps them sample-aligned to each other and to the timeline as long as the batch finishes inside it.
+    const effectiveNow = anchor.timelineTime + lead + SCHEDULE_START_LOOKAHEAD_SECONDS;
     const clipOffset = Math.max(0, effectiveNow - schedule.startTime);
     // The stretched render starts at the clip's first used source sample.
     const mediaOffset = stretched ? 0 : schedule.mediaOffset;
     const sourceOffset = clipOffset * speed + mediaOffset;
     const playbackDuration = Math.min(duration - clipOffset, (clipBuffer.duration - sourceOffset) / speed);
     const startsLater = schedule.startTime > effectiveNow;
-    const sourceStartTime = this.audioContext.currentTime + Math.max(0, schedule.startTime - effectiveNow);
+    const sourceStartTime = anchor.contextTime + SCHEDULE_START_LOOKAHEAD_SECONDS + Math.max(0, schedule.startTime - effectiveNow);
     // Gains and fades sit after the clip chain: they see the signal chainLatency later.
-    const playbackStartTime = (startsLater ? sourceStartTime : this.audioContext.currentTime) + chainLatency;
+    const playbackStartTime = sourceStartTime + chainLatency;
     if (!(playbackDuration > 0) || !Number.isFinite(playbackDuration)) { release(); return; }
     scheduleVolumeAutomationOnGain(clipGain, schedule.volumeAutomation, schedule.volume, clipOffset, playbackDuration, playbackStartTime);
     if (!panner) schedulePanAutomationOnParam((clipPan as StereoPannerNode).pan, schedule.panAutomation, basePan, clipOffset, playbackDuration, playbackStartTime);
@@ -1020,7 +1076,7 @@ export class RealtimeAudioGraph {
       swapGain.gain.setValueAtTime(0, playbackStartTime);
       swapGain.gain.linearRampToValueAtTime(1, playbackStartTime + options.fadeInSeconds);
     }
-    source.start(startsLater ? sourceStartTime : 0, sourceOffset, playbackDuration * speed);
+    source.start(sourceStartTime, sourceOffset, playbackDuration * speed);
     // Shared by natural end and the stretch swap: effect tails (reverb, delay) ring out instead of being cut.
     const onSourceEnded = () => {
       if (released) return;
@@ -1073,7 +1129,7 @@ export class RealtimeAudioGraph {
       if (!trackNodes) continue;
       while (this.scrubGrains.length >= SCRUB_MAX_GRAINS) this.scrubGrains[0].release();
       const source = this.audioContext.createBufferSource();
-      source.buffer = schedule.audioBuffer;
+      source.buffer = this.withChannelMap(schedule).audioBuffer;
       const speed = Number.isFinite(schedule.speed) && schedule.speed > 0 ? schedule.speed : 1;
       source.playbackRate.value = speed;
       const gain = this.audioContext.createGain();
@@ -1113,9 +1169,7 @@ export class RealtimeAudioGraph {
   }
 
   scheduleClips(schedules: AudioClipSchedule[]): void {
-    for (const schedule of schedules) {
-      this.scheduleClip(schedule);
-    }
+    this.scheduleBatch(() => { for (const schedule of schedules) this.scheduleClip(schedule); });
   }
 
   stopAllClips(): void {
@@ -1173,7 +1227,7 @@ export class RealtimeAudioGraph {
 
       if (scheduleUntil > this.lastScheduledTime) {
         const clips = getClipsAtTime(this.lastScheduledTime);
-        for (const clip of clips) {
+        this.scheduleBatch(() => { for (const clip of clips) {
           if (
             clip.startTime <= scheduleUntil &&
             clip.endTime > this.lastScheduledTime
@@ -1187,7 +1241,7 @@ export class RealtimeAudioGraph {
               this.scheduleClip(clip);
             }
           }
-        }
+        } });
         this.lastScheduledTime = scheduleUntil;
       }
     };
@@ -1235,6 +1289,7 @@ export class RealtimeAudioGraph {
     this.masterBus.dispose();
     this.masterGain.disconnect();
     this.masterOutput.disconnect();
+    getAudioOutputRouter().detach(this.audioContext);
   }
 }
 

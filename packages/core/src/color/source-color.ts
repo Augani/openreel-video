@@ -8,9 +8,10 @@
  */
 
 import type { RawOutputColorSpace } from "../raw/color";
+import { CAMERA_LOGS, type CameraGamutId, type CameraLogId } from "./camera-log";
 
-export type SourcePrimaries = "bt709" | "bt2020" | "p3" | "bt601";
-export type SourceTransfer = "srgb" | "bt709" | "pq" | "hlg" | "linear";
+export type SourcePrimaries = "bt709" | "bt2020" | "p3" | "bt601" | Exclude<CameraGamutId, "bt2020">;
+export type SourceTransfer = "srgb" | "bt709" | "pq" | "hlg" | "linear" | CameraLogId;
 export type SourceMatrix = "bt709" | "bt2020-ncl" | "bt601" | "rgb";
 
 export interface SourceColorSpace {
@@ -29,13 +30,20 @@ export const DEFAULT_SOURCE_COLOR: SourceColorSpace = {
 };
 
 /** "Interpret footage" choices. `undefined` on the media item means "as tagged". */
-export type FootageColorPreset = "rec709" | "srgb" | "rec2020" | "p3" | "hdr10-pq" | "hlg";
+export type StandardFootageColorPreset = "rec709" | "srgb" | "rec2020" | "p3" | "hdr10-pq" | "hlg";
+/** Camera log input presets: "log-" + the curve id ("log-slog3", "log-logc4", ...). */
+export type CameraFootageColorPreset = `log-${CameraLogId}`;
+export type FootageColorPreset = StandardFootageColorPreset | CameraFootageColorPreset;
 
-export const FOOTAGE_COLOR_PRESETS: ReadonlyArray<{
+export interface FootageColorPresetDef {
   readonly id: FootageColorPreset;
   readonly label: string;
   readonly space: SourceColorSpace;
-}> = [
+  /** Set on camera log presets: the picker groups them under "Camera input". */
+  readonly camera?: { readonly logId: CameraLogId; readonly maker: string };
+}
+
+const STANDARD_FOOTAGE_COLOR_PRESETS: ReadonlyArray<FootageColorPresetDef> = [
   { id: "rec709", label: "Rec.709 (SDR)", space: { primaries: "bt709", transfer: "bt709", matrix: "bt709", fullRange: false } },
   { id: "srgb", label: "sRGB (full range)", space: { primaries: "bt709", transfer: "srgb", matrix: "rgb", fullRange: true } },
   { id: "rec2020", label: "Rec.2020 (SDR)", space: { primaries: "bt2020", transfer: "bt709", matrix: "bt2020-ncl", fullRange: false } },
@@ -43,6 +51,37 @@ export const FOOTAGE_COLOR_PRESETS: ReadonlyArray<{
   { id: "hdr10-pq", label: "Rec.2020 PQ (HDR10)", space: { primaries: "bt2020", transfer: "pq", matrix: "bt2020-ncl", fullRange: false } },
   { id: "hlg", label: "Rec.2020 HLG", space: { primaries: "bt2020", transfer: "hlg", matrix: "bt2020-ncl", fullRange: false } },
 ];
+
+/**
+ * Camera log presets: the signal is the camera's log curve in its wide gamut (RGB after the decoder's YCbCr
+ * conversion, so the matrix is "rgb" and the range is whatever the decoder delivered).
+ */
+export const CAMERA_FOOTAGE_COLOR_PRESETS: ReadonlyArray<FootageColorPresetDef> = CAMERA_LOGS.map((def) => ({
+  id: `log-${def.id}` as CameraFootageColorPreset,
+  label: def.label,
+  space: {
+    primaries: def.gamut,
+    transfer: def.id,
+    matrix: "rgb",
+    fullRange: true,
+  } satisfies SourceColorSpace,
+  camera: { logId: def.id, maker: def.maker },
+}));
+
+export const FOOTAGE_COLOR_PRESETS: ReadonlyArray<FootageColorPresetDef> = [
+  ...STANDARD_FOOTAGE_COLOR_PRESETS,
+  ...CAMERA_FOOTAGE_COLOR_PRESETS,
+];
+
+/** True for the camera log transfers (S-Log3, V-Log, LogC3, ...). */
+export function isCameraLogTransfer(transfer: SourceTransfer): transfer is CameraLogId {
+  return CAMERA_LOGS.some((d) => d.id === transfer);
+}
+
+/** The camera log preset a media item is interpreted as, if any. */
+export function cameraPresetOf(preset: FootageColorPreset | null | undefined): FootageColorPresetDef | undefined {
+  return preset ? CAMERA_FOOTAGE_COLOR_PRESETS.find((p) => p.id === preset) : undefined;
+}
 
 export function isFootageColorPreset(value: unknown): value is FootageColorPreset {
   return typeof value === "string" && FOOTAGE_COLOR_PRESETS.some((p) => p.id === value);
@@ -123,7 +162,8 @@ export function needsInputTransform(space: SourceColorSpace): boolean {
     isHdrTransfer(space) ||
     space.primaries === "bt2020" ||
     space.primaries === "p3" ||
-    space.transfer === "linear"
+    space.transfer === "linear" ||
+    isCameraLogTransfer(space.transfer)
   );
 }
 
@@ -134,8 +174,10 @@ export function sourceColorEquals(a: SourceColorSpace, b: SourceColorSpace): boo
 /** Short label for the media info: "Rec.2020 / PQ / BT.2020nc / limited". */
 export function describeSourceColor(space: SourceColorSpace | null | undefined): string {
   if (!space) return "Rec.709 (untagged)";
-  const primaries = { bt709: "Rec.709", bt2020: "Rec.2020", p3: "P3", bt601: "BT.601" }[space.primaries];
-  const transfer = { srgb: "sRGB", bt709: "BT.709", pq: "PQ", hlg: "HLG", linear: "Linear" }[space.transfer];
+  const camera = CAMERA_LOGS.find((d) => d.id === space.transfer);
+  if (camera) return camera.label;
+  const primaries = ({ bt709: "Rec.709", bt2020: "Rec.2020", p3: "P3", bt601: "BT.601" } as Record<string, string>)[space.primaries] ?? space.primaries;
+  const transfer = ({ srgb: "sRGB", bt709: "BT.709", pq: "PQ", hlg: "HLG", linear: "Linear" } as Record<string, string>)[space.transfer] ?? space.transfer;
   const matrix = { bt709: "BT.709", "bt2020-ncl": "BT.2020nc", bt601: "BT.601", rgb: "RGB" }[space.matrix];
   return `${primaries} / ${transfer} / ${matrix} / ${space.fullRange ? "full" : "limited"}`;
 }

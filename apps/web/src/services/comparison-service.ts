@@ -16,6 +16,7 @@ import {
   type StillEntry,
 } from "../stores/color-monitor-store";
 import { useTimelineStore } from "../stores/timeline-store";
+import { getEffectsBridge } from "../bridges/effects-bridge";
 
 const stillBitmaps = new Map<string, ImageBitmap>();
 let liveReference: ImageBitmap | null = null;
@@ -58,25 +59,30 @@ function isPlaying(): boolean {
 /** Render `time`, snapshot the canvas, then put the playhead frame back. */
 async function captureAt(
   time: number,
-  options: { bypass: boolean },
+  options: { bypass: boolean; whiteBalanceInputClip?: string },
 ): Promise<ImageBitmap | null> {
   const control = getProgramFrameControl();
   const playhead = useTimelineStore.getState().playheadPosition;
   const moved = Math.abs(time - playhead) > 1e-6;
   const store = useColorMonitorStore.getState();
-  if (!control && (moved || options.bypass)) return null;
-  if ((moved || options.bypass) && isPlaying()) return null;
+  const rerender = moved || options.bypass || options.whiteBalanceInputClip !== undefined;
+  if (!control && rerender) return null;
+  if (rerender && isPlaying()) return null;
 
   store.setCaptureBusy(true);
   try {
     if (options.bypass) setColorBypass(true);
-    if (control && (moved || options.bypass)) {
+    if (options.whiteBalanceInputClip !== undefined) {
+      getEffectsBridge().setWhiteBalanceInputView(options.whiteBalanceInputClip);
+    }
+    if (control && rerender) {
       await control.renderAt(time, { scrubbing: moved });
     }
     return await snapshotProgramCanvas();
   } finally {
     if (options.bypass) setColorBypass(false);
-    if (control && (moved || options.bypass)) {
+    if (options.whiteBalanceInputClip !== undefined) getEffectsBridge().setWhiteBalanceInputView(null);
+    if (control && rerender) {
       // The user may have scrubbed while the reference rendered: put back the
       // CURRENT playhead frame, not the one captured when the job started.
       await control.renderAt(useTimelineStore.getState().playheadPosition, { scrubbing: false });
@@ -97,6 +103,18 @@ export function captureProgramFrame(
     captureAt(options.time ?? useTimelineStore.getState().playheadPosition, {
       bypass: options.bypass ?? false,
     }),
+  );
+}
+
+/**
+ * The Program frame at the playhead with `clipId` rendered as its white balance
+ * stage sees it (only the input LUT on a version 2 clip; the full grade minus
+ * white balance on version 1). Composition, transforms and the other layers are
+ * rendered as usual. Preview-only; resolves null while playing.
+ */
+export function captureWhiteBalanceInputFrame(clipId: string): Promise<ImageBitmap | null> {
+  return enqueue(() =>
+    captureAt(useTimelineStore.getState().playheadPosition, { bypass: false, whiteBalanceInputClip: clipId }),
   );
 }
 

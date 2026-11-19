@@ -190,22 +190,32 @@ export function createSourceClip(
     : { ...base, transform: { ...base.transform, opacity: 0 }, metadata };
 }
 
-export function planSourceEdit(
-  project: Project,
-  request: SourceEditRequest,
-): SourceEditPlan {
-  // A subclip places its own window when the Source monitor has no marks, and
-  // restricted subclips never place outside it.
-  const window = subclipRange(request.media);
-  const restricted = request.media.subclip?.restrictTrims ? window : null;
+/** The source marks an edit works from: a subclip places its own window when
+ * the Source monitor has no marks, and a restricted subclip never places
+ * outside it. */
+export function boundSourceMarks(
+  media: MediaItem,
+  sourceIn?: number | null,
+  sourceOut?: number | null,
+): { sourceIn: number | undefined; sourceOut: number | undefined } {
+  const window = subclipRange(media);
+  const restricted = media.subclip?.restrictTrims ? window : null;
   const bound = (value: number | null | undefined, fallback: number | undefined) => {
     const v = typeof value === "number" && Number.isFinite(value) ? value : fallback;
     return v !== undefined && restricted ? Math.min(restricted.end, Math.max(restricted.start, v)) : v;
   };
+  return { sourceIn: bound(sourceIn, window?.start), sourceOut: bound(sourceOut, window?.end) };
+}
+
+export function planSourceEdit(
+  project: Project,
+  request: SourceEditRequest,
+): SourceEditPlan {
+  const marks = boundSourceMarks(request.media, request.sourceIn, request.sourceOut);
   const resolved = resolveThreePointEdit({
     mediaDuration: request.media.metadata.duration,
-    sourceIn: bound(request.sourceIn, window?.start),
-    sourceOut: bound(request.sourceOut, window?.end),
+    sourceIn: marks.sourceIn,
+    sourceOut: marks.sourceOut,
     playhead: request.playhead,
     sequenceIn: request.sequenceIn,
     sequenceOut: request.sequenceOut,

@@ -13,11 +13,13 @@ import {
   type VignetteValues,
   type HueCurvesValues,
   planColorGrading,
+  whiteBalanceInputGrading,
   DEFAULT_COLOR_WHEELS,
   DEFAULT_CURVES,
   DEFAULT_HSL,
   isNeutralColorGrading,
   type ProEffectType,
+  type BurnInEffectType,
 } from "@openreel/core";
 import type { Effect } from "@openreel/core";
 import { v4 as uuidv4 } from "uuid";
@@ -47,6 +49,7 @@ export type VideoEffectType =
   | "radial-blur"
   | "chromatic-aberration"
   | ProEffectType
+  | BurnInEffectType
   | "shader"
   /** Third-party effect plugin: `plugin:<pluginId>` (see packages/core/src/plugins). */
   | `plugin:${string}`;
@@ -158,6 +161,7 @@ export class EffectsBridge {
    * view). Never serialized and never read by the export pipeline.
    */
   private transientEffectParams: Map<string, Record<string, unknown>> = new Map();
+  private whiteBalanceInputClip: string | null = null;
 
   // WebGPU renderer support
   // Note: Actual rendering is delegated to VideoEffectsEngine which handles
@@ -858,7 +862,18 @@ export class EffectsBridge {
    * @returns Color grading settings
    */
   getColorGrading(clipId: string): ColorGradingSettings {
-    return this.clipColorGrading.get(clipId) || {};
+    const stored = this.clipColorGrading.get(clipId) || {};
+    // Preview-only: the white balance eyedropper renders the clip as the white balance stage sees it.
+    return clipId === this.whiteBalanceInputClip ? whiteBalanceInputGrading(stored) : stored;
+  }
+
+  /** Preview-only view of `clipId` at the white balance stage input (null restores the full grade). Never stored or exported. */
+  setWhiteBalanceInputView(clipId: string | null): void {
+    this.whiteBalanceInputClip = clipId;
+  }
+
+  whiteBalanceInputView(): string | null {
+    return this.whiteBalanceInputClip;
   }
 
   /**

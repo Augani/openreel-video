@@ -2,7 +2,9 @@ import { getDefaultTransitionParams, getGLContextCounters } from "@openreel/core
 import type {
   ChromaKeyEngine,
   ColorGradingEngine,
+  EchoCompositor,
   Effect,
+  UltraKeyParams,
   Transition,
   TransitionEngine,
   TransitionType,
@@ -17,6 +19,13 @@ import { LaneSet, MAX_PREVIEW_LANES, SharedResourcePool, type PoolResource, type
 import { refreshAllPreviewEngines, type EffectRenderer, type PreviewEffectDef, type RenderInput } from "./preview-engine";
 import { lookEffectsFor, pickSampleKeyColor, previewParams } from "./preview-params";
 
+/** Largest share of the footage a sampled (non-green) Ultra Key card may remove, so the subject stays visible. */
+const SAMPLE_KEY_MAX_COVERAGE = 0.4;
+
+function isPureGreenKey(key: { r: number; g: number; b: number }): boolean {
+  return key.r === 0 && key.g === 1 && key.b === 0;
+}
+
 interface Lane {
   effects: VideoEffectsEngine;
   grading: ColorGradingEngine | null;
@@ -24,6 +33,8 @@ interface Lane {
   transitions: TransitionEngine | null;
   transitionSize: string;
   video: VideoEngine | null;
+  /** Echo cards: the compositor of the engine's own echo routine. */
+  echo: EchoCompositor | null;
 }
 
 /** Stabilization crops the frame edges to leave room to steady it: the card shows that crop. */
@@ -76,6 +87,7 @@ class PreviewGpuResources implements PoolResource {
         transitions: null,
         transitionSize: "",
         video: null,
+        echo: null,
       };
     },
     (lane) => {
@@ -83,6 +95,7 @@ class PreviewGpuResources implements PoolResource {
       lane.grading?.dispose();
       lane.video?.dispose();
       lane.transitions?.dispose();
+      lane.echo?.dispose();
     },
     MAX_PREVIEW_LANES,
     () => this.disposeKinds(),
@@ -156,6 +169,8 @@ export class EngineEffectRenderer implements EffectRenderer {
 
       if (def.type === "chromaKey") return await this.renderChromaKey(lane, modules, frame);
 
+      if (def.type === "ultra-key") return await this.renderUltraKey(lane, modules, def, frame);
+
       if (def.type === "lut") {
         if (!lane.grading) {
           lane.grading = new modules.ColorGradingEngine(frame.width, frame.height);
@@ -170,10 +185,22 @@ export class EngineEffectRenderer implements EffectRenderer {
         return graded.image;
       }
 
+      // Echo: the card's current frame and the earlier window frames, combined by the engine's EchoCompositor.
+      if (def.type === "echo" && input.temporal?.echo && input.trail && input.trail.length > 0) {
+        lane.echo ??= new modules.EchoCompositor();
+        return await lane.echo.compose(
+          frame,
+          input.trail.map((entry) => ({ image: entry.frame, weight: entry.weight })),
+          input.temporal.echo,
+        );
+      }
+
       const params = previewParams(def, { ...(modules.withEffectDefaults(def.type, def.params) ?? {}) });
       // Time-driven shaders (scanlines, glitch, ...) animate off their own time uniform.
       if (def.type === "shader") params.time = input.sourceTime;
-      const effect: Effect = { id: "effect-preview", type: def.type, enabled: true, params };
+      const sampled: Effect = { id: "effect-preview", type: def.type, enabled: true, params };
+      // Burn-in cards draw the effect's own text for a sample clip (the badge says so), moving with the hover loop.
+      const [effect] = modules.withBurnInText([sampled], { id: "effect-preview", mediaId: "sample", startTime: input.sourceTime }, 0, modules.BURN_IN_SAMPLE_SOURCE) as Effect[];
       const canvas = await lane.effects.applyEffectsToCanvas(frame, [effect]);
       return await createImageBitmap(canvas ?? frame);
     } catch (error) {
@@ -282,6 +309,57 @@ export class EngineEffectRenderer implements EffectRenderer {
     } finally {
       keyed.image.close();
     }
+  }
+
+  /**
+   * Ultra Key: the real effect (GLSL passes of the effects engine, the routine the Canvas2D fallback and export run) with its
+   * default parameters on the footage, keyed on a sample colour because footage rarely has a green screen, over a transparency
+   * checkerboard. The card carries the "Sample key" badge.
+   */
+  private async renderUltraKey(
+    lane: Lane,
+    modules: Awaited<ReturnType<typeof loadEngineModules>>,
+    def: PreviewEffectDef,
+    frame: ImageBitmap,
+  ): Promise<ImageBitmap> {
+    const probe = new OffscreenCanvas(48, 27);
+    const probeCtx = probe.getContext("2d", { willReadFrequently: true });
+    if (!probeCtx) throw new Error("2D canvas unavailable");
+    probeCtx.drawImage(frame, 0, 0, probe.width, probe.height);
+    const probeData = probeCtx.getImageData(0, 0, probe.width, probe.height).data;
+    const key = pickSampleKeyColor(probeData);
+    const params: Record<string, unknown> = {
+      ...(modules.withEffectDefaults(def.type, def.params) ?? {}),
+      keyR: Math.round(key.r * 255),
+      keyG: Math.round(key.g * 255),
+      keyB: Math.round(key.b * 255),
+    };
+    if (!isPureGreenKey(key)) {
+      // A sampled (skin / dominant hue / grey) key is low in chroma, so the default tolerance would key out the whole
+      // frame. Narrow the matte until the card still shows most of the footage, as an artist would by pulling Tolerance.
+      const baseTolerance = Number(params.tolerance);
+      const baseTransparency = Number(params.transparency);
+      for (const tolerance of [baseTolerance, 40, 30, 22, 15, 10, 6, 3]) {
+        if (tolerance > baseTolerance) continue;
+        const transparency = Math.min(baseTransparency, tolerance * 0.9);
+        const prep = modules.prepareUltraKey({ ...(params as unknown as UltraKeyParams), tolerance, transparency }, probe.height);
+        let keyed = 0;
+        for (let i = 0; i < probeData.length; i += 4) {
+          if (modules.ultraKeyBaseMatte(probeData[i], probeData[i + 1], probeData[i + 2], prep) < 0.5) keyed++;
+        }
+        params.tolerance = tolerance;
+        params.transparency = transparency;
+        if (keyed / (probeData.length / 4) <= SAMPLE_KEY_MAX_COVERAGE) break;
+      }
+    }
+    const effect: Effect = { id: "effect-preview", type: def.type, enabled: true, params };
+    const keyed = await lane.effects.applyEffectsToCanvas(frame, [effect]);
+    const out = new OffscreenCanvas(frame.width, frame.height);
+    const ctx = out.getContext("2d");
+    if (!ctx) throw new Error("2D canvas unavailable");
+    checkerboard(ctx, frame.width, frame.height);
+    ctx.drawImage(keyed ?? frame, 0, 0, frame.width, frame.height);
+    return await createImageBitmap(out);
   }
 
   /** Gives the lease back; the shared GPU set is disposed once no preview engine holds it (after a short idle grace). */

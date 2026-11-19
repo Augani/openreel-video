@@ -1,3 +1,4 @@
+import { useVoiceOverStore } from "./services/voiceover/voiceover-recorder";
 import { useProjectStore } from "./stores/project-store";
 import { getActiveEffectPreviewEngine } from "./components/editor/panels/effect-previews/active-engine";
 import { previewGpuStats } from "./components/editor/panels/effect-previews/effect-renderer";
@@ -7,6 +8,7 @@ import { useInspectorNavigationStore } from "./stores/inspector-navigation-store
 import { useTimelineStore } from "./stores/timeline-store";
 import { useEditorWorkspaceStore } from "./stores/editor-workspace-store";
 import { useUIStore } from "./stores/ui-store";
+import { useSettingsStore } from "./stores/settings-store";
 import { useChatStore } from "./stores/chat-store";
 import { useAIConnectionStore } from "./stores/ai-connection-store";
 import { useSourceMonitorStore } from "./stores/source-monitor-store";
@@ -27,6 +29,7 @@ import { useEngineStore } from "./stores/engine-store";
 import { analyzeTimelineLoudness } from "./services/loudness";
 import { deleteMediaBlob } from "./services/media-storage";
 import { proxyRecordId } from "@openreel/core";
+import { backgroundTasks } from "@openreel/core/tasks/task-registry";
 import { previewProxyCache } from "./stores/preview-proxy-store";
 import { useProxyIngestStore, startProxyIngest } from "./services/proxy-ingest";
 import { getNativeDecodeSamples, clearNativeDecodeSamples } from "./services/native-decode";
@@ -55,6 +58,8 @@ import { MotionShaderRenderer } from "@openreel/core/motion/motion-shader-render
 import * as proEffectsModule from "@openreel/core/video/pro-effects";
 import * as proEffectShadersModule from "@openreel/core/video/pro-effect-shaders";
 import * as proEffectsExtraModule from "@openreel/core/video/pro-effects-extra";
+import * as temporalEffectsModule from "@openreel/core/video/temporal-effects";
+import * as echoCompositorModule from "@openreel/core/video/echo-compositor";
 import * as motionShaderRendererModule from "@openreel/core/motion/motion-shader-renderer";
 import * as maskPathModule from "@openreel/core/video/mask-path";
 import * as canvas2dFallbackRendererModule from "@openreel/core/video/canvas2d-fallback-renderer";
@@ -62,8 +67,11 @@ import * as colorGradingEngineModule from "@openreel/core/video/color-grading-en
 import * as hueCurvesModule from "@openreel/core/video/hue-curves";
 import * as lumetriPipelineModule from "@openreel/core/video/lumetri-pipeline";
 import * as hdrWorkingModule from "@openreel/core/color/hdr-working";
+import * as cameraLogModule from "@openreel/core/color/camera-log";
+import * as inputTransformModule from "@openreel/core/color/input-transform";
 import * as hdrGpuModule from "@openreel/core/video/hdr-gpu";
 import * as colorOutputModule from "@openreel/core/export/color-output";
+import * as burnInModule from "@openreel/core/video/burn-in";
 import { PRO_EFFECT_SHADER_DEFS } from "@openreel/core/video/pro-effect-shaders";
 import { computeScopeStats } from "@openreel/core/video/scope-stats";
 import { useColorMonitorStore } from "./stores/color-monitor-store";
@@ -113,6 +121,8 @@ export function installE2EHook(): void {
     aiConnection: useAIConnectionStore,
     onboardingAi: { mount: mountAiOnboardingSheet },
     timeline: useTimelineStore,
+    /** Voice-over recorder (pre-roll, punch, takes): phase, prefs and the last placed take. */
+    voiceover: useVoiceOverStore,
     /** Effects panel live previews: the mounted preview engine (stats, cache, source) or null. */
     effectPreviews: getActiveEffectPreviewEngine,
     /** Preview GPU budget: shared lanes / shader renderers / live engine-owned WebGL contexts (created, released, live). */
@@ -133,6 +143,7 @@ export function installE2EHook(): void {
     inspectorNav: useInspectorNavigationStore,
     workspace: useEditorWorkspaceStore,
     ui: useUIStore,
+    settings: useSettingsStore,
     source: useSourceMonitorStore,
     multicam: useMulticamStore,
     multicamController,
@@ -160,6 +171,7 @@ export function installE2EHook(): void {
     projectFile: { openEditorProject, projectManager, lock: useProjectLockStore, retryProjectLock },
     renderCache: renderCacheService,
     exportQueue: useExportQueueStore,
+    backgroundTasks,
     /** Changed-source guard: the full-content fingerprint the renderer sends to the desktop copy path. */
     sourceFingerprint: { fingerprintBlob, computeFingerprint, fingerprintMismatch },
     autoSave: autoSaveManager,
@@ -211,6 +223,8 @@ export function installE2EHook(): void {
       proEffects: proEffectsModule,
       proEffectShaders: proEffectShadersModule,
       proEffectsExtra: proEffectsExtraModule,
+      temporalEffects: temporalEffectsModule,
+      echoCompositor: echoCompositorModule,
       motionShaderRenderer: motionShaderRendererModule,
       maskPath: maskPathModule,
       canvas2dFallbackRenderer: canvas2dFallbackRendererModule,
@@ -218,8 +232,11 @@ export function installE2EHook(): void {
       hueCurves: hueCurvesModule,
       lumetriPipeline: lumetriPipelineModule,
       hdrWorking: hdrWorkingModule,
+      cameraLog: cameraLogModule,
+      inputTransform: inputTransformModule,
       hdrGpu: hdrGpuModule,
       colorOutput: colorOutputModule,
+      burnIn: burnInModule,
     },
     sequences: sequenceCommands,
     graphics: {

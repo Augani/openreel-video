@@ -18,6 +18,8 @@ export interface AudioTrackRenderInfo {
   readonly index: number;
   readonly muted: boolean;
   readonly solo: boolean;
+  /** Solo Safe: stays audible while other tracks are soloed. */
+  readonly soloSafe?: boolean;
   readonly clips: AudioClipRenderInfo[];
 }
 
@@ -39,6 +41,8 @@ export interface AudioClipRenderInfo {
   readonly pitchCorrection?: boolean;
   /** 5.1 sequences only: the clip's resolved surround position (clip, else track). */
   readonly surroundPan?: import("./surround").SurroundPan;
+  /** Audio Channels mapping (clip, else the media's import preset); applied to the decoded source before anything else. */
+  readonly channelMap?: import("./channel-map").ClipChannelMap;
   readonly effects: Effect[];
   readonly fadeIn?: number;
   readonly fadeOut?: number;
@@ -57,6 +61,7 @@ export interface AudioChannelState {
   readonly pan: number;
   readonly muted: boolean;
   readonly solo: boolean;
+  readonly soloSafe?: boolean;
   readonly peakLevel: number;
   readonly rmsLevel: number;
 }

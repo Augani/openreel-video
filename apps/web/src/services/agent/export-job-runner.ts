@@ -12,6 +12,7 @@ import {
   isValidLoudnessTarget,
   setEncoderBackendFactory,
   WebCodecsBackend,
+  webCodecsEncoderOptions,
   type LoudnessTargetSettings,
 } from "@openreel/core";
 import { useProjectStore } from "../../stores/project-store";
@@ -316,7 +317,7 @@ export function createExportJobRunner(): JobRunner {
         setEncoderBackendFactory((mediabunny) =>
           mediabunny
             ? new WebCodecsBackend(mediabunny, {
-                hardwareAcceleration: "prefer-hardware",
+                ...webCodecsEncoderOptions(settings.encoderChoice),
                 videoCodecs: [videoCodec],
                 clampResolution: false,
               })

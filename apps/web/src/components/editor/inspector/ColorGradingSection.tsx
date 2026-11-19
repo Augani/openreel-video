@@ -1,13 +1,14 @@
-import React, { Suspense, lazy, useCallback, useMemo } from "react";
+import React, { Suspense, lazy, useCallback, useEffect, useMemo } from "react";
 import { Button } from "@openreel/ui";
 import { Card } from "@openreel/ui";
 
 
 import { PropertySlider } from "./shell/PropertySlider";
-import { ChevronDown, RotateCcw, Sparkles, Sun, Thermometer } from "@/icons/lucide-compat";
+import { ChevronDown, Pipette, RotateCcw, Sparkles, Sun, Thermometer } from "@/icons/lucide-compat";
 import { Switch } from "@openreel/ui";
 import { useUIStore } from "../../../stores/ui-store";
 import { useProjectStore } from "../../../stores/project-store";
+import { useColorMonitorStore } from "../../../stores/color-monitor-store";
 import type {
   ColorWheelValues,
   HSLValues,
@@ -160,6 +161,20 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
       updateColorGrading(clipId, { tint: value });
     },
     [clipId, updateColorGrading],
+  );
+
+  const wbPick = useColorMonitorStore((state) => state.whiteBalancePick);
+  const wbSize = useColorMonitorStore((state) => state.whiteBalanceSize);
+  const setWbPick = useColorMonitorStore((state) => state.setWhiteBalancePick);
+  const setWbSize = useColorMonitorStore((state) => state.setWhiteBalanceSize);
+  const wbArmed = wbPick?.clipId === clipId;
+  // Leaving the clip (or the section) must not leave a stale eyedropper over the monitor.
+  useEffect(
+    () => () => {
+      const state = useColorMonitorStore.getState();
+      if (state.whiteBalancePick?.clipId === clipId) state.setWhiteBalancePick(null);
+    },
+    [clipId],
   );
 
   const handleWhiteBalanceReset = useCallback(() => {
@@ -333,6 +348,44 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
             <Button variant="ghost" size="icon-sm" onClick={handleWhiteBalanceReset} type="button" aria-label="Reset white balance" title="Reset white balance" className="justify-center rounded-[7px] outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent hover:bg-bg-2 flex items-center gap-1 px-2 py-0.5 text-[10px] text-fg-3 hover:text-fg transition-colors shrink-0">
               {<RotateCcw size={10} />}
             </Button>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+              <Button
+                type="button"
+                variant={wbArmed ? "default" : "outline"}
+                size="icon-sm"
+                className={`h-7 w-7 shrink-0 ${wbArmed ? "bg-accent text-white ring-2 ring-accent/40 hover:bg-accent" : ""}`}
+                aria-pressed={wbArmed}
+                aria-label="White balance eyedropper"
+                title="Pick a neutral area on the Program monitor (Esc cancels)"
+                onClick={() => setWbPick(wbArmed ? null : { clipId })}
+              >
+                <Pipette size={12} aria-hidden />
+              </Button>
+              <div
+                role="group"
+                aria-label="White balance sample size"
+                className="flex shrink-0 overflow-hidden rounded-[6px] border border-border"
+              >
+                {([1, 5] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    aria-pressed={wbSize === option}
+                    title={option === 1 ? "Sample a single pixel" : "Average a 5 by 5 pixel area"}
+                    onClick={() => setWbSize(option)}
+                    className={`whitespace-nowrap px-1.5 py-0.5 text-[9px] font-semibold ${
+                      wbSize === option ? "bg-accent text-white" : "bg-bg-2 text-fg-3 hover:text-fg"
+                    }`}
+                  >
+                    {option === 1 ? "Point" : "5×5"}
+                  </button>
+                ))}
+              </div>
+            <span className={`min-w-0 flex-1 truncate text-[10px] ${wbArmed ? "font-medium text-accent" : "text-fg-3"}`} title={wbArmed ? "Click a neutral area on the Program monitor. Esc cancels." : undefined}>
+              {wbArmed ? "Click a neutral area" : "Pick neutral"}
+            </span>
           </div>
 
           <div className="space-y-2">

@@ -1,4 +1,5 @@
 import type { Timeline, Track, Clip, Effect } from "../types/timeline";
+import { hasAnySoloedTrack, isTrackAudible } from "./track-audibility";
 import type { AudioEffectParams } from "../types/effects";
 import type { MediaItem, Project } from "../types/project";
 import type {
@@ -34,6 +35,7 @@ import { AudioRoutingGraph, buildOfflineTrackChain } from "./audio-routing-graph
 import { planTimelineDelayCompensation, rackLatencySamples } from "./effect-latency";
 import { scheduleClipFadeEnvelope } from "./clip-fade-envelope";
 import { getTrackTransitionAudioFades } from "./transition-audio-fades";
+import { channelMapNeedsWideSource, mapAudioBuffer, resolveClipChannelMap, type ClipChannelMap } from "./channel-map";
 import { createSurroundPanner, fallbackDecodeChannels, isSurroundLayout, mixChannelCount, resolveSurroundPan } from "./surround";
 import {
   createRackBus,
@@ -324,7 +326,9 @@ export class AudioEngine {
     const sampleRate = settings.sampleRate || this.config.sampleRate;
     const surround = isSurroundLayout(settings);
     const channels = mixChannelCount(settings, this.config.channels);
-    this.setDecodeSurround(surround);
+    // Audio Channels: a clip mapped to 5.1 or to a source channel beyond L/R needs the file's own channels,
+    // not the stereo fold-down the ffmpeg decode would otherwise give a stereo sequence.
+    this.setDecodeSurround(surround || this.projectNeedsWideSources(project));
     const safeDuration = Math.max(duration, 0.001);
     const frameCount = audioFrameCount(safeDuration, sampleRate);
     // Plugin delay compensation: every path is aligned to the slowest, so the
@@ -418,10 +422,7 @@ export class AudioEngine {
     trackInfo: AudioTrackRenderInfo,
     hasSoloTracks: boolean,
   ): boolean {
-    if (trackInfo.muted) return true;
-    if (hasSoloTracks && !trackInfo.solo) return true;
-
-    return false;
+    return !isTrackAudible(trackInfo, hasSoloTracks);
   }
 
   /**
@@ -432,15 +433,10 @@ export class AudioEngine {
    */
   getEffectiveTrackAudibility(tracks: Track[]): Map<string, boolean> {
     const audibility = new Map<string, boolean>();
-    const hasSoloTracks = tracks.some((t) => t.solo);
+    const hasSoloTracks = hasAnySoloedTrack(tracks);
 
-    for (const track of tracks) {
-      // Track is audible if:
-      // 1. Not muted AND
-      // 2. Either no tracks are soloed OR this track is soloed
-      const isAudible = !track.muted && (!hasSoloTracks || track.solo);
-      audibility.set(track.id, isAudible);
-    }
+    // Not muted AND (nothing soloed OR this track is soloed OR it is solo-safe).
+    for (const track of tracks) audibility.set(track.id, isTrackAudible(track, hasSoloTracks));
 
     return audibility;
   }
@@ -456,6 +452,7 @@ export class AudioEngine {
     const endTime = startTime + duration;
     const { timeline } = project;
 
+    const mediaById = new Map(project.mediaLibrary.items.map((item) => [item.id, item] as const));
     timeline.tracks.forEach((track, index) => {
       if (track.hidden) return;
       const clips = this.getClipsInRange(track, startTime, endTime).filter(
@@ -468,8 +465,9 @@ export class AudioEngine {
         index,
         muted: track.muted,
         solo: track.solo,
+        ...(track.soloSafe === true ? { soloSafe: true } : {}),
         clips: clips.map((clip) =>
-          this.createClipRenderInfo(clip, startTime, endTime, timeline, track, preview, surround),
+          this.createClipRenderInfo(clip, startTime, endTime, timeline, track, preview, surround, resolveClipChannelMap(clip, mediaById.get(clip.mediaId))),
         ),
       });
     });
@@ -496,6 +494,7 @@ export class AudioEngine {
     track: Track,
     preview: boolean,
     surround = false,
+    channelMap?: ClipChannelMap,
   ): AudioClipRenderInfo {
     const clipStart = Math.max(clip.startTime, rangeStart);
     const clipEnd = Math.min(clip.startTime + clip.duration, rangeEnd);
@@ -525,6 +524,7 @@ export class AudioEngine {
       panAutomation: resolveClipPanAutomation(clip, timeline),
       pitchCorrection: resolveClipPitchCorrection(clip, timeline),
       ...(surround ? { surroundPan: resolveSurroundPan(clip, track) } : {}),
+      ...(channelMap ? { channelMap } : {}),
       effects: clipAudioEffects,
       fadeIn: clip.fade?.fadeIn,
       fadeOut: clip.fade?.fadeOut,
@@ -572,6 +572,13 @@ export class AudioEngine {
 
   /** True while decoding for a 5.1 sequence: sources keep their own channels (up to 6) instead of being folded to stereo. */
   private decodeSurround = false;
+
+  private projectNeedsWideSources(project: Project): boolean {
+    const mediaById = new Map(project.mediaLibrary.items.map((item) => [item.id, item] as const));
+    return project.timeline.tracks.some((track) =>
+      track.clips.some((clip) => channelMapNeedsWideSource(resolveClipChannelMap(clip, mediaById.get(clip.mediaId)))),
+    );
+  }
 
   private setDecodeSurround(surround: boolean): void {
     if (this.decodeSurround === surround) return;
@@ -698,6 +705,8 @@ export class AudioEngine {
     renderStartTime: number,
     sourceOffset = clipInfo.sourceTime,
   ): Promise<void> {
+    // Audio Channels: every later stage (reverse, stretch, effects, panner) sees the clip's channels, not the file's.
+    audioBuffer = mapAudioBuffer(context, audioBuffer, clipInfo.channelMap);
     const source = context.createBufferSource();
 
     const speed = clipInfo.speed || 1;

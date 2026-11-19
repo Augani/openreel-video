@@ -40,7 +40,8 @@ import {
   AlertTriangle,
   X,
 } from "@/icons/lucide-compat";
-import { isBroadcastCodec, effectiveRateControl, twoPassAvailability } from "@openreel/core";
+import { isBroadcastCodec, effectiveRateControl, twoPassAvailability, BURN_IN_POSITIONS, DEFAULT_TIMECODE_BURN_IN, type TimecodeBurnInSettings, type BurnInPosition } from "@openreel/core";
+import { EncoderPicker } from "./EncoderPicker";
 import {
   Button,
   Alert,
@@ -255,6 +256,70 @@ const PresetAspectFrame: React.FC<{
   );
 };
 
+/**
+ * "Burn in timecode": one switch draws the sequence timecode (drop-frame aware) into every exported frame, above all
+ * tracks and captions. Position and source are one click away; size and opacity keep the defaults.
+ */
+function TimecodeBurnInControl({
+  value,
+  onChange,
+}: {
+  value: TimecodeBurnInSettings;
+  onChange: (next: TimecodeBurnInSettings) => void;
+}) {
+  const position = value.position ?? DEFAULT_TIMECODE_BURN_IN.position;
+  const source = value.source ?? DEFAULT_TIMECODE_BURN_IN.source;
+  return (
+    <div className="space-y-2" data-testid="export-timecode-burn-in">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <Label htmlFor="export-burn-in-timecode" className="text-[12px] font-semibold text-fg">
+            Burn in timecode
+          </Label>
+          <p className="text-[10px] text-fg-muted">
+            Draws the {source === "source" ? "source file" : "sequence"} timecode into every frame. Frames are re-rendered, so no stream copy.
+          </p>
+        </div>
+        <Switch
+          id="export-burn-in-timecode"
+          aria-label="Burn in timecode"
+          checked={value.enabled}
+          onCheckedChange={(enabled) => onChange({ ...value, enabled })}
+        />
+      </div>
+      {value.enabled && (
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label htmlFor="export-burn-in-source" className="text-[10px] text-fg-muted">Timecode</Label>
+            <Select value={source} onValueChange={(next) => onChange({ ...value, source: next as "sequence" | "source" })}>
+              <SelectTrigger id="export-burn-in-source" aria-label="Burn-in timecode source" className="h-7 w-full text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sequence" className="text-xs">Sequence</SelectItem>
+                <SelectItem value="source" className="text-xs">Source file (topmost clip)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="export-burn-in-position" className="text-[10px] text-fg-muted">Position</Label>
+            <Select value={position} onValueChange={(next) => onChange({ ...value, position: next as BurnInPosition })}>
+              <SelectTrigger id="export-burn-in-position" aria-label="Burn-in position" className="h-7 w-full text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {BURN_IN_POSITIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value} className="text-xs">{option.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** A small JPEG of the Program frame at the playhead, captured once when the dialog opens. */
 function useProgramFrameUrl(active: boolean): string | null {
   const [url, setUrl] = useState<string | null>(null);
@@ -429,6 +494,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   const subtitles = useProjectStore((state) => state.project.timeline.subtitles);
   const projectName = useProjectStore((state) => state.project.name);
   const [captionExport, setCaptionExport] = useState<CaptionExportSettings>({ tracks: [] });
+  const [timecodeBurnIn, setTimecodeBurnIn] = useState<TimecodeBurnInSettings>({ enabled: false });
   const loudnessInvalid =
     activeTab === "custom" && loudness.enabled && !isValidLoudnessTarget(loudness);
   const applyExportSection = useCallback(
@@ -453,8 +519,10 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
         activeTab === "custom" && captionExport.tracks.length > 0
           ? captionExport
           : undefined,
+      // One click, on every video tab: the sequence timecode is drawn into each frame.
+      burnInTimecode: timecodeBurnIn.enabled && activeTab !== "stills" ? { ...timecodeBurnIn } : undefined,
     }),
-    [exportSection, validMarkedRange, loudness, activeTab, captionExport, sequenceIsSurround, audioChannelChoice],
+    [exportSection, validMarkedRange, loudness, activeTab, captionExport, timecodeBurnIn, sequenceIsSurround, audioChannelChoice],
   );
 
   /** Sidecar caption files are independent of the render: save them when the export starts. */
@@ -480,6 +548,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   const aspectType = getAspectRatioType(projectWidth, projectHeight);
 
   const [bitrateDraft, setBitrateDraft] = useState("15000");
+  const [encoderBlocked, setEncoderBlocked] = useState(false);
   const [customSettings, setCustomSettings] = useState<VideoExportSettings>({
     format: "mp4",
     codec: "h264",
@@ -1005,6 +1074,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   ]);
 
   const exportDisabled =
+    (encoderBlocked && activeTab === "custom") ||
     loudnessInvalid ||
     (activeTab === "presets" && !selectedPreset) ||
     (activeTab === "reduce" && !reducePlan) ||
@@ -1197,6 +1267,9 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                 </span>
               </RadioGroup>
             </fieldset>
+            {activeTab !== "stills" && (
+              <TimecodeBurnInControl value={timecodeBurnIn} onChange={setTimecodeBurnIn} />
+            )}
             <TabsList
               aria-label="Export mode"
               className="h-8 w-full max-w-[440px] justify-start bg-bg-2 p-0.5"
@@ -2244,6 +2317,18 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                       <span>Better</span>
                     </div>
                   </div>
+
+                  {["h264", "h265", "av1"].includes(customSettings.codec) && (
+                    <EncoderPicker
+                      codec={customSettings.codec}
+                      width={customSettings.width}
+                      height={customSettings.height}
+                      frameRate={customSettings.frameRate}
+                      value={customSettings.encoderChoice ?? "auto"}
+                      onChange={(encoderChoice) => setCustomSettings((current) => ({ ...current, encoderChoice }))}
+                      onBlockedChange={setEncoderBlocked}
+                    />
+                  )}
 
                   {isDesktop && (
                     <div className="col-span-2 border-t border-border pt-4">

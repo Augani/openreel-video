@@ -64,6 +64,8 @@ const ACTION_DESCRIPTIONS: Record<
   "audio/toggleEffect": () => "Toggle audio effect",
   "audio/setEssentialSound": (params) => (params.audioType ? `Set audio type: ${params.audioType}` : "Clear audio type"),
   "audio/setSurroundPan": (params) => (params.pan ? "Set surround position" : "Reset surround position"),
+  "audio/setChannelMap": (params) => (params.map ? "Modify audio channels" : "Reset audio channels"),
+  "audio/restoreChannelMaps": () => "Modify audio channels",
   "audio/setLiveDucking": (params) => (params.config ? "Duck under dialogue" : "Remove ducking"),
   "subtitle/add": () => "Add subtitle",
   "subtitle/remove": () => "Remove subtitle",

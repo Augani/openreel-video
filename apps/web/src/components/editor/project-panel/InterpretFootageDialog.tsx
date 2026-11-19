@@ -2,6 +2,8 @@ import React from "react";
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@openreel/ui";
 import {
   FOOTAGE_COLOR_PRESETS,
+  CAMERA_FOOTAGE_COLOR_PRESETS,
+  cameraPresetOf,
   PIXEL_ASPECT_PRESETS,
   FIELD_ORDERS,
   DEINTERLACE_MODES,
@@ -33,6 +35,7 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
   const effective = effectiveSourceColor({ ...media, colorInterpretation: choice === "tagged" ? undefined : choice });
   const willTransform = inputSpaceForItem({ ...media, colorInterpretation: choice === "tagged" ? undefined : choice }) !== null;
   const hdr = isHdrTransfer(effective);
+  const cameraLog = cameraPresetOf(choice === "tagged" ? undefined : choice);
 
   const isVideo = media.type === "video";
   const [fps, setFps] = React.useState(String(media.interpretation?.frameRate ?? media.metadata.frameRate ?? ""));
@@ -77,12 +80,12 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-[440px] border-border bg-bg-1 text-fg" data-testid="interpret-footage-dialog">
+      <DialogContent className="max-h-[calc(100vh-2rem)] max-w-[440px] overflow-y-auto overflow-x-hidden border-border bg-bg-1 text-fg" data-testid="interpret-footage-dialog">
         <DialogHeader>
           <DialogTitle>Interpret footage</DialogTitle>
           <DialogDescription className="truncate">{media.name}</DialogDescription>
         </DialogHeader>
-        <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1 text-xs" data-testid="media-color-info">
+        <dl className="grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs" data-testid="media-color-info">
           <dt className="text-fg-3">Tagged as</dt>
           <dd data-testid="media-color-detected">{detected ? describeSourceColor(detected) : `${describeSourceColor(DEFAULT_SOURCE_COLOR)} - no colour tags`}</dd>
           <dt className="text-fg-3">Treated as</dt>
@@ -92,7 +95,9 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
             {willTransform
               ? hdr
                 ? "HDR to SDR working image (tone-mapped), identical in preview and export"
-                : "Gamut converted to Rec.709, identical in preview and export"
+                : cameraLog
+                  ? "Camera log to Rec.709 (built-in formula, highlights rolled off), identical in preview and export"
+                  : "Gamut converted to Rec.709, identical in preview and export"
               : "None: pixels are used as decoded"}
           </dd>
         </dl>
@@ -101,15 +106,34 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
             <input type="radio" name="interpret" checked={choice === "tagged"} onChange={() => setChoice("tagged")} data-testid="interpret-tagged" />
             As tagged{detected ? ` (${describeSourceColor(detected)})` : " (Rec.709)"}
           </label>
-          {FOOTAGE_COLOR_PRESETS.map((preset) => (
+          {FOOTAGE_COLOR_PRESETS.filter((preset) => !preset.camera).map((preset) => (
             <label key={preset.id} className="flex items-center gap-2 text-xs">
               <input type="radio" name="interpret" checked={choice === preset.id} onChange={() => setChoice(preset.id)} data-testid={`interpret-${preset.id}`} />
               {preset.label}
             </label>
           ))}
         </fieldset>
+        <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-x-3 text-xs">
+          <label htmlFor="interpret-camera" className="text-fg-3">Camera input (log)</label>
+          <select
+            id="interpret-camera"
+            value={cameraLog ? choice : ""}
+            onChange={(e) => e.target.value && setChoice(e.target.value as typeof choice)}
+            className="h-7 w-full min-w-0 rounded border border-border bg-bg-2 px-1"
+            data-testid="interpret-camera-select"
+          >
+            <option value="" disabled>None (use the option above)</option>
+            {Array.from(new Set(CAMERA_FOOTAGE_COLOR_PRESETS.map((preset) => preset.camera?.maker ?? ""))).map((maker) => (
+              <optgroup key={maker} label={maker}>
+                {CAMERA_FOOTAGE_COLOR_PRESETS.filter((preset) => (preset.camera?.maker ?? "") === maker).map((preset) => (
+                  <option key={preset.id} value={preset.id}>{preset.label}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </div>
         {isVideo && (
-          <div className="grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-2 text-xs" data-testid="interpret-timing">
+          <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 text-xs" data-testid="interpret-timing">
             <label htmlFor="interpret-fps" className="text-fg-3">Frame rate</label>
             <input
               id="interpret-fps"
@@ -119,12 +143,12 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
               step="any"
               value={fps}
               onChange={(e) => setFps(e.target.value)}
-              className="h-7 rounded border border-border bg-bg-2 px-2"
+              className="h-7 w-full min-w-0 rounded border border-border bg-bg-2 px-2"
               data-testid="interpret-fps"
             />
             {draftError && <p className="col-span-2 text-[10px] text-red-400" data-testid="interpret-error">{draftError}</p>}
             <label htmlFor="interpret-par" className="text-fg-3">Pixel aspect</label>
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               <select
                 aria-label="Pixel aspect preset"
                 value={PIXEL_ASPECT_PRESETS.find((p) => Math.abs(p.value - Number(par)) < 1e-3)?.id ?? ""}
@@ -135,7 +159,7 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
                     setParExact(preset.value);
                   }
                 }}
-                className="h-7 rounded border border-border bg-bg-2 px-1"
+                className="h-7 w-full min-w-0 rounded border border-border bg-bg-2 px-1"
                 data-testid="interpret-par-preset"
               >
                 <option value="">Custom</option>
@@ -151,7 +175,7 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
                 step="any"
                 value={par}
                 onChange={(e) => { setPar(e.target.value); setParExact(null); }}
-                className="h-7 w-20 rounded border border-border bg-bg-2 px-2"
+                className="h-7 w-20 shrink-0 rounded border border-border bg-bg-2 px-2"
                 data-testid="interpret-par"
               />
             </div>
@@ -166,7 +190,7 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
               id="interpret-field"
               value={field}
               onChange={(e) => setField(e.target.value as FieldOrder)}
-              className="h-7 rounded border border-border bg-bg-2 px-1"
+              className="h-7 w-full min-w-0 rounded border border-border bg-bg-2 px-1"
               data-testid="interpret-field"
             >
               {FIELD_ORDERS.map((o) => (
@@ -179,7 +203,7 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
               value={deinterlace}
               disabled={field === "progressive"}
               onChange={(e) => setDeinterlace(e.target.value as DeinterlaceMode)}
-              className="h-7 rounded border border-border bg-bg-2 px-1"
+              className="h-7 w-full min-w-0 rounded border border-border bg-bg-2 px-1"
               data-testid="interpret-deinterlace"
             >
               {DEINTERLACE_MODES.map((m) => (
@@ -202,7 +226,7 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
           HDR and wide-gamut files itself, so only an override changes them there; the desktop app decodes them through ffmpeg and applies the
           file's own tags.
         </p>
-        <DialogFooter>
+        <DialogFooter className="sticky bottom-0 -mb-6 bg-bg-1 pb-6 pt-2">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={apply} disabled={!!draftError || !!parError} data-testid="interpret-apply">Apply</Button>
         </DialogFooter>

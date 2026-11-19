@@ -253,3 +253,59 @@ See docs/collaboration.md for the design and security model. Limits:
 - **Security.** The server does not validate actions or the conflict keys an author declares; editors are trusted. Room access is a bearer link (anyone holding it joins); there are no per-user accounts, revocation, or audit trail, and a link cannot be revoked short of abandoning the room. Cloud identities are still the dev shim.
 - **Text, shape, graphics and other overlay clips** sync through their actions but the title/graphics engines are re-synced from the project only after each remote batch; rapid concurrent overlay edits were covered by unit tests only, not an end-to-end run.
 - The Durable Object itself was exercised through a fake `DurableObjectState`/socket harness (the real `RoomCore` and storage layout), not a live `wrangler dev`/miniflare instance, and nothing was deployed.
+
+## Audio Channels
+
+- Waveforms for a mapped clip are recomputed by decoding the whole file; media over 200 MB keeps the unmapped waveform (playback and export still follow the map).
+- Edits to a channel map made during playback take effect when playback restarts, like other audio edits.
+- Channel maps are verified end to end for WAV and for AAC video sources; exotic codecs that the browser cannot decode natively go through the ffmpeg fallback, which keeps up to six source channels only when a clip is mapped to a channel beyond L/R or to 5.1.
+
+## Speaker detection (captions)
+
+Detect speakers runs entirely on this device and uses a small voice-print (MFCC statistics plus pitch) with clustering, not a trained speaker-recognition model. No such model is bundled, and nothing is downloaded or sent off the machine.
+
+- **Accuracy on real voices is limited.** It separates clearly different voices (for example a low and a high voice) well, but similar voices can be merged into one speaker and one voice can be split into two. In a test with three synthetic voices reading different sentences, Auto and a fixed count both got only some of the passages right. Treat the result as a first pass and check the labels.
+- **Overlapping speech is not separated.** A caption passage is assigned to a single speaker.
+- **Fixing the speaker count helps only when you know it.** Auto picks the count from the clearest gap between voices and can be wrong; the speaker-count menu overrides it.
+- **Re-running detection replaces the labels,** including passages you reassigned by hand. Renames, colours and positions of speakers that are still found are kept.
+- **Clearing a passage's speaker restores the caption look it had before it was labelled,** which discards style edits made to that caption in between.
+- **Clips with no audio track** cannot be labelled; Detect speakers says so.
+- The only real-voice evidence is a short fixture of two synthetic text-to-speech voices; no recorded human interviews are in the test suite.
+
+## Caption translation
+
+- **Machine translation quality is the engine's.** Translation uses the connected AI model or the browser's on-device Translator API (Chrome 138+, language packs may download). Neither was verified against a live provider in automated tests (mocked clients and a Translator test double); with neither available the Translate tool says so and adds nothing.
+- **Translated cues drop word timings**, so karaoke-style word animations fall back to whole-cue display. Cue timing, style and speakers are preserved.
+- **A translation is kept out of the picture by default** (its cues are hidden) so two languages never overlap. Choose which track is shown with "Show this track in the picture"; showing one track hides the others. Sidecar and embedded caption files still include every track.
+- The browser engine translates one cue per call, so long tracks take a while.
+
+## Ultra Key
+
+- **The Effects-tab card key is a heuristic, labelled "Sample key".** The card previews the effect on your own footage by guessing a key colour from that frame, then narrowing tolerance and transparency until at most about 40% of the frame is keyed. On non-green footage (for example an interview shot) it shows a representative checkerboard-keyed sample, not a prediction of the result. Pick the real key colour with the eyedropper in the Inspector, which samples the Program monitor.
+- **Preview/export parity was verified on WebGL2 in headless Chromium** (shader versus the CPU reference used by the Canvas2D fallback and export: 0 pixels off in RGB and alpha on the test frames). It has not been exercised on real WebGPU hardware or in the Electron desktop app.
+
+## Background-task panel
+
+The panel (status bar pill and popover) is a presentation layer over `BackgroundTaskRegistry`; it owns no work. Limits, stated in the panel itself where they affect the user:
+
+- **Pause is per export-queue only.** Pause and Resume exist only for export-queue jobs, and they act on the whole queue (a queued row reads "Export queue is paused" and Resume starts the whole queue). A running export, proxy job, transcription, import, scene detection, beat detection or tracking run cannot be paused; those can be cancelled. The panel footer says so.
+- **Import Cancel discards, it does not stop the decode.** The decode keeps running in the background and its result is thrown away. Retry re-runs the full import action; caller-specific follow-ups (for example placing the clip on the timeline) are not replayed.
+- **Cleared rows stay cleared for the session**, including mirrored export-queue rows. A retried job shows again. Finished history (40 rows) is not persisted across reloads.
+- **Proxy history is session-only.** A proxy that finished or was cancelled shows as such until cleared; proxies that were already ready when the editor loaded are not listed.
+- **Not exercised on real footage or hardware:** scene detection, beat detection, transcription, motion tracking, desktop copy-to-project and the desktop native proxy rows, and import cancel on large media. They are covered by typecheck, registry unit tests and synthetic e2e only.
+- The popover opens upward over the timeline; it has no pin or dock mode.
+
+## Keyframe temporal interpolation
+
+- **Numeric properties only.** Auto Bezier and Continuous Bezier need a numeric value to compute a tangent; keys on non-numeric properties (colour strings, text) ignore those two types and keep their normal easing.
+- **Hold belongs to a whole segment.** Hold is an outgoing type by definition (the value is held until the next key), so choosing Hold with "Both sides" applies it to the outgoing side only. Choosing Linear, Bezier or an Auto type on the In side of the key that follows a held segment converts that segment, because both ends share it. Ease In is always the In side and Ease Out always the Out side; the side menu is ignored for them.
+- **Continuous Bezier always links both sides.** Applying it to one side links both. Editing a single handle keeps the link and mirrors the other side's tangent; replacing a whole segment (an ease preset, an easing change) unlinks it.
+- **Handle time influence is preserved, not chosen.** Auto and Continuous re-derive the tangent (slope) and keep each handle's existing time length (one third for fresh Auto handles). There is no separate control for influence beyond dragging a handle, which converts an Auto side to plain Bezier.
+- **The agent tool registry (`packages/agent`) does not expose the new types yet.** Agents can set easing and Bezier handles as before.
+
+## Encoder choice and proxy presets
+
+- **The browser capability probe asks WebCodecs about one representative profile per codec** (H.264 High L4.0, HEVC Main, AV1 Main, 5 Mbps) at the export size and frame rate. A machine can accept that and still refuse the project's exact bitrate or profile; the export then fails with the encoder's own message (Hardware and Software are strict, they never switch kind silently). Auto is the only choice that falls back.
+- **Hardware encoding on the desktop is not offered with Two-pass VBR or Rec.2020 / HDR output** (hardware encoders have no two-pass mode; HDR needs libx265 for the HDR metadata). Choosing Hardware there is refused with the reason; Software and Auto work. A failed hardware encode with Hardware chosen is reported, not retried on the software encoder.
+- **Hardware encoders (VideoToolbox, NVENC, Quick Sync, AMF) were exercised end to end only on VideoToolbox (macOS).** NVENC, Quick Sync and AMF are covered by argument and capability-mapping tests, not by a run on that hardware.
+- **Create Proxies with a preset only targets clips that have no proxy (or a failed or missing one).** To rebuild an existing proxy in another preset, use Rebuild on the row after changing the preset in the Proxies panel.

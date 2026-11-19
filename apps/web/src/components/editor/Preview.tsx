@@ -1,3 +1,4 @@
+import { selectVoiceOverPlaybackMuted, useVoiceOverStore } from "../../services/voiceover/voiceover-recorder";
 import { clipNeedsFrameProcessing, preparePreviewFrame, renderOverlayLayerWithEffects } from "./preview/frame-processing";
 import { inputTransformForClip } from "./preview/clip-input-transform";
 import { usePhoneEditor } from "../../hooks/usePhoneEditor";
@@ -10,6 +11,7 @@ import { notifyPreviewDeviceLoss, registerProgramRenderer } from "./preview/devi
 import { ProgramMonitorOverlays } from "./preview/ProgramMonitorOverlays";
 import { DynamicTrimTwoUp } from "./preview/DynamicTrimTwoUp";
 import { MotionTrackingOverlay } from "./preview/MotionTrackingOverlay";
+import { PlanarTrackOverlay } from "./preview/PlanarTrackOverlay";
 import { registerProgramFrameControl } from "./preview/program-frame-control";
 import React, {
   useRef,
@@ -35,6 +37,7 @@ import {
 } from "@/icons/lucide-compat";
 import { cn } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
+import { currentBurnInSource } from "../../utils/burn-in-source";
 import { useEditPointStore } from "../../stores/edit-point-store";
 import { getMonitorProject } from "../../services/dynamic-trim";
 import { startLiveDuckingSync } from "../../services/live-ducking-sync";
@@ -161,10 +164,12 @@ import { editingFrameDurationMs } from "./editing-frame-rate";
 import {
   getPersonSegmentationEngine,
   getBackgroundRemovalEngine,
+  withBurnInText,
   createMotionAwareOcclusionMask,
   getStabilizedTransform,
   getVidstabEngine,
   frameConformFor,
+  clipHasTemporalEffects,
   interpretedDisplaySize,
 } from "@openreel/core";
 import {
@@ -216,12 +221,19 @@ const applyPreviewAdjustmentLayers = async (
   canvas: OffscreenCanvas,
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   layers: readonly AdjustmentLayer[],
+  time: number,
 ): Promise<boolean> => {
   let applied = false;
   const effectsBridge = getEffectsBridge();
   if (!effectsBridge.isInitialized()) return false;
   for (const layer of layers) {
-    const effects = layer.effects.filter((effect) => effect.enabled !== false);
+    // Burn-ins on an adjustment layer count from the layer's first frame, like a clip's.
+    const effects = withBurnInText(
+      layer.effects.filter((effect) => effect.enabled !== false),
+      { id: layer.id, startTime: layer.startTime, inPoint: 0 },
+      time - layer.startTime,
+      currentBurnInSource(),
+    ) as Effect[];
     if (effects.length === 0) continue;
     let source: ImageBitmap | null = null;
     let processed: ImageBitmap | null = null;
@@ -1054,7 +1066,7 @@ export const Preview: React.FC = () => {
   const getResolvedClipPlaybackParams = useCallback((clip: PreviewClip) =>
     resolveClipPlaybackAudioParams(clip, {
       tracks: timelineTracksRef.current,
-    }), []);
+    }, useProjectStore.getState().getMediaItem(clip.mediaId)), []);
 
   const rendererRef = useRef<Renderer | null>(null);
   const rendererInitializedRef = useRef<boolean>(false);
@@ -1066,7 +1078,10 @@ export const Preview: React.FC = () => {
     motionRendererRef.current = null;
   }, []);
 
-  const [isMuted, setIsMuted] = useState(false);
+  const [userMuted, setIsMuted] = useState(false);
+  // Voice-over recording silences playback (when asked to) so speakers cannot feed back into the microphone.
+  const recordMuted = useVoiceOverStore(selectVoiceOverPlaybackMuted);
+  const isMuted = userMuted || recordMuted;
   const [isRenderBridgeReady, setIsRenderBridgeReady] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const [videoAreaSize, setVideoAreaSize] = useState({ width: 0, height: 0 });
@@ -1450,7 +1465,8 @@ export const Preview: React.FC = () => {
 
   // Get subtitles from project timeline
   const allSubtitles = useMemo(() => {
-    return project.timeline.subtitles || [];
+    // Hidden tracks (a translation not chosen for the picture) are not drawn.
+    return (project.timeline.subtitles || []).filter((cue) => !cue.hidden);
   }, [project.timeline.subtitles]);
 
   const updateClipTransform = useProjectStore(
@@ -2213,6 +2229,7 @@ export const Preview: React.FC = () => {
           pan: 0,
           muted: audioTrack.muted || false,
           solo: audioTrack.solo || false,
+          soloSafe: audioTrack.soloSafe === true,
           effects: [],
         });
 
@@ -2572,6 +2589,7 @@ export const Preview: React.FC = () => {
           trackId: track.id,
           muted: track.muted === true || track.hidden === true,
           solo: track.solo === true,
+          soloSafe: track.soloSafe === true,
         })),
       );
       return audioGraphRef.current;
@@ -2775,17 +2793,20 @@ export const Preview: React.FC = () => {
           } catch (error) {
             if (!isStaleRequest()) {
               console.warn("Paused video frame decoding failed", error);
-              failProxyPlayback(clip.mediaId, mediaBlob);
               const cached = videoElementCacheRef.current.get(clip.mediaId);
               if (cached?.blob === mediaBlob) {
                 releaseVideoElement(cached);
                 videoElementCacheRef.current.delete(clip.mediaId);
               }
               if (!retried) {
+                // A slow or software decoder can fail once on a fresh element (metadata or seek timeout). Only a
+                // second failure on a new element means the proxy cannot play; disabling it on the first
+                // would drop a working proxy for good.
                 retried = true;
                 await decodePausedFrame();
                 return;
               }
+              failProxyPlayback(clip.mediaId, mediaBlob);
               scheduleScrubVideoRelease();
               if (fallbackMediaTime !== null) {
                 const fallback = await decodeFrameWithWebCodecs(mediaBlob, fallbackMediaTime).catch((fallbackError: unknown) => {
@@ -2868,7 +2889,7 @@ export const Preview: React.FC = () => {
         !track.hidden &&
         track.clips.some(
           (clip) =>
-            getCompoundClipId(clip) !== null &&
+            (getCompoundClipId(clip) !== null || clipHasTemporalEffects(clip)) &&
             time >= clip.startTime &&
             time < clip.startTime + clip.duration,
         ),
@@ -2934,7 +2955,7 @@ export const Preview: React.FC = () => {
         const { base, placements } = isolatedTrack;
         isolatedTrack = null;
         try {
-          if (await applyPreviewAdjustmentLayers(frameCanvas, ctx, placements.map((p) => p.layer))) {
+          if (await applyPreviewAdjustmentLayers(frameCanvas, ctx, placements.map((p) => p.layer), time)) {
             hasRenderedFrame = true;
           }
           ctx.save();
@@ -2961,7 +2982,7 @@ export const Preview: React.FC = () => {
         await closeIsolatedTrack();
         const compositeLayers = adjustmentSchedule.takeCompositeBefore(stackIndex);
         if (compositeLayers.length > 0) {
-          await applyPreviewAdjustmentLayers(frameCanvas, ctx, compositeLayers.map((p) => p.layer));
+          await applyPreviewAdjustmentLayers(frameCanvas, ctx, compositeLayers.map((p) => p.layer), time);
         }
         if (scopedPlacements.length > 0 && hasContent) {
           // Paint this stage alone on a clear canvas so the effects reach only it; the backdrop returns beneath.
@@ -3406,7 +3427,7 @@ export const Preview: React.FC = () => {
       await closeIsolatedTrack();
       const remainingLayers = adjustmentSchedule.takeRemainingComposite();
       if (remainingLayers.length > 0) {
-        if (await applyPreviewAdjustmentLayers(frameCanvas, ctx, remainingLayers.map((p) => p.layer))) {
+        if (await applyPreviewAdjustmentLayers(frameCanvas, ctx, remainingLayers.map((p) => p.layer), time)) {
           hasRenderedFrame = true;
         }
       }
@@ -3939,6 +3960,10 @@ export const Preview: React.FC = () => {
               if (frameConformFor(mediaItem) !== null) {
                 return { canUse: false, clips: [] };
               }
+              // Echo / Posterize Time need frames other than the one the element is playing.
+              if (clipHasTemporalEffects(clip)) {
+                return { canUse: false, clips: [] };
+              }
               if (
                 clipSpeed !== 1 ||
                 isReverse ||
@@ -4214,6 +4239,7 @@ export const Preview: React.FC = () => {
           pan: 0,
           muted: audioTrack.muted || false,
           solo: audioTrack.solo || false,
+          soloSafe: audioTrack.soloSafe === true,
           effects: [],
         });
       }
@@ -4759,7 +4785,7 @@ export const Preview: React.FC = () => {
           return JSON.stringify([
             clip.id, token, canvas.width, canvas.height, video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA,
             transform, clipCssFilterOnly(clip.id, clip), canvasFillModeRef.current, canvasFillColorRef.current,
-            previewBgRef.current, isColorBypassed(),
+            previewBgRef.current, isColorBypassed(), getEffectsBridge().whiteBalanceInputView(),
           ]);
         })();
         if (!frameGate.shouldDraw(gateKey)) {
@@ -5718,6 +5744,7 @@ export const Preview: React.FC = () => {
           pan: 0,
           muted: track.muted || false,
           solo: track.solo || false,
+          soloSafe: track.soloSafe === true,
           effects: [],
         });
       }
@@ -5935,8 +5962,9 @@ export const Preview: React.FC = () => {
             }
           }
 
+          // Echo / Posterize Time pick other frames of the clip: the engine renderer (export's) decodes them.
           const hasActiveCompound = activeClips.some(
-            ({ clip }) => getCompoundClipId(clip) !== null,
+            ({ clip }) => getCompoundClipId(clip) !== null || clipHasTemporalEffects(clip),
           );
           // Anamorphic / interlaced footage is conformed by the engine renderer, never the raw video-element draw.
           const hasActiveConformClip = activeClips.some(({ clip }) => {
@@ -8540,7 +8568,7 @@ export const Preview: React.FC = () => {
           <ShadcnButton variant="ghost" size="icon-sm" title={`Loop ${formatFrameTimecode(previewLoopRange?.start ?? 0, settings.frameRate)} to ${formatFrameTimecode(previewLoopRange?.end ?? 0, settings.frameRate)} • I: mark start • O: mark end • Shift+L: toggle`} aria-pressed={loopEnabled} onClick={handleToggleLoop} type="button" aria-label={loopEnabled ? "Disable preview loop" : "Enable preview loop"} disabled={(actualEndTime <= 0 || exportState.isExporting)} className={cn("inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", "bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg", `w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${loopEnabled ? "bg-accent/15 text-accent" : "bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"}`)}>
             {<PreviewTransportIcon name="loop" size={16} strokeWidth={1.8} />}
           </ShadcnButton>
-          <ShadcnButton variant="ghost" size="icon-sm" onClick={() => setIsMuted(!isMuted)} type="button" aria-label={isMuted ? "Unmute" : "Mute"} title={isMuted ? "Unmute" : "Mute"} className={cn("inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", "bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg", `w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${
+          <ShadcnButton variant="ghost" size="icon-sm" onClick={() => setIsMuted(!userMuted)} type="button" aria-label={isMuted ? "Unmute" : "Mute"} title={isMuted ? "Unmute" : "Mute"} className={cn("inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", "bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg", `w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${
               isMuted
                 ? "bg-bg-2 text-status-error"
                 : "bg-bg-2 text-fg-2 hover:text-fg hover:bg-bg-3"
@@ -8644,6 +8672,7 @@ export const Preview: React.FC = () => {
           <ProgramMonitorOverlays />
           <DynamicTrimTwoUp />
           <MotionTrackingOverlay clipId={(selectedClip || clipAtPlayhead)?.id ?? null} bounds={clipBounds} />
+          <PlanarTrackOverlay clipId={(selectedClip || clipAtPlayhead)?.id ?? null} bounds={clipBounds} />
 
           {decoderLimitHit && (
             <div role="status" aria-live="polite" data-testid="decoder-limit-notice" className="absolute left-1/2 top-3 z-30 w-max max-w-[min(92%,34rem)] -translate-x-1/2 rounded-md border border-border bg-bg-2 px-2.5 py-1.5 text-[11px] text-fg-2 shadow-sm">

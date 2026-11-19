@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef } from "react";
 import {
+  ultraKeyColorFromSample,
   qualifierFromSample,
   readQualifier,
   sampleAverageRgb,
@@ -17,6 +18,7 @@ import { getPreviewCanvas } from "../scopes/preview-canvas-registry";
 import { applyFalseColor, FALSE_COLOR_BANDS } from "@openreel/core/video/scopes-extra";
 import { refreshProgramFrame } from "./program-frame-control";
 import { DroppedFrameIndicator } from "./DroppedFrameIndicator";
+import { WhiteBalanceEyedropperLayer } from "./WhiteBalanceEyedropperLayer";
 
 /**
  * Program monitor overlays: the comparison view (side by side / wipe) and the
@@ -53,6 +55,78 @@ function useSecondaryViewSync(): void {
     [],
   );
 }
+
+/**
+ * While the Ultra Key picker is armed the keyed effect shows its source, so the pick samples the
+ * unkeyed frame; disarming (or leaving the clip) restores the live key.
+ */
+function useKeyPickerSync(): void {
+  const picker = useColorMonitorStore((state) => state.keyPicker);
+  useEffect(() => {
+    if (!picker) return undefined;
+    const bridge = getEffectsBridge();
+    bridge.setTransientEffectParams(picker.effectId, { output: "source" });
+    void refreshProgramFrame(useTimelineStore.getState().playheadPosition);
+    return () => {
+      bridge.setTransientEffectParams(picker.effectId, null);
+      void refreshProgramFrame(useTimelineStore.getState().playheadPosition);
+    };
+  }, [picker]);
+}
+
+const KeyPickerLayer: React.FC = () => {
+  const picker = useColorMonitorStore((state) => state.keyPicker);
+  const setKeyPicker = useColorMonitorStore((state) => state.setKeyPicker);
+
+  useEffect(() => {
+    if (!picker) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setKeyPicker(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [picker, setKeyPicker]);
+
+  if (!picker) return null;
+
+  const pick = (event: React.PointerEvent<HTMLDivElement>) => {
+    const source = getPreviewCanvas();
+    if (!source || source.width === 0) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * source.width;
+    const y = ((event.clientY - rect.top) / rect.height) * source.height;
+    const scratch = document.createElement("canvas");
+    scratch.width = source.width;
+    scratch.height = source.height;
+    const ctx = scratch.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return;
+    ctx.drawImage(source, 0, 0);
+    const image = ctx.getImageData(0, 0, scratch.width, scratch.height);
+    const [r, g, b] = sampleAverageRgb(image.data, image.width, image.height, x, y, 3);
+    const store = useProjectStore.getState();
+    const effect = store.getVideoEffect(picker.clipId, picker.effectId);
+    setKeyPicker(null);
+    if (!effect) return;
+    void store.updateVideoEffect(
+      picker.clipId,
+      picker.effectId,
+      ultraKeyColorFromSample({ r: r * 255, g: g * 255, b: b * 255 }),
+    );
+  };
+
+  return (
+    <div
+      data-testid="ultra-key-picker-layer"
+      aria-label="Key colour picker. Click the Program monitor to sample the key colour, Escape cancels."
+      className="absolute inset-0 z-40 cursor-crosshair rounded-[10px] ring-2 ring-accent"
+      onPointerDown={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        pick(event);
+      }}
+    />
+  );
+};
 
 /**
  * Mounted only while a comparison mode is on, so the playhead / project
@@ -390,11 +464,14 @@ const EyedropperLayer: React.FC = () => {
 
 export const ProgramMonitorOverlays: React.FC = () => {
   useSecondaryViewSync();
+  useKeyPickerSync();
   return (
     <>
+      <KeyPickerLayer />
       <ComparisonOverlayGate />
       <FalseColorToggle />
       <EyedropperLayer />
+      <WhiteBalanceEyedropperLayer />
       <DroppedFrameIndicator />
     </>
   );

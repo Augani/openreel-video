@@ -238,6 +238,8 @@ export interface ProjectState {
   hideTrack: (trackId: string, hidden: boolean) => Promise<ActionResult>;
   muteTrack: (trackId: string, muted: boolean) => Promise<ActionResult>;
   soloTrack: (trackId: string, solo: boolean) => Promise<ActionResult>;
+  /** Solo Safe: keep the track audible while other tracks are soloed (live and in the export mixdown). */
+  setTrackSoloSafe: (trackId: string, soloSafe: boolean) => Promise<ActionResult>;
   setTrackSyncLock: (trackId: string, syncLock: boolean) => Promise<ActionResult>;
   /** Replace a track's (or the master bus's, target "master") effect rack: one undo step. */
   setAudioRack: (target: string, rack: AudioRack | null) => Promise<ActionResult>;
@@ -499,6 +501,11 @@ export interface ProjectState {
     markerId: string,
     updates: Partial<import("@openreel/core").Marker>,
   ) => Promise<ActionResult>;
+  /** Replace the markers of one clip (`clipId`) or of a media item's master clip (`mediaId`); source-time markers. */
+  setClipMarkers: (
+    target: { clipId: string } | { mediaId: string },
+    markers: import("@openreel/core").Marker[],
+  ) => Promise<ActionResult>;
   getMarker: (markerId: string) => import("@openreel/core").Marker | undefined;
   getMarkers: () => import("@openreel/core").Marker[];
 
@@ -692,7 +699,8 @@ export interface ProjectState {
   clearClipAudioDucking: (clipId: string) => boolean;
 
   // Keyframe actions
-  updateClipKeyframes: (clipId: string, keyframes: Keyframe[]) => boolean;
+  /** `derived` marks keys already produced by applyKeyframeInterpolation, so smooth sides are not re-derived as if hand-edited. */
+  updateClipKeyframes: (clipId: string, keyframes: Keyframe[], options?: { derived?: boolean }) => boolean;
 
   // Undo/Redo
   undo: () => Promise<ActionResult>;
@@ -740,6 +748,18 @@ const TITLE_ENGINE_SYNC_ACTIONS = new Set<string>([
   "style/restoreText",
   "style/applyCaption",
 ]);
+
+/**
+ * Re-derives Auto / Continuous Bezier sides after a keyframe edit. The derivation lives in core and is
+ * registered by the editor chunk (the only place smooth keys can be created), which keeps it out of the
+ * startup entry chunk. Keys without smooth sides never reach it.
+ */
+type SmoothKeyframeRefresh = (prior: readonly Keyframe[] | undefined, next: readonly Keyframe[]) => Keyframe[];
+let smoothKeyframeRefresh: SmoothKeyframeRefresh | null = null;
+export function registerSmoothKeyframeRefresh(refresh: SmoothKeyframeRefresh): void {
+  smoothKeyframeRefresh = refresh;
+}
+const hasSmoothSide = (key: Keyframe): boolean => key.interpolationIn !== undefined || key.interpolationOut !== undefined;
 
 export const useProjectStore = create<ProjectState>()(
   subscribeWithSelector((set, get) => {
@@ -4590,7 +4610,8 @@ export const useProjectStore = create<ProjectState>()(
        * Update keyframes for a clip
        * Keyframe animation support
        */
-      updateClipKeyframes: (clipId: string, keyframes: Keyframe[]) => {
+      updateClipKeyframes: (clipId: string, inputKeyframes: Keyframe[], options?: { derived?: boolean }) => {
+        let keyframes = inputKeyframes;
         const { project } = get();
 
         for (const track of project.timeline.tracks) {
@@ -4598,6 +4619,9 @@ export const useProjectStore = create<ProjectState>()(
           if (clipIndex !== -1) {
             const clip = track.clips[clipIndex];
             const priorKeyframes = clip.keyframes;
+            if (!options?.derived && smoothKeyframeRefresh && (keyframes.some(hasSmoothSide) || priorKeyframes?.some(hasSmoothSide))) {
+              keyframes = smoothKeyframeRefresh(priorKeyframes, keyframes);
+            }
             const updatedClip = { ...clip, keyframes };
             const updatedClips = [...track.clips];
             updatedClips[clipIndex] = updatedClip;

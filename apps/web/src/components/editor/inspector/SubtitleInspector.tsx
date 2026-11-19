@@ -5,13 +5,11 @@ import { Captions, Upload } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
 import { toast } from "../../../stores/notification-store";
 import { FONT_CATEGORIES, FONT_FILE_ACCEPT, registerCustomFont, useCustomFonts } from "./font-options";
+import { DEFAULT_CAPTION_STYLE } from "@openreel/core/captions/caption-layout";
 import { InspectorSection as Section } from "./shell/InspectorSection";
 import { SavedStylesSection } from "./SavedStylesSection";
 
-const DEFAULT_STYLE: SubtitleStyle = {
-  fontFamily: "Inter", fontSize: 24, color: "#ffffff",
-  backgroundColor: "rgba(0, 0, 0, 0.7)", position: "bottom",
-};
+const DEFAULT_STYLE: SubtitleStyle = DEFAULT_CAPTION_STYLE;
 const HIGHLIGHT_COLORS = ["#ffff00", "#00ff00", "#ff6b6b", "#4ecdc4", "#ff9f43", "#a55eea"];
 const OPACITY_OPTIONS = [{ value: "0", label: "None" }, { value: "0.5", label: "50%" }, { value: "0.7", label: "70%" }, { value: "1", label: "100%" }];
 const ANIMATION_HELP: Record<CaptionAnimationStyle, string> = {

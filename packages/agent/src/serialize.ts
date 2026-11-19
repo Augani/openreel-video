@@ -68,6 +68,8 @@ interface TrackView {
   readonly hidden: boolean;
   readonly muted: boolean;
   readonly solo: boolean;
+  /** Solo Safe: stays audible while other tracks are soloed. */
+  readonly soloSafe: boolean;
   readonly clipCount: number;
 }
 
@@ -112,6 +114,7 @@ interface RawTrack {
   hidden?: boolean;
   muted?: boolean;
   solo?: boolean;
+  soloSafe?: boolean;
   clips: RawClip[];
 }
 
@@ -202,6 +205,7 @@ export function listTracks(project: Project): TrackView[] {
     hidden: t.hidden ?? false,
     muted: t.muted ?? false,
     solo: t.solo ?? false,
+    soloSafe: t.soloSafe === true,
     clipCount: t.clips.length,
   }));
 }

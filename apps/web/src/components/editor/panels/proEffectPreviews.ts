@@ -69,6 +69,10 @@ const PREVIEW_STYLES: Record<ProEffectType, (p: number) => CSSProperties> = {
     filter: `hue-rotate(${lerp(0, 90, p)}deg) saturate(${lerp(1, 1.5, p)})`,
     opacity: lerp(1, 0.75, p),
   }),
+  "ultra-key": (p) => ({
+    filter: `hue-rotate(${lerp(0, 18, p)}deg) saturate(${lerp(1, 1.3, p)})`,
+    boxShadow: `inset 0 0 0 ${lerp(0, 5, p)}px rgba(34,197,94,.75)`,
+  }),
   "alpha-adjust": (p) => ({ opacity: lerp(1, 0.45, p) }),
   "leave-color": (p) => ({ filter: `grayscale(${lerp(0, 0.85, p)}) contrast(${lerp(1, 1.1, p)})` }),
   "change-to-color": (p) => ({ filter: `hue-rotate(${lerp(0, 140, p)}deg) saturate(${lerp(1, 1.3, p)})` }),
@@ -116,6 +120,11 @@ const PREVIEW_STYLES: Record<ProEffectType, (p: number) => CSSProperties> = {
     backgroundImage: `radial-gradient(circle at 72% 28%, rgba(255,240,200,${lerp(0, 0.95, p)}) 0, rgba(255,200,120,${lerp(0, 0.4, p)}) 14%, transparent 34%)`,
   }),
   "strobe-light": (p) => ({ filter: `brightness(${p > 0.5 ? 1.9 : 1})` }),
+  // Stand-ins for the CSS card fallback only; the real cards render real footage frames (effect-previews).
+  echo: (p) => ({
+    filter: `drop-shadow(${lerp(0, -7, p)}px 0 0 rgba(255,255,255,0.35)) drop-shadow(${lerp(0, -14, p)}px 0 0 rgba(255,255,255,0.18))`,
+  }),
+  "posterize-time": (p) => ({ transform: `translateX(${Math.floor(p * 4) * 2 - 3}px)` }),
   grid: (p) => ({
     backgroundImage: `linear-gradient(rgba(255,255,255,${lerp(0, 0.6, p)}) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,${lerp(0, 0.6, p)}) 1px, transparent 1px)`,
     backgroundSize: "12px 12px",

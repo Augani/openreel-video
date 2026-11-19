@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Button } from "@openreel/ui";
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@openreel/ui";
 import { getRawDeveloper, isDevelopedRaw, mediaImageVersion, type MediaItem } from "@openreel/core";
+import { addSourceMarker } from "../../services/clip-marker-commands";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
 import { useSourceMonitorStore } from "../../stores/source-monitor-store";
@@ -15,10 +16,14 @@ import {
   stepSourceFrame,
 } from "../../services/source-monitor-controller";
 import {
+  fitToFillFromSource,
+  openInSourceMonitor,
   insertFromSource,
   overwriteFromSource,
+  replaceFromSource,
 } from "../../services/source-monitor-commands";
-import { runWithToast } from "../../services/premiere-edit-commands";
+import { StallWatchdog, sampleMedia } from "../../services/media-stall";
+import { reverseMatchFrame, runWithToast } from "../../services/premiere-edit-commands";
 import { makeSubclipFromSource } from "../../services/project-panel-commands";
 import { toast } from "../../stores/notification-store";
 import { PreviewScrubber } from "./PreviewScrubber";
@@ -28,6 +33,48 @@ import { SourcePatch } from "./SourcePatch";
 
 /** Drag payload marker read by the timeline lanes. */
 export const SOURCE_DRAG_KEY = "sourceMonitor";
+
+/** Recent-clips dropdown in the Source monitor header (Premiere's source history). */
+function SourceHistory({ current }: { current: MediaItem | undefined }) {
+  const history = useSourceMonitorStore((s) => s.history);
+  const library = useProjectStore((s) => s.project.mediaLibrary.items);
+  const entries = history
+    .map((id) => library.find((item) => item.id === id))
+    .filter((item): item is MediaItem => !!item);
+  if (entries.length === 0)
+    return <span>{current ? current.name : "No clip loaded"}</span>;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          data-testid="source-history"
+          aria-label="Recent source clips"
+          title="Recent clips"
+          className="flex max-w-[260px] items-center gap-1 rounded px-1.5 py-0.5 hover:bg-[#26282d]"
+        >
+          <span className="truncate">{current ? current.name : "No clip loaded"}</span>
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" /></svg>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="max-h-72 min-w-[220px] overflow-y-auto">
+        {entries.map((item) => (
+          <DropdownMenuItem
+            key={item.id}
+            data-testid="source-history-item"
+            onSelect={() => {
+              const outcome = openInSourceMonitor(item.id);
+              if (!outcome.success) toast.warning("Source monitor", outcome.message ?? "");
+            }}
+            className={item.id === current?.id ? "font-medium text-accent" : undefined}
+          >
+            <span className="truncate">{item.name}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 function useBlobUrl(blob: Blob | null | undefined): string | null {
   const [url, setUrl] = useState<string | null>(null);
@@ -144,6 +191,8 @@ export function SourceMonitor() {
   const [restrictSubclip, setRestrictSubclip] = useState(false);
   const marks = useSourceMonitorStore((s) => (s.mediaId ? s.marks[s.mediaId] : undefined));
   const projectFrameRate = useProjectStore((s) => s.project.settings.frameRate);
+  const replaceKeeps = useSourceMonitorStore((s) => s.replaceKeepsAttributes);
+  const rangeMarked = useTimelineStore((s) => s.loopEnd - s.loopStart > 1e-6);
   const media = useProjectStore((s) =>
     mediaId ? s.project.mediaLibrary.items.find((m) => m.id === mediaId) : undefined,
   );
@@ -236,6 +285,18 @@ export function SourceMonitor() {
     if (Math.abs(el.currentTime - position) > 0.0005) el.currentTime = position;
   }, [position, rate, url]);
 
+  // Recover from a wedged media pipeline: after seeks Chrome can leave a fully buffered element
+  // without future data ("waiting") forever. Re-issuing the seek restarts it.
+  useEffect(() => {
+    const el = elRef.current;
+    if (!el) return;
+    const watchdog = new StallWatchdog();
+    const id = window.setInterval(() => {
+      if (watchdog.check(sampleMedia(el), performance.now())) el.currentTime = sampleMedia(el).currentTime;
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [mediaId, url]);
+
   const onDragStart = useCallback(
     (component: "both" | "video" | "audio") => (event: React.DragEvent) => {
       if (!mediaId) return;
@@ -274,8 +335,9 @@ export function SourceMonitor() {
     >
       <div className="workspace-preview-header">
         <MonitorTabs active="source" />
-        <span>{media ? media.name : "No clip loaded"}</span>
+        <SourceHistory current={media} />
         <div className="workspace-preview-options">
+          <Button type="button" variant="ghost" size="sm" data-testid="reverse-match-frame" title="Reverse Match Frame (Shift+F)" onMouseDown={noFocusSteal} disabled={!media} onClick={() => runWithToast("Reverse match frame", reverseMatchFrame)}>Find in sequence</Button>
           <span className="font-mono text-[11px] tabular-nums text-fg-3" data-testid="source-duration">
             {media ? `Dur ${tc(rangeLength)}` : ""}
           </span>
@@ -348,6 +410,21 @@ export function SourceMonitor() {
               />
             </div>
           )}
+          {media?.markers?.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              data-testid="source-marker-tick"
+              aria-label={`Go to marker ${m.label}`}
+              title={m.label}
+              onMouseDown={noFocusSteal}
+              onClick={() => seekSource(m.time)}
+              className="absolute top-[1px] z-10 h-[9px] w-[9px] -translate-x-1/2 p-0"
+              style={{ left: `calc(0.75rem + (100% - 1.5rem) * ${Math.min(1, m.time / duration)})` }}
+            >
+              <svg width="9" height="9" viewBox="0 0 9 9" aria-hidden="true"><path d="M0.5 0.5h8v4l-4 4-4-4z" fill={m.color} stroke="rgba(0,0,0,0.55)" /></svg>
+            </button>
+          ))}
           <PreviewScrubber
             position={position}
             duration={duration}
@@ -375,7 +452,8 @@ export function SourceMonitor() {
             {rate !== 0 && <span className="text-accent" data-testid="source-rate">{rate}x</span>}
           </div>
           {media && <SourcePatch hasVideo={hasVideo} hasAudio={hasAudio} />}
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2 [&>*]:whitespace-nowrap">
+            <Button type="button" variant="ghost" size="sm" data-testid="source-add-marker" title="Add a master-clip marker at the playhead (M)" onMouseDown={noFocusSteal} disabled={!media} onClick={() => void addSourceMarker()}>Add marker</Button>
             <Button type="button" variant="ghost" size="sm" onMouseDown={noFocusSteal} disabled={!media || (marks?.in === undefined && marks?.out === undefined)} onClick={clearSourceMarks}>Clear marks</Button>
             {hasVideo && media?.type === "video" && (
               <span
@@ -437,8 +515,54 @@ export function SourceMonitor() {
                 </Button>
               </>
             )}
-            <Button type="button" variant="secondary" size="sm" onMouseDown={noFocusSteal} disabled={!media} onClick={() => runWithToast("Insert", () => insertFromSource())}>Insert (,)</Button>
-            <Button type="button" variant="secondary" size="sm" onMouseDown={noFocusSteal} disabled={!media} onClick={() => runWithToast("Overwrite", () => overwriteFromSource())}>Overwrite (.)</Button>
+            <Button type="button" variant="secondary" size="sm" onMouseDown={noFocusSteal} disabled={!media} aria-label="Insert (,)" title="Insert at the timeline playhead (,)" onClick={() => runWithToast("Insert", () => insertFromSource())}>Insert</Button>
+            <Button type="button" variant="secondary" size="sm" onMouseDown={noFocusSteal} disabled={!media} aria-label="Overwrite (.)" title="Overwrite at the timeline playhead (.)" onClick={() => runWithToast("Overwrite", () => overwriteFromSource())}>Overwrite</Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              data-testid="replace-edit"
+              aria-label="Replace (⇧G)"
+              title="Replace the selected timeline clip, or the clip under the playhead, with this source. The clip keeps its place and length; the Source playhead lines up with the timeline playhead (Shift+G)"
+              onMouseDown={noFocusSteal}
+              disabled={!media}
+              onClick={() => runWithToast("Replace", () => replaceFromSource())}
+            >
+              Replace
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              data-testid="replace-keep"
+              aria-pressed={replaceKeeps}
+              title="Replace keeps the clip's effects, keyframes and audio settings. Off resets them."
+              onMouseDown={noFocusSteal}
+              disabled={!media}
+              onClick={() => useSourceMonitorStore.getState().setReplaceKeepsAttributes(!replaceKeeps)}
+              className={replaceKeeps ? "bg-[#26282d] text-fg" : "text-fg-3"}
+            >
+              Keep FX
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              data-testid="fit-to-fill"
+              aria-label="Fit to Fill (⌥⇧F)"
+              title={
+                media?.type === "image"
+                  ? "Fit to Fill needs video or audio"
+                  : rangeMarked
+                    ? "Retime the source In/Out to exactly fill the timeline In/Out range (Alt+Shift+F)"
+                    : "Set In and Out marks on the timeline to fill (Alt+Shift+F)"
+              }
+              onMouseDown={noFocusSteal}
+              disabled={!media || media.type === "image" || !rangeMarked}
+              onClick={() => runWithToast("Fit to Fill", () => fitToFillFromSource())}
+            >
+              Fit to Fill
+            </Button>
           </div>
         </div>
       </div>

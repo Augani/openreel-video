@@ -1,3 +1,4 @@
+import { backgroundTasks } from "@openreel/core/tasks/task-registry";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SUBTITLE_STYLE_PRESETS, splitCaptionIntoSingleLineCues, type TranscriptionSegment, type Clip, type MediaItem } from "@openreel/core";
 import { getReferenceCaptionStyle } from "./reference-caption-style";
@@ -143,6 +144,31 @@ export function useAutoCaptions({ clipId, clipIds, sourceTrackId, sourceLabel, m
     setError(null);
     return () => { generation.current += 1; releaseWorker(); void audioContextRef.current?.close().catch(() => undefined); };
   }, [projectId, cancel, releaseWorker]);
+
+  // Mirror the local transcription run into the unified background-task panel. One row per run:
+  // it keeps its creation time while progress ticks and stays as history (completed / failed / cancelled).
+  const taskIdRef = useRef<string | null>(null);
+  const userCancelled = useRef(false);
+  const cancelFromPanel = useCallback(() => { userCancelled.current = true; cancel(); }, [cancel]);
+  useEffect(() => {
+    if (isTranscribing) {
+      if (!taskIdRef.current) { taskIdRef.current = `transcription:captions:${Date.now()}`; userCancelled.current = false; }
+      backgroundTasks.upsert(
+        { id: taskIdRef.current, kind: "transcription", source: "transcription", title: "Transcribing captions", detail: progressMessage || undefined, status: "running", progress },
+        { cancel: cancelFromPanel },
+      );
+      return;
+    }
+    const id = taskIdRef.current;
+    if (!id) return;
+    taskIdRef.current = null;
+    const base = { id, kind: "transcription" as const, source: "transcription", title: "Transcribing captions" };
+    backgroundTasks.upsert(
+      error ? { ...base, status: "failed", error }
+        : userCancelled.current ? { ...base, status: "cancelled" }
+          : { ...base, status: "completed", progress: 1 },
+    );
+  }, [isTranscribing, progress, progressMessage, cancelFromPanel, error]);
 
   const sourceIsCurrent = useCallback((owner: NonNullable<typeof ownerRef.current>) => {
     const current = useProjectStore.getState();

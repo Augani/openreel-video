@@ -33,7 +33,7 @@ describe("pro effects in the effects browser", () => {
     for (const label of [
       "Gaussian Blur", "Mosaic", "Lens Distortion", "Mirror", "Posterize", "VHS / Glitch",
     ]) expect(labels.filter((entry) => entry === label), label).toHaveLength(1);
-    const duplicateConcepts = [/pixelate|mosaic/i, /mirror/i, /lens distort|fisheye/i, /gaussian/i, /posterize/i, /vhs/i];
+    const duplicateConcepts = [/pixelate|mosaic/i, /mirror/i, /lens distort|fisheye/i, /gaussian/i, /posterize(?! time)/i, /vhs/i];
     for (const concept of duplicateConcepts) {
       expect(labels.filter((label) => concept.test(label)), String(concept)).toHaveLength(1);
     }

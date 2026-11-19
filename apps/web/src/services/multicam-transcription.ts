@@ -1,4 +1,5 @@
 import type { MulticamTranscriptSegment } from "@openreel/core";
+import { backgroundTasks } from "@openreel/core/tasks/task-registry";
 import { audioBufferToWhisperSamples } from "../utils/whisper-audio";
 import type { WhisperModelKey } from "../workers/whisper-models";
 import { isDesktopRenderer } from "../workers/whisper-threads";
@@ -20,12 +21,31 @@ export function whisperChunksToMulticamTranscript(
   });
 }
 
-export async function transcribeMulticamChannels(
+export function transcribeMulticamChannels(
   buffers: ReadonlyMap<string, AudioBuffer>,
   options: {
     model?: WhisperModelKey;
     language?: string;
     onStatus?: (angleId: string, message: string) => void;
+  } = {},
+): Promise<Record<string, MulticamTranscriptSegment[]>> {
+  return backgroundTasks.track(
+    { kind: "transcription", source: "transcription", title: `Transcribing multicam \u00b7 ${buffers.size} angle${buffers.size === 1 ? "" : "s"}` },
+    (ctx) => transcribeMulticamChannelsUntracked(buffers, {
+      ...options,
+      signal: ctx.signal,
+      onStatus: (angleId, message) => { ctx.progress(null, message); options.onStatus?.(angleId, message); },
+    }),
+  );
+}
+
+async function transcribeMulticamChannelsUntracked(
+  buffers: ReadonlyMap<string, AudioBuffer>,
+  options: {
+    model?: WhisperModelKey;
+    language?: string;
+    onStatus?: (angleId: string, message: string) => void;
+    signal?: AbortSignal;
   } = {},
 ): Promise<Record<string, MulticamTranscriptSegment[]>> {
   const worker = new Worker(
@@ -38,6 +58,8 @@ export async function transcribeMulticamChannels(
       const requestId = crypto.randomUUID();
       options.onStatus?.(angleId, "Loading local Whisper model…");
       const result = await new Promise<{ chunks: WorkerChunk[] }>((resolve, reject) => {
+        if (options.signal?.aborted) return reject(new DOMException("Aborted", "AbortError"));
+        options.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
         const handleMessage = (event: MessageEvent<Record<string, unknown>>) => {
           if (event.data.requestId !== requestId) return;
           const type = event.data.type;

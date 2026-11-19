@@ -16,6 +16,7 @@ import {
   PiPSection,
   MaskSection,
   MotionTrackingSection,
+  PlanarTrackingSection,
   NestedSequenceSection,
   AdjustmentLayerSection,
   BackgroundRemovalSection,
@@ -324,6 +325,12 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
       {showVideoControls && (
         <InspectorSection title="Motion Tracking" sectionId="motion-tracking">
           <MotionTrackingSection clipId={clipId} />
+        </InspectorSection>
+      )}
+
+      {showVideoControls && (
+        <InspectorSection title="Planar Tracking" sectionId="planar-tracking">
+          <PlanarTrackingSection clipId={clipId} />
         </InspectorSection>
       )}
 

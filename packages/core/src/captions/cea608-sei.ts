@@ -41,7 +41,7 @@ export function sccToFrameSchedule(
   options: { frameRate: number; offsetSeconds?: number },
 ): Cc608FrameSchedule {
   const warnings: string[] = [];
-  const text = scc.replace(/^﻿/, "").replace(/\r\n?/g, "\n");
+  const text = scc.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
   const lines = text.split("\n");
   if (!/^\s*Scenarist_SCC/i.test(lines[0] ?? "")) throw new Error('Not an SCC file: the "Scenarist_SCC V1.0" header is missing.');
   const hasDrop = lines.some((line) => /^\d{1,2}:\d{2}:\d{2};\d{2}\s/.test(line.trim()));

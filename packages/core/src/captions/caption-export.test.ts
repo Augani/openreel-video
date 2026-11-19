@@ -34,6 +34,12 @@ describe("burn-in", () => {
     expect(burnedInSubtitles(cues, undefined)).toHaveLength(2);
     expect(burnedInSubtitles(cues, settings([]))).toHaveLength(2);
   });
+  it("never burns in hidden cues, with or without settings", () => {
+    const withHidden: Subtitle[] = [cues[0], { ...cues[1], hidden: true }];
+    expect(burnedInSubtitles(withHidden, undefined).map((c) => c.id)).toEqual(["a"]);
+    expect(burnedInSubtitles(withHidden, settings([{ captionTrackId: "es", burnIn: true, sidecar: "none", embedded: "none" }])).map((c) => c.id)).toEqual(["a"]);
+    expect(captionsChangeBurnIn(withHidden, undefined)).toBe(true);
+  });
   it("leaves out tracks that are not burned in", () => {
     const s = settings([{ captionTrackId: "es", burnIn: false, sidecar: "none", embedded: "none" }]);
     expect(burnedInSubtitles(cues, s).map((c) => c.id)).toEqual(["a"]);

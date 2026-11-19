@@ -379,6 +379,18 @@ export class InverseActionGenerator {
         });
       }
 
+      case "track/setSoloSafe": {
+        const track = timeline.tracks.find(
+          (t) => t.id === action.params.trackId,
+        );
+        if (!track) return null;
+
+        return this.createInverseAction(action, "track/setSoloSafe", {
+          trackId: action.params.trackId,
+          soloSafe: track.soloSafe === true,
+        });
+      }
+
       case "track/solo": {
         const track = timeline.tracks.find(
           (t) => t.id === action.params.trackId,

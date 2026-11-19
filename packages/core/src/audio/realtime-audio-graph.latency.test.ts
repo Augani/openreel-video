@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MasterTimelineClock } from "../playback/master-timeline-clock";
 import type { Effect } from "../types";
-import { RealtimeAudioGraph, type AudioClipSchedule } from "./realtime-audio-graph";
+import { RealtimeAudioGraph, SCHEDULE_START_LOOKAHEAD_SECONDS as LEAD, type AudioClipSchedule } from "./realtime-audio-graph";
 
 const SR = 48000;
 
@@ -91,8 +91,8 @@ describe("realtime scheduling compensates lookahead effects", () => {
     graph.scheduleClip(clip({ effects: [compressor] }));
     const lookahead = Math.floor(0.006 * SR) / SR;
     const [when, offset] = sources[0].start.mock.calls[0];
-    expect(when).toBe(0);
-    expect(offset).toBeCloseTo(3 + lookahead, 9);
+    expect(when).toBeCloseTo(10 + LEAD, 9); // context time (10) plus the start lead
+    expect(offset).toBeCloseTo(3 + lookahead + LEAD, 9);
   });
 
   it("a track rack with a limiter shifts every clip on every track by the graph latency", () => {

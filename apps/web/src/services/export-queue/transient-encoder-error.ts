@@ -24,15 +24,27 @@ export interface EncoderRetryOptions {
   readonly delayMs?: number;
 }
 
-export async function runWithEncoderRetry<T>(run: () => Promise<T>, options: EncoderRetryOptions = {}): Promise<T> {
+/** `run` receives the 1-based attempt number so a re-run can change strategy (e.g. fall back to a software encoder). */
+export async function runWithEncoderRetry<T>(run: (attempt: number) => Promise<T>, options: EncoderRetryOptions = {}): Promise<T> {
   const attempts = options.attempts ?? 2;
   for (let attempt = 1; ; attempt++) {
     try {
-      return await run();
+      return await run(attempt);
     } catch (error) {
       if (attempt >= attempts || !isTransientEncoderError(error) || options.shouldRetry?.(error, attempt + 1) === false) throw error;
       console.warn(`[export-queue] transient encoder failure (${(error as { message?: string }).message ?? error}); running the job again (attempt ${attempt + 1} of ${attempts}).`);
       await new Promise((resolve) => setTimeout(resolve, options.delayMs ?? 500));
     }
   }
+}
+
+/** A re-run only helps when it can change something: an explicit Hardware choice would repeat the same failing encoder. */
+export function canRetryInSoftware(encoderChoice: string | undefined): boolean {
+  return encoderChoice !== "hardware";
+}
+
+export function hardwareEncoderFailureMessage(error: unknown): string {
+  const detail = (error as { message?: unknown } | null)?.message;
+  const reason = typeof detail === "string" && detail ? detail : "the hardware encoder failed";
+  return `The hardware encoder failed (${reason}). Hardware was chosen in the export settings, so the export was not retried in software. Choose Auto or Software and export again.`;
 }

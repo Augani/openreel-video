@@ -14,3 +14,4 @@ export * from "./evaluate-keyframes";
 export * from "./keyframe-properties";
 export * from "./keyframe-bezier";
 export * from "./keyframe-clipboard";
+export * from "./keyframe-interpolation";

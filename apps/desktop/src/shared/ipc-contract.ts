@@ -311,7 +311,7 @@ export const windowControlArgsSchema = z.object({
 
 const ingestConfigSchema = z
   .object({
-    proxyProfile: z.object({ codec: z.enum(["prores-proxy", "h264"]), size: z.enum(["half", "quarter", "720p", "1080p"]) }).optional(),
+    proxyProfile: z.object({ codec: z.enum(["prores-proxy", "h264", "dnxhr-lb"]), size: z.enum(["half", "quarter", "720p", "1080p"]) }).optional(),
     proxyFolder: z.string().min(1).optional(),
     mediaFolder: z.string().min(1).optional(),
     concurrency: z.union([z.literal(1), z.literal(2)]).optional(),
@@ -333,7 +333,7 @@ export const ingestProxyEnqueueArgsSchema = ingestProjectSchema.extend({
         mediaId: z.string().min(1),
         name: z.string().min(1),
         srcPath: z.string().min(1),
-        profile: z.object({ codec: z.enum(["prores-proxy", "h264"]), size: z.enum(["half", "quarter", "720p", "1080p"]) }),
+        profile: z.object({ codec: z.enum(["prores-proxy", "h264", "dnxhr-lb"]), size: z.enum(["half", "quarter", "720p", "1080p"]) }),
         previewTwin: z.boolean(),
       }),
     )

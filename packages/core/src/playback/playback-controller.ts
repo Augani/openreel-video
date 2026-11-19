@@ -626,6 +626,7 @@ export class PlaybackController {
         pan: 0,
         muted: track.muted,
         solo: track.solo,
+        soloSafe: track.soloSafe === true,
         effects: [],
       });
 
@@ -667,7 +668,7 @@ export class PlaybackController {
           pan: getPanFromAudioEffects(clip.audioEffects || []),
           effects: getPreviewAudioEffects(clip.audioEffects || []),
           speed: clip.speed ?? 1,
-          ...resolveClipPlaybackAudioParams(clip, timeline),
+          ...resolveClipPlaybackAudioParams(clip, timeline, mediaItem),
           fadeIn: clip.fade?.fadeIn,
           fadeOut: clip.fade?.fadeOut,
           fadeOrigin: clip.fade?.origin,

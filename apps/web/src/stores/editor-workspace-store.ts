@@ -56,6 +56,9 @@ export const useEditorWorkspaceStore = create<{
   setLinkedSelection: (enabled: boolean) => void;
   section: AssetSection;
   setSection: (section: AssetSection) => void;
+  /** Markers panel view: sequence markers, or the clip / master-clip markers of timeline clips. */
+  markerScope: "sequence" | "clips";
+  setMarkerScope: (scope: "sequence" | "clips") => void;
   /** Marker the Markers panel should open for inline editing (set by Edit Marker / M twice). */
   editingMarkerId: string | null;
   setEditingMarkerId: (id: string | null) => void;
@@ -108,6 +111,8 @@ export const useEditorWorkspaceStore = create<{
   setLinkedSelection: (linkedSelection) => set({ linkedSelection }),
   section: "media",
   setSection: (section) => set({ section }),
+  markerScope: "sequence",
+  setMarkerScope: (markerScope) => set({ markerScope }),
   editingMarkerId: null,
   setEditingMarkerId: (editingMarkerId) => set({ editingMarkerId }),
   selectedMarkerId: null,

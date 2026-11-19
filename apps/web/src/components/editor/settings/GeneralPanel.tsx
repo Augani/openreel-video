@@ -3,7 +3,9 @@ import { useShallow } from "zustand/react/shallow";
 import { Button, Card, Checkbox, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, ToggleGroup, ToggleGroupItem, cn } from "@openreel/ui";
 import { useSettingsStore, SERVICE_REGISTRY, type TtsProvider, type LlmProvider, type AggregatorProvider } from "../../../stores/settings-store";
 import { useProjectStore } from "../../../stores/project-store";
+import { CHANNEL_PRESETS, CHANNEL_PRESET_LABELS, type ChannelPreset } from "@openreel/core";
 import { EDITING_FRAME_RATE_OPTIONS } from "../editing-frame-rate";
+import { AudioOutputSelect } from "./AudioOutputSelect";
 
 const ASPECT_PRESETS = [
   { label: "16:9 Landscape (1080p)", width: 1920, height: 1080 },
@@ -29,7 +31,7 @@ function PreferenceText({ label, value, onChange, placeholder }: { label: string
 export function GeneralPanel() {
   const preferences = useSettingsStore(useShallow(state => ({ autoSave: state.autoSave, autoSaveInterval: state.autoSaveInterval,
     defaultTtsProvider: state.defaultTtsProvider, defaultLlmProvider: state.defaultLlmProvider, llmBaseUrl: state.llmBaseUrl,
-    llmModel: state.llmModel, defaultAggregator: state.defaultAggregator, configuredServices: state.configuredServices })));
+    llmModel: state.llmModel, defaultAggregator: state.defaultAggregator, defaultAudioChannels: state.defaultAudioChannels, configuredServices: state.configuredServices })));
   const project = useProjectStore(state => state.project.settings);
   const projectId = useProjectStore(state => state.project.id);
   const backgroundFillMode = useProjectStore(state => state.project.timeline.backgroundFillMode);
@@ -70,9 +72,20 @@ export function GeneralPanel() {
       </div>
     </section>
     <hr className="border-border" />
+    <section className="space-y-3" aria-labelledby="audio-channels-settings-heading"><h3 id="audio-channels-settings-heading" className="text-sm font-medium">Audio</h3>
+      <Card className="flex flex-col justify-between gap-3 rounded-md bg-bg-2 p-3 shadow-none sm:flex-row sm:items-center"><div className="min-w-0"><h4 className="text-xs font-medium">Default audio channels</h4><p className="mt-1 text-[11px] leading-4 text-fg-2">Applies to files you import from now on. &quot;Use file&quot; keeps each file&apos;s own channels; Mono plays the first channel only, Stereo plays the first two channels. Change any clip later with Clip &gt; Audio Channels.</p></div>
+        <PreferenceSelect label="Default audio channels" value={preferences.defaultAudioChannels} options={CHANNEL_PRESETS.map(preset => ({ value: preset, label: CHANNEL_PRESET_LABELS[preset] }))} onChange={value => useSettingsStore.getState().setDefaultAudioChannels(value as ChannelPreset)} />
+      </Card>
+    </section>
+    <hr className="border-border" />
     <section className="space-y-3" aria-labelledby="autosave-settings-heading"><h3 id="autosave-settings-heading" className="text-sm font-medium">Auto-Save</h3>
       <div className="flex items-center justify-between gap-3"><div><Label htmlFor={autoSaveId} className="text-xs">Enable auto-save</Label><p id={`${autoSaveId}-description`} className="mt-1 text-[11px] leading-4 text-fg-2">Automatically save your project at regular intervals</p></div><Switch id={autoSaveId} aria-describedby={`${autoSaveId}-description`} checked={preferences.autoSave} onCheckedChange={value => useSettingsStore.getState().setAutoSave(value)} /></div>
       {preferences.autoSave && <div className="flex flex-col gap-2 sm:flex-row sm:items-center"><span className="text-xs text-fg-2">Save every</span><PreferenceSelect label="Auto-save interval" value={String(preferences.autoSaveInterval)} onChange={value => useSettingsStore.getState().setAutoSaveInterval(Number(value))} options={[1, 2, 5, 10, 15, 30].map(value => ({ value: String(value), label: `${value} minute${value === 1 ? "" : "s"}` }))} /></div>}
+    </section>
+    <hr className="border-border" />
+    <section className="space-y-3" aria-labelledby="audio-output-settings-heading"><h3 id="audio-output-settings-heading" className="text-sm font-medium">Audio Output</h3>
+      <div className="flex flex-col gap-2"><div className="min-w-0"><Label className="text-xs">Playback device</Label><p className="mt-1 text-[11px] leading-4 text-fg-2">Choose the speakers or headphones used for preview. Remembered between sessions; falls back to the system default if the device is unplugged.</p></div>
+        <AudioOutputSelect testId="prefs-audio-output" className="w-full max-w-[320px]" /></div>
     </section>
     <hr className="border-border" />
     <section className="space-y-3" aria-labelledby="connection-settings-heading"><h3 id="connection-settings-heading" className="text-sm font-medium">AI Connections</h3><p className="text-xs leading-5 text-fg-2">Connect a compatible endpoint you control. OpenReel does not choose a vendor or model for you.</p>

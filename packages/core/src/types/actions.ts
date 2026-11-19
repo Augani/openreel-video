@@ -160,7 +160,8 @@ export type TrackAction =
   | { type: "track/setSyncLock"; params: { trackId: string; syncLock: boolean } }
   | { type: "track/hide"; params: { trackId: string; hidden: boolean } }
   | { type: "track/mute"; params: { trackId: string; muted: boolean } }
-  | { type: "track/solo"; params: { trackId: string; solo: boolean } };
+  | { type: "track/solo"; params: { trackId: string; solo: boolean } }
+  | { type: "track/setSoloSafe"; params: { trackId: string; soloSafe: boolean } };
 
 // Clip actions
 export type ClipAction =

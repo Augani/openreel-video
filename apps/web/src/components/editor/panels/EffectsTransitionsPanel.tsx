@@ -24,6 +24,7 @@ import {
   setClipLutEnabled,
 } from "../../../services/editor-effect-application";
 import { PRO_EFFECT_PREVIEWS } from "./proEffectPreviews";
+import { BURN_IN_PREVIEWS } from "./burnInPreviews";
 
 // ─── Effect & Transition catalogs ──────────────────────────────────
 // Each item ships with a small CSS recipe used to animate the live
@@ -38,7 +39,8 @@ export type EffectCategory =
   | "Stylize"
   | "Keying"
   | "Distort"
-  | "Generate";
+  | "Generate"
+  | "Time";
 type EffectCategoryFilter =
   | "All"
   | "Adjust"
@@ -47,6 +49,7 @@ type EffectCategoryFilter =
   | "Distort"
   | "Generate"
   | "Keying"
+  | "Time"
   | "Plugins"
   | "Audio";
 const workspaceEffectCategories: EffectCategoryFilter[] = [
@@ -57,6 +60,7 @@ const workspaceEffectCategories: EffectCategoryFilter[] = [
   "Distort",
   "Generate",
   "Keying",
+  "Time",
   "Plugins",
   "Audio",
 ];
@@ -73,7 +77,8 @@ function matchesEffectCategory(
       ["Creative", "Stylize"].includes(effect.category)) ||
     (category === "Distort" && effect.category === "Distort") ||
     (category === "Generate" && effect.category === "Generate") ||
-    (category === "Keying" && effect.category === "Keying")
+    (category === "Keying" && effect.category === "Keying") ||
+    (category === "Time" && effect.category === "Time")
   );
 }
 
@@ -301,6 +306,7 @@ const ALL_EFFECT_PREVIEWS: EditorEffectPreviewDef[] = [
     }),
   },
   ...PRO_EFFECT_PREVIEWS,
+  ...BURN_IN_PREVIEWS,
   {
     id: "cinematic-punch",
     type: "contrast",
@@ -509,6 +515,7 @@ export const EDITOR_EFFECT_CATEGORIES: EffectCategory[] = [
   "Keying",
   "Distort",
   "Generate",
+  "Time",
 ];
 
 interface TransitionDef {

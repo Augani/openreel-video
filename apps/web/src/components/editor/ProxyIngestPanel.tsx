@@ -4,6 +4,8 @@ import { ChevronDown, ChevronRight } from "@/icons/lucide-compat";
 import {
   DESKTOP_PROXY_CODECS,
   DESKTOP_PROXY_SIZES,
+  PROXY_PRESETS,
+  proxyPresetForProfile,
   PROXY_STATE_LABEL,
   formatProxyCounts,
   proxyDisplayState,
@@ -11,11 +13,13 @@ import {
   resolveDesktopProxyProfile,
   summarizeProxyStates,
   type DesktopProxyCodec,
+  type ProxyPresetId,
   type DesktopProxySize,
   type IngestPreset,
   type MediaItem,
   type ProxyDisplayState,
 } from "@openreel/core";
+import { CreateProxiesDialog } from "./CreateProxiesDialog";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
 import { usePreviewProxyStore } from "../../stores/preview-proxy-store";
@@ -126,6 +130,7 @@ export const ProxyIngestPanel: React.FC = () => {
   const rows = useProxyRows();
   const [open, setOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const desktop = desktopIngestAvailable();
   const preset = useProjectStore((s) => s.project.mediaLibrary.ingestPreset ?? "none");
   const ingestConfig = useProjectStore((s) => s.project.mediaLibrary.desktopIngest);
@@ -246,11 +251,27 @@ export const ProxyIngestPanel: React.FC = () => {
           </div>
           {desktop ? (
             <div className="space-y-2" data-testid="desktop-ingest-settings">
+              <label className="block min-w-0 text-fg-muted">
+                Proxy preset
+                <Select
+                  value={proxyPresetForProfile(profile) ?? "custom"}
+                  onValueChange={(value) => {
+                    const chosen = PROXY_PRESETS.find((entry) => entry.id === (value as ProxyPresetId));
+                    if (chosen) void setDesktopProxyProfile(chosen.profile);
+                  }}
+                >
+                  <SelectTrigger aria-label="Proxy preset" className="mt-1 h-8 min-w-0 text-[11px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {PROXY_PRESETS.map((entry) => <SelectItem key={entry.id} value={entry.id}>{entry.label}</SelectItem>)}
+                    {proxyPresetForProfile(profile) === null && <SelectItem value="custom" disabled>Custom</SelectItem>}
+                  </SelectContent>
+                </Select>
+              </label>
               <div className="grid grid-cols-2 gap-2">
                 <label className="min-w-0 text-fg-muted">
                   Proxy format
                   <Select value={profile.codec} onValueChange={(value) => void setDesktopProxyProfile({ ...profile, codec: value as DesktopProxyCodec })}>
-                    <SelectTrigger aria-label="Proxy format" className="mt-1 h-8 min-w-0 text-[11px]"><SelectValue>{profile.codec === "prores-proxy" ? "ProRes Proxy" : "H.264"}</SelectValue></SelectTrigger>
+                    <SelectTrigger aria-label="Proxy format" className="mt-1 h-8 min-w-0 text-[11px]"><SelectValue>{profile.codec === "prores-proxy" ? "ProRes Proxy" : profile.codec === "dnxhr-lb" ? "DNxHR LB" : "H.264"}</SelectValue></SelectTrigger>
                     <SelectContent>
                       {DESKTOP_PROXY_CODECS.map((codec) => <SelectItem key={codec.id} value={codec.id}>{codec.label}</SelectItem>)}
                     </SelectContent>
@@ -331,6 +352,11 @@ export const ProxyIngestPanel: React.FC = () => {
             <Button type="button" variant="secondary" className={smallButton} onClick={create} disabled={!createTargets.length} aria-label="Create proxies">
               {targets.length ? "Create for selected" : "Create proxies"}
             </Button>
+            {desktop && (
+              <Button type="button" variant="secondary" className={smallButton} onClick={() => setDialogOpen(true)} disabled={!createTargets.length} aria-label="Create proxies with a preset">
+                Preset…
+              </Button>
+            )}
             <Button type="button" variant="secondary" className={smallButton} onClick={() => void retryFailed()} disabled={!counts.failed} aria-label="Retry failed proxies">
               Retry failed{counts.failed ? ` (${counts.failed})` : ""}
             </Button>
@@ -390,6 +416,15 @@ export const ProxyIngestPanel: React.FC = () => {
         </div>
       </PopoverContent>
       </Popover>
+      {desktop && (
+        <CreateProxiesDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          count={createTargets.length}
+          scopeLabel={targets.length ? "selected" : "without a proxy"}
+          onCreate={create}
+        />
+      )}
     </section>
   );
 };

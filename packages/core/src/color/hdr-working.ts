@@ -31,6 +31,7 @@ import { applyHdrEffects, type HdrLayerEffect } from "./hdr-effects";
 import { applyColorWheelsToRgb } from "../video/lumetri-pipeline";
 import { BT2020_TO_BT709, hlgInverseOetf, P3_TO_BT709, TONE_MAP_KNEE } from "./input-transform";
 import type { SourceColorSpace, SourceTransfer } from "./source-color";
+import { CAMERA_LOGS, cameraGamutToBt2020, cameraLogForShaderId, decodeCameraLog, type CameraGamutId } from "./camera-log";
 
 /**
  * Scene-referred HDR working mode.
@@ -84,7 +85,8 @@ export function isHdrWorkingMode(
 
 // -- source decode --------------------------------------------------------------------------------------------
 
-export type HdrTransferId = 0 | 1 | 2 | 3;
+/** 0 sRGB, 1 PQ, 2 HLG, 3 linear, 4..12 the camera log curves (`CAMERA_LOGS[n].shaderId`). */
+export type HdrTransferId = number;
 export const HDR_TRANSFER_SRGB: HdrTransferId = 0;
 export const HDR_TRANSFER_PQ: HdrTransferId = 1;
 export const HDR_TRANSFER_HLG: HdrTransferId = 2;
@@ -107,14 +109,29 @@ function transferId(transfer: SourceTransfer): HdrTransferId {
     case "linear":
       return HDR_TRANSFER_LINEAR;
     default:
-      return HDR_TRANSFER_SRGB;
+      return CAMERA_LOGS.find((d) => d.id === transfer)?.shaderId ?? HDR_TRANSFER_SRGB;
+  }
+}
+
+/** Source primaries to BT.2020 in linear light. */
+function primariesToBt2020(primaries: SourceColorSpace["primaries"]): Matrix3 {
+  switch (primaries) {
+    case "bt2020":
+      return IDENTITY;
+    case "p3":
+      return P3_TO_BT2020;
+    case "bt709":
+    case "bt601":
+      return BT709_TO_BT2020;
+    default:
+      return cameraGamutToBt2020(primaries as CameraGamutId);
   }
 }
 
 /** Decode description of footage. `null` (untagged / plain SDR) reads the canvas as sRGB Rec.709. */
 export function hdrSourceDecode(space: SourceColorSpace | null | undefined): HdrSourceDecode {
   if (!space) return SDR_DECODE;
-  const toBt2020 = space.primaries === "bt2020" ? IDENTITY : space.primaries === "p3" ? P3_TO_BT2020 : BT709_TO_BT2020;
+  const toBt2020 = primariesToBt2020(space.primaries);
   return { key: `${space.primaries}/${space.transfer}`, transfer: transferId(space.transfer), toBt2020 };
 }
 
@@ -125,6 +142,8 @@ export const HDR_OVERLAY_DECODE: HdrSourceDecode = SDR_DECODE;
 
 /** Signal 0..1 to scene-linear where 1.0 = SDR reference white (no clipping above 1). */
 export function decodeToWorkingLinear(signal: number, transfer: HdrTransferId): number {
+  const log = cameraLogForShaderId(transfer);
+  if (log) return decodeCameraLog(Math.max(0, Math.min(1, signal)), log.id);
   switch (transfer) {
     case HDR_TRANSFER_PQ:
       return pqDecodeToNits(signal) / PQ_SDR_WHITE_NITS;

@@ -173,6 +173,7 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
     lockTrack,
     muteTrack,
     soloTrack,
+    setTrackSoloSafe,
     renameTrack,
     removeTrack,
   } = useProjectStore(useShallow((state) => ({
@@ -191,6 +192,7 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
     lockTrack: state.lockTrack,
     muteTrack: state.muteTrack,
     soloTrack: state.soloTrack,
+    setTrackSoloSafe: state.setTrackSoloSafe,
     renameTrack: state.renameTrack,
     removeTrack: state.removeTrack,
   })));
@@ -1330,6 +1332,20 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
                                   }`}
                                 >
                                   S
+                                </ShadcnButton>
+                                <ShadcnButton variant="ghost" size="sm"
+                                  type="button"
+                                  aria-label={`Solo safe ${name}`}
+                                  title="Solo safe: stays audible when other tracks are soloed"
+                                  aria-pressed={!!track.soloSafe}
+                                  onClick={() => void setTrackSoloSafe(track.id, !track.soloSafe)}
+                                  className={`flex h-7 min-w-7 items-center justify-center rounded-md px-1 text-[10px] font-black transition-colors ${
+                                    track.soloSafe
+                                      ? "bg-accent text-bg hover:bg-accent/90"
+                                      : "text-fg-muted hover:bg-hover hover:text-fg"
+                                  }`}
+                                >
+                                  SF
                                 </ShadcnButton>
                               </>
                             ) : null}

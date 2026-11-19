@@ -99,7 +99,7 @@ test("music rows stream in with real progress and distinct waveforms", async ({ 
     rows.slice(0, 8).map((row) => [...row.querySelectorAll(".workspace-sound-waveform span")].map((b) => (b as HTMLElement).style.height).join(",")),
   );
   expect(new Set(shapes).size).toBe(shapes.length);
-  await page.screenshot({ path: "/private/tmp/verify-wa/media-audio-fix/music-loaded.png" });
+  await page.screenshot({ path: test.info().outputPath("music-loaded.png") });
 });
 
 test("an offline item that still has a thumbnail shows the hatched offline tile", async ({ page }) => {
@@ -121,7 +121,7 @@ test("an offline item that still has a thumbnail shows the hatched offline tile"
   await expect(tile).toBeVisible();
   await expect(tile).toContainText("Media offline");
   await expect(tile).toHaveClass(/has-thumbnail/);
-  await page.screenshot({ path: "/private/tmp/verify-wa/media-audio-fix/offline-with-thumbnail.png" });
+  await page.screenshot({ path: test.info().outputPath("offline-with-thumbnail.png") });
 });
 
 test("the media grid keeps most of the panel when an item is offline", async ({ page }) => {
@@ -135,5 +135,5 @@ test("the media grid keeps most of the panel when an item is offline", async ({ 
   expect(scroll!.height / panel!.height).toBeGreaterThan(0.5);
   // Header controls are one row: nothing may be truncated.
   await expect(page.getByTestId("missing-assets-bar")).toContainText("Relink");
-  await page.screenshot({ path: "/private/tmp/verify-wa/media-audio-fix/media-offline-layout.png" });
+  await page.screenshot({ path: test.info().outputPath("media-offline-layout.png") });
 });

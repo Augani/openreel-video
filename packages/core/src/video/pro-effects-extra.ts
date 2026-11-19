@@ -18,6 +18,12 @@
  * can be keyframed, validated and exposed to agents like any other number.
  * All randomness is a pure hash of (seed, clip-local time, position).
  */
+import {
+  applyUltraKey,
+  isUltraKeyNeutral,
+  ultraKeyGpuUniforms,
+  type UltraKeyParams,
+} from "./ultra-key";
 import type {
   ProEffectCategory,
   ProEffectParamSpec,
@@ -31,6 +37,7 @@ export const EXTRA_PRO_EFFECT_TYPES = [
   "tilt-shift",
   "luma-key",
   "color-key",
+  "ultra-key",
   "alpha-adjust",
   "leave-color",
   "change-to-color",
@@ -67,6 +74,7 @@ export function isExtraProEffectType(type: string): type is ExtraProEffectType {
 export const EXTRA_EFFECTS_WRITING_ALPHA: readonly ExtraProEffectType[] = [
   "luma-key",
   "color-key",
+  "ultra-key",
   "alpha-adjust",
   "corner-pin",
 ];
@@ -236,6 +244,37 @@ export const EXTRA_PRO_EFFECT_SPECS: Readonly<
       num("tolerance", "Tolerance", 0, 100, 1, 40, 0, "%"),
       num("softness", "Edge softness", 0, 100, 1, 10, 0, "%"),
       toggle("invert", "Keep key colour", false, false),
+    ],
+  ),
+  "ultra-key": spec(
+    "ultra-key",
+    "Ultra Key",
+    "Premiere-style chroma keyer: matte, cleanup, spill suppression and colour correction",
+    "Keying",
+    [
+      ...rgb("key", "Key", [0, 255, 0]),
+      num("transparency", "Transparency", 0, 100, 1, 45, 0, "%"),
+      num("highlight", "Highlight", 0, 100, 1, 10, 0, "%"),
+      num("shadow", "Shadow", 0, 100, 1, 50, 0, "%"),
+      num("tolerance", "Tolerance", 0, 100, 1, 50, 0, "%"),
+      num("pedestal", "Pedestal", 0, 100, 1, 0, 0, "%"),
+      num("choke", "Choke", 0, 100, 1, 0, 0),
+      num("soften", "Soften", 0, 100, 1, 0, 0),
+      num("contrast", "Contrast", 0, 100, 1, 0, 0),
+      num("midPoint", "Mid point", 0, 100, 1, 50, 50, "%"),
+      num("desaturate", "Desaturate", 0, 100, 1, 15, 0, "%"),
+      num("range", "Range", 0, 100, 1, 50, 0, "%"),
+      num("spill", "Spill", 0, 100, 1, 50, 0, "%"),
+      num("luma", "Luma", 0, 100, 1, 50, 0, "%"),
+      num("saturation", "Saturation", 0, 200, 1, 100, 100, "%"),
+      num("hue", "Hue", -180, 180, 1, 0, 0, "°"),
+      num("luminance", "Luminance", 0, 200, 1, 100, 100, "%"),
+      select("output", "Output", "composite", "composite", [
+        ["composite", "Composite"],
+        ["alpha", "Alpha channel"],
+        ["color", "Color channel"],
+        ["source", "Source (key picker)"],
+      ]),
     ],
   ),
   "alpha-adjust": spec(
@@ -620,6 +659,8 @@ export function isExtraNeutral(type: ExtraProEffectType, resolved: Params): bool
       return p.mode === "none";
     case "color-key":
       return n(p, "tolerance") === 0 && n(p, "softness") === 0 && !b(p, "invert");
+    case "ultra-key":
+      return isUltraKeyNeutral(p as unknown as UltraKeyParams);
     case "alpha-adjust":
       return (
         n(p, "opacity") === 100 && !b(p, "ignore") && !b(p, "invert") && !b(p, "matte")
@@ -1051,6 +1092,9 @@ export function applyExtraProEffect(
       }
       break;
     }
+    case "ultra-key":
+      applyUltraKey(data, width, height, p as unknown as UltraKeyParams);
+      break;
     case "alpha-adjust": {
       const opacity = n(p, "opacity") / 100;
       for (let o = 0; o < data.length; o += 4) {
@@ -1511,6 +1555,8 @@ export function extraProEffectGpuUniforms(
         softness: n(p, "softness"),
         invert: b(p, "invert") ? 1 : 0,
       };
+    case "ultra-key":
+      return ultraKeyGpuUniforms(p as unknown as UltraKeyParams);
     case "alpha-adjust":
       return {
         opacity: n(p, "opacity") / 100,

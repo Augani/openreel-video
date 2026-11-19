@@ -12,11 +12,18 @@ import {
   withProEffectTime,
   type ProEffectType,
 } from "./pro-effects";
+import {
+  hasBurnInEffects,
+  isBurnInEffectType,
+  isBurnInNeutral,
+  withBurnInText,
+  type BurnInSource,
+} from "./burn-in";
 import { isPluginEffectType, pluginIdFromEffectType } from "../plugins/manifest";
 import { getPluginRegistry } from "../plugins/registry";
 import { hasPluginKeyframes, hasTimeDrivenPluginEffects, samplePluginEffects } from "../plugins/plugin-keyframes";
 
-export type VideoEffectSource = Pick<Clip, "id"> & Partial<Pick<Clip, "effects" | "keyframes" | "transform" | "mediaId">>;
+export type VideoEffectSource = Pick<Clip, "id"> & Partial<Pick<Clip, "effects" | "keyframes" | "transform" | "mediaId" | "startTime" | "inPoint">>;
 const effectPropertyMap: ReadonlyArray<{ keyframeProp: string; effectType: string; paramKey: string }> = [
   // Older entry/exit presets stored bare blur; the explicit effect property wins when both are present.
   { keyframeProp: "blur", effectType: "blur", paramKey: "radius" },
@@ -81,6 +88,7 @@ export function isRenderableVideoEffect(effect: Effect): boolean {
     return effect.enabled && !!id && !!getPluginRegistry().get(id) && !getPluginRegistry().isBypassed(id);
   }
   if (isProEffectType(effect.type) && isProEffectNeutral(effect.type, effect.params)) return false;
+  if (isBurnInEffectType(effect.type) && isBurnInNeutral(effect.type, effect.params)) return false;
   return effect.enabled && !(effect.type === "blur" && typeof effect.params.radius === "number" && effect.params.radius <= 0);
 }
 
@@ -91,6 +99,8 @@ export function hasAnimatedVideoEffects(clip: Pick<VideoEffectSource, "keyframes
     hasAnimatedColorGrading(clip) ||
     // Time-driven effects (VHS / glitch) change every frame even without keyframes.
     (clip.effects?.some(isTimeVaryingProEffect) ?? false) ||
+    // Burn-ins (timecode, names) draw text resolved from the clip's position, so they are sampled per frame too.
+    hasBurnInEffects(clip) ||
     // Keyframed plugin parameters and time driven plugins (grain, flicker) are sampled per frame.
     hasPluginKeyframes(clip) ||
     hasTimeDrivenPluginEffects(clip)
@@ -98,11 +108,13 @@ export function hasAnimatedVideoEffects(clip: Pick<VideoEffectSource, "keyframes
 }
 
 /** Sample the same effect stack for preview, playback, transitions and export. */
-export function getAnimatedVideoEffects(clip: VideoEffectSource, localTime: number): Effect[] {
+export function getAnimatedVideoEffects(clip: VideoEffectSource, localTime: number, burnIn?: BurnInSource): Effect[] {
   // Time-driven pro effects get the clip-local time added last so preview,
   // playback and export agree; the array is returned unchanged otherwise.
   const sampled = samplePluginEffects(sampleKeyframedEffects(clip, localTime), clip.keyframes, localTime);
-  return withProEffectTime(sampled, localTime) as Effect[];
+  const timed = withProEffectTime(sampled, localTime) as Effect[];
+  // Burn-ins read the clip's place on the timeline and in its source, so they need the project's burn-in source.
+  return withBurnInText(timed, clip, localTime, burnIn) as Effect[];
 }
 
 function sampleKeyframedEffects(clip: VideoEffectSource, localTime: number): Effect[] {

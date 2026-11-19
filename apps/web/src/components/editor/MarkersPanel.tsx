@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { MARKER_KINDS, sortMarkers, type Marker, type MarkerKind } from "@openreel/core";
 import { Button, Input } from "@openreel/ui";
 import { Bookmark, Download, Plus, Trash2 } from "@/icons/lucide-compat";
+import { ClipMarkersList } from "./ClipMarkersList";
 import { useEditorWorkspaceStore } from "../../stores/editor-workspace-store";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
@@ -50,6 +51,8 @@ export function MarkersPanel() {
   const selectedId = useEditorWorkspaceStore((s) => s.selectedMarkerId);
   const setSelectedId = useEditorWorkspaceStore((s) => s.setSelectedMarkerId);
   const playhead = useTimelineStore((s) => s.playheadPosition);
+  const scope = useEditorWorkspaceStore((s) => s.markerScope);
+  const setScope = useEditorWorkspaceStore((s) => s.setMarkerScope);
 
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<MarkerKind | "all">("all");
@@ -168,7 +171,7 @@ export function MarkersPanel() {
               {markers.length}
             </span>
           </h2>
-          <div className="flex gap-1">
+          <div className={`flex gap-1 ${scope === "clips" ? "hidden" : ""}`}>
             <Button
               variant="ghost"
               size="sm"
@@ -192,15 +195,30 @@ export function MarkersPanel() {
             </Button>
           </div>
         </div>
-        <Input
+        <div role="tablist" aria-label="Marker scope" className="flex gap-1 rounded-md bg-bg-2 p-0.5">
+          {(["sequence", "clips"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={scope === value}
+              data-testid={`markers-scope-${value}`}
+              onClick={() => setScope(value)}
+              className={`h-6 flex-1 rounded px-2 text-[12px] ${scope === value ? "bg-bg-1 font-medium text-fg shadow-sm" : "text-fg-muted hover:text-fg"}`}
+            >
+              {value === "sequence" ? "Sequence" : "Clips"}
+            </button>
+          ))}
+        </div>
+        {scope === "sequence" && <Input
           aria-label="Search markers"
           placeholder="Search names and comments"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => event.stopPropagation()}
           className="h-7 text-[12px]"
-        />
-        <div className="flex gap-2">
+        />}
+        {scope === "sequence" && <div className="flex gap-2">
           <select
             aria-label="Filter by type"
             className={`${SELECT_CLASS} flex-1`}
@@ -227,11 +245,13 @@ export function MarkersPanel() {
               </option>
             ))}
           </select>
-        </div>
+        </div>}
       </header>
 
       <div className="min-h-0 flex-1 overflow-auto">
-        {markers.length === 0 ? (
+        {scope === "clips" ? (
+          <ClipMarkersList />
+        ) : markers.length === 0 ? (
           <p className="px-4 py-8 text-center text-[12px] text-fg-muted" data-testid="markers-empty">
             No markers yet. Press M to drop one at the playhead, or Alt-drag the ruler for a range.
           </p>
@@ -409,12 +429,12 @@ export function MarkersPanel() {
         )}
       </div>
 
-      <footer className="flex items-center gap-1.5 border-t border-border px-3 py-2">
+      {scope === "sequence" && <footer className="flex items-center gap-1.5 border-t border-border px-3 py-2">
         <span className="mr-auto text-[11px] text-fg-muted">Export</span>
         {exportButton("chapters", "Chapters")}
         {exportButton("csv", "CSV")}
         {exportButton("edl", "EDL")}
-      </footer>
+      </footer>}
     </section>
   );
 }

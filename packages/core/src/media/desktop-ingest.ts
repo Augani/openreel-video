@@ -16,6 +16,7 @@ import { proxyMatchKey, type ProxyDisplayState } from "./proxy-workflow";
 
 export const DESKTOP_PROXY_CODECS: readonly { id: DesktopProxyCodec; label: string; extension: "mov" | "mp4" }[] = [
   { id: "prores-proxy", label: "ProRes 422 Proxy (.mov)", extension: "mov" },
+  { id: "dnxhr-lb", label: "DNxHR LB (.mov)", extension: "mov" },
   { id: "h264", label: "H.264 (.mp4)", extension: "mp4" },
 ];
 
@@ -28,7 +29,7 @@ export const DESKTOP_PROXY_SIZES: readonly { id: DesktopProxySize; label: string
 
 export const DEFAULT_DESKTOP_PROXY_PROFILE: DesktopProxyProfile = { codec: "h264", size: "half" };
 
-export const isDesktopProxyCodec = (value: unknown): value is DesktopProxyCodec => value === "prores-proxy" || value === "h264";
+export const isDesktopProxyCodec = (value: unknown): value is DesktopProxyCodec => value === "prores-proxy" || value === "h264" || value === "dnxhr-lb";
 export const isDesktopProxySize = (value: unknown): value is DesktopProxySize =>
   value === "half" || value === "quarter" || value === "720p" || value === "1080p";
 
@@ -56,7 +57,7 @@ export const resolveDesktopProxyProfile = (project: Pick<Project, "mediaLibrary"
 export const resolveDesktopConcurrency = (project: Pick<Project, "mediaLibrary">): 1 | 2 =>
   project.mediaLibrary.desktopIngest?.concurrency ?? 1;
 
-export const desktopProxyExtension = (codec: DesktopProxyCodec): "mov" | "mp4" => (codec === "prores-proxy" ? "mov" : "mp4");
+export const desktopProxyExtension = (codec: DesktopProxyCodec): "mov" | "mp4" => (codec === "h264" ? "mp4" : "mov");
 
 export function describeDesktopProxyProfile(profile: DesktopProxyProfile): string {
   const codec = DESKTOP_PROXY_CODECS.find((entry) => entry.id === profile.codec)?.label ?? profile.codec;

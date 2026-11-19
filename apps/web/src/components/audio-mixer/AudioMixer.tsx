@@ -46,6 +46,7 @@ import { AudioRackSection } from "./AudioRackSection";
 import { LoudnessPanel } from "./LoudnessPanel";
 import { BusStrip } from "./BusStrip";
 import { commitRoutingPlan } from "./routing-ui";
+import { AudioOutputSelect } from "../editor/settings/AudioOutputSelect";
 import { exportStemsAsDownloads } from "../../services/audio-stems";
 import { toast } from "../../stores/notification-store";
 import { createMixerChannelSelector } from "../../services/audio-mixer-channels";
@@ -269,6 +270,7 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
       pan: trackPans[track.id] ?? 0,
       muted: track.muted,
       solo: track.solo,
+      soloSafe: track.soloSafe === true,
       rack: track.audioRack,
       output: track.output,
       sends: track.sends,
@@ -450,9 +452,9 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
       aria-label="Audio Mixing Console"
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <span className="font-semibold text-lg text-fg">Audio Mixer</span>
-        <div className="ml-3 flex items-center gap-1.5" data-testid="mixer-channel-layout-group">
+      <div className="mb-4 flex flex-wrap items-center gap-y-2">
+        <span className="whitespace-nowrap text-lg font-semibold text-fg">Audio Mixer</span>
+        <div className="ml-3 flex shrink-0 items-center gap-1.5" data-testid="mixer-channel-layout-group">
           <span className="text-xs text-fg-muted" id="mixer-channel-layout-label">Sequence audio</span>
           <Select value={channelLayout} onValueChange={(next) => void setSequenceChannelLayout(next as ChannelLayout)}>
             <SelectTrigger className="h-7 w-[140px] text-xs" aria-labelledby="mixer-channel-layout-label" data-testid="mixer-channel-layout">
@@ -466,6 +468,10 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
               ))}
             </SelectContent>
           </Select>
+        </div>
+        <div className="ml-3 flex shrink-0 items-center gap-1.5" data-testid="mixer-output-device-group">
+          <span className="text-xs text-fg-muted">Output</span>
+          <AudioOutputSelect compact testId="mixer-audio-output" />
         </div>
         <div className="ml-auto mr-2 flex flex-wrap items-center justify-end gap-1.5" data-testid="mixer-routing-actions">
           <Button type="button" variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={addBus} data-testid="add-bus">
