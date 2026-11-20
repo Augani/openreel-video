@@ -63,13 +63,16 @@ describe("watch render planning", () => {
   it("reads progress from ffmpeg's out_time and picks unique output names", () => {
     expect(parseOutTimeSeconds("frame=1\nout_time_us=1500000\nprogress=continue\nout_time_us=2500000")).toBe(2.5);
     expect(parseOutTimeSeconds("nothing")).toBeNull();
-    const taken = new Set(["/o/a.mp4", "/o/a-1.mp4"]);
-    expect(uniquePath("/o", "a", "mp4", (p) => taken.has(p))).toBe("/o/a-2.mp4");
-    expect(uniquePath("/o", "b", "mp4", (p) => taken.has(p))).toBe("/o/b.mp4");
+    const taken = new Set([path.join("/o", "a.mp4"), path.join("/o", "a-1.mp4")]);
+    expect(uniquePath("/o", "a", "mp4", (p) => taken.has(p))).toBe(path.join("/o", "a-2.mp4"));
+    expect(uniquePath("/o", "b", "mp4", (p) => taken.has(p))).toBe(path.join("/o", "b.mp4"));
   });
 });
 
-describe.skipIf(!haveFfmpeg)("watch render with a real ffmpeg", () => {
+// Real encodes (1080p H.264 of a 2 s clip) are slow on shared CI runners; give them room.
+const FFMPEG_TEST_TIMEOUT = 60_000;
+
+describe.skipIf(!haveFfmpeg)("watch render with a real ffmpeg", { timeout: FFMPEG_TEST_TIMEOUT }, () => {
   let dir = "";
   let clip = "";
   const deps: RenderDeps = {
@@ -83,7 +86,7 @@ describe.skipIf(!haveFfmpeg)("watch render with a real ffmpeg", () => {
     isHardwareEncoder: () => false,
   };
   beforeAll(() => {
-    dir = fs.mkdtempSync(path.join(os.tmpdir(), "watch-render-"));
+    dir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "watch-render-")));
     clip = path.join(dir, "source.mov");
     execFileSync(FFMPEG, ["-v", "error", "-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=25:duration=2", "-f", "lavfi", "-i", "sine=frequency=440:duration=2", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", "-y", clip]);
   });
