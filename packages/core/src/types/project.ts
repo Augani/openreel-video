@@ -47,6 +47,14 @@ export interface ProjectSettings {
   /** Absent = Rec.709. */
   readonly workingColorSpace?: WorkingColorSpace;
   /**
+   * Project colour management. Absent / "display-referred": the classic display-referred pipeline, unchanged.
+   * "aces": footage goes through an ACES Input Transform (IDT) to ACEScg, grading runs in ACEScct, and the picture
+   * leaves through the ACES Output Transform (RRT + ODT). See `color/aces.ts`.
+   */
+  readonly colorManagement?: import("../color/aces").ColorManagementMode;
+  /** ACES mode only: the SDR Output Transform of the monitor and of SDR exports. Absent = sRGB. HDR exports pick the Rec.2020 PQ / HLG transforms. */
+  readonly acesOutput?: import("../color/aces").AcesSdrOutput;
+  /**
    * HDR working mode only: the luminance, in nits, that the white of 8-bit graphics (titles, shapes, stickers,
    * subtitles, motion graphics) is placed at. Absent = 203 nits, ITU-R BT.2408 graphics white. 80 to 1000.
    */

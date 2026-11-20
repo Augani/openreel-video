@@ -68,6 +68,8 @@ import * as hueCurvesModule from "@openreel/core/video/hue-curves";
 import * as lumetriPipelineModule from "@openreel/core/video/lumetri-pipeline";
 import * as hdrWorkingModule from "@openreel/core/color/hdr-working";
 import * as cameraLogModule from "@openreel/core/color/camera-log";
+import * as acesModule from "@openreel/core/color/aces";
+import * as acesOutputModule from "@openreel/core/color/aces-output";
 import * as inputTransformModule from "@openreel/core/color/input-transform";
 import * as hdrGpuModule from "@openreel/core/video/hdr-gpu";
 import * as colorOutputModule from "@openreel/core/export/color-output";
@@ -233,6 +235,8 @@ export function installE2EHook(): void {
       lumetriPipeline: lumetriPipelineModule,
       hdrWorking: hdrWorkingModule,
       cameraLog: cameraLogModule,
+      aces: acesModule,
+      acesOutput: acesOutputModule,
       inputTransform: inputTransformModule,
       hdrGpu: hdrGpuModule,
       colorOutput: colorOutputModule,

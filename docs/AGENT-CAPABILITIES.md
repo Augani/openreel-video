@@ -4735,3 +4735,7 @@ The agent exposes **453 tools** spanning read/observe, project, track, clip, tra
   }
 }
 ```
+
+## Colour management (not exposed)
+
+The ACES colour-management mode (`settings.colorManagement`, `settings.acesOutput`) and the per-clip input colour space override (`clip/setColorInterpretation`) are undoable actions but have no agent / MCP tool yet: `update_project_settings` does not list them in its schema, and there is no tool for the clip action. The footage-level Interpret Footage colour choice is unchanged.

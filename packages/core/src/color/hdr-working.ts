@@ -32,6 +32,15 @@ import { applyColorWheelsToRgb } from "../video/lumetri-pipeline";
 import { BT2020_TO_BT709, hlgInverseOetf, P3_TO_BT709, TONE_MAP_KNEE } from "./input-transform";
 import type { SourceColorSpace, SourceTransfer } from "./source-color";
 import { CAMERA_LOGS, cameraGamutToBt2020, cameraLogForShaderId, decodeCameraLog, type CameraGamutId } from "./camera-log";
+import {
+  acescctDecode,
+  acescctEncode,
+  ACESCCT_WHITE,
+  gamutToAp1,
+  isAcesMode,
+  type AcesOutputId,
+  type AcesSdrOutput,
+} from "./aces";
 
 /**
  * Scene-referred HDR working mode.
@@ -77,26 +86,65 @@ export const P3_TO_BT2020: Matrix3 = /* @__PURE__ */ mul3(BT709_TO_BT2020, P3_TO
 
 /** True when the project's frames should be composed in float. SDR Rec.709 projects with no HDR output never are. */
 export function isHdrWorkingMode(
-  settings: Pick<ProjectSettings, "workingColorSpace"> | undefined,
+  settings: Pick<ProjectSettings, "workingColorSpace" | "colorManagement"> | undefined,
   hdr: HdrTransfer | undefined,
 ): boolean {
-  return settings?.workingColorSpace === "rec2020" || hdr === "pq" || hdr === "hlg";
+  return settings?.workingColorSpace === "rec2020" || hdr === "pq" || hdr === "hlg" || isAcesMode(settings);
+}
+
+/** `acesOutputTransform` of `color/aces-output.ts`, registered by whoever runs the ACES pipeline (the video engine, tests). */
+export type AcesOutputFn = (r: number, g: number, b: number, output: AcesOutputId, out: number[]) => number[];
+let acesOutputFn: AcesOutputFn | null = null;
+
+/**
+ * The Output Transform (RRT + ODT) is ~10 KB of tables and splines only the compositors run, so it lives in its own module
+ * that the startup bundle never imports; the code that runs an ACES pipeline hands it over here.
+ */
+export function registerAcesOutputTransform(fn: AcesOutputFn): void {
+  acesOutputFn = fn;
+}
+
+function acesOutput(): AcesOutputFn {
+  if (!acesOutputFn) throw new Error("The ACES output transform is not loaded: call registerAcesOutputTransform(acesOutputTransform) from color/aces-output.");
+  return acesOutputFn;
+}
+
+/**
+ * Which colour pipeline the float compositor runs.
+ *   scene-hdr  working space scene-linear BT.2020, grading in PQ, SDR view / HDR encode by tone map (the Rec.2020 / HDR mode)
+ *   aces       working space ACEScg (AP1), grading in ACEScct, SDR view / encode through the ACES Output Transform (RRT + ODT)
+ */
+export type HdrColorPipeline =
+  | { readonly kind: "scene-hdr" }
+  | { readonly kind: "aces"; readonly sdrOutput: AcesSdrOutput };
+
+export const SCENE_HDR_PIPELINE: HdrColorPipeline = { kind: "scene-hdr" };
+
+export function acesPipeline(sdrOutput: AcesSdrOutput = "srgb"): HdrColorPipeline {
+  return { kind: "aces", sdrOutput };
+}
+
+/** The pipeline a project's settings select. */
+export function hdrPipelineFor(settings: Pick<ProjectSettings, "colorManagement" | "acesOutput"> | undefined): HdrColorPipeline {
+  return isAcesMode(settings) ? acesPipeline(settings?.acesOutput === "rec709" ? "rec709" : "srgb") : SCENE_HDR_PIPELINE;
 }
 
 // -- source decode --------------------------------------------------------------------------------------------
 
-/** 0 sRGB, 1 PQ, 2 HLG, 3 linear, 4..12 the camera log curves (`CAMERA_LOGS[n].shaderId`). */
+/** 0 sRGB, 1 PQ, 2 HLG, 3 linear, 4..12 the camera log curves (`CAMERA_LOGS[n].shaderId`), 13 ACEScct. */
 export type HdrTransferId = number;
 export const HDR_TRANSFER_SRGB: HdrTransferId = 0;
 export const HDR_TRANSFER_PQ: HdrTransferId = 1;
 export const HDR_TRANSFER_HLG: HdrTransferId = 2;
 export const HDR_TRANSFER_LINEAR: HdrTransferId = 3;
+/** ACEScct footage (4..12 are the camera log curves). */
+export const HDR_TRANSFER_ACESCCT: HdrTransferId = 13;
 
 export interface HdrSourceDecode {
   /** Stable identity: equal keys decode identically. */
   readonly key: string;
   readonly transfer: HdrTransferId;
-  /** Source primaries to BT.2020, in linear light. */
+  /** Source primaries to the working primaries (BT.2020 in the scene-hdr pipeline, AP1 / ACEScg in the aces pipeline), in linear light. */
   readonly toBt2020: Matrix3;
 }
 
@@ -108,6 +156,8 @@ function transferId(transfer: SourceTransfer): HdrTransferId {
       return HDR_TRANSFER_HLG;
     case "linear":
       return HDR_TRANSFER_LINEAR;
+    case "acescct":
+      return HDR_TRANSFER_ACESCCT;
     default:
       return CAMERA_LOGS.find((d) => d.id === transfer)?.shaderId ?? HDR_TRANSFER_SRGB;
   }
@@ -128,8 +178,29 @@ function primariesToBt2020(primaries: SourceColorSpace["primaries"]): Matrix3 {
   }
 }
 
-/** Decode description of footage. `null` (untagged / plain SDR) reads the canvas as sRGB Rec.709. */
-export function hdrSourceDecode(space: SourceColorSpace | null | undefined): HdrSourceDecode {
+/** The gamut id the ACES input transform takes a source's primaries as. */
+function acesGamutOf(primaries: SourceColorSpace["primaries"]): CameraGamutId | "rec709" | "p3" {
+  switch (primaries) {
+    case "bt709":
+    case "bt601":
+      return "rec709";
+    case "p3":
+      return "p3";
+    default:
+      return primaries as CameraGamutId;
+  }
+}
+
+/**
+ * Decode description of footage. `null` (untagged / plain SDR) reads the canvas as sRGB Rec.709.
+ * In the aces pipeline this is the Input Transform (IDT): the same code-value decode, then the source primaries to
+ * AP1 with a Bradford adaptation to the ACES white.
+ */
+export function hdrSourceDecode(space: SourceColorSpace | null | undefined, pipeline: HdrColorPipeline = SCENE_HDR_PIPELINE): HdrSourceDecode {
+  if (pipeline.kind === "aces") {
+    if (!space) return ACES_SDR_DECODE;
+    return { key: `aces:${space.primaries}/${space.transfer}`, transfer: transferId(space.transfer), toBt2020: gamutToAp1(acesGamutOf(space.primaries)) };
+  }
   if (!space) return SDR_DECODE;
   const toBt2020 = primariesToBt2020(space.primaries);
   return { key: `${space.primaries}/${space.transfer}`, transfer: transferId(space.transfer), toBt2020 };
@@ -137,8 +208,16 @@ export function hdrSourceDecode(space: SourceColorSpace | null | undefined): Hdr
 
 export const SDR_DECODE: HdrSourceDecode = { key: "bt709/srgb", transfer: HDR_TRANSFER_SRGB, toBt2020: BT709_TO_BT2020 };
 
+/** sRGB / Rec.709 footage through the ACES input transform (sRGB EOTF, Rec.709 primaries to AP1). */
+export const ACES_SDR_DECODE: HdrSourceDecode = { key: "aces:bt709/srgb", transfer: HDR_TRANSFER_SRGB, toBt2020: /* @__PURE__ */ gamutToAp1("rec709") };
+
 /** Graphics white: where 8-bit sRGB overlays sit in the working space. */
 export const HDR_OVERLAY_DECODE: HdrSourceDecode = SDR_DECODE;
+
+/** Where 8-bit overlays enter: sRGB white in the working primaries of the pipeline. */
+export function overlayDecodeFor(pipeline: HdrColorPipeline): HdrSourceDecode {
+  return pipeline.kind === "aces" ? ACES_SDR_DECODE : HDR_OVERLAY_DECODE;
+}
 
 /** Signal 0..1 to scene-linear where 1.0 = SDR reference white (no clipping above 1). */
 export function decodeToWorkingLinear(signal: number, transfer: HdrTransferId): number {
@@ -151,6 +230,8 @@ export function decodeToWorkingLinear(signal: number, transfer: HdrTransferId): 
       return hlgInverseOetf(signal) / HLG_SDR_WHITE_SCENE;
     case HDR_TRANSFER_LINEAR:
       return signal;
+    case HDR_TRANSFER_ACESCCT:
+      return acescctDecode(signal);
     default:
       return srgbToLinear(signal);
   }
@@ -236,6 +317,8 @@ export interface HdrGradeSpec {
   readonly hsl: HdrHslSpec | null;
   /** Radial vignette in source-frame coordinates. Needs a position, see `HdrGradePosition`. */
   readonly vignette: VignetteValues | null;
+  /** Grade in ACEScct instead of the PQ working encoding (the aces pipeline). */
+  readonly acescct?: boolean;
 }
 
 /** Colour space a clip's LUT was authored for (its input domain). */
@@ -365,7 +448,7 @@ function clampUnit(v: number | undefined): number {
 }
 
 /** Bakes a clip's grading into the data both the GPU pass and the CPU reference read. Null: nothing to do. */
-export function prepareHdrGrade(grading: ClipColorGrading | undefined): HdrGradeSpec | null {
+export function prepareHdrGrade(grading: ClipColorGrading | undefined, pipeline: HdrColorPipeline = SCENE_HDR_PIPELINE): HdrGradeSpec | null {
   if (!grading) return null;
   const exposure = clampUnit(grading.tone?.exposure);
   const temperature = (grading.temperature ?? 0) / 100;
@@ -405,6 +488,7 @@ export function prepareHdrGrade(grading: ClipColorGrading | undefined): HdrGrade
     lut,
     hsl,
     vignette,
+    ...(pipeline.kind === "aces" ? { acescct: true } : {}),
   };
   return isNeutralHdrGrade(spec) ? null : spec;
 }
@@ -484,9 +568,14 @@ export function gradeHdrPixel(r: number, g: number, b: number, spec: HdrGradeSpe
     g *= spec.exposureGain;
     b *= spec.exposureGain;
   }
-  r = linearToPqWorking(r);
-  g = linearToPqWorking(g);
-  b = linearToPqWorking(b);
+  const cct = spec.acescct === true;
+  // The grade's working encoding: PQ (scene-hdr) or ACEScct (aces; negative light is floored at 0 like PQ's).
+  const enc = cct ? (v: number): number => acescctEncode(Math.max(0, v)) : linearToPqWorking;
+  const dec = cct ? acescctDecode : pqWorkingToLinear;
+  const white = cct ? ACESCCT_WHITE : PQ_WORKING_WHITE;
+  r = enc(r);
+  g = enc(g);
+  b = enc(b);
   if (spec.whiteBalance) {
     const wb = spec.whiteBalance;
     r = Math.max(0, Math.min(1, r + wb[0]));
@@ -511,9 +600,9 @@ export function gradeHdrPixel(r: number, g: number, b: number, spec: HdrGradeSpe
     // The LUT sees the image in its declared space. Signal above 1.0 (highlights over SDR white in an sRGB or
     // linear LUT) bypasses the table and is added back on top of its output, so the grade never clips what it
     // cannot address.
-    const er = lutDomainEncode(pqWorkingToLinear(r), lut.space);
-    const eg = lutDomainEncode(pqWorkingToLinear(g), lut.space);
-    const eb = lutDomainEncode(pqWorkingToLinear(b), lut.space);
+    const er = lutDomainEncode(dec(r), lut.space);
+    const eg = lutDomainEncode(dec(g), lut.space);
+    const eb = lutDomainEncode(dec(b), lut.space);
     // An exact 1D curve addresses its own domain; signal above its domainMax bypasses it like the 3D table.
     const cr = Math.min(lut.curve ? lut.curve.domainMax[0] : 1, er);
     const cg = Math.min(lut.curve ? lut.curve.domainMax[1] : 1, eg);
@@ -525,9 +614,9 @@ export function gradeHdrPixel(r: number, g: number, b: number, spec: HdrGradeSpe
     const outR = er + (mapped[0] + (er - cr) - er) * k;
     const outG = eg + (mapped[1] + (eg - cg) - eg) * k;
     const outB = eb + (mapped[2] + (eb - cb) - eb) * k;
-    r = linearToPqWorking(lutDomainDecode(outR, lut.space));
-    g = linearToPqWorking(lutDomainDecode(outG, lut.space));
-    b = linearToPqWorking(lutDomainDecode(outB, lut.space));
+    r = enc(lutDomainDecode(outR, lut.space));
+    g = enc(lutDomainDecode(outG, lut.space));
+    b = enc(lutDomainDecode(outB, lut.space));
   }
   if (spec.hsl) {
     const hsl = spec.hsl;
@@ -551,13 +640,13 @@ export function gradeHdrPixel(r: number, g: number, b: number, spec: HdrGradeSpe
         b *= gain;
       } else {
         const lift = amount * w;
-        r += Math.max(PQ_WORKING_WHITE - r, 0) * lift;
-        g += Math.max(PQ_WORKING_WHITE - g, 0) * lift;
-        b += Math.max(PQ_WORKING_WHITE - b, 0) * lift;
+        r += Math.max(white - r, 0) * lift;
+        g += Math.max(white - g, 0) * lift;
+        b += Math.max(white - b, 0) * lift;
       }
     }
   }
-  return [pqWorkingToLinear(r), pqWorkingToLinear(g), pqWorkingToLinear(b)];
+  return [dec(r), dec(g), dec(b)];
 }
 
 // -- geometry -------------------------------------------------------------------------------------------------
@@ -659,6 +748,8 @@ export interface HdrFrame {
 
 export interface HdrCompositor {
   readonly kind: "gpu" | "cpu";
+  /** Which colour pipeline the compositor runs (overlay entry, SDR view, encode). Default scene-hdr. Persists across frames. */
+  setColorPipeline(pipeline: HdrColorPipeline): void;
   begin(width: number, height: number): void;
   /** Sets where 8-bit overlays (graphics) sit, as the nits of their white. Default 203. Persists across frames. */
   setGraphicsWhite(nits: number): void;
@@ -709,6 +800,11 @@ export class CpuHdrCompositor implements HdrCompositor {
   private height = 0;
   private acc = new Float32Array(0);
   private overlayGain = 1;
+  private pipeline: HdrColorPipeline = SCENE_HDR_PIPELINE;
+
+  setColorPipeline(pipeline: HdrColorPipeline): void {
+    this.pipeline = pipeline;
+  }
 
   setGraphicsWhite(nits: number): void {
     this.overlayGain = graphicsWhiteGain(nits);
@@ -784,7 +880,7 @@ export class CpuHdrCompositor implements HdrCompositor {
     if (pixels.width !== this.width || pixels.height !== this.height) throw new Error("Overlay size does not match the HDR frame.");
     const lut = decodeLut8(HDR_TRANSFER_SRGB);
     const gain = this.overlayGain;
-    const [m0, m1, m2] = HDR_OVERLAY_DECODE.toBt2020;
+    const [m0, m1, m2] = overlayDecodeFor(this.pipeline).toBt2020;
     const src = pixels.data as ArrayLike<number>;
     const acc = this.acc;
     const n = this.width * this.height;
@@ -803,7 +899,7 @@ export class CpuHdrCompositor implements HdrCompositor {
   }
 
   readSdrView(): Uint8ClampedArray {
-    return hdrFrameToSdrRgba(this.readFrame());
+    return hdrFrameToSdrRgba(this.readFrame(), this.pipeline);
   }
 
   readFrame(): HdrFrame {
@@ -811,7 +907,7 @@ export class CpuHdrCompositor implements HdrCompositor {
   }
 
   readEncodedRgb(spec: OutputColorSpec): Float32Array {
-    return encodeHdrFrameRgb({ width: this.width, height: this.height, data: this.acc }, spec);
+    return encodeHdrFrameRgb({ width: this.width, height: this.height, data: this.acc }, spec, this.pipeline);
   }
 
   dispose(): void {
@@ -872,9 +968,22 @@ function srgbEncode(linear: number): number {
  * sRGB. This is what the preview canvas shows and what an SDR export of an HDR
  * project contains.
  */
-export function hdrFrameToSdrRgba(frame: HdrFrame): Uint8ClampedArray {
+export function hdrFrameToSdrRgba(frame: HdrFrame, pipeline: HdrColorPipeline = SCENE_HDR_PIPELINE): Uint8ClampedArray {
   const n = frame.width * frame.height;
   const out = new Uint8ClampedArray(n * 4);
+  if (pipeline.kind === "aces") {
+    const d = frame.data;
+    const rgb = [0, 0, 0];
+    const transform = acesOutput();
+    for (let p = 0, o = 0; p < n; p++, o += 4) {
+      transform(Math.max(0, d[o]), Math.max(0, d[o + 1]), Math.max(0, d[o + 2]), pipeline.sdrOutput, rgb);
+      out[o] = Math.round(rgb[0] * 255);
+      out[o + 1] = Math.round(rgb[1] * 255);
+      out[o + 2] = Math.round(rgb[2] * 255);
+      out[o + 3] = Math.round(Math.max(0, Math.min(1, d[o + 3])) * 255);
+    }
+    return out;
+  }
   const [m0, m1, m2] = BT2020_TO_BT709;
   const d = frame.data;
   const rgb: [number, number, number] = [0, 0, 0];
@@ -932,9 +1041,27 @@ export function fastTransferEncoder(transfer: OutputColorSpec["transfer"]): (lin
  * pixel, 0..1). PQ and HLG keep everything above SDR white up to their peak;
  * an SDR transfer applies the highlight shoulder first.
  */
-export function encodeHdrFrameRgb(frame: HdrFrame, spec: OutputColorSpec): Float32Array {
+/** The ACES output transform an encode of `spec` runs: PQ / HLG targets use the Rec.2020 1000 nit transforms. */
+export function acesOutputForSpec(spec: OutputColorSpec, sdrOutput: AcesSdrOutput): AcesOutputId {
+  return spec.transfer === "pq" ? "rec2020-pq" : spec.transfer === "hlg" ? "rec2020-hlg" : sdrOutput;
+}
+
+export function encodeHdrFrameRgb(frame: HdrFrame, spec: OutputColorSpec, pipeline: HdrColorPipeline = SCENE_HDR_PIPELINE): Float32Array {
   const n = frame.width * frame.height;
   const out = new Float32Array(n * 3);
+  if (pipeline.kind === "aces") {
+    const id = acesOutputForSpec(spec, pipeline.sdrOutput);
+    const d = frame.data;
+    const rgb = [0, 0, 0];
+    const transform = acesOutput();
+    for (let p = 0, o = 0, q = 0; p < n; p++, o += 4, q += 3) {
+      transform(Math.max(0, d[o]), Math.max(0, d[o + 1]), Math.max(0, d[o + 2]), id, rgb);
+      out[q] = rgb[0];
+      out[q + 1] = rgb[1];
+      out[q + 2] = rgb[2];
+    }
+    return out;
+  }
   const encode = fastTransferEncoder(spec.transfer);
   const sdr = spec.transfer === "bt709";
   const toBt709 = spec.primaries === "bt709";

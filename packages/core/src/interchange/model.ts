@@ -1,6 +1,6 @@
 import type { Clip, Marker, MarkerKind, Track, Transition } from "../types/timeline";
 import { MARKER_KINDS } from "../types/timeline";
-import type { MediaItem, Project } from "../types/project";
+import type { MediaBin, MediaItem, Project } from "../types/project";
 import { ensureSequences, syncActiveSequence } from "../timeline/sequences";
 import { getCompoundClipId } from "../timeline/timeline-items";
 import { getMulticamSource, multicamTag, MULTICAM_ANGLE_COLORS, type MulticamSource } from "../multicam/source";
@@ -41,6 +41,8 @@ export interface SeqMedia {
   readonly startSec?: number;
   /** A bin item the importer already chose (EDL reel + source timecode); relinking honours it before name matching. */
   readonly mediaItemId?: string;
+  /** Project-panel bin path (outermost first) the source file lived in (.prproj master clips). */
+  readonly binPath?: readonly string[];
 }
 
 /** A marker on a clip (clip + master-clip markers merged); `sec` is in the media's own (source) time. */
@@ -87,6 +89,15 @@ export interface SeqClip {
   readonly markers?: readonly SeqClipMarker[];
   /** EDL import: the event's reel name and source timecodes, kept on the clip as `metadata.edl`. */
   readonly edl?: { readonly reel: string; readonly sourceIn: string; readonly sourceOut: string; readonly event: number };
+  /**
+   * Basic motion from the source file: `x` / `y` are pixel offsets from the frame centre of the sequence,
+   * `scale` is a multiplier (1 = 100%). Absent = untouched. Only .prproj import fills it.
+   */
+  readonly motion?: { readonly x: number; readonly y: number; readonly scale: number; readonly rotation?: number };
+  /** The source file had the clip disabled. OpenReel has no clip enable flag: it is imported muted / transparent. */
+  readonly disabled?: boolean;
+  /** Extra clip metadata kept as `clip.metadata.<key>` (for example the .prproj origin). */
+  readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
 /** One synchronised camera angle of a multicam source. */
@@ -544,6 +555,18 @@ export interface TimelineImportResult {
    * of `tracks` / `nests` that cut them carry `metadata.multicam` pointing at these. Absent when there are none.
    */
   readonly multicamSources?: MulticamSource[];
+  /** Project-panel bins to create for the imported media (`newMedia[].binId` points at them). Absent when none. */
+  readonly newBins?: MediaBin[];
+  /** What the importer dropped or approximated, per item (.prproj import). */
+  readonly importReport?: ImportReport;
+}
+
+export interface ImportReport {
+  readonly items: ReportItem[];
+  /** Informational lines (what was read, what is never read). */
+  readonly notes: string[];
+  readonly dropped: number;
+  readonly approximated: number;
 }
 
 /** A compound clip from an interchange file, converted to OpenReel tracks; becomes a project sequence on commit. */
@@ -654,10 +677,10 @@ export function relinkMedia(
   return out;
 }
 
-const DEFAULT_TRANSFORM = (opacity: number): Clip["transform"] => ({
-  position: { x: 0, y: 0 },
-  scale: { x: 1, y: 1 },
-  rotation: 0,
+const DEFAULT_TRANSFORM = (opacity: number, motion?: SeqClip["motion"]): Clip["transform"] => ({
+  position: { x: motion?.x ?? 0, y: motion?.y ?? 0 },
+  scale: { x: motion?.scale ?? 1, y: motion?.scale ?? 1 },
+  rotation: motion?.rotation ?? 0,
   anchor: { x: 0.5, y: 0.5 },
   opacity,
   fitMode: "contain",
@@ -678,6 +701,24 @@ export function sequenceToTimeline(
   const mediaIdFor = new Map<string, string>();
   const newMedia: MediaItem[] = [];
   const clipCounts = new Map<string, number>();
+  // Bins for placeholder media (.prproj): one bin per distinct path prefix, parents first.
+  const newBins: MediaBin[] = [];
+  const binIds = new Map<string, string>();
+  const binFor = (path: readonly string[] | undefined): string | undefined => {
+    if (!path?.length) return undefined;
+    let parentId: string | undefined;
+    for (let depth = 1; depth <= path.length; depth++) {
+      const key = JSON.stringify(path.slice(0, depth));
+      let id = binIds.get(key);
+      if (!id) {
+        id = `bin-${makeId()}`;
+        binIds.set(key, id);
+        newBins.push({ id, name: path[depth - 1], ...(parentId ? { parentId } : {}) });
+      }
+      parentId = id;
+    }
+    return parentId;
+  };
 
   for (const media of allMedia) {
     const hit = links.get(media.key);
@@ -687,8 +728,10 @@ export function sequenceToTimeline(
     }
     const id = `media-${makeId()}`;
     mediaIdFor.set(media.key, id);
+    const binId = binFor(media.binPath);
     newMedia.push({
       id,
+      ...(binId ? { binId } : {}),
       name: media.name,
       type: media.kind,
       fileHandle: null,
@@ -802,10 +845,10 @@ export function sequenceToTimeline(
           outPoint: sc.outSec,
           effects: [],
           audioEffects: [],
-          transform: DEFAULT_TRANSFORM(sc.opacity),
-          volume: sc.volume,
+          transform: DEFAULT_TRANSFORM(sc.disabled ? 0 : sc.opacity, sc.motion),
+          volume: sc.disabled ? 0 : sc.volume,
           keyframes: [],
-          metadata: { compoundClipId: nestId, compoundClipName: sc.nested.name, compoundClipColor: NEST_IMPORT_COLOR },
+          metadata: { ...(sc.metadata ?? {}), ...(sc.disabled ? { importedDisabled: true } : {}), compoundClipId: nestId, compoundClipName: sc.nested.name, compoundClipColor: NEST_IMPORT_COLOR },
           ...(sc.speed !== 1 ? { speed: sc.speed } : {}),
           ...(sc.reversed ? { reversed: true } : {}),
         };
@@ -831,11 +874,18 @@ export function sequenceToTimeline(
         outPoint: sc.outSec,
         effects: [],
         audioEffects: [],
-        transform: DEFAULT_TRANSFORM(sc.opacity),
-        volume: sc.volume,
+        transform: DEFAULT_TRANSFORM(sc.disabled ? 0 : sc.opacity, sc.motion),
+        volume: sc.disabled ? 0 : sc.volume,
         keyframes: [],
-        ...(multicamTagFor(sc) || sc.edl
-          ? { metadata: { ...(multicamTagFor(sc) ? { multicam: multicamTagFor(sc) } : {}), ...(sc.edl ? { edl: sc.edl } : {}) } }
+        ...(multicamTagFor(sc) || sc.edl || sc.metadata || sc.disabled
+          ? {
+              metadata: {
+                ...(multicamTagFor(sc) ? { multicam: multicamTagFor(sc) } : {}),
+                ...(sc.edl ? { edl: sc.edl } : {}),
+                ...(sc.metadata ?? {}),
+                ...(sc.disabled ? { importedDisabled: true } : {}),
+              },
+            }
           : {}),
         ...(sc.speed !== 1 ? { speed: sc.speed } : {}),
         ...(sc.reversed ? { reversed: true } : {}),
@@ -928,5 +978,6 @@ export function sequenceToTimeline(
     ...(targetedTrackIds.length ? { targetedTrackIds } : {}),
     ...(nests.length ? { nests } : {}),
     ...(multicamSources.length ? { multicamSources } : {}),
+    ...(newBins.length ? { newBins } : {}),
   };
 }

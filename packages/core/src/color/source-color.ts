@@ -11,7 +11,7 @@ import type { RawOutputColorSpace } from "../raw/color";
 import { CAMERA_LOGS, type CameraGamutId, type CameraLogId } from "./camera-log";
 
 export type SourcePrimaries = "bt709" | "bt2020" | "p3" | "bt601" | Exclude<CameraGamutId, "bt2020">;
-export type SourceTransfer = "srgb" | "bt709" | "pq" | "hlg" | "linear" | CameraLogId;
+export type SourceTransfer = "srgb" | "bt709" | "pq" | "hlg" | "linear" | "acescct" | CameraLogId;
 export type SourceMatrix = "bt709" | "bt2020-ncl" | "bt601" | "rgb";
 
 export interface SourceColorSpace {
@@ -31,9 +31,17 @@ export const DEFAULT_SOURCE_COLOR: SourceColorSpace = {
 
 /** "Interpret footage" choices. `undefined` on the media item means "as tagged". */
 export type StandardFootageColorPreset = "rec709" | "srgb" | "rec2020" | "p3" | "hdr10-pq" | "hlg";
+/** ACES-native footage: ACEScg (linear AP1), ACES2065-1 (linear AP0, e.g. EXR), ACEScct (log AP1, e.g. from a grading round trip). */
+export type AcesFootageColorPreset =
+  | "aces-acescg"
+  | "aces-aces2065"
+  | "aces-acescct"
+  | "linear-rec709"
+  | "linear-rec2020"
+  | "linear-p3";
 /** Camera log input presets: "log-" + the curve id ("log-slog3", "log-logc4", ...). */
 export type CameraFootageColorPreset = `log-${CameraLogId}`;
-export type FootageColorPreset = StandardFootageColorPreset | CameraFootageColorPreset;
+export type FootageColorPreset = StandardFootageColorPreset | AcesFootageColorPreset | CameraFootageColorPreset;
 
 export interface FootageColorPresetDef {
   readonly id: FootageColorPreset;
@@ -41,6 +49,8 @@ export interface FootageColorPresetDef {
   readonly space: SourceColorSpace;
   /** Set on camera log presets: the picker groups them under "Camera input". */
   readonly camera?: { readonly logId: CameraLogId; readonly maker: string };
+  /** Set on the scene-linear / ACES presets: the picker groups them under "ACES and linear". */
+  readonly aces?: true;
 }
 
 const STANDARD_FOOTAGE_COLOR_PRESETS: ReadonlyArray<FootageColorPresetDef> = [
@@ -50,6 +60,19 @@ const STANDARD_FOOTAGE_COLOR_PRESETS: ReadonlyArray<FootageColorPresetDef> = [
   { id: "p3", label: "Display P3 (SDR)", space: { primaries: "p3", transfer: "srgb", matrix: "bt709", fullRange: false } },
   { id: "hdr10-pq", label: "Rec.2020 PQ (HDR10)", space: { primaries: "bt2020", transfer: "pq", matrix: "bt2020-ncl", fullRange: false } },
   { id: "hlg", label: "Rec.2020 HLG", space: { primaries: "bt2020", transfer: "hlg", matrix: "bt2020-ncl", fullRange: false } },
+];
+
+/**
+ * Scene-linear input spaces: ACES-native pixels (ACEScg, ACES2065-1, ACEScct) and plain linear light in the common
+ * primaries (what a linear EXR / 32-bit export carries). Full range RGB, no matrix; 1.0 is SDR reference white.
+ */
+export const ACES_FOOTAGE_COLOR_PRESETS: ReadonlyArray<FootageColorPresetDef> = [
+  { id: "aces-acescg", label: "ACEScg (linear AP1)", space: { primaries: "ap1", transfer: "linear", matrix: "rgb", fullRange: true }, aces: true },
+  { id: "aces-aces2065", label: "ACES2065-1 (linear AP0)", space: { primaries: "ap0", transfer: "linear", matrix: "rgb", fullRange: true }, aces: true },
+  { id: "aces-acescct", label: "ACEScct (log AP1)", space: { primaries: "ap1", transfer: "acescct", matrix: "rgb", fullRange: true }, aces: true },
+  { id: "linear-rec709", label: "Linear Rec.709", space: { primaries: "bt709", transfer: "linear", matrix: "rgb", fullRange: true }, aces: true },
+  { id: "linear-rec2020", label: "Linear Rec.2020", space: { primaries: "bt2020", transfer: "linear", matrix: "rgb", fullRange: true }, aces: true },
+  { id: "linear-p3", label: "Linear Display P3", space: { primaries: "p3", transfer: "linear", matrix: "rgb", fullRange: true }, aces: true },
 ];
 
 /**
@@ -70,6 +93,7 @@ export const CAMERA_FOOTAGE_COLOR_PRESETS: ReadonlyArray<FootageColorPresetDef> 
 
 export const FOOTAGE_COLOR_PRESETS: ReadonlyArray<FootageColorPresetDef> = [
   ...STANDARD_FOOTAGE_COLOR_PRESETS,
+  ...ACES_FOOTAGE_COLOR_PRESETS,
   ...CAMERA_FOOTAGE_COLOR_PRESETS,
 ];
 
@@ -163,6 +187,7 @@ export function needsInputTransform(space: SourceColorSpace): boolean {
     space.primaries === "bt2020" ||
     space.primaries === "p3" ||
     space.transfer === "linear" ||
+    space.transfer === "acescct" ||
     isCameraLogTransfer(space.transfer)
   );
 }
@@ -176,8 +201,8 @@ export function describeSourceColor(space: SourceColorSpace | null | undefined):
   if (!space) return "Rec.709 (untagged)";
   const camera = CAMERA_LOGS.find((d) => d.id === space.transfer);
   if (camera) return camera.label;
-  const primaries = ({ bt709: "Rec.709", bt2020: "Rec.2020", p3: "P3", bt601: "BT.601" } as Record<string, string>)[space.primaries] ?? space.primaries;
-  const transfer = ({ srgb: "sRGB", bt709: "BT.709", pq: "PQ", hlg: "HLG", linear: "Linear" } as Record<string, string>)[space.transfer] ?? space.transfer;
+  const primaries = ({ bt709: "Rec.709", bt2020: "Rec.2020", p3: "P3", bt601: "BT.601", ap1: "ACES AP1", ap0: "ACES AP0" } as Record<string, string>)[space.primaries] ?? space.primaries;
+  const transfer = ({ srgb: "sRGB", bt709: "BT.709", pq: "PQ", hlg: "HLG", linear: "Linear", acescct: "ACEScct" } as Record<string, string>)[space.transfer] ?? space.transfer;
   const matrix = { bt709: "BT.709", "bt2020-ncl": "BT.2020nc", bt601: "BT.601", rgb: "RGB" }[space.matrix];
   return `${primaries} / ${transfer} / ${matrix} / ${space.fullRange ? "full" : "limited"}`;
 }
@@ -197,8 +222,12 @@ export function rawOutputSourceSpace(output: RawOutputColorSpace): SourceColorSp
   return { primaries, transfer: "srgb", matrix: "rgb", fullRange: true };
 }
 
-/** What the footage is, after the user's override: tags, else the Rec.709 default. */
-export function effectiveSourceColor(item: FootageColorSource): SourceColorSpace {
+/**
+ * What the footage is, after the user's override: tags, else the Rec.709 default. `clipOverride` is the timeline clip's own
+ * Interpret Footage preset (`Clip.colorInterpretation`); it wins over the footage item's.
+ */
+export function effectiveSourceColor(item: FootageColorSource, clipOverride?: FootageColorPreset | null): SourceColorSpace {
+  if (clipOverride && isFootageColorPreset(clipOverride)) return footageColorPresetSpace(clipOverride);
   if (item.colorInterpretation && isFootageColorPreset(item.colorInterpretation)) {
     return footageColorPresetSpace(item.colorInterpretation);
   }
@@ -219,14 +248,14 @@ export function effectiveSourceColor(item: FootageColorSource): SourceColorSpace
  *  - Desktop native (ffmpeg) decode: frames are raw RGBA codes in the
  *    source's own transfer and primaries, so the file's tags apply too.
  */
-export function inputSpaceForItem(item: FootageColorSource): SourceColorSpace | null {
+export function inputSpaceForItem(item: FootageColorSource, clipOverride?: FootageColorPreset | null): SourceColorSpace | null {
   // RAW stills are developed by OpenReel into the chosen output primaries, whatever the decode path.
   if (item.raw?.developedBy === "openreel" && item.raw.settings) {
     const space = rawOutputSourceSpace(item.raw.settings.outputColorSpace);
     return needsInputTransform(space) ? space : null;
   }
-  const override = !!item.colorInterpretation && isFootageColorPreset(item.colorInterpretation);
+  const override = (!!clipOverride && isFootageColorPreset(clipOverride)) || (!!item.colorInterpretation && isFootageColorPreset(item.colorInterpretation));
   if (!override && !item.nativeSource) return null;
-  const space = effectiveSourceColor(item);
+  const space = effectiveSourceColor(item, clipOverride);
   return needsInputTransform(space) ? space : null;
 }

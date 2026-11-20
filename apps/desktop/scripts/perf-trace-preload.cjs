@@ -31,7 +31,15 @@ app
   .whenReady()
   .then(() =>
     contentTracing.startRecording({
-      included_categories: ["devtools.timeline", "disabled-by-default-devtools.timeline", "v8", "blink.user_timing", "loading"],
+      included_categories: [
+        "devtools.timeline",
+        "disabled-by-default-devtools.timeline",
+        "v8",
+        "blink.user_timing",
+        "loading",
+        // Extra categories for investigations only (OPENREEL_PERF_TRACE_EXTRA="v8.wasm,disabled-by-default-v8.cpu_profiler").
+        ...(process.env.OPENREEL_PERF_TRACE_EXTRA ? process.env.OPENREEL_PERF_TRACE_EXTRA.split(",") : []),
+      ],
       recording_mode: "record-until-full",
     }),
   )

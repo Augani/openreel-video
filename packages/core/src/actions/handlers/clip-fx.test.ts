@@ -98,6 +98,29 @@ describe("clip fx handlers", () => {
     expect(res.success).toBe(false);
   });
 
+  it("clip/setColorInterpretation sets a per-clip Interpret Footage override, validates it, and is undoable", async () => {
+    const executor = new ActionExecutor();
+    const project = makeProjectWithClip();
+    const set = await executor.execute(act("clip/setColorInterpretation", { clipId: "c1", colorInterpretation: "log-logc3" }), project);
+    expect(set.success).toBe(true);
+    expect(clipOf(project).colorInterpretation).toBe("log-logc3");
+    await executor.execute(act("clip/setColorInterpretation", { clipId: "c1", colorInterpretation: "aces-acescg" }), project);
+    expect(clipOf(project).colorInterpretation).toBe("aces-acescg");
+    // Clearing restores "use the footage setting".
+    await executor.execute(act("clip/setColorInterpretation", { clipId: "c1", colorInterpretation: null }), project);
+    expect(clipOf(project).colorInterpretation).toBeUndefined();
+    await executor.undo(project);
+    expect(clipOf(project).colorInterpretation).toBe("aces-acescg");
+    await executor.undo(project);
+    expect(clipOf(project).colorInterpretation).toBe("log-logc3");
+    await executor.undo(project);
+    expect(clipOf(project).colorInterpretation).toBeUndefined();
+    const bad = await executor.execute(act("clip/setColorInterpretation", { clipId: "c1", colorInterpretation: "ocio:Rec709" }), project);
+    expect(bad.success).toBe(false);
+    const missing = await executor.execute(act("clip/setColorInterpretation", { clipId: "nope", colorInterpretation: "srgb" }), project);
+    expect(missing.success).toBe(false);
+  });
+
   it("clip/setReverse toggles reversed and is undoable", async () => {
     const executor = new ActionExecutor();
     const project = makeProjectWithClip({ reversed: false });

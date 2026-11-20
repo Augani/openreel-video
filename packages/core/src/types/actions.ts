@@ -242,6 +242,11 @@ export type ClipAction =
   | { type: "clip/setSpeed"; params: { clipId: string; speed: number } }
   | { type: "clip/setReverse"; params: { clipId: string; reversed: boolean } }
   | {
+      type: "clip/setColorInterpretation";
+      /** `undefined` / null clears the override (the footage's own interpretation applies). */
+      params: { clipId: string; colorInterpretation?: import("../color/source-color").FootageColorPreset | null };
+    }
+  | {
       type: "clip/setPitchCorrection";
       params: { clipId: string; pitchCorrection: boolean };
     }

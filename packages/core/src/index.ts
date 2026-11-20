@@ -54,6 +54,8 @@ export * from "./color/looks";
 export * from "./color/input-transform";
 export * from "./color/camera-log";
 export * from "./color/hdr-working";
+export * from "./color/aces";
+export * from "./color/ocio-config";
 export * from "./color/hdr-effects";
 export * from "./color/hdr-light-level";
 export { planHdrTransition, isHdrTransitionKind, type HdrTransitionStep, type HdrTransitionKind } from "./video/hdr-transition";

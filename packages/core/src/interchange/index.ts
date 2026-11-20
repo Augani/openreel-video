@@ -36,11 +36,31 @@ export { serializeEdl, serializeEdls } from "./edl";
 export { parseEdl, looksLikeEdl, matchReelItems } from "./edl-import";
 export type { EdlParseOptions, EdlClipInfo } from "./edl-import";
 export { flattenNests, hasNests } from "./nest-flatten";
+export {
+  TICKS_PER_SECOND,
+  defaultPrprojSequence,
+  frameRateFromTicksPerFrame,
+  gunzip,
+  importPrproj,
+  importPrprojDocument,
+  listPrprojSequences,
+  looksLikeGzip,
+  looksLikePrproj,
+  parsePrprojXml,
+  parseTicks,
+  prprojToSequence,
+  readPrproj,
+  resolveRef,
+  ticksToFrames,
+  ticksToSeconds,
+} from "./prproj";
+export type { PrprojDocument, PrprojImportResult, PrprojOptions, PrprojParse, PrprojSequenceInfo } from "./prproj";
 export { AAF_DECISION, AAF_LIMITS, aafNote } from "./aaf-decision";
 export { looksLikeCompoundFile } from "./aaf/aaf-reader";
 export type { EdlFile, EdlOptions } from "./edl";
 export { projectToSequence, sequenceToTimeline, relinkMedia } from "./model";
 export type {
+  ImportReport,
   InterchangeReport,
   Sequence,
   SeqClip,
@@ -53,7 +73,7 @@ export type {
 } from "./model";
 
 export type InterchangeFormat = "xmeml" | "fcpxml" | "edl" | "otio" | "aaf";
-export type ImportableFormat = "xmeml" | "fcpxml" | "otio" | "aaf" | "edl";
+export type ImportableFormat = "xmeml" | "fcpxml" | "otio" | "aaf" | "edl" | "prproj";
 
 export interface InterchangeFile {
   readonly filename: string;
@@ -323,16 +343,42 @@ export function planTimelineImport(
 }
 
 /**
+ * Add the bins an import carries (.prproj master-clip bins) to the project. A bin that already exists (same name
+ * under the same parent) is reused, so importing twice does not duplicate the folder tree; the new media is
+ * re-pointed at the surviving bin ids.
+ */
+function mergeImportedBins(project: Project, result: TimelineImportResult): { project: Project; result: TimelineImportResult } {
+  if (!result.newBins?.length) return { project, result };
+  const bins = [...(project.bins ?? [])];
+  const remap = new Map<string, string>();
+  for (const bin of result.newBins) {
+    const parentId = bin.parentId ? remap.get(bin.parentId) ?? bin.parentId : undefined;
+    const existing = bins.find((b) => b.name === bin.name && b.parentId === parentId);
+    if (existing) {
+      remap.set(bin.id, existing.id);
+    } else {
+      remap.set(bin.id, bin.id);
+      bins.push({ ...bin, ...(parentId ? { parentId } : {}) });
+    }
+  }
+  const newMedia = result.newMedia.map((item) => (item.binId && remap.has(item.binId) ? { ...item, binId: remap.get(item.binId) } : item));
+  return { project: { ...project, bins }, result: { ...result, newMedia } };
+}
+
+/**
  * The project after an import commit: the planned timeline and media, plus, when the file carried
  * compound clips (FCPXML media + ref-clip), one project sequence per compound clip and an instance
  * record per imported nest clip. Commit the result through `editSnapshot` as ONE undo step.
  */
 export function applyTimelineImport(
-  project: Project,
+  input: Project,
   result: TimelineImportResult,
   mode: TimelineImportMode = "replace",
 ): Project {
-  const plan = planTimelineImport(project, result, mode);
+  const binned = mergeImportedBins(input, result);
+  const project = binned.project;
+  const plan = planTimelineImport(project, binned.result, mode);
+  result = binned.result;
   const mediaLibrary = { ...project.mediaLibrary, items: plan.mediaItems };
   const multicamSources = result.multicamSources?.length
     ? { multicamSources: [...(project.multicamSources ?? []), ...result.multicamSources] }

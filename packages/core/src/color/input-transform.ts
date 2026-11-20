@@ -1,5 +1,6 @@
 import { BT709_TO_BT2020, HLG_SDR_WHITE_SCENE, PQ_SDR_WHITE_NITS, linearToSrgb, pqDecodeToNits, srgbToLinear } from "../export/color-output";
 import { cameraGamutToBt709, decodeCameraLog, type CameraGamutId } from "./camera-log";
+import { acescctDecode } from "./aces";
 import { isCameraLogTransfer, needsInputTransform, type SourceColorSpace } from "./source-color";
 
 /**
@@ -80,6 +81,8 @@ export function decodeSourceTransfer(signal: number, transfer: SourceColorSpace[
       return hlgInverseOetf(signal) / HLG_SDR_WHITE_SCENE;
     case "linear":
       return signal;
+    case "acescct":
+      return acescctDecode(signal);
     default:
       return srgbToLinear(signal);
   }
@@ -129,7 +132,13 @@ export function createInputTransform(source: SourceColorSpace): InputTransform |
     source,
     key: inputTransformKey(source),
     // Camera log scene light goes through the same shoulder: log footage holds highlights far above white.
-    toneMap: source.transfer === "pq" || source.transfer === "hlg" || isCameraLogTransfer(source.transfer),
+    toneMap:
+      source.transfer === "pq" ||
+      source.transfer === "hlg" ||
+      source.transfer === "acescct" ||
+      source.primaries === "ap0" ||
+      source.primaries === "ap1" ||
+      isCameraLogTransfer(source.transfer),
     matrix: primariesToBt709(source.primaries),
     decodeLut,
   };

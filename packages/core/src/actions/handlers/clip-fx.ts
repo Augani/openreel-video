@@ -3,6 +3,7 @@ import type { Project } from "../../types/project";
 import { registerActionHandler } from "../registry";
 import type { ActionHandler } from "../registry";
 import { makeClipFieldHandler, findClip, patchClip } from "./clip-helpers";
+import { isFootageColorPreset } from "../../color/source-color";
 
 import { CLIP_SPEED_MIN as SPEED_MIN, CLIP_SPEED_MAX as SPEED_MAX } from "../../editing/speed-limits";
 
@@ -110,6 +111,14 @@ const handlers = [
     field: "reversed",
     validateValue: (v) =>
       v == null || typeof v === "boolean" ? null : "reversed must be a boolean",
+  }),
+  makeClipFieldHandler({
+    type: "clip/setColorInterpretation",
+    paramKey: "colorInterpretation",
+    field: "colorInterpretation",
+    validateValue: (v) =>
+      v == null || isFootageColorPreset(v) ? null : "colorInterpretation must be an Interpret Footage preset id",
+    transform: (v) => (v == null ? undefined : v),
   }),
   makeClipFieldHandler({
     type: "clip/setPitchCorrection",

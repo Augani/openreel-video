@@ -1,7 +1,10 @@
 import {
-  HDR_OVERLAY_DECODE,
   PQ_WORKING_WHITE,
+  SCENE_HDR_PIPELINE,
+  acesOutputForSpec,
   graphicsWhiteGain,
+  overlayDecodeFor,
+  type HdrColorPipeline,
   type HdrCompositor,
   type HdrFrame,
   type HdrGradeSpec,
@@ -15,6 +18,7 @@ import { packRgbToRgba } from "../color/lut-tables";
 import { HUE_CURVES_GLSL, HUE_CURVE_LUT_SIZE, packHueCurveLuts } from "./hue-curves";
 import { BT2020_TO_BT709, TONE_MAP_KNEE } from "../color/input-transform";
 import { cameraLogGlsl } from "../color/camera-log";
+import { acescctGlsl, acesGlsl } from "./aces-glsl";
 import { BLUR_MAX_HALF, GLOW_BRIGHTNESS, GLOW_CONTRAST, gaussianKernel, glowWeight, type HdrLayerEffect } from "../color/hdr-effects";
 
 /**
@@ -94,8 +98,10 @@ uniform int u_depth;
 uniform int u_transfer;
 uniform mat3 u_toBt2020;
 
+${acescctGlsl()}
 ${cameraLogGlsl()}
 vec3 decodeTransfer(vec3 c) {
+  if (u_transfer == 13) return acescctDecodeV(c);
   if (u_transfer >= 4) return decodeCameraLog(c, u_transfer);
   if (u_transfer == 1) return pqDecodeNitsV(c) / SDR_WHITE_NITS;
   if (u_transfer == 2) return hlgInverseV(c) / HLG_SDR_WHITE_SCENE;
@@ -243,6 +249,7 @@ uniform vec3 u_highlights;
 uniform float u_shadowsLift;
 uniform float u_midtonesGamma;
 uniform float u_highlightsGain;
+uniform bool u_gradeAces;
 const float PQ_WORKING_WHITE = ${PQ_WORKING_WHITE.toFixed(8)};
 ${COMMON}
 ${SOURCE_DECODE}
@@ -342,9 +349,13 @@ float curveSample(int channel, float x) {
   return a + (b - a) * fraction;
 }
 
+// The grade's working encoding: ACEScct in the aces pipeline (negative light floored at 0), PQ otherwise.
+vec3 gradeEnc(vec3 l) { return u_gradeAces ? acescctEncodeV(max(l, vec3(0.0))) : linearToPqWorking(l); }
+vec3 gradeDec(vec3 p) { return u_gradeAces ? acescctDecodeV(p) : pqWorkingToLinear(p); }
+
 vec3 gradeHdr(vec3 lin, vec2 srcPos) {
   lin *= u_exposureGain;
-  vec3 p = linearToPqWorking(lin);
+  vec3 p = gradeEnc(lin);
   if (u_useWB) p = clamp(p + u_wb, 0.0, 1.0);
   if (u_useTone) p = vec3(toneSample(p.r), toneSample(p.g), toneSample(p.b));
   if (u_useWheels) {
@@ -370,11 +381,12 @@ vec3 gradeHdr(vec3 lin, vec2 srcPos) {
     );
   }
   if (u_useLut) {
-    vec3 e = vec3(lutEncode1(pqWorkingToLinear(p).r), lutEncode1(pqWorkingToLinear(p).g), lutEncode1(pqWorkingToLinear(p).b));
+    vec3 pl = gradeDec(p);
+    vec3 e = vec3(lutEncode1(pl.r), lutEncode1(pl.g), lutEncode1(pl.b));
     vec3 cl = u_useLutCurve ? min(e, u_lutDomainMax) : min(e, vec3(1.0));
     vec3 mapped = u_useLutCurve ? sampleLutCurve(cl) : sampleLut3d(cl);
     vec3 outE = e + (mapped + (e - cl) - e) * u_lutIntensity;
-    p = linearToPqWorking(vec3(lutDecode1(outE.r), lutDecode1(outE.g), lutDecode1(outE.b)));
+    p = gradeEnc(vec3(lutDecode1(outE.r), lutDecode1(outE.g), lutDecode1(outE.b)));
   }
   if (u_useHsl) {
     vec3 hsl = hcRgb2Hsl(p);
@@ -388,10 +400,10 @@ vec3 gradeHdr(vec3 lin, vec2 srcPos) {
     float w = vignetteWeight(n, u_srcSize.x / u_srcSize.y);
     if (w > 0.0) {
       if (amount < 0.0) p *= 1.0 + amount * w;
-      else p += max(vec3(PQ_WORKING_WHITE) - p, 0.0) * (amount * w);
+      else p += max(vec3(u_gradeAces ? ACESCCT_WHITE : PQ_WORKING_WHITE) - p, 0.0) * (amount * w);
     }
   }
-  return pqWorkingToLinear(p);
+  return gradeDec(p);
 }
 
 void main() {
@@ -471,8 +483,30 @@ void main() {
 }
 `;
 
+/**
+ * The ACES Output Transform pass. Same inputs as OUTPUT_FRAGMENT (the premultiplied ACEScg image in u_acc): mode 0 is the
+ * SDR view (u_aces 1 = sRGB, 2 = BT.1886), mode 1 the encode (u_aces 3 = PQ 1000 nit, 4 = HLG, or an SDR id).
+ */
+const ACES_OUTPUT_FRAGMENT = `#version 300 es
+precision highp float;
+precision highp int;
+precision highp sampler2D;
+out vec4 outColor;
+uniform sampler2D u_acc;
+uniform int u_mode;
+uniform int u_aces;
+${COMMON}
+${acesGlsl()}
+
+void main() {
+  vec4 acc = texelFetch(u_acc, ivec2(gl_FragCoord.xy), 0);
+  vec3 enc = acesOutputV(max(acc.rgb, 0.0), u_aces);
+  outColor = vec4(enc, u_mode == 0 ? clamp(acc.a, 0.0, 1.0) : 1.0);
+}
+`;
+
 /** The fragment shaders, for offline validation (glslangValidator) and tests. */
-export const HDR_SHADER_SOURCES = { layer: LAYER_FRAGMENT, output: OUTPUT_FRAGMENT, decode: DECODE_FRAGMENT, effect: EFFECT_FRAGMENT } as const;
+export const HDR_SHADER_SOURCES = { layer: LAYER_FRAGMENT, output: OUTPUT_FRAGMENT, acesOutput: ACES_OUTPUT_FRAGMENT, decode: DECODE_FRAGMENT, effect: EFFECT_FRAGMENT } as const;
 
 interface Program {
   program: WebGLProgram;
@@ -510,6 +544,9 @@ export class GpuHdrCompositor implements HdrCompositor {
   private outputProgram: Program;
   private decodeProgram: Program;
   private effectProgram: Program;
+  /** Compiled the first time an ACES frame is output (the RRT / ODT shader is the largest one). */
+  private acesProgram: Program | null = null;
+  private pipeline: HdrColorPipeline = SCENE_HDR_PIPELINE;
   private graphicsGain = 1;
   private fx: FxTargets | null = null;
   private dummy3d: WebGLTexture;
@@ -698,6 +735,7 @@ export class GpuHdrCompositor implements HdrCompositor {
     const setB = (name: string, v: boolean): void => gl.uniform1i(this.uniform(p, name), v ? 1 : 0);
     const set3 = (name: string, x: number, y: number, z: number): void => gl.uniform3f(this.uniform(p, name), x, y, z);
     setB("u_useGrade", !!grade);
+    setB("u_gradeAces", grade?.acescct === true);
     set1("u_exposureGain", grade?.exposureGain ?? 1);
     setB("u_useWB", !!grade?.whiteBalance);
     const wb = grade?.whiteBalance ?? [0, 0, 0];
@@ -804,6 +842,10 @@ export class GpuHdrCompositor implements HdrCompositor {
     this.current = next;
   }
 
+  setColorPipeline(pipeline: HdrColorPipeline): void {
+    this.pipeline = pipeline;
+  }
+
   setGraphicsWhite(nits: number): void {
     this.graphicsGain = graphicsWhiteGain(nits);
   }
@@ -812,7 +854,7 @@ export class GpuHdrCompositor implements HdrCompositor {
     const w = this.width;
     this.runLayer(
       { depth: 8, texture: this.dummy8, width: 1, height: 1 },
-      HDR_OVERLAY_DECODE,
+      overlayDecodeFor(this.pipeline),
       { geometry: { m: [1, 0, 0, 0, 1, 0], rect: [0, 0, w, this.height], scale: [1, 1] }, opacity: Math.max(0, Math.min(1, alpha)), grade: null },
       { solid: rgb },
     );
@@ -975,7 +1017,7 @@ export class GpuHdrCompositor implements HdrCompositor {
     try {
       this.runLayer(
         { depth: 8, texture, width: w, height: h },
-        HDR_OVERLAY_DECODE,
+        overlayDecodeFor(this.pipeline),
         {
           geometry: { m: [1, 0, 0, 0, 1, 0], rect: [0, 0, w, h], scale: [1, 1] },
           opacity: 1,
@@ -990,6 +1032,18 @@ export class GpuHdrCompositor implements HdrCompositor {
 
   private runOutput(mode: 0 | 1, spec: OutputColorSpec | null): void {
     const gl = this.gl;
+    if (this.pipeline.kind === "aces") {
+      this.acesProgram ??= this.compile(ACES_OUTPUT_FRAGMENT);
+      const ap = this.acesProgram;
+      gl.useProgram(ap.program);
+      this.bindTex(0, this.accTextures[this.current], ap, "u_acc");
+      gl.uniform1i(this.uniform(ap, "u_mode"), mode);
+      const id = mode === 0 || !spec ? this.pipeline.sdrOutput : acesOutputForSpec(spec, this.pipeline.sdrOutput);
+      gl.uniform1i(this.uniform(ap, "u_aces"), id === "srgb" ? 1 : id === "rec709" ? 2 : id === "rec2020-pq" ? 3 : 4);
+      gl.viewport(0, 0, this.width, this.height);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      return;
+    }
     const p = this.outputProgram;
     gl.useProgram(p.program);
     this.bindTex(0, this.accTextures[this.current], p, "u_acc");
@@ -1056,6 +1110,7 @@ export class GpuHdrCompositor implements HdrCompositor {
     gl.deleteProgram(this.outputProgram.program);
     gl.deleteProgram(this.decodeProgram.program);
     gl.deleteProgram(this.effectProgram.program);
+    if (this.acesProgram) gl.deleteProgram(this.acesProgram.program);
     gl.getExtension("WEBGL_lose_context")?.loseContext();
   }
 }

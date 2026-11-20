@@ -403,6 +403,9 @@ const drawBlurredBackdrop = (
   ctx.restore();
 };
 
+/** True when the project is in ACES colour management: the Program monitor then shows the engine's ACES Output Transform render. */
+const isAcesProject = (): boolean => useProjectStore.getState().project.settings.colorManagement === "aces";
+
 const renderFrameWithGPU = async (
   renderer: Renderer,
   frame: ImageBitmap,
@@ -2885,7 +2888,8 @@ export const Preview: React.FC = () => {
       // Compound clips are full nested timelines rather than media blobs.
       // Route those frames through the canonical compositor so preview and
       // export share identical nesting, timing, effects and transforms.
-      const hasActiveCompound = timelineTracks.some((track) =>
+      // ACES mode: the Output Transform lives in the canonical float compositor, so every frame goes through it.
+      const hasActiveCompound = isAcesProject() || timelineTracks.some((track) =>
         !track.hidden &&
         track.clips.some(
           (clip) =>
@@ -3921,6 +3925,8 @@ export const Preview: React.FC = () => {
       }>;
     } => {
       const tracks = timelineTracks;
+      // The video element draws display-referred pixels; ACES mode renders every frame through the float compositor.
+      if (isAcesProject()) return { canUse: false, clips: [] };
       if (
         tracks.some(
           (track) =>
@@ -5963,7 +5969,7 @@ export const Preview: React.FC = () => {
           }
 
           // Echo / Posterize Time pick other frames of the clip: the engine renderer (export's) decodes them.
-          const hasActiveCompound = activeClips.some(
+          const hasActiveCompound = isAcesProject() || activeClips.some(
             ({ clip }) => getCompoundClipId(clip) !== null || clipHasTemporalEffects(clip),
           );
           // Anamorphic / interlaced footage is conformed by the engine renderer, never the raw video-element draw.
@@ -8497,6 +8503,16 @@ export const Preview: React.FC = () => {
           <div className="workspace-preview-options">
             <MaskPenButton />
             <ProxyToggleButton />
+            {settings.colorManagement === "aces" && (
+              <span
+                data-testid="aces-badge"
+                role="status"
+                className="workspace-preview-choice text-xs"
+                title="ACES color management: input transform, ACEScct grading, RRT and output transform. The monitor and scopes show the output transform."
+              >
+                {`ACES · ${(settings.acesOutput ?? "srgb") === "rec709" ? "Rec.709" : "sRGB"}`}
+              </span>
+            )}
             {memoryPolicy.pressure !== "normal" && (
               <span
                 data-testid="memory-pressure-badge"
@@ -8519,6 +8535,18 @@ export const Preview: React.FC = () => {
               <DropdownMenuCheckboxItem checked={showCompositionGrid} onCheckedChange={setShowCompositionGrid}>Composition grid</DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem checked={canvasSnappingEnabled} onCheckedChange={(enabled) => { setCanvasSnappingEnabled(enabled); setCanvasSnapGuides({x:null,y:null}); }}>Canvas snapping</DropdownMenuCheckboxItem>
               <DropdownMenuSeparator />
+              <DropdownMenuSub><DropdownMenuSubTrigger data-testid="color-management-trigger">Color management</DropdownMenuSubTrigger><DropdownMenuSubContent>
+                {([["display-referred", "Display-referred (default)"], ["aces", "ACES (ACEScct grading)"]] as const).map(([value, label]) => (
+                  <DropdownMenuCheckboxItem key={value} data-testid={`color-management-${value}`} checked={(settings.colorManagement ?? "display-referred") === value} onCheckedChange={() => { void updateSettings({ colorManagement: value === "aces" ? "aces" : undefined, ...(value === "aces" ? {} : { acesOutput: undefined }) }); }}>{label}</DropdownMenuCheckboxItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-[10px] font-normal text-fg-3">ACES output transform</DropdownMenuLabel>
+                {([["srgb", "sRGB (RRT + ODT)"], ["rec709", "Rec.709 (BT.1886)"]] as const).map(([value, label]) => (
+                  <DropdownMenuCheckboxItem key={value} data-testid={`aces-output-${value}`} disabled={settings.colorManagement !== "aces"} checked={(settings.acesOutput ?? "srgb") === value} onCheckedChange={() => { void updateSettings({ acesOutput: value === "srgb" ? undefined : value }); }}>{label}</DropdownMenuCheckboxItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="max-w-[260px] whitespace-normal text-[10px] font-normal leading-snug">ACES: footage enters through an input transform (Interpret footage picks it per footage item), compositing runs in ACEScg half float, grading in ACEScct, and the picture leaves through the ACES RRT and the output transform above. HDR10 and HLG exports use the Rec.2020 1000 nit transforms. The monitor, scopes and SDR exports show the output transform. Frames with adjustment layers or text behind subject still render display-referred.</DropdownMenuLabel>
+              </DropdownMenuSubContent></DropdownMenuSub>
               <DropdownMenuSub><DropdownMenuSubTrigger>Working color space</DropdownMenuSubTrigger><DropdownMenuSubContent>
                 {([["rec709", "Rec.709 (default)"], ["rec2020", "Rec.2020"]] as const).map(([value, label]) => (
                   <DropdownMenuCheckboxItem key={value} checked={(settings.workingColorSpace ?? "rec709") === value} onCheckedChange={() => { void updateSettings({ workingColorSpace: value }); }}>{label}</DropdownMenuCheckboxItem>
@@ -8526,7 +8554,7 @@ export const Preview: React.FC = () => {
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="max-w-[240px] whitespace-normal text-[10px] font-normal leading-snug">Rec.2020 switches to the HDR working mode: compositing and grading run in half-float scene-linear Rec.2020 (HDR highlights above SDR white are kept), the preview shows a tone-mapped SDR view, and exports are tagged BT.2020.</DropdownMenuLabel>
               </DropdownMenuSubContent></DropdownMenuSub>
-              <DropdownMenuSub><DropdownMenuSubTrigger disabled={(settings.workingColorSpace ?? "rec709") !== "rec2020"}>HDR graphics white</DropdownMenuSubTrigger><DropdownMenuSubContent>
+              <DropdownMenuSub><DropdownMenuSubTrigger disabled={(settings.workingColorSpace ?? "rec709") !== "rec2020" && settings.colorManagement !== "aces"}>HDR graphics white</DropdownMenuSubTrigger><DropdownMenuSubContent>
                 {GRAPHICS_WHITE_OPTIONS.map(({ nits, label }) => (
                   <DropdownMenuCheckboxItem key={nits} checked={(settings.graphicsWhiteNits ?? DEFAULT_GRAPHICS_WHITE_NITS) === nits} onCheckedChange={() => { void updateSettings({ graphicsWhiteNits: nits === DEFAULT_GRAPHICS_WHITE_NITS ? undefined : nits }); }}>{label}</DropdownMenuCheckboxItem>
                 ))}

@@ -17,6 +17,7 @@ import { useSettingsStore } from "../stores/settings-store";
 import { usePluginManagerStore } from "../stores/plugin-manager-store";
 import { keyboardShortcuts } from "../services/keyboard-shortcuts";
 import { loadEditorModule } from "../editor-loader";
+import { warmAudioDevices } from "./audio-warmup";
 import { useOnboardingStore } from "../stores/onboarding-store";
 import { installOnboardingSync } from "../components/onboarding/shell/onboarding-sync";
 import { handleProjectOpenedOnWelcomeRoute, isWelcomeRoute } from "../components/onboarding/shell/agent-flip";
@@ -65,6 +66,8 @@ export function DesktopApp(): JSX.Element {
   );
   useEffect(() => {
     mark("openreel:desktop-app-mounted");
+    // After the welcome screen is committed: see audio-warmup.ts.
+    warmAudioDevices(navigator);
     // Warm the editor chunk and the engines (WebGPU adapter/device, audio,
     // playback, export: ~1.1 s measured in the real app) while the welcome
     // screen is showing, so "New project" does not wait for them. initialize()

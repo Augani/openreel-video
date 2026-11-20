@@ -16,7 +16,9 @@ import {
   DEFAULT_GRAPHICS_WHITE_NITS,
   computeLayerGeometry,
   graphicsWhiteGain,
+  hdrPipelineFor,
   hdrSourceDecode,
+  registerAcesOutputTransform,
   isHdrWorkingMode,
   prepareHdrGrade,
   attachHdrPayload,
@@ -24,6 +26,7 @@ import {
   type SourceCodes,
 } from "../color/hdr-working";
 import { resolveHdrEffects } from "../color/hdr-effects";
+import { acesOutputTransform } from "../color/aces-output";
 import { isHdrTransitionKind, planHdrTransition } from "./hdr-transition";
 import { getNativeFrameCodes } from "../media/native-frame-source";
 import {
@@ -985,8 +988,12 @@ export class VideoEngine {
       this.hdrCompositor ??= createHdrCompositor(!this.hdrGpuFailed);
       hdr = this.hdrCompositor;
       hdr.begin(width, height);
+      hdr.setColorPipeline(hdrPipelineFor(settings));
+      // The CPU reference compositor's ACES output (the GPU one runs the shader port).
+      registerAcesOutputTransform(acesOutputTransform);
       hdr.setGraphicsWhite(settings.graphicsWhiteNits ?? DEFAULT_GRAPHICS_WHITE_NITS);
     }
+    const colorPipeline = hdrPipelineFor(settings);
     let hdrDirty = false;
 
     await this.renderMotionInstancesToCanvasCtx(
@@ -1305,10 +1312,10 @@ export class VideoEngine {
               this.flushHdrOverlay(hdr, ctx, width, height);
               hdrDirty = false;
             }
-            hdr.drawCodes(codes, hdrSourceDecode(inputSpaceForItem(mediaItem)), {
+            hdr.drawCodes(codes, hdrSourceDecode(inputSpaceForItem(mediaItem, clip.colorInterpretation), colorPipeline), {
               geometry,
               opacity: t.opacity,
-              grade: prepareHdrGrade(clipGrading),
+              grade: prepareHdrGrade(clipGrading, colorPipeline),
               effects: resolveHdrEffects(clipInfo.effects ?? []).effects,
             });
             if (bitmap && !bitmapFromCache) bitmap.close();
@@ -1618,10 +1625,11 @@ export class VideoEngine {
         width,
         height,
       );
-      hdr.drawCodes(codes, hdrSourceDecode(inputSpaceForItem(mediaItem)), {
+      const colorPipeline = hdrPipelineFor(project.settings);
+      hdr.drawCodes(codes, hdrSourceDecode(inputSpaceForItem(mediaItem, clip.colorInterpretation), colorPipeline), {
         geometry,
         opacity: t.opacity * opacityScale,
-        grade: prepareHdrGrade(grading),
+        grade: prepareHdrGrade(grading, colorPipeline),
         effects: resolveHdrEffects(clipInfo.effects ?? []).effects,
       });
       return true;
@@ -2968,10 +2976,14 @@ export class VideoEngine {
       }
     }
     this.clipInputTransforms = new Map();
-    if (this.inputTransformByMedia.size === 0) return;
+    const itemById = new Map(items.map((item) => [item.id, item] as const));
     for (const track of project.timeline.tracks) {
       for (const clip of track.clips) {
-        const transform = this.inputTransformByMedia.get(clip.mediaId);
+        // A clip's own Interpret Footage override wins over its footage item's.
+        const item = clip.colorInterpretation ? itemById.get(clip.mediaId) : undefined;
+        const transform = item
+          ? (item.type === "video" || item.type === "image") ? inputTransformFor(inputSpaceForItem(item, clip.colorInterpretation)) : null
+          : this.inputTransformByMedia.get(clip.mediaId);
         if (transform) this.clipInputTransforms.set(clip.id, transform);
       }
     }

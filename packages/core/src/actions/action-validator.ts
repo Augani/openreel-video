@@ -143,7 +143,18 @@ export class ActionValidator {
             path: "params",
           });
         } else if (action.type === "project/updateSettings") {
-          const { pixelAspectRatio, fieldOrder } = action.params as { pixelAspectRatio?: unknown; fieldOrder?: unknown };
+          const { pixelAspectRatio, fieldOrder, colorManagement, acesOutput } = action.params as {
+            pixelAspectRatio?: unknown;
+            fieldOrder?: unknown;
+            colorManagement?: unknown;
+            acesOutput?: unknown;
+          };
+          if (colorManagement !== undefined && colorManagement !== "display-referred" && colorManagement !== "aces") {
+            errors.push({ code: "INVALID_PARAMS", message: "Colour management must be display-referred or aces", path: "params.colorManagement" });
+          }
+          if (acesOutput !== undefined && acesOutput !== "srgb" && acesOutput !== "rec709") {
+            errors.push({ code: "INVALID_PARAMS", message: "ACES output transform must be srgb or rec709", path: "params.acesOutput" });
+          }
           if (
             pixelAspectRatio !== undefined &&
             !(typeof pixelAspectRatio === "number" && Number.isFinite(pixelAspectRatio) && pixelAspectRatio >= 0.25 && pixelAspectRatio <= 4)

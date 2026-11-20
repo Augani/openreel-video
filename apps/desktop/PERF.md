@@ -188,6 +188,98 @@ wall-clock deltas of that size are inside run-to-run noise. A larger step needs 
 remaining engines (video, motion, audio, ~1.4 MB, kept alive by the project store importing them)
 moved behind lazy imports, which is a store-architecture change not done here.
 
+## Cold start round 2 (perf/cold-start-r2)
+
+Starting point: `cold.median.editorInteractiveFromSpawnMs` about 1,225 ms at machine load ~7 (base `8f928b3df`).
+The question was what sits between the welcome screen and the editor when the click is instant.
+
+### Where the time went (Chromium trace + V8 CPU profile, `OPENREEL_PERF_TRACE_EXTRA`)
+
+`perf-trace-preload.cjs` accepts `OPENREEL_PERF_TRACE_EXTRA="v8.wasm,disabled-by-default-v8.cpu_profiler,toplevel"`
+(comma separated extra trace categories); the profile samples show native frames, so a blocked main thread is
+attributable. Every cold trace had one main-thread task of **158-178 ms with 3-7 ms of CPU** between the editor chunk's
+compile and `openreel:engine:start`. The profile put it in `MasterTimelineClock`'s `new AudioContext()`
+(`getPlaybackController()` runs first in `engine-store.initialize`): the **first AudioContext of an app run blocks its
+constructor ~150-170 ms** (output-device discovery in the audio service), even at load 3.6. A micro-benchmark (bare
+Electron window, `new AudioContext()`; apps/desktop is not involved):
+
+| first `new AudioContext()` | ms |
+|---|---|
+| plain | 155-175 |
+| `latencyHint`, `sampleRate` variants | no change |
+| `--disable-features=AudioServiceOutOfProcess` | 90-95 (architecture change, not taken) |
+| `--enable-features=AudioServiceLaunchOnStartup` | 120-130 (no gain once enumeration is warm) |
+| a second renderer already created one | 3.8 |
+| `navigator.mediaDevices.enumerateDevices()` (async) issued 150-800 ms earlier | **46-50** (60-70 if issued 150 ms earlier, while enumeration is still running) |
+
+`enumerateDevices()` is asynchronous (it takes ~270 ms in the background and costs the main thread nothing), walks the
+same device list, and with no capture permission returns unlabelled entries, so it neither prompts nor reveals
+anything. `DesktopApp` now calls `warmAudioDevices(navigator)` (`src/desktop/audio-warmup.ts`) in the effect that
+marks the welcome screen mounted, i.e. after it is committed. macOS only was measured; Windows and Linux were not.
+
+### Interleaved A/B (A = `8f928b3df`, B = this branch)
+
+Real harness `cold` scenario (the budgeted metric), 8 alternating A/B launches, medians, ms. Load average per pair
+11.6 13.2 11.3 11.6 9.8 8.6 8.5 7.5 (the machine runs other agents' work; all numbers are "loaded", none is idle):
+
+| | A | B | B - A (median of pairs) |
+|---|---|---|---|
+| `editorInteractiveFromSpawnMs` | 1227 | 1150 | **-73** |
+| `welcomeVisibleMs` | 661 | 635 | -9 |
+| `clickToEditorInteractiveMs` (Playwright wall) | 455 | 373 | -82 |
+| `clickToEditorInPageMs` (pointerdown to first frame) | 155 | 161 | -4 |
+
+Chromium-trace A/B (`perf-ab.mjs`, 8 pairs, load 6.2-7.9), medians:
+
+| `traceCold` | A | B | pairDiff |
+|---|---|---|---|
+| `editorInteractiveFromSpawnMs` | 1211 | 1181 | -39 |
+| `clickToEditorInteractiveMs` | 528 | 405 | -121 |
+| `startupWallMs` / `startupCpuMs` | 254.6 / 98.2 | 251.9 / 98.5 | -2.7 / +0.6 |
+| `enterCpuMs` | 136.7 | 130.3 | -1.7 |
+| `totalCpuMs` / `totalCompileCpuMs` | 413 / 94.5 | 425 / 96.5 | +10 / +2.7 |
+| `warmCpuMs` | 190 | 200.4 | +13 |
+
+CPU did **not** go down: the enumeration adds about 10 ms of main-thread work (IPC replies) to the warm window; what
+shrinks is the blocked wall time. The `traceDwell` rows (human-speed click) are unchanged (`enterCpuMs` +1.4,
+`clickToEditorInteractiveMs` -8, `totalCpuMs` +12): a user who waits has the editor warm either way, the gain is for a
+click that lands while the warm-up is still running. `traceCached` (repeat launch, code cache): compile 10.8 ms, produce
+0 in both trees, so the cache path is unaffected.
+
+Where the enumeration is issued matters (each variant 8 interleaved pairs against the base, real `cold`):
+
+| variant | `editorInteractiveFromSpawnMs` pairDiff | `welcomeVisibleMs` pairDiff |
+|---|---|---|
+| issued from the preload (first thing in the renderer) | -63 | **+31** (the browser-side enumeration slows the first paint) |
+| issued when the welcome screen mounts (kept) | -73 | -9 |
+
+### Tried and rejected (all measured, interleaved)
+
+- **Serve built `.js`/`.css` from memory in the `app://` handler** instead of `net.fetch(file://)`: the warm-up's ~55
+  chunk requests did complete sooner (all done 33 ms after the burst vs 65 ms), and the code cache kept working, but the
+  editor opened 116-133 ms **later** (5 pairs, click to interactive +116). Not kept; the cause was not isolated.
+- **Start the warm-up right after the welcome's first paint (rAF + timeout) instead of an idle callback, run the effects
+  bridge in parallel with the engine init, prefetch the `mediabunny` chunk, and drop the eager 1920x1080 title canvas**:
+  on top of the audio warm-up, 6 pairs: `editorInteractiveFromSpawnMs` pairDiff +5 (click to interactive -61, but the
+  welcome screen moved later by the same amount). No net gain, so none of it was kept. (The title canvas was not the
+  blocking call; the profile showed the AudioContext.)
+- **Register `protocol.handle` after `createWindow()`** to overlap its 35-45 ms with the renderer starting: the page
+  never loaded (the navigation does not wait for the handler). Reverted.
+- **`experimentalMinChunkSize` 150k / 300k**: chunks on the editor path 57 -> 54 / 53 but compile CPU 97 -> 108 and no
+  wall gain.
+- **Vibrancy / `hiddenInset` cost in the `BrowserWindow` constructor**: 56-78 ms with it, 71-89 ms without (bare window);
+  it is the constructor itself, not those options.
+- A V8 code cache for the renderer already exists (`v8CacheOptions: "bypassHeatCheck"`, `codeCache: true`); `traceCached`
+  above shows it working. A *first* launch still compiles everything, which is what the harness measures.
+
+### What is left
+
+One main-thread block remains on the path: the first `AudioContext` still costs ~48 ms after the warm-up, plus the
+`EditorInterface` first commit (React 66 ms inclusive, 33 ms layout, 497 buttons / 164 Popper / 99 DropdownMenu mounted at
+once). Making the audio graph lazy until first play touches `MasterTimelineClock`, `RealtimeAudioGraph`, `AudioEngine` and
+`Preview`'s mount effects, which was not attempted here. The wall-clock budget stays 1200 ms: the measured 1150-1181 ms was
+taken at load 6-13, not on the idle machine the budget is defined for, so it is not tightened on that evidence.
+
 ## Desktop ingest + proxies (w9)
 
 Proxies on desktop are built by the main process with the native ffmpeg sidecar (`src/main/ingest/`):
