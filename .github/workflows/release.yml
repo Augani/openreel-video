@@ -57,7 +57,10 @@ jobs:
     needs: quality
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
+    permissions:
+      contents: write
     env:
+      GH_TOKEN: ${{ github.token }}
       R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
       R2_BUCKET: ${{ secrets.R2_BUCKET }}
       AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -138,6 +141,7 @@ jobs:
               xcrun stapler validate "$dmg"
             done
           fi
+          if [ -z "${R2_ACCOUNT_ID:-}" ]; then echo "::warning::R2 secrets are not set; installers go to the GitHub Release instead."; exit 0; fi
           if [ "$R2_UPLOAD" != "true" ]; then exit 0; fi
           endpoint="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
           # Installers (for manual download from the landing) — always.
@@ -168,6 +172,7 @@ jobs:
             unset CSC_LINK CSC_KEY_PASSWORD
           fi
           pnpm exec electron-builder --win --publish never
+          if [ -z "${R2_ACCOUNT_ID:-}" ]; then echo "::warning::R2 secrets are not set; installers go to the GitHub Release instead."; exit 0; fi
           if [ "$R2_UPLOAD" != "true" ]; then exit 0; fi
           endpoint="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
           aws s3 sync release "s3://$R2_BUCKET/" --endpoint-url "$endpoint" \
@@ -181,12 +186,34 @@ jobs:
         run: |
           set -euo pipefail
           pnpm exec electron-builder --linux --publish never
+          if [ -z "${R2_ACCOUNT_ID:-}" ]; then echo "::warning::R2 secrets are not set; installers go to the GitHub Release instead."; exit 0; fi
           if [ "$R2_UPLOAD" != "true" ]; then exit 0; fi
           endpoint="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
           aws s3 sync release "s3://$R2_BUCKET/" --endpoint-url "$endpoint" \
             --no-progress --exclude "*" --include "OpenReel-*.AppImage" \
             --include "OpenReel-*.deb" --include "latest-linux.yml" \
             --include "*.blockmap"
+
+      # Without R2 (no dl.openreel.video upload), a tag still publishes: the
+      # installers are attached to the GitHub Release for the tag.
+      - name: Attach installers to the GitHub Release (no R2)
+        if: github.ref_type == 'tag'
+        working-directory: apps/desktop
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${R2_ACCOUNT_ID:-}" ]; then exit 0; fi
+          tag="${GITHUB_REF_NAME}"
+          shopt -s nullglob
+          files=(release/OpenReel-*.dmg release/OpenReel-*.exe release/OpenReel-*.AppImage release/OpenReel-*.deb)
+          if [ ${#files[@]} -eq 0 ]; then echo "::error::No installers found in release/"; exit 1; fi
+          for attempt in 1 2 3; do
+            gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 && break
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --title "OpenReel $tag" \
+              --notes "OpenReel Desktop $tag. These builds are unsigned: on macOS right-click the app and choose Open the first time; on Windows choose More info, then Run anyway." \
+              && break || sleep $((attempt * 5))
+          done
+          gh release upload "$tag" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
 
   manifest:
     name: Publish landing manifest.json
@@ -213,6 +240,7 @@ jobs:
         # Actions artifact storage quota entirely (it is account-wide and the
         # ~600 MB/release installers exhaust it quickly).
         run: |
+          if [ -z "${R2_ACCOUNT_ID:-}" ]; then echo "::warning::R2 secrets are not set; skipping manifest.json."; exit 0; fi
           VERSION="$(node -p "require('./apps/desktop/package.json').version")"
           mkdir -p artifacts
           aws s3 sync "s3://$R2_BUCKET/" artifacts \
@@ -221,11 +249,13 @@ jobs:
           ls -la artifacts
       - name: Build manifest.json
         run: |
+          if [ -z "${R2_ACCOUNT_ID:-}" ]; then exit 0; fi
           RELEASE_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             node apps/desktop/scripts/build-manifest.mjs artifacts manifest.json
           cat manifest.json
       - name: Upload manifest.json to R2
         run: |
+          if [ -z "${R2_ACCOUNT_ID:-}" ]; then exit 0; fi
           aws s3 cp manifest.json "s3://$R2_BUCKET/manifest.json" \
             --endpoint-url "https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com" \
             --no-progress --content-type application/json \
