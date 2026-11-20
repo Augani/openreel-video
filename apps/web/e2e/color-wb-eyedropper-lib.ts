@@ -1,3 +1,5 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { expect, type Page } from "@playwright/test";
 import { clickClip, clipsOf, openEditor, press, readState, seek, settle, snap, undo } from "./helpers";
 import { openColorGrading } from "./lumetri-basic-lib";
@@ -255,7 +257,7 @@ export async function runWbRealFootageFlow(
     expect(clipped, `${label} label is clipped`).toBe(false);
   }
   await expect(sizeGroup).toBeVisible();
-  await page.screenshot({ path: "/private/tmp/claude-501/wb-armed.png" });
+  await page.screenshot({ path: join(tmpdir(), "wb-armed.png") });
   const box = await page.locator(PROGRAM).boundingBox();
   if (!box) throw new Error("no Program canvas box");
   const x = box.x + box.width * patch.fx;

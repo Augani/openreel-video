@@ -52,6 +52,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build:wasm
       - run: pnpm --filter @openreel/desktop build
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
       - name: Check budgets
         run: |
           mkdir -p perf-out

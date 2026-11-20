@@ -128,6 +128,7 @@ jobs:
         run: pnpm --filter @openreel/desktop build
         env:
           VITE_OPENREEL_E2E: '1'
+          NODE_OPTIONS: --max-old-space-size=6144
 
       - name: Typecheck desktop
         run: pnpm --filter @openreel/desktop typecheck

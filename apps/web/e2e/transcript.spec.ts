@@ -197,7 +197,8 @@ test.describe("Transcript editing", () => {
     const lines = vtt.split("\n");
     expect(lines[0]).toBe("WEBVTT");
     expect(lines[1]).toBe("");
-    const blocks = vtt.trim().split(/\n\n/).slice(1);
+    // The caption style model may add a STYLE block before the cues.
+    const blocks = vtt.trim().split(/\n\n/).slice(1).filter((block) => !block.startsWith("STYLE"));
     expect(blocks).toHaveLength(3);
     const timing = /^(\d{2}):(\d{2}):(\d{2})\.(\d{3}) --> (\d{2}):(\d{2}):(\d{2})\.(\d{3})$/;
     let last = -1;
