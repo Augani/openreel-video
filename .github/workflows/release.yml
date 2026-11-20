@@ -101,6 +101,7 @@ jobs:
         run: pnpm --filter @openreel/web build
         env:
           OPENREEL_DESKTOP: "1"
+          NODE_OPTIONS: --max-old-space-size=6144
 
       - name: Build main + preload
         run: pnpm --filter @openreel/desktop build:main
