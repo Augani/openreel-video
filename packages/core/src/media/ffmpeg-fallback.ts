@@ -729,6 +729,32 @@ export class FFmpegFallback {
     }
   }
 
+  /**
+   * Encodes a PCM WAV with the given ffmpeg audio options into a raw elementary stream (AC-3 / E-AC-3). The
+   * bundled core carries the `ac3` / `eac3` encoders and the raw `ac3` / `eac3` muxers.
+   */
+  async encodeAudioStream(
+    wav: Uint8Array,
+    encodeArgs: readonly string[],
+    muxer: string,
+    extension: string,
+  ): Promise<Uint8Array> {
+    await this.load();
+    this.ensureLoaded();
+    const operationId = crypto.randomUUID();
+    const inputFilename = `enc_${operationId}.wav`;
+    const outputFilename = `enc_${operationId}.${extension}`;
+    try {
+      await this.ffmpeg!.writeFile(inputFilename, wav);
+      const exitCode = await this.ffmpeg!.exec(["-y", "-i", inputFilename, "-vn", ...encodeArgs, "-f", muxer, outputFilename]);
+      if (exitCode !== 0) throw new Error(`FFmpeg could not encode the audio (exit code ${exitCode})`);
+      const data = await this.ffmpeg!.readFile(outputFilename);
+      return data.slice();
+    } finally {
+      await this.cleanupFiles([inputFilename, outputFilename]);
+    }
+  }
+
   async extractFrame(
     file: File | Blob,
     timestamp: number,

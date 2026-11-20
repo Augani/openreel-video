@@ -19,7 +19,7 @@ export interface ExportRunnerState {
   complete: boolean;
 }
 
-type ExportContainer = "mp4" | "webm" | "mov" | "mxf" | "wav";
+type ExportContainer = "mp4" | "webm" | "mov" | "mxf" | "mkv" | "wav" | "ac3" | "ec3";
 export type ExportDeliveryMode = "download" | "file";
 
 const MIME_BY_EXT: Record<string, string> = {
@@ -27,7 +27,10 @@ const MIME_BY_EXT: Record<string, string> = {
   webm: "video/webm",
   mov: "video/quicktime",
   mxf: "application/mxf",
+  mkv: "video/x-matroska",
   wav: "audio/wav",
+  ac3: "audio/ac3",
+  ec3: "audio/eac3",
 };
 
 export function mimeForExt(ext: string): string {
@@ -40,6 +43,9 @@ export function extForFormat(format: string, codec?: string): ExportContainer {
   if (format === "mov") return "mov";
   if (format === "webm") return "webm";
   if (format === "wav") return "wav";
+  if (format === "mkv") return "mkv";
+  if (format === "ac3") return "ac3";
+  if (format === "eac3") return "ec3";
   return "mp4";
 }
 
@@ -632,7 +638,7 @@ export function useExportRunner(options: ExportRunnerOptions): UseExportRunner {
         // The WAV path and any WebCodecs export (streamToFile) mux directly to
         // disk through the fs bridge. The native ffmpeg video path writes the
         // file itself via __openreelExportPath, so it gets the no-op stub below.
-        if (ext === "wav" || opts?.streamToFile === true) {
+        if (ext === "wav" || ext === "ac3" || ext === "ec3" || opts?.streamToFile === true) {
           const handleId = await window.openreel.fs.openWrite(chosen);
           let cursor = 0;
           return {

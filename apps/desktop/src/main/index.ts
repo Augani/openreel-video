@@ -21,6 +21,7 @@ import {
   cancelAllExports,
   copyExportRun,
 } from "./ipc/export";
+import { encodeDolbyAudio } from "./ipc/dolby-audio";
 import {
   cancelAuroraPreviewSession,
   cancelAuroraSequenceSession,
@@ -77,6 +78,7 @@ import {
 } from "./ipc/media";
 import { fetchUrl } from "./ipc/fetch-url";
 import { registerIngestIpc, startIngestQueue, stopIngestQueue } from "./ingest/ipc";
+import { registerWatchFoldersIpc, startWatchFolders, stopWatchFolders } from "./watch/ipc";
 import { probeRiggingBackend, rigHumanoidModel } from "./sidecar/rigging-backend";
 import { disposeAuroraClient } from "./aurora/client";
 import {
@@ -87,6 +89,7 @@ import {
   proxyArgsSchema,
   transcodeArgsSchema,
   extractAudioArgsSchema,
+  encodeDolbyAudioArgsSchema,
   probeAudioArgsSchema,
   developRawStillArgsSchema,
   fetchUrlArgsSchema,
@@ -314,6 +317,7 @@ app.whenReady().then(() => {
   });
   mark("ipc-fs-registered");
   registerIngestIpc();
+  registerWatchFoldersIpc();
   handle(CHANNELS.mediaGenerateProxy, proxyArgsSchema, generateProxy);
   handle(CHANNELS.mediaTranscode, transcodeArgsSchema, transcode);
   handle(CHANNELS.mediaExtractAudioWav, extractAudioArgsSchema, extractAudioWav);
@@ -398,6 +402,7 @@ app.whenReady().then(() => {
     writeAudioChunk,
   );
   handle(CHANNELS.exportFinishAudio, z.object({ jobId: z.string() }), finishAudio);
+  handle(CHANNELS.exportEncodeDolbyAudio, encodeDolbyAudioArgsSchema, encodeDolbyAudio);
   handle(CHANNELS.exportCancel, z.object({ jobId: z.string() }), cancelExport);
   handle(CHANNELS.exportProbeSource, z.object({ path: z.string().min(1) }), ({ path: p }) => probeSource(p));
   handle(
@@ -454,6 +459,8 @@ app.whenReady().then(() => {
   mark("ipc-registered");
   startIngestQueue();
   mark("ingest-queue");
+  // Watch folders start a moment after launch so scanning never competes with the first paint.
+  setTimeout(() => startWatchFolders(), 1500);
   // Drop temp files left by crashed sessions; never blocks startup.
   void sweepStaleTemp().catch(() => undefined);
   startMcpServer().catch((error) =>
@@ -512,6 +519,7 @@ app.on("will-quit", () => {
   nativeDecodeService().dispose();
   cancelAllExports();
   stopIngestQueue();
+  stopWatchFolders();
   cleanupTempOnQuit();
   void stopMcpServer();
 });

@@ -41,6 +41,7 @@ export * from "./scrub-grain";
 export * from "./effect-latency";
 export * from "./audio-routing-graph";
 export * from "./repair";
+export * from "./spectral";
 export * from "./essential-sound";
 export * from "./surround";
 export * from "./channel-map";

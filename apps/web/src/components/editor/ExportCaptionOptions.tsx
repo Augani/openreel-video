@@ -25,7 +25,7 @@ interface ExportCaptionOptionsProps {
   subtitles: readonly Subtitle[];
   value: CaptionExportSettings;
   onChange: (next: CaptionExportSettings) => void;
-  format: "mp4" | "webm" | "mov" | "mxf";
+  format: "mp4" | "webm" | "mov" | "mxf" | "mkv";
   isDesktop: boolean;
   frameRate: number;
 }

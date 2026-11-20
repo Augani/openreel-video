@@ -126,6 +126,24 @@ export function installRendererBridge(): McpToolProvider {
   };
 }
 
+/**
+ * Tool calls for watch folders. They carry `origin: "watch-folders"` so the renderer runs them without
+ * the agent confirmation gate (the folders are set up by the user in Settings).
+ */
+export function createWatchFolderToolCaller(): {
+  hasEditor(): boolean;
+  call(name: string, args: Record<string, unknown>): Promise<McpToolResult>;
+} {
+  installRendererBridge();
+  return {
+    hasEditor: () => getEditorWindow() !== null,
+    async call(name, args) {
+      const result = await bridge!.request("callTool", { name, args, origin: "watch-folders" }, LONG_RUNNING_TIMEOUT_MS);
+      return result as McpToolResult;
+    },
+  };
+}
+
 /** Number of requests waiting for the renderer. Exposed for tests and diagnostics. */
 export function queuedRequestCount(): number {
   return queued.length;

@@ -19,7 +19,15 @@ interface McpBridgeRequest {
   readonly kind: "listTools" | "callTool";
   readonly name?: string;
   readonly args?: Record<string, unknown>;
+  /** Set by the main process for watch-folder work; see WATCH_FOLDER_TOOLS. */
+  readonly origin?: "watch-folders";
 }
+
+/**
+ * The tools a watch folder may run without the agent confirmation gate. The folders are configured by
+ * the user in Settings (the folder path comes from a native dialog), so this is the user's own automation.
+ */
+const WATCH_FOLDER_TOOLS: ReadonlySet<string> = new Set(["import_media_from_path", "list_bins", "create_bin", "open_project_file", "queue_export", "list_export_jobs", "cancel_export_job", "relink_media"]);
 
 interface McpBridgeResponse {
   readonly ok: boolean;
@@ -167,7 +175,7 @@ export async function handleMcpBridgeRequest(
       const name = req.name;
       if (!name) return { ok: false, error: "Missing tool name" };
 
-      const autoAllow = useSettingsStore.getState().mcpAutoAllowTrustedLocal;
+      const autoAllow = useSettingsStore.getState().mcpAutoAllowTrustedLocal || (req.origin === "watch-folders" && WATCH_FOLDER_TOOLS.has(name));
       if (!autoAllow && (isDestructive(name) || isExpensive(name))) {
         const blocked: ToolResult = {
           ok: false,

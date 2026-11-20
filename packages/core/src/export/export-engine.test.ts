@@ -92,6 +92,10 @@ vi.mock("../media/mediabunny-engine", () => ({
   getMediaEngine: vi.fn().mockReturnValue(mockMediaEngine),
 }));
 
+const { mockWasmEncode } = vi.hoisted(() => ({ mockWasmEncode: vi.fn() }));
+vi.mock("../media/ffmpeg-fallback", () => ({
+  getFFmpegFallback: () => ({ load: vi.fn().mockResolvedValue(undefined), encodeAudioStream: mockWasmEncode }),
+}));
 vi.mock("./audio-priming", () => ({ getAacEncoderPriming: vi.fn().mockResolvedValue(2112) }));
 vi.mock("./mp4-audio-timing", () => ({ applyMp4AudioTiming: vi.fn((bytes) => bytes) }));
 
@@ -830,6 +834,120 @@ describe("ExportEngine", () => {
       };
       const duration = (exportEngine as unknown as { calculateTimelineDuration(t: unknown): number }).calculateTimelineDuration(timeline);
       expect(duration).toBe(3);
+    });
+  });
+
+  describe("Dolby Digital delivery", () => {
+    const AC3_BYTES = new Uint8Array([0x0b, 0x77, 1, 2, 3]);
+    const fakeMix = (channels: number, sampleRate = 48000, length = 480): AudioBuffer =>
+      ({
+        numberOfChannels: channels,
+        sampleRate,
+        length,
+        duration: length / sampleRate,
+        getChannelData: (c: number) => Float32Array.from({ length }, (_, i) => (c + 1) * 0.1 * Math.sin(i / 7)),
+      }) as unknown as AudioBuffer;
+    const project = (settings: Partial<Project["settings"]> = {}): Project =>
+      createMockProject({ settings: { ...createMockProject().settings, ...settings }, timeline: createMockTimeline() });
+    const stubMix = (buffer: AudioBuffer) =>
+      vi.spyOn(exportEngine as unknown as { renderTimelineAudio: () => Promise<AudioBuffer> }, "renderTimelineAudio").mockResolvedValue(buffer);
+    const drainAudio = async (p: Project, settings: Record<string, unknown>): Promise<ExportResult> => {
+      await exportEngine.initialize();
+      const generator = exportEngine.exportAudio(p, settings);
+      for (;;) {
+        const { done, value } = await generator.next();
+        if (done) return value;
+      }
+    };
+    const readWav = (wav: ArrayBuffer) => {
+      const view = new DataView(wav);
+      return {
+        channels: view.getUint16(22, true),
+        sampleRate: view.getUint32(24, true),
+        bits: view.getUint16(34, true),
+        mask: view.getUint16(22, true) > 2 ? view.getUint32(40, true) : 0,
+      };
+    };
+
+    it("desktop: a stereo AC-3 file goes to the sidecar as a 24-bit stereo WAV at the offered bitrate", async () => {
+      const encodeDolbyAudio = vi.fn().mockResolvedValue(AC3_BYTES.buffer);
+      vi.stubGlobal("openreel", { platform: "desktop", export: { encodeDolbyAudio } });
+      stubMix(fakeMix(2));
+      const result = await drainAudio(project(), { format: "ac3", sampleRate: 96000, bitrate: 300, channels: 2, bitDepth: 24 });
+      expect(result).toMatchObject({ success: true });
+      expect(result.blob?.type).toBe("audio/ac3");
+      expect(new Uint8Array(await result.blob!.arrayBuffer())).toEqual(AC3_BYTES);
+      const call = encodeDolbyAudio.mock.calls[0][0];
+      expect(call).toMatchObject({ codec: "ac3", channels: 2, bitrateKbps: 320, sampleRate: 48000, dialnorm: -31 });
+      expect(readWav(call.wav)).toMatchObject({ channels: 2, bits: 24 });
+    });
+
+    it("desktop: a 5.1 sequence sends six channels with the 5.1 speaker mask (L R C LFE Ls Rs) and at least 384 kbps; dialnorm follows the loudness target", async () => {
+      const encodeDolbyAudio = vi.fn().mockResolvedValue(AC3_BYTES.buffer);
+      vi.stubGlobal("openreel", { platform: "desktop", export: { encodeDolbyAudio } });
+      stubMix(fakeMix(6));
+      // The loudness step rebuilds the buffer through the Web Audio AudioBuffer constructor.
+      vi.stubGlobal("AudioBuffer", class {
+        readonly numberOfChannels: number; readonly sampleRate: number; readonly length: number;
+        private readonly data: Float32Array[];
+        constructor(o: { length: number; numberOfChannels: number; sampleRate: number }) {
+          Object.assign(this, o);
+          this.numberOfChannels = o.numberOfChannels; this.sampleRate = o.sampleRate; this.length = o.length;
+          this.data = Array.from({ length: o.numberOfChannels }, () => new Float32Array(o.length));
+        }
+        getChannelData(c: number) { return this.data[c]; }
+        copyToChannel(d: Float32Array, c: number) { this.data[c].set(d); }
+      });
+      const result = await drainAudio(project({ channels: 6, channelLayout: "5.1" }), {
+        format: "eac3", sampleRate: 48000, bitrate: 192, channels: 2, bitDepth: 24,
+        loudness: { enabled: true, targetLufs: -24, truePeakCeilingDb: -2 },
+      });
+      expect(result).toMatchObject({ success: true });
+      expect(result.blob?.type).toBe("audio/eac3");
+      const call = encodeDolbyAudio.mock.calls[0][0];
+      expect(call).toMatchObject({ codec: "eac3", channels: 6, bitrateKbps: 384, dialnorm: -24 });
+      expect(readWav(call.wav)).toMatchObject({ channels: 6, mask: 0x3f, bits: 24 });
+    });
+
+    it("browser: encodes on the ffmpeg.wasm core with the same arguments, the 5.1 relabel included", async () => {
+      vi.stubGlobal("openreel", undefined);
+      mockWasmEncode.mockResolvedValue(AC3_BYTES);
+      stubMix(fakeMix(6));
+      const result = await drainAudio(project({ channels: 6, channelLayout: "5.1" }), { format: "ac3", sampleRate: 48000, bitrate: 448, channels: 2, bitDepth: 24, dialnorm: -27 });
+      expect(result).toMatchObject({ success: true });
+      const [wav, args, muxer, extension] = mockWasmEncode.mock.calls[0];
+      expect(wav).toBeInstanceOf(Uint8Array);
+      expect(args).toEqual(["-af", "channelmap=map=0|1|2|3|4|5:channel_layout=5.1(side)", "-c:a", "ac3", "-b:a", "448k", "-ar", "48000", "-dialnorm", "-27"]);
+      expect([muxer, extension]).toEqual(["ac3", "ac3"]);
+    });
+
+    it("refuses mono and other layouts", async () => {
+      stubMix(fakeMix(1));
+      const result = await drainAudio(project(), { format: "ac3", sampleRate: 48000, bitrate: 192, channels: 1, bitDepth: 24 });
+      expect(result.success).toBe(false);
+      expect(result.error).toMatchObject({ code: "INVALID_SETTINGS" });
+      expect(result.error?.message).toMatch(/stereo or 5.1/);
+    });
+
+    it("the browser video exporter refuses an AC-3 track and MKV with a desktop-only reason, before any work", async () => {
+      await exportEngine.initialize();
+      const run = async (settings: Record<string, unknown>) => {
+        const generator = exportEngine.exportVideo(project(), { ...DEFAULT_VIDEO_SETTINGS, frameRate: 1, width: 640, height: 360, ...settings }, {} as FileSystemWritableFileStream);
+        for (;;) {
+          const { done, value } = await generator.next();
+          if (done) return value;
+        }
+      };
+      const dolby = await run({ audioSettings: { ...DEFAULT_VIDEO_SETTINGS.audioSettings, format: "ac3", bitrate: 448 } });
+      expect(dolby.success).toBe(false);
+      expect(dolby.error).toMatchObject({ code: "UNSUPPORTED_CODEC" });
+      expect(dolby.error?.message).toMatch(/needs the desktop app/);
+      const mkv = await run({ format: "mkv" });
+      expect(mkv.error).toMatchObject({ code: "UNSUPPORTED_CODEC" });
+      expect(mkv.error?.message).toMatch(/MKV export needs the desktop app/);
+      const webm = await run({ format: "webm", codec: "vp9", audioSettings: { ...DEFAULT_VIDEO_SETTINGS.audioSettings, format: "eac3", bitrate: 640 } });
+      expect(webm.error).toMatchObject({ code: "INVALID_SETTINGS" });
+      expect(webm.error?.message).toMatch(/WebM cannot carry/);
     });
   });
 });

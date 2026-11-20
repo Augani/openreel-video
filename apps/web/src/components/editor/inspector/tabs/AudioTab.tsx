@@ -2,7 +2,7 @@ import { PrimaryAudioProperties } from "../PrimaryAudioProperties";
 import { EssentialSoundSection } from "../EssentialSoundSection";
 import { SurroundPanSection } from "../SurroundPanSection";
 import { AudioChannelsSection } from "../AudioChannelsSection";
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { getChannelLayout } from "@openreel/core";
 import { useProjectStore } from "../../../../stores/project-store";
 import {
@@ -15,6 +15,9 @@ import {
 } from "../";
 import { VoiceOverPanel } from "../VoiceOverPanel";
 import { InspectorSection } from "../shell/InspectorSection";
+
+// The spectral editor (spectrogram, selection tools, worker client) loads when its section is first opened, never with the editor shell.
+const SpectralEditor = lazy(() => import("../../../audio-spectral/SpectralEditor"));
 
 interface AudioTabProps {
   clipId: string;
@@ -60,6 +63,13 @@ export const AudioTab: React.FC<AudioTabProps> = ({
       {showAudioEffects && clip && (
         <InspectorSection title="Audio repair" sectionId="audio-repair" defaultOpen>
           <RepairSection clipId={clipId} />
+        </InspectorSection>
+      )}
+      {showAudioEffects && clip && (
+        <InspectorSection title="Spectral editing" sectionId="spectral-editing" defaultOpen={false}>
+          <Suspense fallback={<p className="text-[11px] text-fg-muted">Loading spectral editor…</p>}>
+            <SpectralEditor clipId={clipId} />
+          </Suspense>
         </InspectorSection>
       )}
       <InspectorSection

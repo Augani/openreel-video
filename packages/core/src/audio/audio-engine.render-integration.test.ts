@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { AudioEngine } from "./audio-engine";
 import type { AudioClipRenderInfo } from "./types";
 import type { MediaItem } from "../types";
+import { applySpectralRegions } from "./spectral/spectral-dsp";
+import { createSpectralRepairEffect, type SpectralRegion } from "./spectral/spectral-regions";
 
 const SR = 8000;
 
@@ -162,5 +164,45 @@ describe("export render with a realistic offline graph", () => {
     const [l, r] = ctx.render();
     expect(energy(l, 0, 1)).toBeGreaterThan(energy(r, 0, 1) * 4);
     expect(energy(r, 3, 4)).toBeGreaterThan(energy(l, 3, 4) * 4);
+  });
+
+  describe("spectral repair", () => {
+    const region: SpectralRegion = { id: "r", mode: "remove", startTime: 0, endTime: 4, lowHz: 400, highHz: 600, gainDb: -120, enabled: true };
+    const two = () => makeBuffer(1, 4 * SR, (i) => 0.3 * Math.sin((2 * Math.PI * 500 * i) / SR) + 0.3 * Math.sin((2 * Math.PI * 1500 * i) / SR));
+    const amp = (x: Float32Array, f: number) => {
+      let re = 0, im = 0;
+      for (let i = SR; i < 3 * SR; i++) { re += x[i] * Math.cos((2 * Math.PI * f * i) / SR); im -= x[i] * Math.sin((2 * Math.PI * f * i) / SR); }
+      return (2 * Math.hypot(re, im)) / (2 * SR);
+    };
+
+    it("renders the repaired source: the same samples the DSP produces, tone gone, the other tone kept", async () => {
+      const ctx = new RealisticOffline(2, 4 * SR, SR);
+      const engine = engineFor(null);
+      const source = two();
+      await engine.renderBufferToContext(ctx, source, info({ effects: [createSpectralRepairEffect("sr", [region])] }), 0);
+      expect(ctx.sources).toHaveLength(1);
+      const played = ctx.sources[0].buffer!.getChannelData(0);
+      expect(Array.from(played)).toEqual(Array.from(applySpectralRegions([source.getChannelData(0)], SR, [region])[0]));
+      expect(amp(played, 500)).toBeLessThan(amp(source.getChannelData(0), 500) * 0.04);
+      expect(Math.abs(amp(played, 1500) / amp(source.getChannelData(0), 1500) - 1)).toBeLessThan(0.005);
+    });
+
+    it("leaves a clip with a disabled or empty spectral effect on the original source", async () => {
+      const ctx = new RealisticOffline(2, 4 * SR, SR);
+      const engine = engineFor(null);
+      const source = two();
+      await engine.renderBufferToContext(ctx, source, info({ effects: [createSpectralRepairEffect("a", []), { ...createSpectralRepairEffect("b", [region]), enabled: false }] }), 0);
+      expect(ctx.sources[0].buffer).toBe(source);
+    });
+
+    it("decodes the whole source instead of streaming segments, so the repair sees the same audio as the preview", async () => {
+      const ctx = new RealisticOffline(2, 4 * SR, SR);
+      const decoded = two();
+      const engine = engineFor(decoded, [makeBuffer(1, 2 * SR, () => 0.5), makeBuffer(1, 2 * SR, () => 0.5)]);
+      const media = { id: "m", metadata: { duration: 4 } } as unknown as MediaItem;
+      await engine.renderClipToContext(ctx, media, info({ effects: [createSpectralRepairEffect("sr", [region])] }), 0, true);
+      expect(ctx.sources).toHaveLength(1);
+      expect(amp(ctx.sources[0].buffer!.getChannelData(0), 500)).toBeLessThan(amp(decoded.getChannelData(0), 500) * 0.04);
+    });
   });
 });

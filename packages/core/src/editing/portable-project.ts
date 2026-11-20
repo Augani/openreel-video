@@ -44,6 +44,7 @@ export const AUDIO_EDIT_PARAM_SCHEMAS: Record<string, EditSchema> = {
   gate: obj({ threshold: num(-90, 0), range: num(-90, 0), attack: num(0.0002, 0.5), hold: num(0, 2), release: num(0.005, 3) }),
   brickwallLimiter: obj({ ceiling: num(-24, 0), release: num(0.01, 1) }),
   lowPass: obj({ frequency: num(100, 20000), slope: num(12, 48) }),
+  spectralRepair: obj({ regions: arr(obj({ id, mode: en(["attenuate", "remove"]), startTime: num(0, 86400), endTime: num(0, 86400), lowHz: num(0, 192000), highHz: num(0, 192000), gainDb: num(-120, 0), enabled: bool }, ["mode", "startTime", "endTime", "lowHz", "highHz"]), 256) }),
   fadeIn: obj({ duration: time, curve: en(["linear", "exponential", "logarithmic", "s-curve"]) }),
   fadeOut: obj({ duration: time, curve: en(["linear", "exponential", "logarithmic", "s-curve"]) }),
 };

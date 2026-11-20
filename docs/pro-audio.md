@@ -161,8 +161,9 @@ Audio Mixer > **Sequence audio** selects Stereo or 5.1 Surround. It is the
   multichannel audio device; it monitors through the stereo down-mix (the meters
   show all six). The stereo-only DeClick / DeClip / DeReverb repair effects still
   process each channel on its own (they have no cross-channel state to link).
-* AC-3 / E-AC-3 (Dolby Digital) and 6-channel Opus export are not available;
-  5.1 delivery is AAC in MP4 / MOV and PCM WAV.
+* 6-channel Opus export is not available. 5.1 delivery is AAC in MP4 / MOV, PCM WAV,
+  and Dolby Digital (AC-3) / Digital Plus (E-AC-3) in MP4 / MOV / MKV (desktop) or
+  raw `.ac3` / `.ec3` (desktop and web); see docs/PREMIERE-GAPS.md.
 * 7.1 and other layouts. Sources wider than six channels are folded to 5.1 by ffmpeg.
 * The legacy clip "pan" effect and the stereo track pan are ignored in a 5.1
   sequence (the surround panner replaces them); they come back with Stereo.

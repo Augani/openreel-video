@@ -39,6 +39,10 @@ interface OpenReelExportStartArgs {
   alpha?: boolean;
   keyframeInterval?: number;
   audioBitrateKbps?: number;
+  /** Audio codec of the file: "ac3" (Dolby Digital) or "eac3" (Dolby Digital Plus); absent = AAC / Opus / PCM by container. */
+  audioCodec?: "ac3" | "eac3";
+  /** AC-3 / E-AC-3 dialogue normalisation in dB, -31 to -1. */
+  dialnorm?: number;
   /**
    * Colour-managed export: frames are raw planar YCbCr already converted to this output space (not RGBA);
    * the sidecar tags the stream and writes 10-bit HEVC / ProRes 4444 for HDR.
@@ -425,6 +429,64 @@ export interface OpenReelIngestBridge {
   }>;
 }
 
+/** Mirrors apps/desktop/src/shared/watch-folders.ts (the web package cannot import apps/desktop). */
+export interface OpenReelWatchFolderConfig {
+  id: string;
+  kind: "ingest" | "export";
+  path: string;
+  paused: boolean;
+  bin: string;
+  createProxies: boolean;
+  presetId: string;
+  outputDir: string;
+  includeProjects: boolean;
+  baselined: boolean;
+  processExisting: boolean;
+}
+export type OpenReelWatchItemState = "detecting" | "queued" | "waiting" | "running" | "done" | "failed" | "duplicate" | "cancelled";
+export interface OpenReelWatchItem {
+  id: string;
+  folderId: string;
+  name: string;
+  path: string;
+  state: OpenReelWatchItemState;
+  progress: number | null;
+  detail?: string;
+  error?: string;
+  outputPath?: string;
+  startedAt?: number;
+  finishedAt?: number;
+  createdAt: number;
+}
+export interface OpenReelWatchFolderStatus {
+  state: "watching" | "paused" | "missing" | "error";
+  message?: string;
+  detecting: number;
+  queued: number;
+  running: number;
+  done: number;
+  failed: number;
+  duplicates: number;
+}
+export interface OpenReelWatchFoldersSnapshot {
+  folders: Array<{ config: OpenReelWatchFolderConfig; status: OpenReelWatchFolderStatus }>;
+  items: OpenReelWatchItem[];
+}
+export interface OpenReelWatchFoldersBridge {
+  list(): Promise<OpenReelWatchFoldersSnapshot>;
+  /** Opens the native folder dialog; the path never passes through the page. */
+  add(kind: "ingest" | "export"): Promise<{ added: boolean; id?: string }>;
+  update(
+    id: string,
+    patch: Partial<Pick<OpenReelWatchFolderConfig, "paused" | "bin" | "createProxies" | "presetId" | "includeProjects" | "processExisting">>,
+  ): Promise<void>;
+  pickOutput(id: string): Promise<{ changed: boolean }>;
+  remove(id: string): Promise<void>;
+  retry(itemId: string): Promise<void>;
+  clearFinished(): Promise<void>;
+  onChange(cb: (snapshot: OpenReelWatchFoldersSnapshot) => void): () => void;
+}
+
 export type OpenReelProjectLockResult =
   | { status: "acquired" }
   | {
@@ -437,6 +499,7 @@ declare global {
   interface Window {
     openreel?: {
       ingest?: OpenReelIngestBridge;
+      watchFolders?: OpenReelWatchFoldersBridge;
       platform: "desktop";
       publicOrigin: string;
       /** True for perf/e2e/CI/agent launches (computed in main, read synchronously in preload). Suppresses onboarding. */
@@ -510,6 +573,15 @@ declare global {
         writeAudioWav(jobId: string, wav: ArrayBuffer): Promise<void>;
         writeAudioChunk(jobId: string, chunk: ArrayBuffer, position: number): Promise<void>;
         finishAudio(jobId: string): Promise<void>;
+        /** Audio-only AC-3 / E-AC-3: encode a WAV mixdown (5.1 as L R C LFE Ls Rs) with the ffmpeg sidecar into a raw elementary stream. */
+        encodeDolbyAudio(args: {
+          wav: ArrayBuffer;
+          codec: "ac3" | "eac3";
+          channels: 2 | 6;
+          bitrateKbps: number;
+          sampleRate: 44100 | 48000;
+          dialnorm: number;
+        }): Promise<ArrayBuffer>;
         cancel(jobId: string): Promise<void>;
         /** Native smart render: stream-copy `frames` packets of a source file from its key frame at `sourceStart`. */
         copyRun(
@@ -600,6 +672,8 @@ declare global {
             kind: "listTools" | "callTool";
             name?: string;
             args?: Record<string, unknown>;
+            /** Set by the main process for watch-folder work only. */
+            origin?: "watch-folders";
           }) => Promise<{ ok: boolean; result?: unknown; error?: string }>,
         ): () => void;
         getStatus(): Promise<OpenReelMcpStatus>;

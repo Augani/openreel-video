@@ -374,6 +374,7 @@ export type {
   ParsedLoc,
 } from "./interchange/marker-export";
 export * from "./export/surround-export";
+export * from "./export/dolby";
 
 export {
   translateCaptionTrack,

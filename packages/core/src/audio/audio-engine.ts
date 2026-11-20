@@ -30,6 +30,8 @@ import { scheduleVolumeAutomationOnGain } from "./clip-volume-automation";
 import { schedulePanAutomationOnParam } from "./clip-pan-automation";
 import { shouldPreservePitch, timeStretchChannels } from "./time-stretch";
 import { getSharedStretchCache } from "./stretch-cache";
+import { getSharedSpectralRepairCache } from "./spectral/spectral-repair-cache";
+import { SPECTRAL_REPAIR_EFFECT_TYPE, getSpectralRepairRegions, type SpectralRegion } from "./spectral/spectral-regions";
 import { hasAudioRouting, getAudioBuses } from "./audio-routing";
 import { AudioRoutingGraph, buildOfflineTrackChain } from "./audio-routing-graph";
 import { planTimelineDelayCompensation, rackLatencySamples } from "./effect-latency";
@@ -678,7 +680,8 @@ export class AudioEngine {
     preferSegments = false,
   ): Promise<void> {
     if (this.noAudioMedia.has(this.getAudioSourceKey(mediaItem, clipInfo.audioTrackIndex ?? 0))) return;
-    if (this.shouldUseSegmentedAudioDecoding(mediaItem, preferSegments)) {
+    // Spectral repair processes the whole decoded source (the same samples the preview plays), so such clips skip the streaming decode.
+    if (getSpectralRepairRegions(clipInfo.effects).length === 0 && this.shouldUseSegmentedAudioDecoding(mediaItem, preferSegments)) {
       const renderedSegment = await this.renderClipToContextFromSegments(
         context,
         mediaItem,
@@ -705,6 +708,12 @@ export class AudioEngine {
     renderStartTime: number,
     sourceOffset = clipInfo.sourceTime,
   ): Promise<void> {
+    // Spectral repair: the clip's region edits are applied to the whole decoded source (regions are source-time) through
+    // the cache the live preview shares, so preview and export play the same samples; everything below sees the repaired audio.
+    if (!clipInfo.compoundClipId) {
+      const regions = getSpectralRepairRegions(clipInfo.effects);
+      if (regions.length > 0) audioBuffer = await this.repairSpectrally(audioBuffer, regions);
+    }
     // Audio Channels: every later stage (reverse, stretch, effects, panner) sees the clip's channels, not the file's.
     audioBuffer = mapAudioBuffer(context, audioBuffer, clipInfo.channelMap);
     const source = context.createBufferSource();
@@ -792,7 +801,7 @@ export class AudioEngine {
   }> {
     const enabledEffects = clipInfo.effects.filter(
       (effect) =>
-        effect.enabled && effect.type !== "pan" && effect.type !== "fadeIn" && effect.type !== "fadeOut",
+        effect.enabled && effect.type !== "pan" && effect.type !== "fadeIn" && effect.type !== "fadeOut" && effect.type !== SPECTRAL_REPAIR_EFFECT_TYPE,
     );
 
     if (
@@ -856,6 +865,16 @@ export class AudioEngine {
       clipInfo.duration,
       contextStartTime,
     );
+  }
+
+  /** The source buffer with spectral regions applied: cached and computed off the main thread, with an inline fallback so an export is never silently unrepaired. */
+  private async repairSpectrally(buffer: AudioBuffer, regions: SpectralRegion[]): Promise<AudioBuffer> {
+    const cached = await getSharedSpectralRepairCache((channels, sampleRate) => this.buildStretchBuffer(channels, sampleRate)).request({ buffer, regions });
+    if (cached) return cached;
+    const { applySpectralRegions } = await import("./spectral/spectral-dsp");
+    const channels: Float32Array[] = [];
+    for (let c = 0; c < buffer.numberOfChannels; c += 1) channels.push(buffer.getChannelData(c));
+    return this.buildStretchBuffer(applySpectralRegions(channels, buffer.sampleRate, regions), buffer.sampleRate);
   }
 
   private buildStretchBuffer(channels: Float32Array[], sampleRate: number): AudioBuffer {

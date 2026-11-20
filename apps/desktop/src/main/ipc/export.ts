@@ -13,6 +13,8 @@ import { resolveEncoderChoice, type EncoderChoice } from "../../../../../package
 import { appTempDir, newTempPathReady, releaseTemp, releaseTempSync } from "../temp-dir";
 import { acquirePowerHold, releasePowerHold, releaseAllPowerHolds } from "../power";
 import { isBroadcastExportCodec, isProres4444, type BroadcastScan, type DnxhrProfile, type ExportCodec, type EncodeMode } from "../sidecar/encode-args";
+import { dolbyPlanFromRequest } from "../sidecar/dolby-args";
+import { dolbyContainerProblem } from "../../../../../packages/core/src/export/dolby";
 import { isNativeColorOutput, type NativeColorOutput } from "../sidecar/color-output-args";
 
 interface ExportStartArgs {
@@ -40,6 +42,10 @@ interface ExportStartArgs {
   alpha?: boolean;
   keyframeInterval?: number;
   audioBitrateKbps?: number;
+  /** "ac3" (Dolby Digital) / "eac3" (Dolby Digital Plus): the audio track's codec instead of AAC / Opus / PCM. MP4, MOV or MKV. */
+  audioCodec?: string;
+  /** AC-3 / E-AC-3 dialogue normalisation, dB, -31 to -1. */
+  dialnorm?: number;
   /** Broadcast delivery: interlaced (1080i) flags for XDCAM HD422 / AVC-Intra 100. */
   scan?: BroadcastScan;
   /** MXF wrapper: "op1a" (default) or "opatom" (one file per essence track). */
@@ -243,6 +249,9 @@ export function resolveExportArgs(
     if (color) throw new Error("XDCAM HD422 and AVC-Intra 100 are Rec.709 deliveries; set the sequence colour space to Rec.709.");
     if (args.format !== "mxf" && args.format !== "mov") throw new Error("XDCAM HD422 and AVC-Intra 100 are delivered in MXF or MOV.");
   }
+  if (args.format === "mkv" && (codec === "prores" || codec === "dnxhr" || isBroadcastExportCodec(codec))) {
+    throw new Error("ProRes, DNxHR, XDCAM HD422 and AVC-Intra are delivered in MOV or MXF, not MKV. Choose H.264, H.265, AV1 or VP9 for MKV.");
+  }
   const broadcastEncoder = codec === "xdcamhd422" ? "mpeg2video" : codec === "avcintra100" ? "libx264" : null;
   if (broadcastEncoder && !usable.includes(broadcastEncoder)) {
     throw new Error(
@@ -278,6 +287,13 @@ export function resolveExportArgs(
     throw new Error(`Software was chosen, but this export would use the hardware encoder ${encoder}. Choose Auto or Hardware, or install an ffmpeg build with the software encoder.`);
   }
   const hdrProres = !!color && codec === "prores" && color.transfer !== "bt709";
+  const dolby = dolbyPlanFromRequest(args);
+  if (dolby) {
+    const containerProblem = dolbyContainerProblem(args.format);
+    if (containerProblem) throw new Error(containerProblem);
+    if (args.audioTrackCount !== undefined) throw new Error("Dolby Digital audio is a stereo or 5.1 track; it cannot be combined with mono audio tracks.");
+    if (!usable.includes(dolby.codec)) throw new Error(`This ffmpeg build has no ${dolby.codec} encoder, which Dolby Digital delivery needs.`);
+  }
   return {
     ...(color ? { color } : {}),
     width: args.width,
@@ -300,6 +316,7 @@ export function resolveExportArgs(
     alpha: needs4444 && args.alpha === true,
     keyframeInterval: args.keyframeInterval,
     audioBitrateKbps: args.audioBitrateKbps,
+    ...(dolby ? { dolby } : {}),
     ...broadcastExportFields(args),
   };
 }
@@ -636,9 +653,9 @@ function handleSmartMessage(
       .then(async () => {
         if (entry.cancelled) return;
         entry.finishDelivered = true;
-        const { outputPath, audioWavPath, audioBitrateKbps, format, captionInputs, startTimecode } = entry.exportArgs;
+        const { outputPath, audioWavPath, audioBitrateKbps, dolby, format, captionInputs, startTimecode } = entry.exportArgs;
         await smart.assemble(
-          { audioWavPath, outputPath, audioCodec: "aac", audioBitrateKbps, format, captionInputs, startTimecode },
+          { audioWavPath, outputPath, audioCodec: "aac", audioBitrateKbps, dolby, format, captionInputs, startTimecode },
           (frame) => entry.port.postMessage({ type: "progress", frame }),
         );
         entry.port.postMessage({ type: "done" });

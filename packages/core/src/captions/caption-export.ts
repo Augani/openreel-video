@@ -118,7 +118,7 @@ export interface EmbeddedCaptionPlan {
 }
 
 export interface EmbeddedCaptionContext {
-  format: "mp4" | "mov" | "webm" | "mxf";
+  format: "mp4" | "mov" | "webm" | "mxf" | "mkv";
   /** "native" = desktop ffmpeg; "web" = MediaBunny in the browser. */
   engine: "native" | "web";
   frameRate: number;
@@ -159,8 +159,8 @@ export function planEmbeddedCaptions(
       plan.warnings.push(`MXF files cannot hold a subtitle track here; ${trackLabel(id)} was not embedded. Export a sidecar caption file instead.`);
       continue;
     }
-    if (context.format === "webm") {
-      plan.warnings.push(`WebM export cannot embed subtitle tracks here; ${trackLabel(id)} was not embedded.`);
+    if (context.format === "webm" || context.format === "mkv") {
+      plan.warnings.push(`${context.format === "mkv" ? "MKV" : "WebM"} export cannot embed subtitle tracks here; ${trackLabel(id)} was not embedded.`);
       continue;
     }
     if (settings.embedded === "cea608" && context.format === "mov") {

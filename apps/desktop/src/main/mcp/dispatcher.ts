@@ -32,7 +32,7 @@ interface DispatcherOptions {
 export interface Dispatcher {
   request(
     kind: BridgeRequest["kind"],
-    payload?: { name?: string; args?: Record<string, unknown> },
+    payload?: { name?: string; args?: Record<string, unknown>; origin?: BridgeRequest["origin"] },
     timeoutMs?: number,
   ): Promise<unknown>;
   handleResponse(response: BridgeResponse): void;
@@ -51,7 +51,7 @@ export function createDispatcher(options: DispatcherOptions): Dispatcher {
 
   const request = (
     kind: BridgeRequest["kind"],
-    payload: { name?: string; args?: Record<string, unknown> } = {},
+    payload: { name?: string; args?: Record<string, unknown>; origin?: BridgeRequest["origin"] } = {},
     timeoutMs = defaultTimeoutMs,
   ): Promise<unknown> => {
     const callId = genId();

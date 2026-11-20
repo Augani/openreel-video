@@ -25,6 +25,7 @@ export const CHANNELS = {
   exportWriteAudioWav: "openreel:export:writeAudioWav",
   exportWriteAudioChunk: "openreel:export:writeAudioChunk",
   exportFinishAudio: "openreel:export:finishAudio",
+  exportEncodeDolbyAudio: "openreel:export:encodeDolbyAudio",
   exportCancel: "openreel:export:cancel",
   exportCopyRun: "openreel:export:copyRun",
   exportProbeSource: "openreel:export:probeSource",
@@ -101,6 +102,15 @@ export const CHANNELS = {
   mcpGetClientStatus: "openreel:mcp:getClientStatus",
   mcpGetPolicy: "openreel:mcp:getPolicy",
   mcpSetPolicy: "openreel:mcp:setPolicy",
+  watchFoldersList: "openreel:watchFolders:list",
+  watchFoldersAdd: "openreel:watchFolders:add",
+  watchFoldersUpdate: "openreel:watchFolders:update",
+  watchFoldersPickOutput: "openreel:watchFolders:pickOutput",
+  watchFoldersRemove: "openreel:watchFolders:remove",
+  watchFoldersRetry: "openreel:watchFolders:retry",
+  watchFoldersClearFinished: "openreel:watchFolders:clearFinished",
+  /** Main -> renderer: the watch folders' status changed (full snapshot). */
+  watchFoldersEvent: "openreel:watchFolders:event",
   /** Renderer/internal (WP-E path tools): resolve absolute paths and check them against the allowed roots. */
   mcpFilesResolve: "openreel:mcp:files:resolve",
   /** Renderer -> main: copy an app temp export to an allowed-roots destination (export outputPath). */

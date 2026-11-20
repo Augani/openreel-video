@@ -158,13 +158,13 @@ export const Toolbar: React.FC = () => {
     const preset = getQuickExportPresets(exportProject.settings).find(entry => entry.id === id);
     if (!preset) return;
     try {
-      const ext = preset.kind === "audio" ? "wav" : extForFormat(preset.settings.format ?? "mp4", preset.settings.codec);
+      const ext = preset.kind === "audio" ? preset.extension : extForFormat(preset.settings.format ?? "mp4", preset.settings.codec);
       const writable = await showSavePicker(exportFilename(project.name, ext), ext, { delivery: "download" });
       beginExport(writable);
       if (preset.kind === "audio") {
         await runAudioExport(preset.settings, writable);
         markComplete();
-        track(AnalyticsEvents.PROJECT_EXPORTED, { format: "wav", duration: project.timeline.duration });
+        track(AnalyticsEvents.PROJECT_EXPORTED, { format: preset.extension, duration: project.timeline.duration });
       } else {
         await runExport(preset.settings, ext, writable);
       }

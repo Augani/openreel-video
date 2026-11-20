@@ -300,4 +300,29 @@ describe("handleMcpBridgeRequest", () => {
     expect(res.ok).toBe(false);
     expect(res.error).toMatch(/name/i);
   });
+
+  describe("watch-folder origin", () => {
+    beforeEach(() => {
+      h.isDestructive.mockImplementation(() => true);
+      h.isExpensive.mockImplementation(() => true);
+      h.executeTool.mockResolvedValue({ ok: true, summary: "ran" });
+    });
+
+    it("runs the watch-folder tools without the agent confirmation gate", async () => {
+      for (const name of ["import_media_from_path", "list_bins", "create_bin", "open_project_file", "queue_export", "list_export_jobs", "cancel_export_job"]) {
+        const res = await handleMcpBridgeRequest({ callId: "w", kind: "callTool", name, args: {}, origin: "watch-folders" });
+        expect(res.ok).toBe(true);
+        expect((res.result as { ok: boolean }).ok, name).toBe(true);
+      }
+      expect(h.executeTool).toHaveBeenCalledTimes(7);
+    });
+
+    it("does not open the gate for other tools, or for the same tools without the origin", async () => {
+      const other = await handleMcpBridgeRequest({ callId: "w", kind: "callTool", name: "delete_clip", args: {}, origin: "watch-folders" });
+      expect((other.result as { error: { code: string } }).error.code).toBe("CONFIRMATION_REQUIRED");
+      const plain = await handleMcpBridgeRequest({ callId: "w", kind: "callTool", name: "import_media_from_path", args: {} });
+      expect((plain.result as { error: { code: string } }).error.code).toBe("CONFIRMATION_REQUIRED");
+      expect(h.executeTool).not.toHaveBeenCalled();
+    });
+  });
 });

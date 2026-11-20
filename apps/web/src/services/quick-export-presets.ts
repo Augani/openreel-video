@@ -1,6 +1,6 @@
 import type { AudioExportSettings, VideoExportSettings } from "@openreel/core";
 
-export type QuickExportPresetId = "mp4" | "4k" | "1080p-high" | "1080p-60" | "wav";
+export type QuickExportPresetId = "mp4" | "4k" | "1080p-high" | "1080p-60" | "wav" | "ac3" | "eac3";
 export type QuickVideoExportSettings = Pick<VideoExportSettings, "width" | "height" | "frameRate" | "format" | "codec"> & Partial<VideoExportSettings>;
 
 type QuickExportPreset = {
@@ -9,7 +9,7 @@ type QuickExportPreset = {
   description: string;
 } & (
   | { kind: "video"; settings: QuickVideoExportSettings }
-  | { kind: "audio"; settings: Partial<AudioExportSettings> }
+  | { kind: "audio"; settings: Partial<AudioExportSettings>; /** File extension the save dialog offers. */ extension: "wav" | "ac3" | "ec3" }
 );
 
 /** The retained quick exports always cover the entire timeline. */
@@ -43,6 +43,19 @@ export function getQuickExportPresets(project: {
       id: "wav", label: "Audio Only (WAV)", kind: "audio",
       description: "48 kHz · stereo · 24-bit PCM",
       settings: { format: "wav", sampleRate: 48000, channels: 2, bitDepth: 24 },
+      extension: "wav",
+    },
+    {
+      id: "ac3", label: "Audio Only (Dolby Digital)", kind: "audio",
+      description: "48 kHz · .ac3 · stereo 192 kbps, or 5.1 at 448 kbps for a 5.1 sequence",
+      settings: { format: "ac3", sampleRate: 48000, channels: 2, bitDepth: 24, bitrate: 192 },
+      extension: "ac3",
+    },
+    {
+      id: "eac3", label: "Audio Only (Dolby Digital Plus)", kind: "audio",
+      description: "48 kHz · .ec3 · stereo 256 kbps, or 5.1 at 640 kbps for a 5.1 sequence",
+      settings: { format: "eac3", sampleRate: 48000, channels: 2, bitDepth: 24, bitrate: 256 },
+      extension: "ec3",
     },
   ];
 }

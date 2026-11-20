@@ -2,7 +2,7 @@ import type { Project } from "../types/project";
 import { getChannelLayout, SURROUND_CHANNELS, type ChannelLayout } from "../audio/surround";
 import type { AudioExportSettings } from "./types";
 
-/** 5.1 AAC below this sounds poor; a stereo-sized bitrate is raised to it. */
+/** 5.1 AAC (and AC-3 / E-AC-3) below this sounds poor; a stereo-sized bitrate is raised to it. */
 export const SURROUND_MIN_AAC_BITRATE_KBPS = 384;
 
 /** Windows channel mask of a 5.1 file: FL FR FC LFE BL BR (the order L R C LFE Ls Rs is stored in). */
@@ -32,7 +32,7 @@ export function resolveSequenceAudioSettings(project: Pick<Project, "settings">,
 export const isSurroundDelivery = (audio: Pick<AudioExportSettings, "channels">): boolean => audio.channels > 2;
 
 /** Why a 6-channel delivery cannot be written in `format`, or null when it can. */
-export function surroundFormatProblem(videoFormat: "mp4" | "webm" | "mov" | "mxf"): string | null {
+export function surroundFormatProblem(videoFormat: "mp4" | "webm" | "mov" | "mxf" | "mkv"): string | null {
   return videoFormat === "webm"
     ? "5.1 audio needs AAC, which MP4 and MOV carry. WebM export is stereo: switch the container to MP4 or MOV, or set the audio to Stereo."
     : null;

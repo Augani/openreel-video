@@ -11,6 +11,7 @@ import type { Project } from "../types/project";
 import type { EncoderBackend, SmartRenderMuxer } from "./encoder-backend";
 import { descriptionBytes, parameterSetKey, parseAvcC, prependParameterSets, type AvcParameterSets } from "./avc-config";
 import { getAacEncoderPriming } from "./audio-priming";
+import { DOLBY_VIDEO_DESKTOP_ONLY_REASON, isDolbyFormat } from "./dolby";
 import { applyMp4AudioTiming, applyMovChannelLayout } from "./mp4-audio-timing";
 import { CHAN_TAG_MPEG_5_1_A } from "./surround-export";
 import { reorderChannels, resolveAacSurroundOrder } from "./aac-surround-order";
@@ -127,6 +128,8 @@ export class WebCodecsBackend implements EncoderBackend {
     if (!writableStream) {
       throw new Error("No writable stream provided. Export requires a file destination.");
     }
+    if (settings.format === "mkv") throw new Error("MKV export needs the desktop app. Choose MP4, MOV or WebM.");
+    if (isDolbyFormat(settings.audioSettings.format)) throw new Error(DOLBY_VIDEO_DESKTOP_ONLY_REASON);
 
     const {
       Output,

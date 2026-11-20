@@ -174,7 +174,18 @@ export function startBackgroundTaskSources(): () => void {
     useDesktopIngestStore.subscribe((s, p) => { if (s.jobs !== p.jobs) syncProxies(); if (s.copying !== p.copying) syncCopies(); }),
     getBeatSyncBridge().subscribe(syncBeats),
   ];
+  // Desktop watch folders: loaded on demand so the entry chunk does not carry it.
+  let stopWatchTasks: (() => void) | null = null;
+  let disposed = false;
+  if (typeof window !== "undefined" && window.openreel?.watchFolders) {
+    void import("./watch-folder-tasks").then((m) => {
+      if (disposed) return;
+      stopWatchTasks = m.startWatchFolderTasks();
+    });
+  }
   const dispose = () => {
+    disposed = true;
+    stopWatchTasks?.();
     offs.forEach((off) => off());
     started = null;
   };

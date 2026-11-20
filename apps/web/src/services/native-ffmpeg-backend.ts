@@ -3,6 +3,8 @@ import {
   effectiveRateControl,
   exportStartTimecode,
   exportWritesAlpha,
+  isDolbyFormat,
+  resolveDialnorm,
   fingerprintBlob,
   nativeProbeMismatch,
   outputColorForExport,
@@ -122,6 +124,13 @@ export function broadcastStartFields(settings: VideoExportSettings): BroadcastSt
     if (timecode) fields.startTimecode = timecode;
   }
   return fields;
+}
+
+/** The Dolby fields of the start request: the audio codec and the dialnorm to write; nothing for AAC / Opus / PCM audio. */
+export function dolbyStartFields(settings: VideoExportSettings): { audioCodec?: "ac3" | "eac3"; dialnorm?: number } {
+  const audio = settings.audioSettings;
+  if (!isDolbyFormat(audio.format)) return {};
+  return { audioCodec: audio.format, dialnorm: resolveDialnorm(audio) };
 }
 
 export class NativeFFmpegBackend implements EncoderBackend {
@@ -288,6 +297,7 @@ export class NativeFFmpegBackend implements EncoderBackend {
       ...(exportWritesAlpha(settings) ? { alpha: true } : {}),
       keyframeInterval: settings.keyframeInterval,
       audioBitrateKbps: settings.audioSettings.bitrate,
+      ...dolbyStartFields(settings),
       ...broadcastStartFields(settings),
       ...(this.colorOutput
         ? {

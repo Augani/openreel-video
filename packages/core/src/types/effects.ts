@@ -564,6 +564,7 @@ export const AUDIO_EFFECT_TYPES = [
   "gate",
   "brickwallLimiter",
   "lowPass",
+  "spectralRepair",
   "fadeIn",
   "fadeOut",
 ] as const;

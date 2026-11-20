@@ -51,7 +51,7 @@ export type TtsProvider = "elevenlabs";
 export type LlmProvider = "openai-compatible" | "anthropic-compatible";
 export type AggregatorProvider = "kie-ai" | "freepik";
 import type { ChannelPreset } from "@openreel/core";
-export type SettingsTab = "general" | "ai-editor" | "api-keys" | "mcp";
+export type SettingsTab = "general" | "ai-editor" | "api-keys" | "mcp" | "watch-folders";
 
 function isLlmProvider(value: unknown): value is LlmProvider {
   return value === "openai-compatible" || value === "anthropic-compatible";

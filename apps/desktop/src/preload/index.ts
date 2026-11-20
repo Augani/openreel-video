@@ -125,6 +125,7 @@ contextBridge.exposeInMainWorld("openreel", {
     writeAudioChunk: (jobId: string, chunk: ArrayBuffer, position: number) =>
       ipcRenderer.invoke(CHANNELS.exportWriteAudioChunk, { jobId, chunk, position }),
     finishAudio: (jobId: string) => ipcRenderer.invoke(CHANNELS.exportFinishAudio, { jobId }),
+    encodeDolbyAudio: (args: unknown) => ipcRenderer.invoke(CHANNELS.exportEncodeDolbyAudio, args),
     cancel: (jobId: string) => ipcRenderer.invoke(CHANNELS.exportCancel, { jobId }),
     probeSource: (path: string) => ipcRenderer.invoke(CHANNELS.exportProbeSource, { path }),
     copyRun: (jobId: string, run: unknown) =>
@@ -210,6 +211,20 @@ contextBridge.exposeInMainWorld("openreel", {
     // version/platform and forwards to the cloud crash collector.
     report: (payload: { message: string; stack?: string; type?: string; context?: unknown }) =>
       ipcRenderer.send(CHANNELS.crashReport, payload),
+  },
+  watchFolders: {
+    list: () => ipcRenderer.invoke(CHANNELS.watchFoldersList, undefined),
+    add: (kind: "ingest" | "export") => ipcRenderer.invoke(CHANNELS.watchFoldersAdd, { kind }),
+    update: (id: string, patch: unknown) => ipcRenderer.invoke(CHANNELS.watchFoldersUpdate, { id, patch }),
+    pickOutput: (id: string) => ipcRenderer.invoke(CHANNELS.watchFoldersPickOutput, { id }),
+    remove: (id: string) => ipcRenderer.invoke(CHANNELS.watchFoldersRemove, { id }),
+    retry: (itemId: string) => ipcRenderer.invoke(CHANNELS.watchFoldersRetry, { itemId }),
+    clearFinished: () => ipcRenderer.invoke(CHANNELS.watchFoldersClearFinished, undefined),
+    onChange: (cb: (snapshot: unknown) => void) => {
+      const handler = (_event: unknown, snapshot: unknown) => cb(snapshot);
+      ipcRenderer.on(CHANNELS.watchFoldersEvent, handler);
+      return () => ipcRenderer.removeListener(CHANNELS.watchFoldersEvent, handler);
+    },
   },
   mcp: {
     // The main-process MCP server pushes tool-call / list-tool requests here; the
