@@ -14,6 +14,7 @@ import {
 import { MEDIA_EXTENSIONS } from "../mcp/path-guard";
 import { FolderScanner, DEFAULT_SCANNER_OPTIONS, nodeScannerFs, type ScanFile, type ScannerFs, type ScannerOptions } from "./folder-scanner";
 import { fingerprintFile, type Ledger } from "./ledger";
+import { canonicalPath, samePath } from "./paths";
 import { classifyFile, extensionOf, uniquePath } from "./render";
 
 /**
@@ -144,10 +145,10 @@ export class WatchFolderManager {
   /** Adds a folder the user picked. Throws a readable message when it is not usable. */
   async add(kind: WatchFolderKind, folderPath: string, overrides: Partial<WatchFolderConfig> = {}): Promise<WatchFolderConfig> {
     if (!path.isAbsolute(folderPath)) throw new Error("Choose a folder.");
-    const real = await fs.promises.realpath(folderPath).catch(() => null);
+    const real = await canonicalPath(folderPath);
     const stat = real ? await fs.promises.stat(real).catch(() => null) : null;
     if (!real || !stat?.isDirectory()) throw new Error("That folder does not exist.");
-    if (real === path.parse(real).root) throw new Error("Choose a folder, not the whole drive.");
+    if (samePath(real, path.parse(real).root)) throw new Error("Choose a folder, not the whole drive.");
     const config: WatchFolderConfig = {
       id: randomUUID(),
       kind,
@@ -162,10 +163,12 @@ export class WatchFolderManager {
       processExisting: false,
       ...overrides,
     };
+    if (config.kind === "export" && config.outputDir && path.isAbsolute(config.outputDir)) config.outputDir = (await canonicalPath(config.outputDir)) ?? path.resolve(config.outputDir);
     this.assertUsable(config);
     this.folders = [...this.folders, config];
     this.persist();
-    void this.startFolder(config);
+    // Wait for the baseline: files that appear once add() has returned are never baselined away.
+    await this.startFolder(config);
     return { ...config };
   }
 
@@ -190,7 +193,7 @@ export class WatchFolderManager {
   async setOutputDir(id: string, dir: string): Promise<WatchFolderConfig> {
     const folder = this.folders.find((entry) => entry.id === id);
     if (!folder || folder.kind !== "export") throw new Error("That watch folder no longer exists.");
-    const real = await fs.promises.realpath(dir).catch(() => null);
+    const real = await canonicalPath(dir);
     if (!real) throw new Error("That folder does not exist.");
     const next = { ...folder, outputDir: real };
     this.assertUsable(next, id);
@@ -250,15 +253,15 @@ export class WatchFolderManager {
 
   private assertUsable(candidate: WatchFolderConfig, ignoreId?: string): void {
     const others = this.folders.filter((folder) => folder.id !== ignoreId && folder.id !== candidate.id);
-    if (others.some((folder) => folder.path === candidate.path)) throw new Error("That folder is already being watched.");
+    if (others.some((folder) => samePath(folder.path, candidate.path))) throw new Error("That folder is already being watched.");
     if (candidate.kind === "export") {
       if (!candidate.outputDir || !path.isAbsolute(candidate.outputDir)) throw new Error("Choose an output folder.");
       // The output may live inside the watched folder (files there are not rescanned: only the top level is watched).
-      if (others.some((folder) => folder.path === candidate.outputDir)) throw new Error("The output folder is watched by another watch folder; rendered files would be picked up again.");
-      if (candidate.outputDir === candidate.path) throw new Error("Rendered files cannot go into the watched folder itself; pick a different output folder.");
+      if (others.some((folder) => samePath(folder.path, candidate.outputDir))) throw new Error("The output folder is watched by another watch folder; rendered files would be picked up again.");
+      if (samePath(candidate.outputDir, candidate.path)) throw new Error("Rendered files cannot go into the watched folder itself; pick a different output folder.");
     }
     for (const other of others) {
-      if (other.kind === "export" && other.outputDir === candidate.path) throw new Error("That folder is the output of an export watch folder; watching it would re-process the rendered files.");
+      if (other.kind === "export" && other.outputDir && samePath(other.outputDir, candidate.path)) throw new Error("That folder is the output of an export watch folder; watching it would re-process the rendered files.");
     }
   }
 

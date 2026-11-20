@@ -28,7 +28,7 @@ const OPTIONS = {
 let root = "";
 let managers: WatchFolderManager[] = [];
 beforeEach(() => {
-  root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "watch-mgr-")));
+  root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "watch-mgr-")));
 });
 afterEach(() => {
   for (const manager of managers) manager.stop();
@@ -104,7 +104,6 @@ describe("ingest watch folders", () => {
     const dir = makeDir("in");
     const h = build({});
     await h.manager.add("ingest", dir, { bin: "Dailies" });
-    await sleep(120);
     fs.writeFileSync(path.join(dir, "a.mp4"), "video bytes");
     await until("imported", () => h.ingested.length === 1);
     await until("item done", () => itemsOf(h).some((i) => i.state === "done"));
@@ -156,7 +155,6 @@ describe("ingest watch folders", () => {
       },
     });
     await h.manager.add("ingest", dir);
-    await sleep(100);
     fs.writeFileSync(path.join(dir, "late.mp4"), "bytes");
     await until("waiting", () => itemsOf(h).some((i) => i.state === "waiting"));
     expect(itemsOf(h)[0].detail).toMatch(/project/);
@@ -179,7 +177,6 @@ describe("ingest watch folders", () => {
       },
     });
     await h.manager.add("ingest", dir);
-    await sleep(100);
     fs.writeFileSync(path.join(dir, "bad.mp4"), "bytes");
     await until("failed", () => itemsOf(h).some((i) => i.state === "failed"));
     expect(itemsOf(h)[0].error).toMatch(/decode/);
@@ -196,7 +193,6 @@ describe("ingest watch folders", () => {
     const config = memoryConfig();
     const first = build({ config, ledger: memoryLedger(ledgerBox) });
     await first.manager.add("ingest", dir);
-    await sleep(100);
     fs.writeFileSync(path.join(dir, "take1.mp4"), "identical content");
     await until("imported", () => first.ingested.length === 1);
     first.manager.stop();
@@ -218,7 +214,6 @@ describe("ingest watch folders", () => {
     const config = memoryConfig();
     const first = build({ config });
     await first.manager.add("ingest", dir);
-    await sleep(200); // baselined (empty)
     first.manager.stop();
     fs.writeFileSync(path.join(dir, "while-closed.mp4"), "dropped while closed");
     const second = build({ config });
@@ -229,7 +224,6 @@ describe("ingest watch folders", () => {
     const dir = makeDir("in");
     const h = build({});
     const folder = await h.manager.add("ingest", dir);
-    await sleep(100);
     await h.manager.update(folder.id, { paused: true });
     fs.writeFileSync(path.join(dir, "while-paused.mp4"), "bytes");
     await sleep(600);
@@ -245,7 +239,6 @@ describe("ingest watch folders", () => {
     const dir = makeDir("in");
     const h = build({});
     await h.manager.add("ingest", dir);
-    await sleep(100);
     fs.rmSync(dir, { recursive: true, force: true });
     await until("missing", () => h.manager.snapshot().folders[0].status.state === "missing");
     expect(h.manager.snapshot().folders[0].status.message).toMatch(/missing|mounted/);
@@ -258,7 +251,6 @@ describe("export watch folders", () => {
     const out = makeDir("rendered");
     const h = build({});
     await h.manager.add("export", dir, { outputDir: out, presetId: "1080p-high" });
-    await sleep(100);
     fs.writeFileSync(path.join(dir, "interview.mov"), "raw camera file");
     await until("done", () => itemsOf(h).some((i) => i.state === "done"));
     expect(h.rendered).toEqual(["interview.mov"]);
@@ -278,7 +270,6 @@ describe("export watch folders", () => {
       },
     });
     await h.manager.add("export", dir, { outputDir: path.join(root, "out") });
-    await sleep(100);
     fs.writeFileSync(path.join(dir, "broken.mov"), "garbage");
     await until("failed", () => itemsOf(h).some((i) => i.state === "failed"));
     expect(fs.existsSync(path.join(dir, "failed", "broken.mov"))).toBe(true);
@@ -292,7 +283,6 @@ describe("export watch folders", () => {
     const dir = makeDir("export");
     const h = build({});
     await h.manager.add("export", dir, { outputDir: path.join(root, "out") });
-    await sleep(100);
     fs.writeFileSync(path.join(dir, "a.mov"), "same bytes in both");
     await until("first done", () => itemsOf(h).some((i) => i.state === "done"));
     fs.writeFileSync(path.join(dir, "b.mov"), "same bytes in both");
@@ -320,7 +310,6 @@ describe("export watch folders", () => {
       },
     });
     await h.manager.add("export", dir, { outputDir: out });
-    await sleep(100);
     for (const name of ["one.mov", "two.mov", "three.mov"]) fs.writeFileSync(path.join(dir, name), `bytes of ${name}`);
     await until("all done", () => itemsOf(h).filter((i) => i.state === "done").length === 3, 10000);
     expect(peak).toBe(1);
@@ -332,7 +321,6 @@ describe("export watch folders", () => {
     const out = makeDir("out");
     const h = build({});
     const folder = await h.manager.add("export", dir, { outputDir: out });
-    await sleep(100);
     fs.writeFileSync(path.join(dir, "cut.oreel"), "{}");
     await sleep(600);
     expect(h.rendered).toEqual([]);
@@ -346,7 +334,6 @@ describe("export watch folders", () => {
     const dir = makeDir("export");
     const h = build({});
     await h.manager.add("export", dir, { outputDir: path.join(root, "out") });
-    await sleep(100);
     fs.writeFileSync(path.join(dir, "readme.txt"), "text");
     fs.writeFileSync(path.join(dir, "still.png"), "image");
     await sleep(700);
@@ -370,7 +357,6 @@ describe("export watch folders", () => {
       },
     });
     const folder = await h.manager.add("export", dir, { outputDir: path.join(root, "out") });
-    await sleep(100);
     fs.writeFileSync(path.join(dir, "a.mov"), "aaa");
     fs.writeFileSync(path.join(dir, "b.mov"), "bbb");
     await until("a running", () => itemsOf(h).some((i) => i.state === "running"));
@@ -406,7 +392,6 @@ describe("validation and persistence", () => {
     const store = createFileConfigStore(file);
     const first = build({ config: store as ReturnType<typeof memoryConfig> });
     const added = await first.manager.add("ingest", dir, { bin: "Cards" });
-    await sleep(150); // the first scan records the baseline
     await first.manager.update(added.id, { createProxies: true, paused: true });
     first.manager.stop();
     const second = build({ config: createFileConfigStore(file) as ReturnType<typeof memoryConfig> });
