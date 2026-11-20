@@ -556,6 +556,7 @@ The agent exposes **453 tools** spanning read/observe, project, track, clip, tra
     "gate",
     "brickwallLimiter",
     "lowPass",
+    "spectralRepair",
     "fadeIn",
     "fadeOut"
   ],

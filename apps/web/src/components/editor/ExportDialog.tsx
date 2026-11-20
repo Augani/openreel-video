@@ -40,7 +40,7 @@ import {
   AlertTriangle,
   X,
 } from "@/icons/lucide-compat";
-import { isBroadcastCodec, effectiveRateControl, twoPassAvailability, BURN_IN_POSITIONS, DEFAULT_TIMECODE_BURN_IN, type TimecodeBurnInSettings, type BurnInPosition } from "@openreel/core";
+import { isBroadcastCodec, isDolbyFormat, dolbyContainerProblem, defaultDolbyBitrate, DOLBY_LABEL, DOLBY_VIDEO_CONTAINERS, DOLBY_VIDEO_DESKTOP_ONLY_REASON, effectiveRateControl, twoPassAvailability, BURN_IN_POSITIONS, DEFAULT_TIMECODE_BURN_IN, type TimecodeBurnInSettings, type BurnInPosition } from "@openreel/core";
 import { EncoderPicker } from "./EncoderPicker";
 import {
   Button,
@@ -80,6 +80,7 @@ import {
 } from "../../services/export-presets";
 import type {
   VideoExportSettings,
+  AudioExportSettings,
   UpscaleQuality,
   CompressionQuality,
   CompressionSource,
@@ -127,6 +128,7 @@ import { usePhoneEditor } from "../../hooks/usePhoneEditor";
 import { ExportCaptionOptions } from "./ExportCaptionOptions";
 import { ExportStillPanel } from "./ExportStillPanel";
 import { ExportBroadcastOptions } from "./ExportBroadcastOptions";
+import { ExportDolbyOptions } from "./ExportDolbyOptions";
 import { saveCaptionSidecars, sidecarFilesFor } from "../../services/caption-sidecar";
 import { exportFilename } from "../../services/export-runner";
 import type { CaptionExportSettings } from "@openreel/core";
@@ -1815,12 +1817,17 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                               ? "vp9"
                               : value === "mxf"
                                 ? (customSettings.codec === "dnxhr" || isBroadcastCodec(customSettings.codec) ? customSettings.codec : "dnxhr")
-                                : customSettings.codec === "vp9" ||
+                                : (customSettings.codec === "vp9" && value !== "mkv") ||
                                     customSettings.codec === "vp8" ||
                                     (customSettings.codec === "dnxhr" && value !== "mov") ||
                                     (isBroadcastCodec(customSettings.codec) && value !== "mov")
                                   ? "h264"
                                   : customSettings.codec,
+                          // WebM and MXF cannot carry AC-3 / E-AC-3: the track goes back to AAC (or PCM for MXF).
+                          audioSettings:
+                            isDolbyFormat(customSettings.audioSettings.format) && dolbyContainerProblem(value)
+                              ? { ...customSettings.audioSettings, format: "aac", bitrate: 192 }
+                              : customSettings.audioSettings,
                           // OP-Atom only exists in MXF.
                           broadcast: value === "mxf" || !customSettings.broadcast?.mxfPattern
                             ? customSettings.broadcast
@@ -1839,7 +1846,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                           { value: "mp4", label: "MP4" },
                           { value: "webm", label: "WebM" },
                           { value: "mov", label: "MOV" },
-                          ...(isDesktop ? [{ value: "mxf", label: "MXF" }] : []),
+                          ...(isDesktop ? [{ value: "mxf", label: "MXF" }, { value: "mkv", label: "MKV" }] : []),
                         ].map((option) => (
                           <SelectItem
                             key={option.value}
@@ -2420,6 +2427,11 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                       <p className="text-[10px] text-fg-muted">
                         Compatible with this container
                       </p>
+                      {isDolbyFormat(customSettings.audioSettings.format) && (
+                        <p className="text-[10px] text-status-warning" data-testid="export-dolby-desktop-only">
+                          {DOLBY_VIDEO_DESKTOP_ONLY_REASON}
+                        </p>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-1.5">
@@ -2436,12 +2448,13 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                             ...customSettings,
                             audioSettings: {
                               ...customSettings.audioSettings,
-                              format: value as
-                                | "mp3"
-                                | "wav"
-                                | "aac"
-                                | "flac"
-                                | "ogg",
+                              format: value as AudioExportSettings["format"],
+                              // A Dolby format starts at its usual rate for the channel count; leaving one returns to AAC's.
+                              ...(isDolbyFormat(value)
+                                ? { bitrate: defaultDolbyBitrate(value, sequenceIsSurround && audioChannelChoice === "5.1" ? 6 : 2) }
+                                : isDolbyFormat(customSettings.audioSettings.format)
+                                  ? { bitrate: 192, dialnorm: undefined }
+                                  : {}),
                             },
                           })
                         }
@@ -2457,6 +2470,9 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                             { value: "aac", label: "AAC" },
                             { value: "mp3", label: "MP3" },
                             { value: "wav", label: "WAV" },
+                            ...(DOLBY_VIDEO_CONTAINERS.includes(customSettings.format)
+                              ? (["ac3", "eac3"] as const).map((codec) => ({ value: codec, label: DOLBY_LABEL[codec] }))
+                              : []),
                           ].map((option) => (
                             <SelectItem
                               key={option.value}
@@ -2499,7 +2515,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                         {[
                           { value: "44100", label: "44.1 kHz" },
                           { value: "48000", label: "48 kHz" },
-                          { value: "96000", label: "96 kHz" },
+                          ...(isDolbyFormat(customSettings.audioSettings.format) ? [] : [{ value: "96000", label: "96 kHz" }]),
                         ].map((option) => (
                           <SelectItem
                             key={option.value}
@@ -2512,49 +2528,58 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label
-                      htmlFor="export-audio-bitrate"
-                      className="text-[11px] text-fg-2"
-                    >
-                      Audio bitrate
-                    </Label>
-                    <Select
-                      value={String(customSettings.audioSettings.bitrate)}
-                      onValueChange={(value) =>
-                        setCustomSettings({
-                          ...customSettings,
-                          audioSettings: {
-                            ...customSettings.audioSettings,
-                            bitrate: Number(value),
-                          },
-                        })
-                      }
-                    >
-                      <SelectTrigger
-                        id="export-audio-bitrate"
-                        className="h-8 w-full text-xs"
+                  {!(isDesktop && isDolbyFormat(customSettings.audioSettings.format)) && (
+                    <div className="space-y-1.5">
+                      <Label
+                        htmlFor="export-audio-bitrate"
+                        className="text-[11px] text-fg-2"
                       >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[
-                          { value: "128", label: "128 kbps" },
-                          { value: "192", label: "192 kbps" },
-                          { value: "256", label: "256 kbps" },
-                          { value: "320", label: "320 kbps" },
-                        ].map((option) => (
-                          <SelectItem
-                            key={option.value}
-                            value={option.value}
-                            className="text-xs"
-                          >
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                        Audio bitrate
+                      </Label>
+                      <Select
+                        value={String(customSettings.audioSettings.bitrate)}
+                        onValueChange={(value) =>
+                          setCustomSettings({
+                            ...customSettings,
+                            audioSettings: {
+                              ...customSettings.audioSettings,
+                              bitrate: Number(value),
+                            },
+                          })
+                        }
+                      >
+                        <SelectTrigger
+                          id="export-audio-bitrate"
+                          className="h-8 w-full text-xs"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[
+                            { value: "128", label: "128 kbps" },
+                            { value: "192", label: "192 kbps" },
+                            { value: "256", label: "256 kbps" },
+                            { value: "320", label: "320 kbps" },
+                          ].map((option) => (
+                            <SelectItem
+                              key={option.value}
+                              value={option.value}
+                              className="text-xs"
+                            >
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {isDesktop && (
+                    <ExportDolbyOptions
+                      audio={customSettings.audioSettings}
+                      onChange={(audioSettings) => setCustomSettings({ ...customSettings, audioSettings })}
+                      surround={sequenceIsSurround && audioChannelChoice === "5.1"}
+                    />
+                  )}
                   {sequenceIsSurround && (
                     <div className="space-y-1.5" data-testid="export-audio-channels">
                       <Label htmlFor="export-audio-channels-select" className="text-[11px] text-fg-2">
@@ -2565,7 +2590,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="5.1" className="text-xs">5.1 surround (6 channels, AAC 384 kbps+)</SelectItem>
+                          <SelectItem value="5.1" className="text-xs">5.1 surround (6 channels, 384 kbps or more)</SelectItem>
                           <SelectItem value="stereo" className="text-xs">Stereo downmix</SelectItem>
                         </SelectContent>
                       </Select>

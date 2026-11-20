@@ -51,6 +51,15 @@ export const extractAudioArgsSchema = z.object({
   /** Output channel count (a 5.1 sequence asks for the source's own channels, up to 6). Default 2. */
   channels: z.number().int().min(1).max(8).optional(),
 });
+/** Audio-only Dolby export: a WAV mixdown in, a raw AC-3 / E-AC-3 stream out. */
+export const encodeDolbyAudioArgsSchema = z.object({
+  wav: z.instanceof(ArrayBuffer),
+  codec: z.enum(["ac3", "eac3"]),
+  channels: z.union([z.literal(2), z.literal(6)]),
+  bitrateKbps: z.number().int().min(32).max(2048),
+  sampleRate: z.union([z.literal(44100), z.literal(48000)]),
+  dialnorm: z.number().int().min(-31).max(-1),
+});
 export const probeAudioArgsSchema = z.object({ srcPath: z.string() });
 export const developRawStillArgsSchema = z.object({ srcPath: z.string().min(1) });
 export const nativeProbeArgsSchema = z.object({ path: z.string().min(1) });

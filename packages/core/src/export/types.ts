@@ -30,7 +30,8 @@ export function effectiveRateControl(settings: { rateControl?: RateControl; bitr
 }
 
 export interface VideoExportSettings {
-  format: "mp4" | "webm" | "mov" | "mxf";
+  /** "mkv" (Matroska) is desktop only; it carries H.264 / H.265 / AV1 / VP9 with AAC, Opus or Dolby Digital audio. */
+  format: "mp4" | "webm" | "mov" | "mxf" | "mkv";
   codec: "h264" | "h265" | "vp8" | "vp9" | "av1" | "prores" | "dnxhr" | BroadcastCodec;
   proresProfile?: "proxy" | "lt" | "standard" | "hq" | "4444" | "4444xq";
   /** DNxHR flavour (codec "dnxhr", MOV or MXF, desktop only). HQ when omitted. */
@@ -102,7 +103,12 @@ export interface VideoExportSettings {
 }
 
 export interface AudioExportSettings {
-  format: "mp3" | "wav" | "aac" | "flac" | "ogg";
+  /**
+   * "ac3" / "eac3" are Dolby Digital / Dolby Digital Plus (stereo or 5.1, see ./dolby). As the audio-only format
+   * they write a raw `.ac3` / `.ec3` stream; as a video export's audio format they are the audio track of an
+   * MP4, MOV or MKV (desktop only).
+   */
+  format: "mp3" | "wav" | "aac" | "flac" | "ogg" | "ac3" | "eac3";
   sampleRate: 44100 | 48000 | 96000;
   bitDepth: 16 | 24 | 32;
   bitrate: number;
@@ -118,6 +124,11 @@ export interface AudioExportSettings {
    * on `targetLufs` and keep true peaks under the ceiling. Omitted = off.
    */
   loudness?: LoudnessTargetSettings;
+  /**
+   * AC-3 / E-AC-3 only: dialogue-normalisation metadata in dB, -31 (default, the decoder leaves the level alone)
+   * to -1. Omitted = the loudness target when loudness normalisation is on, else -31.
+   */
+  dialnorm?: number;
 }
 
 export interface ImageExportSettings {

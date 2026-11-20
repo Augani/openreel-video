@@ -1015,9 +1015,14 @@ export const Preview: React.FC = () => {
       baseCacheKey: string,
       effects: Effect[],
     ): Promise<{ audioBuffer: AudioBuffer; effects: Effect[] }> => {
-      const previewEffects = getPreviewAudioEffects(
-        effects.filter((effect) => effect.enabled),
+      // Spectral repair edits the decoded source (source-time regions) before anything else, exactly as the export does.
+      const spectral = await getRealtimeAudioGraph().prepareSpectralRepair(
+        audioBuffer,
+        getPreviewAudioEffects(effects.filter((effect) => effect.enabled)),
       );
+      audioBuffer = spectral.buffer;
+      if (spectral.key) baseCacheKey = `${baseCacheKey}:spectral:${spectral.key}`;
+      const previewEffects = spectral.effects;
       const { profileAwareNoiseEffects, realtimeEffects } =
         splitProfileAwareNoiseReductionEffects(previewEffects);
 

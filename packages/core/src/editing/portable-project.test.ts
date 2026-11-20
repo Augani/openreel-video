@@ -217,3 +217,18 @@ describe("portable clip relationships", () => {
     expect(() => createPortableEdit(before)).toThrow();
   });
 });
+
+describe("spectral repair in the portable edit boundary", () => {
+  it("round-trips regions and rejects malformed ones", () => {
+    const before = project();
+    const region = (id: string, mode: string) => ({ id, mode, startTime: 1, endTime: 2, lowHz: 500, highHz: 900, gainDb: -12, enabled: true });
+    const clip = before.timeline.tracks[0].clips[0];
+    before.timeline.tracks[0].clips[0] = { ...clip, audioEffects: [{ id: "fx", type: "spectralRepair", enabled: true, params: { regions: [region("r1", "attenuate"), region("r2", "remove")] } }] };
+    const doc = createPortableEdit(before);
+    const parsed = parsePortableEdit(JSON.stringify(doc));
+    expect(materializePortableEdit(parsed, before).project.timeline.tracks[0].clips[0].audioEffects[0]).toEqual(before.timeline.tracks[0].clips[0].audioEffects[0]);
+    const bad = JSON.parse(JSON.stringify(doc));
+    bad.project.timeline.tracks[0].clips[0].audioEffects[0].params.regions[0].mode = "explode";
+    expect(() => parsePortableEdit(JSON.stringify(bad))).toThrow();
+  });
+});

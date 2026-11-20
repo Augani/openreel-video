@@ -1,3 +1,4 @@
+import { DOLBY_VIDEO_DESKTOP_ONLY_REASON, dolbyContainerProblem, isDolbyFormat } from "./dolby";
 import { CODEC_MAP, type VideoExportSettings } from "./types";
 import type { Project } from "../types/project";
 import type { Clip } from "../types/timeline";
@@ -22,6 +23,10 @@ export function getVideoExportValidationError(settings: VideoExportSettings, dur
   if (settings.maxBitrate !== undefined) {
     if (!Number.isFinite(settings.maxBitrate) || settings.maxBitrate <= 0) return "Choose a valid maximum bitrate.";
     if (!profileRated && settings.maxBitrate < settings.bitrate) return "The maximum bitrate cannot be lower than the target bitrate.";
+  }
+  if (isDolbyFormat(settings.audioSettings?.format)) {
+    const dolbyProblem = dolbyContainerProblem(settings.format);
+    if (dolbyProblem) return dolbyProblem;
   }
   return broadcastDeliveryProblem(settings);
 }
@@ -69,6 +74,8 @@ export async function checkBrowserExportCapability(
   if (settings.codec === "prores" || settings.codec === "dnxhr" || isBroadcastCodec(settings.codec) || settings.format === "mxf" || (settings.colorDepth ?? 8) > 8 || (settings.pixelFormat && settings.pixelFormat !== "yuv420")) {
     return { supported: false, reason: "ProRes, DNxHR, XDCAM HD422, AVC-Intra, MXF, timecode tracks, transparency, and high bit depth export require the desktop encoder. Choose H.264 for browser export." };
   }
+  if (settings.format === "mkv") return { supported: false, reason: "MKV export needs the desktop app. Choose MP4, MOV or WebM." };
+  if (isDolbyFormat(settings.audioSettings?.format)) return { supported: false, reason: DOLBY_VIDEO_DESKTOP_ONLY_REASON };
   try {
     const library = mediaBunny ?? await import("mediabunny");
     const format = settings.format === "webm" ? new library.WebMOutputFormat() : settings.format === "mov" ? new library.MovOutputFormat() : new library.Mp4OutputFormat();

@@ -762,6 +762,63 @@ const AUDIO_PRESETS: PlatformExportPreset[] = [
   },
 ];
 
+/** Raw Dolby Digital / Digital Plus audio files (`.ac3` / `.ec3`); the browser encodes them on ffmpeg.wasm, the desktop app on its ffmpeg sidecar. */
+const dolbyAudioPreset = (id: string, name: string, description: string, format: "ac3" | "eac3", bitrate: number): PlatformExportPreset => ({
+  id,
+  name,
+  description,
+  platform: "Audio",
+  category: "broadcast",
+  settings: { format, sampleRate: 48000, bitDepth: 24, bitrate, channels: 2 } as AudioExportSettings,
+});
+
+AUDIO_PRESETS.push(
+  dolbyAudioPreset("audio-ac3", "Dolby Digital (AC-3) audio", "Raw .ac3 stream, 192 kbps stereo (a 5.1 sequence delivers 5.1 at 384 kbps or more)", "ac3", 192),
+  dolbyAudioPreset("audio-ac3-448", "Dolby Digital (AC-3) audio, 448 kbps", "Raw .ac3 stream at the DVD / broadcast rate for stereo or 5.1", "ac3", 448),
+  dolbyAudioPreset("audio-eac3", "Dolby Digital Plus (E-AC-3) audio", "Raw .ec3 stream, 256 kbps stereo (a 5.1 sequence delivers 5.1 at 384 kbps or more)", "eac3", 256),
+  dolbyAudioPreset("audio-eac3-640", "Dolby Digital Plus (E-AC-3) audio, 640 kbps", "Raw .ec3 stream at 640 kbps for stereo or 5.1", "eac3", 640),
+);
+
+/**
+ * Video files with Dolby Digital / Digital Plus audio (desktop only: the ffmpeg sidecar writes the AC-3 / E-AC-3 track).
+ * The picture is H.264 1080p30; the audio is stereo, or 5.1 when the sequence is 5.1 (then at 384 kbps or more).
+ */
+const dolbyVideoPreset = (
+  id: string,
+  name: string,
+  description: string,
+  format: "mp4" | "mov" | "mkv",
+  audio: { format: "ac3" | "eac3"; bitrate: number },
+): PlatformExportPreset => ({
+  id,
+  name,
+  description,
+  platform: "Dolby Digital",
+  category: "broadcast",
+  aspectRatio: "16:9",
+  settings: {
+    format,
+    codec: "h264",
+    width: 1920,
+    height: 1080,
+    frameRate: 30,
+    bitrate: 15000,
+    bitrateMode: "cbr",
+    quality: 90,
+    keyframeInterval: 60,
+    audioSettings: { format: audio.format, sampleRate: 48000, bitDepth: 24, bitrate: audio.bitrate, channels: 2 },
+  } as unknown as PlatformExportPreset["settings"],
+});
+
+const DOLBY_PRESETS: PlatformExportPreset[] = [
+  dolbyVideoPreset("dolby-ac3-mp4", "H.264 + Dolby Digital (MP4)", "MP4 with an AC-3 track (ac-3 sample entry), 448 kbps; 5.1 for a 5.1 sequence", "mp4", { format: "ac3", bitrate: 448 }),
+  dolbyVideoPreset("dolby-ac3-mov", "H.264 + Dolby Digital (MOV)", "QuickTime MOV with an AC-3 track, 448 kbps; 5.1 for a 5.1 sequence", "mov", { format: "ac3", bitrate: 448 }),
+  dolbyVideoPreset("dolby-ac3-mkv", "H.264 + Dolby Digital (MKV)", "Matroska with an AC-3 track, 448 kbps; 5.1 for a 5.1 sequence", "mkv", { format: "ac3", bitrate: 448 }),
+  dolbyVideoPreset("dolby-eac3-mp4", "H.264 + Dolby Digital Plus (MP4)", "MP4 with an E-AC-3 track (ec-3 sample entry), 640 kbps; 5.1 for a 5.1 sequence", "mp4", { format: "eac3", bitrate: 640 }),
+  dolbyVideoPreset("dolby-eac3-mov", "H.264 + Dolby Digital Plus (MOV)", "QuickTime MOV with an E-AC-3 track, 640 kbps; 5.1 for a 5.1 sequence", "mov", { format: "eac3", bitrate: 640 }),
+  dolbyVideoPreset("dolby-eac3-mkv", "H.264 + Dolby Digital Plus (MKV)", "Matroska with an E-AC-3 track, 640 kbps; 5.1 for a 5.1 sequence", "mkv", { format: "eac3", bitrate: 640 }),
+];
+
 /**
  * Delivery masters (desktop only: the ffmpeg sidecar encodes them): 24-bit PCM audio, 1080p24 defaults.
  * Pick another size or rate in the dialog's controls; the codec and wrapper stay.
@@ -834,6 +891,7 @@ const ALL_EXPORT_PRESETS: PlatformExportPreset[] = [
   ...SOCIAL_MEDIA_PRESETS,
   ...BROADCAST_PRESETS,
   ...DELIVERY_PRESETS,
+  ...DOLBY_PRESETS,
   ...WEB_PRESETS,
   ...ARCHIVE_PRESETS,
   ...AUDIO_PRESETS,
@@ -1050,13 +1108,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-const VIDEO_FORMATS = ["mp4", "webm", "mov", "mxf"] as const;
+const VIDEO_FORMATS = ["mp4", "webm", "mov", "mxf", "mkv"] as const;
 const BITRATE_MODES = ["cbr", "vbr", "vbr1", "vbr2"] as const;
 const RATE_CONTROLS = ["quality", "vbr", "vbr2"] as const;
 const VIDEO_CODECS = [
   "h264", "h265", "vp8", "vp9", "av1", "prores", "dnxhr", "xdcamhd422", "avcintra100",
 ] as const;
-const AUDIO_FORMATS = ["mp3", "wav", "aac", "flac", "ogg"] as const;
+const AUDIO_FORMATS = ["mp3", "wav", "aac", "flac", "ogg", "ac3", "eac3"] as const;
 
 const FALLBACK_AUDIO_SETTINGS: AudioExportSettings = {
   format: "aac",

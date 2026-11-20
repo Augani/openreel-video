@@ -11,6 +11,7 @@
  * transport streams is a valid concatenation. One last stream-copy pass muxes
  * that video with the re-rendered audio into the MP4/MOV.
  */
+import { dolbyTrackArgs, type DolbyAudioPlan } from "./dolby-args";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createWriteStream, type WriteStream } from "node:fs";
 import { promises as fs } from "node:fs";
@@ -277,6 +278,8 @@ export interface AssembleArgs {
   concatList?: boolean;
   audioCodec: string;
   audioBitrateKbps?: number;
+  /** Dolby Digital / Digital Plus audio instead of `audioCodec`. */
+  dolby?: DolbyAudioPlan;
   format: string;
   captionInputs?: ExportArgs["captionInputs"];
   /** MOV only: start timecode written as a timecode track. */
@@ -295,8 +298,12 @@ export function buildAssembleArgs(a: AssembleArgs): string[] {
     ...(captions.outputs.length ? captions.outputs : ["-map", "0:v:0", "-map", "1:a:0"]),
     "-c:v", "copy",
     ...(a.codec === "hevc" ? ["-tag:v", "hvc1"] : []),
-    "-c:a", a.audioCodec,
-    ...(a.audioBitrateKbps !== undefined ? ["-b:a", `${Math.max(32, Math.min(512, Math.round(a.audioBitrateKbps)))}k`] : []),
+    ...(a.dolby
+      ? dolbyTrackArgs(a.dolby)
+      : [
+          "-c:a", a.audioCodec,
+          ...(a.audioBitrateKbps !== undefined ? ["-b:a", `${Math.max(32, Math.min(512, Math.round(a.audioBitrateKbps)))}k`] : []),
+        ]),
     "-video_track_timescale", String(videoTrackTimescale(a.frameRate)),
     ...(a.startTimecode && a.format === "mov" ? ["-timecode", a.startTimecode] : []),
     "-movflags", "+faststart",

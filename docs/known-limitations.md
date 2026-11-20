@@ -150,7 +150,7 @@ Shipped and verified in a real browser (`apps/web/e2e/essential-sound.spec.ts`):
 
 Limits that remain:
 
-- The SFX preset uses the lookahead Brickwall Limiter and the Ambience preset the Low-Pass Filter (see docs/pro-audio.md). 5.1 surround is supported (sequence layout, surround panner, six-channel AAC in MP4/MOV, 5.1 stems, BS.1770 surround loudness); its limits (stereo clip-level effects, stereo down-mix monitoring, no AC-3 or six-channel Opus) are listed in docs/pro-audio.md.
+- The SFX preset uses the lookahead Brickwall Limiter and the Ambience preset the Low-Pass Filter (see docs/pro-audio.md). 5.1 surround is supported (sequence layout, surround panner, six-channel AAC in MP4/MOV, 5.1 stems, BS.1770 surround loudness); its limits (stereo clip-level effects, stereo down-mix monitoring, six-channel Opus is not available; AC-3 / E-AC-3 delivery is covered in docs/PREMIERE-GAPS.md) are listed in docs/pro-audio.md.
 - Auto-Match is limited by the +12 dB clip gain ceiling; a clip that needs more shows a warning and lands short of the target.
 - Ducking is live: it follows the Dialogue clips when they move or trim (docs/pro-audio.md). It reacts to dialogue clip presence, not to speech level inside a clip. Ducks baked by earlier versions stay as keyframes until Duck is switched off and on.
 - Matching is not repeated when you change the clarity or ducking options (it would re-measure every drag); press "Match again" if the effect chain changed the level.
@@ -324,3 +324,30 @@ The panel (status bar pill and popover) is a presentation layer over `Background
 - Import only, and read from hand-authored fixtures: a project saved by Adobe Premiere Pro has not been tested. Treat the import report as the source of truth for what arrived.
 - One sequence per import (pick it in the dialog). Other sequences, master-clip markers, Lumetri and other effects, time-remap ramps, keyframed motion/opacity/volume, titles and graphics, captions, adjustment layers, track mixer settings and Productions are not carried and are reported.
 - A disabled clip is imported fully transparent and muted (there is no clip enable switch); Premiere sizes media from native pixels while OpenReel fits the frame first, so scaled or moved clips can frame differently.
+
+## Dolby Digital (AC-3) and Digital Plus (E-AC-3)
+
+- AC-3 / E-AC-3 inside MP4, MOV and MKV is desktop only (the native ffmpeg sidecar). The browser writes raw `.ac3` / `.ec3` audio-only files through ffmpeg.wasm and refuses AC-3 video-file tracks with a desktop-only message.
+- Stereo and 5.1 only. Dialnorm is the only Dolby metadata written; no DRC profiles, no Dolby Atmos (E-AC-3 JOC) and no 7.1.
+- The sample rate is 44.1 or 48 kHz (anything else is written at 48 kHz).
+- The browser path is tested at the unit level and by confirming the bundled core lists the encoders and muxers; the ffprobe and per-channel level checks run against the desktop sidecar only.
+
+## Spectral editing
+
+- **Rectangle and frequency-band selection only.** No lasso, brush or magic-wand selection, and no harmonic (overtone-following) selection. A band marquee always covers the whole source.
+- **Source-time regions.** Regions live in the clip's source time, so trimming the clip does not move them; a region outside the clip's in/out range stays stored but is inaudible. Behaviour under speed changes was not tested.
+- **Remove is interpolation, not resynthesis.** It fills the region from the bins above and below (and the frames around it) with a short cross-fade; it clears steady tones, hum and short clicks cleanly, but broadband or fast-moving sounds inside the box leave audible artefacts. Attenuation is exact only for steady content; the tested tolerance is a tone attenuated by N dB within 0.1 dB.
+- **Preview and export play the same repaired samples** (one shared cached repair job, applied before every other clip effect, verified at -92 dB residual in the e2e). The first repair of a clip renders before it can play, in a worker, and the cost grows with clip length (not benchmarked); very long sources (over 400 MB of media) are refused by the editor.
+- **No agent/MCP tool.** `packages/agent` does not expose spectral regions, so `docs/AGENT-CAPABILITIES.md` is unchanged (it is generated from the tool registry).
+- **The desktop app was not given its own spectral e2e**; the feature runs from the shared web bundle and was exercised end to end in the web e2e only.
+
+## Watch folders (desktop)
+
+- **Desktop only.** The web app has no folder access, so there is no web equivalent.
+- **Polling, not OS events.** Folders are rescanned every 5 s and candidate files are re-checked every 0.7 s; a file must keep the same size and modified time for 2.5 s before it is touched. A copy that stalls for longer than that (a slow network or card reader) can be picked up while still incomplete. Network shares are scanned the same way and were not tested.
+- **Ingest needs an open project and an editor window.** With none, files wait (shown as waiting in the panel) and import once a project is open. Imports go through the editor one file at a time, and the import tool's limits apply (files over 1 GiB are skipped and shown as failed).
+- **Existing files are not processed** when a folder is added (they are recorded and skipped) and there is no switch for it in the UI (only the saved `processExisting` setting in `watch-folders.json` turns it on).
+- **Media export is a re-encode by the bundled ffmpeg**, not the editor's renderer: it applies the preset's size, frame rate and bitrate to the source file (letterboxed to fit) and is not a render of a timeline. Colour management, HDR, LUTs and effects are not applied. Audio-only (WAV) cannot render a project.
+- **Project export uses the editor window.** Dropping a project file opens it in the editor (the open project is saved first and is replaced in the editor) and renders it through the export queue, so it is not a background render and it interrupts whatever is open. The project's footage must be reachable: the editor reconnects remembered paths, then searches the folders the project recorded and the folder the project file sits in; media that cannot be found fails the item with the editor's "Relink the original media" message. Only the video presets apply to projects.
+- **Duplicates** are detected by content (size plus a hash of the first and last 256 KiB), not by name, so a renamed copy is caught but a file that differs only in its middle is not. The ledger keeps 5,000 entries per folder, so a very old duplicate may be processed again.
+- **Verified** with synthetic clips on macOS (arm64) only. Not exercised: Windows and Linux, network drives, long camera-card ingests, 4K render timing.

@@ -32,6 +32,12 @@ export interface McpBridgeRequest {
   kind: "listTools" | "callTool";
   name?: string;
   args?: Record<string, unknown>;
+  /**
+   * Set only by the main process for watch-folder work. The renderer lets this origin run the few tools
+   * a watch folder needs without the agent confirmation gate: the folders are configured by the user in
+   * Settings, not by an agent. The MCP HTTP server never sets it.
+   */
+  origin?: "watch-folders";
 }
 
 export interface McpBridgeResponse {

@@ -16,6 +16,9 @@ import { schedulePanAutomationOnParam } from "./clip-pan-automation";
 import { shouldPreservePitch } from "./time-stretch";
 import { SCRUB_GRAIN_SECONDS, SCRUB_MAX_GRAINS, planScrubGrains } from "./scrub-grain";
 import { StretchCache, getSharedStretchCache, type StretchRequest, type StretchRunner } from "./stretch-cache";
+import { SpectralRepairCache, getSharedSpectralRepairCache, type SpectralRepairRequest } from "./spectral/spectral-repair-cache";
+import { SPECTRAL_REPAIR_EFFECT_TYPE, getSpectralRepairRegions, spectralRegionsKey } from "./spectral/spectral-regions";
+import type { SpectralBackend } from "./spectral/spectral-worker-client";
 import { createRackBus, rackPan, rackVolume, type RackBusLike } from "./track-audio-rack";
 import { createLinkedCompressorStage, createMultichannelConvolver, needsMultichannelNodes, pinChannels } from "./multichannel-fx";
 import { mapAudioBuffer, type ClipChannelMap } from "./channel-map";
@@ -75,6 +78,8 @@ interface ScheduledSource {
   stretched: boolean;
   /** Fades the source out over `seconds` and detaches it from the track (used to swap it for a rebuilt one). */
   retire: (seconds: number) => void;
+  /** Spectral repair: the original schedule while the source plays the unrepaired audio, until the cached repair is ready. */
+  spectralWait?: AudioClipSchedule;
 }
 
 /** Click-free hand-over between a resampled source and its pitch-preserving replacement. */
@@ -955,7 +960,7 @@ export class RealtimeAudioGraph {
         const wanted = this.stretchRequestFor(scheduled.schedule);
         if (!wanted || wanted.speed !== request.speed || Math.abs(wanted.start - request.start) > 1e-4 || Math.abs(wanted.end - request.end) > 1e-4) continue;
         scheduled.retire(STRETCH_SWAP_FADE_SECONDS);
-        rebuild.push(scheduled.schedule);
+        rebuild.push(scheduled.spectralWait ?? scheduled.schedule);
       }
     }
     this.scheduleBatch(() => { for (const schedule of rebuild) this.scheduleClip(schedule, { fadeInSeconds: STRETCH_SWAP_FADE_SECONDS }); });
@@ -994,8 +999,83 @@ export class RealtimeAudioGraph {
     return { ...rest, audioBuffer: mapAudioBuffer(this.audioContext, schedule.audioBuffer, channelMap) };
   }
 
+  private spectralCache: SpectralRepairCache | null = null;
+  private spectralBackend: SpectralBackend | undefined;
+  private spectralUnsubscribe: (() => void) | null = null;
+
+  /** Test / host hook: replaces where spectral repairs are computed (default: a Web Worker). */
+  setSpectralBackend(backend: SpectralBackend | undefined): void {
+    this.spectralBackend = backend;
+    this.spectralUnsubscribe?.();
+    this.spectralUnsubscribe = null;
+    this.spectralCache = null;
+  }
+
+  private getSpectralCache(): SpectralRepairCache {
+    if (!this.spectralCache) {
+      const makeBuffer = (channels: Float32Array[], sampleRate: number): AudioBuffer => {
+        const out = this.audioContext.createBuffer(channels.length, Math.max(1, channels[0]?.length ?? 1), sampleRate);
+        channels.forEach((data, c) => out.getChannelData(c).set(data));
+        return out;
+      };
+      // An injected backend gets a private cache; otherwise the process-wide one (shared with the export mixdown).
+      this.spectralCache = this.spectralBackend
+        ? new SpectralRepairCache({ backend: this.spectralBackend, makeBuffer })
+        : getSharedSpectralRepairCache(makeBuffer);
+      this.spectralUnsubscribe = this.spectralCache.onReady((request) => this.swapToSpectral(request));
+    }
+    return this.spectralCache;
+  }
+
+  /**
+   * The schedule with the clip's spectral repair applied to its source buffer (regions are source-time, so this
+   * happens before the channel map, stretch and offsets). The repair is computed once off the main thread; until it
+   * is ready the clip plays the unrepaired audio and `swapToSpectral` replaces it.
+   */
+  private withSpectralRepair(schedule: AudioClipSchedule): { schedule: AudioClipSchedule; waiting: boolean } {
+    const regions = getSpectralRepairRegions(schedule.effects);
+    if (regions.length === 0) return { schedule, waiting: false };
+    const effects = schedule.effects.filter((effect) => effect.type !== SPECTRAL_REPAIR_EFFECT_TYPE);
+    const request: SpectralRepairRequest = { buffer: schedule.audioBuffer, regions };
+    const cache = this.getSpectralCache();
+    const ready = cache.peek(request);
+    if (ready) return { schedule: { ...schedule, audioBuffer: ready, effects }, waiting: false };
+    void cache.request(request);
+    return { schedule: { ...schedule, effects }, waiting: true };
+  }
+
+  /**
+   * The source buffer with these clip effects' spectral repair applied (awaiting the cached, off-thread job) and the
+   * effects without the spectral entry, so a preview can schedule the repaired audio straight away. `key` identifies the
+   * regions that were applied ("" when none, or when the repair could not be computed and the graph falls back to the original).
+   */
+  async prepareSpectralRepair(buffer: AudioBuffer, effects: readonly Effect[]): Promise<{ buffer: AudioBuffer; effects: Effect[]; key: string }> {
+    const regions = getSpectralRepairRegions(effects);
+    if (regions.length === 0) return { buffer, effects: [...effects], key: "" };
+    const repaired = await this.getSpectralCache().request({ buffer, regions });
+    if (!repaired) return { buffer, effects: [...effects], key: "" };
+    return { buffer: repaired, effects: effects.filter((effect) => effect.type !== SPECTRAL_REPAIR_EFFECT_TYPE), key: spectralRegionsKey(regions) };
+  }
+
+  /** A repair finished: rebuild every source still playing that clip unrepaired, with a short crossfade. */
+  private swapToSpectral(request: SpectralRepairRequest): void {
+    if (!this.isPlaying || !this.masterClock.isPlaying) return;
+    const key = spectralRegionsKey(request.regions);
+    const rebuild: AudioClipSchedule[] = [];
+    for (const sources of this.scheduledSources.values()) {
+      for (const scheduled of [...sources]) {
+        const waiting = scheduled.spectralWait;
+        if (!waiting || waiting.audioBuffer !== request.buffer || spectralRegionsKey(getSpectralRepairRegions(waiting.effects)) !== key) continue;
+        scheduled.retire(STRETCH_SWAP_FADE_SECONDS);
+        rebuild.push(waiting);
+      }
+    }
+    this.scheduleBatch(() => { for (const schedule of rebuild) this.scheduleClip(schedule, { fadeInSeconds: STRETCH_SWAP_FADE_SECONDS }); });
+  }
+
   scheduleClip(rawSchedule: AudioClipSchedule, options: { fadeInSeconds?: number } = {}): void {
-    const schedule = this.withChannelMap(rawSchedule);
+    const spectral = this.withSpectralRepair(rawSchedule);
+    const schedule = this.withChannelMap(spectral.schedule);
     if (!this.trackNodes.has(schedule.trackId)) {
       this.createTrack({ trackId: schedule.trackId, volume: 1, pan: 0, muted: false, solo: false, effects: [] });
     }
@@ -1006,7 +1086,7 @@ export class RealtimeAudioGraph {
     const stretched = stretchRequest ? this.getStretchedBuffer(stretchRequest) : null;
     const clipBuffer = stretched ?? schedule.audioBuffer;
     const enabledEffects = schedule.effects.filter((effect) => effect.enabled);
-    const processingEffects = enabledEffects.filter((effect) => effect.type !== "pan" && effect.type !== "fadeIn" && effect.type !== "fadeOut");
+    const processingEffects = enabledEffects.filter((effect) => effect.type !== "pan" && effect.type !== "fadeIn" && effect.type !== "fadeOut" && effect.type !== SPECTRAL_REPAIR_EFFECT_TYPE);
     const chain = processingEffects.length > 0 ? this.buildEffectChain(processingEffects, Math.max(1, clipBuffer.numberOfChannels)) : null;
     const source = this.audioContext.createBufferSource();
     source.buffer = clipBuffer;
@@ -1097,7 +1177,7 @@ export class RealtimeAudioGraph {
       source.onended = onSourceEnded;
     };
     scheduled = { clipId: schedule.clipId, trackId: schedule.trackId, panner, source, startedAt: schedule.startTime, duration: playbackDuration, release,
-      schedule, stretched: !!stretched, retire };
+      schedule, stretched: !!stretched, retire, ...(spectral.waiting ? { spectralWait: rawSchedule } : {}) };
     const sources = this.scheduledSources.get(schedule.trackId) ?? [];
     sources.push(scheduled); this.scheduledSources.set(schedule.trackId, sources);
     source.onended = onSourceEnded;
@@ -1280,6 +1360,9 @@ export class RealtimeAudioGraph {
     this.stretchUnsubscribe?.();
     this.stretchUnsubscribe = null;
     this.stretchCache = null;
+    this.spectralUnsubscribe?.();
+    this.spectralUnsubscribe = null;
+    this.spectralCache = null;
     this.stopScheduler();
     for (const trackId of Array.from(this.trackNodes.keys())) {
       this.removeTrack(trackId);

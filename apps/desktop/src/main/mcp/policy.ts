@@ -24,6 +24,7 @@ export interface PolicyEnv {
 export class McpPolicyStore {
   private allowed: string[] | null = null;
   private projectFolder: string | null = null;
+  private watchRoots: string[] = [];
 
   constructor(private readonly env: PolicyEnv) {}
 
@@ -61,10 +62,20 @@ export class McpPolicyStore {
     this.projectFolder = dir && path.isAbsolute(dir) ? path.resolve(dir) : null;
   }
 
-  /** What path checks use: the configured roots plus the open project's folder. */
+  /**
+   * Folders the user set up as watch folders (and the output folders of export watch folders). The
+   * app reads from and writes to them on the user's behalf, so path checks accept them too. Not
+   * persisted here: the watch-folder config owns the list.
+   */
+  setWatchRoots(dirs: readonly string[]): void {
+    this.watchRoots = normalizeRoots(dirs);
+  }
+
+  /** What path checks use: the configured roots, the open project's folder and the watch folders. */
   effectiveRoots(): string[] {
     const roots = [...this.load()];
     if (this.projectFolder && !roots.includes(this.projectFolder)) roots.push(this.projectFolder);
+    for (const root of this.watchRoots) if (!roots.includes(root)) roots.push(root);
     return roots;
   }
 }

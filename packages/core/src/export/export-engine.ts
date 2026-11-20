@@ -23,6 +23,7 @@ import {
 import { VideoEngine, getVideoEngine } from "../video/video-engine";
 import { AudioEngine, getAudioEngine } from "../audio/audio-engine";
 import { downmixSurroundToStereo, isSurroundLayout } from "../audio/surround";
+import { DEFAULT_DIALNORM, DOLBY_VIDEO_DESKTOP_ONLY_REASON, dolbyChannelsProblem, dolbyDeliveryProblems, dolbyMimeType, isDolbyFormat, resolveDolbyAudioSettings, type DolbyCodec } from "./dolby";
 import { encodeMultichannelWav, isSurroundDelivery, resolveSequenceAudioSettings, surroundFormatProblem } from "./surround-export";
 import { audioBufferFromChunk, renderMixdownCached } from "../audio/mixdown-cache";
 import { titleEngine } from "../text/title-engine";
@@ -239,6 +240,11 @@ export class ExportEngine {
     fullSettings.audioSettings = resolveSequenceAudioSettings(project, fullSettings.audioSettings);
     const surroundProblem = isSurroundDelivery(fullSettings.audioSettings) ? surroundFormatProblem(fullSettings.format) : null;
     if (surroundProblem) return { success: false, error: this.createError("INVALID_SETTINGS", surroundProblem, "preparing") };
+    if (isDolbyFormat(fullSettings.audioSettings.format)) {
+      const dolbyProblem = dolbyDeliveryProblems(fullSettings.audioSettings, fullSettings.format)[0];
+      if (dolbyProblem) return { success: false, error: this.createError("INVALID_SETTINGS", dolbyProblem, "preparing") };
+      fullSettings.audioSettings = resolveDolbyAudioSettings(fullSettings.audioSettings);
+    }
 
     const encoderBackendFactory = getEncoderBackendFactory();
     const backend: EncoderBackend = encoderBackendFactory
@@ -250,6 +256,9 @@ export class ExportEngine {
             : {}),
         });
 
+    if (backend.normalizesProResToH264 && (fullSettings.format === "mkv" || isDolbyFormat(fullSettings.audioSettings.format))) {
+      return { success: false, error: this.createError("UNSUPPORTED_CODEC", fullSettings.format === "mkv" ? "MKV export needs the desktop app. Choose MP4, MOV or WebM." : DOLBY_VIDEO_DESKTOP_ONLY_REASON, "preparing") };
+    }
     if (backend.normalizesProResToH264 && (fullSettings.codec === "prores" || fullSettings.codec === "dnxhr" || isBroadcastCodec(fullSettings.codec) || fullSettings.format === "mxf" || hasBroadcastOptions(fullSettings.broadcast))) {
       return { success: false, error: this.createError("UNSUPPORTED_CODEC", "ProRes, DNxHR, XDCAM HD422, AVC-Intra, MXF, mono audio tracks and timecode tracks require the desktop encoder. Choose H.264 / MP4 for browser export.", "preparing") };
     }
@@ -735,12 +744,18 @@ export class ExportEngine {
       ...settings,
     };
     // A 5.1 sequence exports a six-channel WAV; the other audio formats are stereo, so they get the downmix.
-    const fullSettings: AudioExportSettings = resolveSequenceAudioSettings(
+    let fullSettings: AudioExportSettings = resolveSequenceAudioSettings(
       project,
-      requested.format === "wav" ? requested : { ...requested, channelLayout: "stereo" },
+      requested.format === "wav" || isDolbyFormat(requested.format) ? requested : { ...requested, channelLayout: "stereo" },
     );
 
-    if (!this.mediabunny && fullSettings.format !== "wav") {
+    if (isDolbyFormat(fullSettings.format)) {
+      const problem = dolbyChannelsProblem(fullSettings.channels);
+      if (problem) return { success: false, error: this.createError("INVALID_SETTINGS", problem, "preparing") };
+      fullSettings = resolveDolbyAudioSettings(fullSettings);
+    }
+
+    if (!this.mediabunny && fullSettings.format !== "wav" && !isDolbyFormat(fullSettings.format)) {
       return {
         success: false,
         error: this.createError(
@@ -796,6 +811,8 @@ export class ExportEngine {
 
       if (fullSettings.format === "wav") {
         blob = this.encodeWav(audioBuffer, fullSettings);
+      } else if (isDolbyFormat(fullSettings.format)) {
+        blob = await this.encodeDolbyAudioBlob(audioBuffer, fullSettings, this.abortController?.signal);
       } else {
         // Use MediaBunny for other formats
         blob = await this.encodeAudioWithMediaBunny(audioBuffer, fullSettings);
@@ -1254,6 +1271,20 @@ export class ExportEngine {
           sampleRate: 48000,
         },
       },
+      {
+        id: "audio-ac3",
+        name: "Dolby Digital (AC-3) Audio",
+        description: "Raw .ac3 stream, 192 kbps stereo or 5.1 at 384 kbps or more",
+        category: "broadcast",
+        settings: { ...DEFAULT_AUDIO_SETTINGS, format: "ac3", bitDepth: 24, bitrate: 192 },
+      },
+      {
+        id: "audio-eac3",
+        name: "Dolby Digital Plus (E-AC-3) Audio",
+        description: "Raw .ec3 stream, 256 kbps stereo or 5.1 at 384 kbps or more",
+        category: "broadcast",
+        settings: { ...DEFAULT_AUDIO_SETTINGS, format: "eac3", bitDepth: 24, bitrate: 256 },
+      },
     ];
   }
 
@@ -1564,6 +1595,23 @@ export class ExportEngine {
     });
   }
 
+  /**
+   * AC-3 / E-AC-3 elementary stream (`.ac3` / `.ec3`) of the mixdown. The mix is already stereo or L R C LFE Ls Rs;
+   * it goes to the encoder as a 24-bit WAV (the 5.1 one carries the speaker mask) and ffmpeg does the rest.
+   */
+  private async encodeDolbyAudioBlob(buffer: AudioBuffer, settings: AudioExportSettings, signal?: AbortSignal): Promise<Blob> {
+    const codec = settings.format as DolbyCodec;
+    const channels = buffer.numberOfChannels >= 6 ? 6 : 2;
+    const planes = Array.from({ length: channels }, (_, c) => buffer.getChannelData(Math.min(c, buffer.numberOfChannels - 1)));
+    const wav = encodeMultichannelWav(planes, buffer.sampleRate, 24);
+    const { encodeDolbyStream } = await import("./dolby-encode");
+    const bytes = await encodeDolbyStream({
+      wav,
+      params: { codec, channels, bitrateKbps: settings.bitrate, sampleRate: buffer.sampleRate, dialnorm: settings.dialnorm ?? DEFAULT_DIALNORM },
+    }, signal);
+    return new Blob([bytes.buffer as ArrayBuffer], { type: dolbyMimeType(codec) });
+  }
+
   private encodeWav(buffer: AudioBuffer, settings: AudioExportSettings): Blob {
     const numberOfChannels = Math.min(
       buffer.numberOfChannels,
@@ -1656,6 +1704,9 @@ export class ExportEngine {
         return "audio/flac";
       case "ogg":
         return "audio/ogg";
+      case "ac3":
+      case "eac3":
+        return dolbyMimeType(format);
       default:
         return "audio/mpeg";
     }
@@ -1834,9 +1885,9 @@ export function hasBroadcastOptions(broadcast: BroadcastDeliverySettings | undef
 }
 
 export function exportSettingsRequireNativeEncoder(
-  settings: Pick<VideoExportSettings, "codec" | "format"> & Partial<Pick<VideoExportSettings, "colorDepth" | "pixelFormat" | "broadcast">>,
+  settings: Pick<VideoExportSettings, "codec" | "format"> & Partial<Pick<VideoExportSettings, "colorDepth" | "pixelFormat" | "broadcast" | "audioSettings">>,
 ): boolean {
-  return settings.codec === "prores" || settings.codec === "dnxhr" || isBroadcastCodec(settings.codec) || hasBroadcastOptions(settings.broadcast) || settings.format === "mxf" || (settings.colorDepth ?? 8) > 8 || Boolean(settings.pixelFormat && settings.pixelFormat !== "yuv420");
+  return settings.format === "mkv" || isDolbyFormat(settings.audioSettings?.format) || settings.codec === "prores" || settings.codec === "dnxhr" || isBroadcastCodec(settings.codec) || hasBroadcastOptions(settings.broadcast) || settings.format === "mxf" || (settings.colorDepth ?? 8) > 8 || Boolean(settings.pixelFormat && settings.pixelFormat !== "yuv420");
 }
 
 /**
@@ -1845,7 +1896,7 @@ export function exportSettingsRequireNativeEncoder(
  * The web build keeps using exportSettingsRequireNativeEncoder, where HDR goes through WebCodecs when it can.
  */
 export function desktopExportRequiresNativeEncoder(
-  settings: Pick<VideoExportSettings, "codec" | "format"> & Partial<Pick<VideoExportSettings, "colorDepth" | "pixelFormat" | "hdr" | "broadcast">>,
+  settings: Pick<VideoExportSettings, "codec" | "format"> & Partial<Pick<VideoExportSettings, "colorDepth" | "pixelFormat" | "hdr" | "broadcast" | "audioSettings">>,
 ): boolean {
   return exportSettingsRequireNativeEncoder(settings) || settings.hdr === "pq" || settings.hdr === "hlg";
 }

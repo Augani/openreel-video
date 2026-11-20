@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { resolveFfmpegPath } from "./ffmpeg-path";
 import { isBroadcastExportCodec, supportsTwoPass, videoEncodeArgs, withTopFieldFirst, type BroadcastScan, type DnxhrProfile, type EncodeMode, type ExportCodec } from "./encode-args";
+import { dolbyTrackArgs, type DolbyAudioPlan } from "./dolby-args";
 import { colorFilterArgs, colorTagArgs, rawInputPixelFormat, type NativeColorOutput } from "./color-output-args";
 
 export interface ExportArgs {
@@ -31,6 +32,8 @@ export interface ExportArgs {
   /** ProRes 4444: keep the render's alpha channel. */
   alpha?: boolean;
   audioBitrateKbps?: number;
+  /** Dolby Digital / Digital Plus audio track (MP4, MOV or MKV) instead of AAC / Opus / PCM. */
+  dolby?: DolbyAudioPlan;
   keyframeInterval?: number;
   /**
    * Colour-managed export: the pipe carries raw planar YCbCr already converted
@@ -69,7 +72,8 @@ export function parseProgressBlock(block: string): { frame: number; done: boolea
 }
 
 /** Containers whose delivery specs call for uncompressed PCM audio (MXF requires it; ProRes / DNxHR masters carry it). */
-export function usesPcmAudio(a: Pick<ExportArgs, "format" | "codec">): boolean {
+export function usesPcmAudio(a: Pick<ExportArgs, "format" | "codec"> & { dolby?: unknown }): boolean {
+  if (a.dolby) return false;
   return a.format === "mxf" || a.codec === "prores" || a.codec === "dnxhr" || isBroadcastExportCodec(a.codec);
 }
 
@@ -107,12 +111,14 @@ export function monoSplitFilter(count: number): string {
 
 // WebM only accepts VP8/VP9/AV1 video with Opus/Vorbis audio.
 function audioCodecFor(a: ExportArgs): string {
+  if (a.dolby) return a.dolby.codec;
   if (usesPcmAudio(a)) return "pcm_s24le";
   return a.format === "webm" || a.codec === "vp9" ? "libopus" : "aac";
 }
 
 /** The `-f` muxer to force: MXF is not reliably guessed from the output name, so it is always explicit. */
 export function explicitMuxerArgs(format: string): string[] {
+  if (format === "mkv") return ["-f", "matroska"];
   return format === "mxf" ? ["-f", "mxf"] : [];
 }
 
@@ -284,10 +290,15 @@ export function buildFfmpegArgs(a: ExportArgs, stage: "single" | "pass2" = "sing
     ...withTopFieldFirst(a.color ? colorFilterArgs(a.color) : [...COLOR_PIPELINE_ARGS], planOf(a)),
     ...videoEncodeArgs(pass2 ? { ...planOf(a), pass: { stage: 2, logPrefix: passLogPrefix(a) } } : planOf(a)),
     ...(a.color ? colorTagArgs(a.color) : []),
-    "-c:a", audioCodecFor(a),
-    ...(a.audioBitrateKbps !== undefined && !usesPcmAudio(a)
-      ? ["-b:a", `${clampAudioBitrateKbps(a.audioBitrateKbps)}k`]
-      : []),
+    ...(a.dolby
+      // ac3 / eac3 with the 5.1 relabel, bitrate, sample rate and dialnorm (shared with the audio-only export).
+      ? dolbyTrackArgs(a.dolby)
+      : [
+          "-c:a", audioCodecFor(a),
+          ...(a.audioBitrateKbps !== undefined && !usesPcmAudio(a)
+            ? ["-b:a", `${clampAudioBitrateKbps(a.audioBitrateKbps)}k`]
+            : []),
+        ]),
     ...(a.format === "mp4" || a.format === "mov" ? ["-movflags", "+faststart"] : []),
     ...timecodeArgs(a),
     ...explicitMuxerArgs(a.format),

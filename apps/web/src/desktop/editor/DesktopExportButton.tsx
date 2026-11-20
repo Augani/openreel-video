@@ -180,7 +180,7 @@ export function DesktopExportButton({ compact = false }: { compact?: boolean } =
       } else {
         void (async () => {
           try {
-            const writable = await showSavePicker(exportFilename(project.name, "wav"), "wav");
+            const writable = await showSavePicker(exportFilename(project.name, preset.extension), preset.extension);
             beginExport(writable);
             await runAudioExport(preset.settings, writable);
             markComplete();
