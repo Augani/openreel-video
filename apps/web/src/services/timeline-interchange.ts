@@ -113,9 +113,22 @@ export function exportTimelineInterchange(format: InterchangeFormat, sequenceId?
   }
 }
 
+export interface PrprojSequenceChoice {
+  readonly id: string;
+  readonly name: string;
+  readonly detail: string;
+  readonly nested: boolean;
+}
+
 export interface TimelineImportPreview {
   readonly filename: string;
   readonly result: TimelineImportResult & { format: ImportableFormat };
+  /** .prproj only: every sequence of the file, the selected one, and a way to re-read another one. */
+  readonly prproj?: {
+    readonly sequences: readonly PrprojSequenceChoice[];
+    readonly selectedId: string;
+    readonly select: (id: string) => TimelineImportPreview;
+  };
 }
 
 interface TimelineImportState {
@@ -128,33 +141,74 @@ export const useTimelineImportStore = create<TimelineImportState>((set) => ({
   setPreview: (preview) => set({ preview }),
 }));
 
-/** Parse a timeline file (AAF binary, or xmeml / FCPXML / OTIO text) against the current media bin. */
-export function previewTimelineFile(filename: string, bytes: Uint8Array): TimelineImportPreview {
+const isPrprojName = (name: string): boolean => /\.prproj$/i.test(name);
+
+/** A .prproj import preview (Premiere project); the parser is loaded on demand, it is not part of the editor's first load. */
+async function previewPrproj(filename: string, bytes: Uint8Array): Promise<TimelineImportPreview> {
+  const core = await import("@openreel/core/interchange/prproj");
+  const doc = await core.readPrproj(bytes);
+  const project = useProjectStore.getState().project;
+  const build = (sequenceId?: string): TimelineImportPreview => {
+    const result = core.importPrprojDocument(doc, {
+      mediaItems: project.mediaLibrary.items,
+      frameRate: project.settings.frameRate,
+      ...(sequenceId ? { sequenceId } : {}),
+    });
+    return {
+      filename,
+      result,
+      prproj: {
+        selectedId: result.prproj.selectedId,
+        sequences: result.prproj.sequences.map((s) => ({
+          id: s.id,
+          name: s.name,
+          nested: s.nested,
+          detail: `${s.width}x${s.height} · ${Number(s.fps.toFixed(3))} fps · ${s.clipCount} clips`,
+        })),
+        select: (id) => build(id),
+      },
+    };
+  };
+  return build();
+}
+
+/** Parse a timeline file (.prproj, AAF binary, or xmeml / FCPXML / OTIO text) against the current media bin. */
+export async function previewTimelineFile(filename: string, bytes: Uint8Array): Promise<TimelineImportPreview> {
+  if (isPrprojName(filename) || (bytes.length > 2 && bytes[0] === 0x1f && bytes[1] === 0x8b)) return previewPrproj(filename, bytes);
   const project = useProjectStore.getState().project;
   const result = importTimelineFile(bytes, { mediaItems: project.mediaLibrary.items, frameRate: project.settings.frameRate });
   return { filename, result };
 }
 
+/** Read a timeline file the user picked or dropped and open the import dialog (errors become a toast). */
+export async function openTimelineFileForImport(file: File): Promise<void> {
+  try {
+    const buffer = await file.arrayBuffer();
+    useTimelineImportStore.getState().setPreview(await previewTimelineFile(file.name, new Uint8Array(buffer)));
+  } catch (error) {
+    toast.error("Could not read the timeline file", error instanceof Error ? error.message : undefined);
+  }
+}
+
+export const isPremiereProjectFile = isPrprojName;
+
 /** File > Import timeline > Timeline XML… / AAF… — pick a file, then show the relink report. */
-export function openTimelineImport(kind: "xml" | "aaf" = "xml"): void {
+export function openTimelineImport(kind: "xml" | "aaf" | "prproj" = "xml"): void {
   const input = document.createElement("input");
   input.type = "file";
   input.accept =
     kind === "aaf"
       ? ".aaf,application/octet-stream"
-      : ".xml,.fcpxml,.otio,.edl,.aaf,text/xml,application/xml,application/json,application/octet-stream";
+      : kind === "prproj"
+        ? ".prproj"
+        : ".xml,.fcpxml,.otio,.edl,.aaf,.prproj,text/xml,application/xml,application/json,application/octet-stream";
   input.dataset.testid = "timeline-import-input";
   input.style.display = "none";
   input.addEventListener("change", () => {
     const file = input.files?.[0];
     input.remove();
     if (!file) return;
-    void file
-      .arrayBuffer()
-      .then((buffer) => useTimelineImportStore.getState().setPreview(previewTimelineFile(file.name, new Uint8Array(buffer))))
-      .catch((error: unknown) =>
-        toast.error("Could not read the timeline file", error instanceof Error ? error.message : undefined),
-      );
+    void openTimelineFileForImport(file);
   });
   document.body.appendChild(input);
   input.click();

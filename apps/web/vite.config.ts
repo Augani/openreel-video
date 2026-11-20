@@ -62,7 +62,7 @@ export default defineConfig({
         // Desktop: every chunk is a request through the app:// protocol handler and a V8 compile unit, and the
         // core barrel's small shared modules (executor, smart-bins, sequence-par, ...) were each split into a
         // chunk of their own by the lazy dialogs. Fold chunks under this size into their neighbours.
-        ...(isDesktop ? { experimentalMinChunkSize: 50_000 } : {}),
+        ...(isDesktop ? { experimentalMinChunkSize: 65_000 } : {}),
         manualChunks: (id) => {
           if (id.includes("node_modules/react") || id.includes("node_modules/react-dom")) return "react";
           if (id.includes("node_modules/zustand")) return "zustand";
@@ -74,6 +74,11 @@ export default defineConfig({
           // Desktop only: over HTTP/2 the tiny chunks are cheap, so the web build keeps its smaller
           // initial closure (bundle-budgets.json).
           if (isDesktop && id.includes("node_modules/lucide-react")) return "icons";
+          // Desktop: multicam-workflow is shared by the lazy multicam panel and the agent bridge but is
+          // only ~13 KB, so experimentalMinChunkSize folded it into the chunk that also holds the desktop
+          // shell's WindowControls, and the welcome screen then statically imported the whole export
+          // engine through it. A chunk of its own keeps the shell's closure small.
+          if (isDesktop && id.includes("/components/editor/inspector/multicam-workflow")) return "multicam-workflow";
         },
       },
     },

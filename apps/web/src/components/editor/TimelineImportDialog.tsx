@@ -17,6 +17,8 @@ const FORMAT_NAMES: Record<string, string> = {
   fcpxml: "FCPXML",
   otio: "OpenTimelineIO",
   aaf: "AAF",
+  edl: "EDL",
+  prproj: "Premiere Pro project",
 };
 
 const MODES: { id: TimelineImportMode; label: string; hint: string }[] = [
@@ -31,6 +33,8 @@ export function TimelineImportDialog() {
   const [busy, setBusy] = useState(false);
   if (!preview) return null;
   const { result } = preview;
+  const report = result.importReport;
+  const prproj = preview.prproj;
   const close = () => {
     if (!busy) setPreview(null);
   };
@@ -81,6 +85,47 @@ export function TimelineImportDialog() {
               </ul>
             </div>
           )}
+          {prproj && prproj.sequences.length > 1 && (
+            <label className="block space-y-1" data-testid="prproj-sequence-picker">
+              <span className="font-medium">Sequence to import</span>
+              <select
+                className="w-full rounded-md border border-border bg-bg-2 px-2 py-1.5 text-[13px]"
+                value={prproj.selectedId}
+                disabled={busy}
+                onChange={(event) => setPreview(prproj.select(event.target.value))}
+              >
+                {prproj.sequences.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.detail}){s.nested ? " · nested" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {report ? (
+            <div className="space-y-2" data-testid="import-report">
+              <p className="font-medium" data-testid="import-report-summary">
+                {report.dropped} dropped, {report.approximated} approximated
+              </p>
+              {report.items.length > 0 && (
+                <ul className="max-h-40 list-disc space-y-0.5 overflow-y-auto pl-5 text-[12px] text-fg-muted">
+                  {report.items.map((item, i) => (
+                    <li key={`${i}-${item.feature}-${item.clipName ?? ""}`}>
+                      <span className="text-fg">[{item.severity}] {item.feature}</span>
+                      {item.clipName ? ` (${[item.trackName, item.clipName].filter(Boolean).join(" / ")})` : ""}: {item.detail}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {report.notes.length > 0 && (
+                <ul className="list-disc pl-5 text-[12px] text-fg-muted">
+                  {report.notes.map((n) => (
+                    <li key={n}>{n}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : null}
           {result.warnings.length > 0 && (
             <ul className="list-disc pl-5 text-[12px] text-fg-muted">
               {result.warnings.map((w, i) => (

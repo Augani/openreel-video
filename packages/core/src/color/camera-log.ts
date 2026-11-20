@@ -41,7 +41,7 @@ export type CameraLogId =
   | "flog2"
   | "bmdfilm5";
 
-export type CameraGamutId = "sgamut3cine" | "vgamut" | "awg3" | "awg4" | "cinemagamut" | "bt2020" | "bmdwg";
+export type CameraGamutId = "sgamut3cine" | "vgamut" | "awg3" | "awg4" | "cinemagamut" | "bt2020" | "bmdwg" | "ap0" | "ap1";
 
 type Matrix3 = readonly [readonly number[], readonly number[], readonly number[]];
 
@@ -194,7 +194,7 @@ export function cameraLogGlslExpression(id: CameraLogId): string {
 // -- gamuts ----------------------------------------------------------------------------------------------------
 
 type XY = readonly [number, number];
-interface GamutDef {
+export interface GamutDef {
   readonly r: XY;
   readonly g: XY;
   readonly b: XY;
@@ -203,8 +203,15 @@ interface GamutDef {
 
 const D65: XY = [0.3127, 0.329];
 
-const GAMUTS: Record<CameraGamutId | "rec709", GamutDef> = {
+/** ACES white point (ST 2065-1), the white of AP0 and AP1. */
+const ACES_WHITE: XY = [0.32168, 0.33767];
+
+const GAMUTS: Record<CameraGamutId | "rec709" | "p3", GamutDef> = {
   rec709: { r: [0.64, 0.33], g: [0.3, 0.6], b: [0.15, 0.06], white: D65 },
+  p3: { r: [0.68, 0.32], g: [0.265, 0.69], b: [0.15, 0.06], white: D65 },
+  // ACES primaries (SMPTE ST 2065-1 AP0, S-2014-004 AP1). Used as footage spaces: ACES2065-1, ACEScg, ACEScct.
+  ap0: { r: [0.7347, 0.2653], g: [0, 1], b: [0.0001, -0.077], white: ACES_WHITE },
+  ap1: { r: [0.713, 0.293], g: [0.165, 0.83], b: [0.128, 0.044], white: ACES_WHITE },
   bt2020: { r: [0.708, 0.292], g: [0.17, 0.797], b: [0.131, 0.046], white: D65 },
   sgamut3cine: { r: [0.766, 0.275], g: [0.225, 0.8], b: [0.089, -0.087], white: D65 },
   vgamut: { r: [0.73, 0.28], g: [0.165, 0.84], b: [0.1, -0.03], white: D65 },
@@ -213,6 +220,13 @@ const GAMUTS: Record<CameraGamutId | "rec709", GamutDef> = {
   cinemagamut: { r: [0.74, 0.27], g: [0.17, 1.14], b: [0.08, -0.1], white: D65 },
   bmdwg: { r: [0.7177215, 0.3171181], g: [0.228041, 0.861569], b: [0.1005841, -0.0825512], white: [0.312717, 0.3290312] },
 };
+
+/** Chromaticities of a camera / ACES gamut (or "rec709" / "p3"), for the ACES input transforms. */
+export function gamutDef(id: CameraGamutId | "rec709" | "p3"): GamutDef {
+  return GAMUTS[id];
+}
+
+export { mul3 as multiply3x3, inv3 as invert3x3, rgbToXyz as gamutToXyz, adaptation as chromaticAdaptation };
 
 function mul3(a: Matrix3, b: Matrix3): Matrix3 {
   const out = [0, 1, 2].map((i) => [0, 1, 2].map((j) => a[i][0] * b[0][j] + a[i][1] * b[1][j] + a[i][2] * b[2][j]));
@@ -270,7 +284,7 @@ function adaptation(from: XY, to: XY): Matrix3 {
 }
 
 /** Linear light in `from` primaries to linear light in `to` primaries, both viewed under D65. */
-export function gamutConversion(from: CameraGamutId | "rec709", to: CameraGamutId | "rec709"): Matrix3 {
+export function gamutConversion(from: CameraGamutId | "rec709" | "p3", to: CameraGamutId | "rec709" | "p3"): Matrix3 {
   const f = GAMUTS[from];
   const t = GAMUTS[to];
   return mul3(inv3(rgbToXyz({ ...t, white: D65 })), mul3(adaptation(f.white, D65), rgbToXyz(f)));

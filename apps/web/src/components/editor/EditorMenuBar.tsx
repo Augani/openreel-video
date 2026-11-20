@@ -167,7 +167,8 @@ export function EditorMenuBar({
         heading: "Bring in a sequence",
         disabled: exporting || applying || playbackLocked,
         children: [
-          { label: "Timeline XML…", description: "Premiere/Resolve XML, FCPXML or OpenTimelineIO (.otio)", action: () => openTimelineImport("xml") },
+          { label: "Timeline XML…", description: "Premiere/Resolve XML, FCPXML, OpenTimelineIO (.otio) or EDL", action: () => openTimelineImport("xml") },
+          { label: "Premiere project (.prproj)…", description: "Sequences, clips, speed, motion, markers and dissolves; media is relinked to the bin by file name, the rest becomes offline placeholders", action: () => openTimelineImport("prproj") },
           { label: "AAF…", description: "Avid / Premiere / Resolve AAF; media is relinked to the bin by file name", action: () => openTimelineImport("aaf") },
         ],
       },

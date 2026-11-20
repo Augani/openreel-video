@@ -14,8 +14,8 @@ import {
 } from "@openreel/core/video/scopes";
 import { useUIStore } from "../../../stores/ui-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
-import { useProjectStore } from "../../../stores/project-store";
 import { useColorMonitorStore } from "../../../stores/color-monitor-store";
+import { useProjectStore } from "../../../stores/project-store";
 import { getPreviewCanvas } from "./preview-canvas-registry";
 import {
   frameHasContent,
@@ -229,6 +229,8 @@ const ScopesPanelBody: React.FC = () => {
   const falseColor = useColorMonitorStore((s) => s.falseColor);
   const setFalseColor = useColorMonitorStore((s) => s.setFalseColor);
   const isPlaying = useTimelineStore((s) => s.playbackState === "playing");
+  // ACES mode: the Program monitor shows the output transform (RRT + ODT), and the scopes measure that picture.
+  const acesOutput = useProjectStore((s) => (s.project.settings.colorManagement === "aces" ? (s.project.settings.acesOutput ?? "srgb") : null));
 
   const rootRef = useRef<HTMLDivElement>(null);
   const scopeCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -559,6 +561,15 @@ const ScopesPanelBody: React.FC = () => {
         >
           False colour
         </Button>
+        {acesOutput ? (
+          <span
+            data-testid="scopes-aces-label"
+            title="ACES color management is on: the scopes read the Program monitor, which shows the ACES output transform, so they measure display-referred output code values."
+            className="rounded-[6px] bg-bg-2 px-1.5 py-0.5 text-[10px] text-fg-2"
+          >
+            ACES output · {acesOutput === "rec709" ? "Rec.709" : "sRGB"}
+          </span>
+        ) : null}
         {isWaveform ? (
           <select
             aria-label="Waveform scale"

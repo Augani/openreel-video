@@ -1,0 +1,699 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<PremiereData Version="3">
+<Media ObjectUID="aaaaaaaa-0000-4000-8000-000000000001" ClassID="7a78f4f1-ca6b-4fd5-a8c8-87a6a8b1c0c7" Version="31">
+  <ImplementationID>00000000-0000-0000-0000-000000000000</ImplementationID>
+  <FilePath>/Volumes/Shoot/Day1/interview.mp4</FilePath>
+  <ActualMediaFilePath>/Volumes/Shoot/Day1/interview.mp4</ActualMediaFilePath>
+  <Title>interview.mp4</Title>
+  <VideoStream ObjectRef="101"/>
+  <AudioStream ObjectRef="102"/>
+</Media>
+<VideoStream ObjectID="101" ClassID="a2f2f1c0-1b7f-4a5c-8c55-0f2f5b9c7d11" Version="3">
+  <FrameRate>8475667200</FrameRate>
+  <FrameRect>0,0,1920,1080</FrameRect>
+</VideoStream>
+<AudioStream ObjectID="102" ClassID="b3c3f2d1-2c80-4b6d-9d66-1a3a6c0d8e22" Version="2">
+  <SampleRate>48000</SampleRate>
+  <NumChannels>2</NumChannels>
+</AudioStream>
+<Media ObjectUID="aaaaaaaa-0000-4000-8000-000000000002" ClassID="7a78f4f1-ca6b-4fd5-a8c8-87a6a8b1c0c7" Version="31">
+  <ImplementationID>00000000-0000-0000-0000-000000000000</ImplementationID>
+  <FilePath>/Volumes/Shoot/Day1/broll.mov</FilePath>
+  <ActualMediaFilePath>/Volumes/Shoot/Day1/broll.mov</ActualMediaFilePath>
+  <Title>broll.mov</Title>
+  <VideoStream ObjectRef="103"/>
+</Media>
+<VideoStream ObjectID="103" ClassID="a2f2f1c0-1b7f-4a5c-8c55-0f2f5b9c7d11" Version="3">
+  <FrameRate>10160640000</FrameRate>
+  <FrameRect>0,0,3840,2160</FrameRect>
+</VideoStream>
+<Media ObjectUID="aaaaaaaa-0000-4000-8000-000000000003" ClassID="7a78f4f1-ca6b-4fd5-a8c8-87a6a8b1c0c7" Version="31">
+  <ImplementationID>00000000-0000-0000-0000-000000000000</ImplementationID>
+  <FilePath>C:\Music\theme song.wav</FilePath>
+  <ActualMediaFilePath>C:\Music\theme song.wav</ActualMediaFilePath>
+  <Title>theme song.wav</Title>
+  <AudioStream ObjectRef="104"/>
+</Media>
+<AudioStream ObjectID="104" ClassID="b3c3f2d1-2c80-4b6d-9d66-1a3a6c0d8e22" Version="2">
+  <SampleRate>48000</SampleRate>
+  <NumChannels>2</NumChannels>
+</AudioStream>
+<Media ObjectUID="aaaaaaaa-0000-4000-8000-000000000004" ClassID="7a78f4f1-ca6b-4fd5-a8c8-87a6a8b1c0c7" Version="31">
+  <ImplementationID>00000000-0000-0000-0000-000000000000</ImplementationID>
+  <FilePath>/Volumes/Shoot/Graphics/overlay.png</FilePath>
+  <ActualMediaFilePath>/Volumes/Shoot/Graphics/overlay.png</ActualMediaFilePath>
+  <Title>overlay.png</Title>
+  <VideoStream ObjectRef="105"/>
+</Media>
+<VideoStream ObjectID="105" ClassID="a2f2f1c0-1b7f-4a5c-8c55-0f2f5b9c7d11" Version="3">
+  <FrameRate>10160640000</FrameRate>
+  <FrameRect>0,0,1280,720</FrameRect>
+</VideoStream>
+<VideoMediaSource ObjectID="106" ClassID="e64ddf70-d1d1-4c0e-9e37-6e6aa1cbd3a6" Version="2">
+  <MediaSource Version="4">
+    <Media ObjectURef="aaaaaaaa-0000-4000-8000-000000000001"/>
+    <OriginalDuration>15240960000000</OriginalDuration>
+  </MediaSource>
+</VideoMediaSource>
+<VideoClip ObjectID="107" ClassID="9308dbef-2440-4acb-9ab2-953b9a4e82ec" Version="3">
+  <Clip Version="18">
+    <Source ObjectRef="106"/>
+    <InPoint>0</InPoint>
+    <OutPoint>15240960000000</OutPoint>
+  </Clip>
+  <FrameRect>0,0,1920,1080</FrameRect>
+</VideoClip>
+<AudioMediaSource ObjectID="108" ClassID="e64ddf70-d1d1-4c0e-9e37-6e6aa1cbd3a6" Version="2">
+  <MediaSource Version="4">
+    <Media ObjectURef="aaaaaaaa-0000-4000-8000-000000000001"/>
+    <OriginalDuration>15240960000000</OriginalDuration>
+  </MediaSource>
+</AudioMediaSource>
+<AudioClip ObjectID="109" ClassID="9308dbef-2440-4acb-9ab2-953b9a4e82ec" Version="3">
+  <Clip Version="18">
+    <Source ObjectRef="108"/>
+    <InPoint>0</InPoint>
+    <OutPoint>15240960000000</OutPoint>
+  </Clip>
+</AudioClip>
+<MasterClip ObjectUID="bbbbbbbb-0000-4000-8000-000000000001" ClassID="fb11c33a-b0a3-4d5f-9a6a-8b1b8a1d0a5a" Version="12">
+  <Clips Version="1">
+    <Clip Index="0" ObjectRef="107"/>
+    <Clip Index="1" ObjectRef="109"/>
+  </Clips>
+  <Name>interview.mp4</Name>
+</MasterClip>
+<ClipProjectItem ObjectUID="cccccccc-0000-4000-8000-000000000001" ClassID="cb4e0ed7-aca1-4f8a-b5f5-0ca8a9a1b3f7" Version="1">
+  <ProjectItem Version="1"><Name>interview.mp4</Name></ProjectItem>
+  <MasterClip ObjectURef="bbbbbbbb-0000-4000-8000-000000000001"/>
+</ClipProjectItem>
+<VideoMediaSource ObjectID="110" ClassID="e64ddf70-d1d1-4c0e-9e37-6e6aa1cbd3a6" Version="2">
+  <MediaSource Version="4">
+    <Media ObjectURef="aaaaaaaa-0000-4000-8000-000000000002"/>
+    <OriginalDuration>7620480000000</OriginalDuration>
+  </MediaSource>
+</VideoMediaSource>
+<VideoClip ObjectID="111" ClassID="9308dbef-2440-4acb-9ab2-953b9a4e82ec" Version="3">
+  <Clip Version="18">
+    <Source ObjectRef="110"/>
+    <InPoint>0</InPoint>
+    <OutPoint>7620480000000</OutPoint>
+  </Clip>
+  <FrameRect>0,0,3840,2160</FrameRect>
+</VideoClip>
+<MasterClip ObjectUID="bbbbbbbb-0000-4000-8000-000000000002" ClassID="fb11c33a-b0a3-4d5f-9a6a-8b1b8a1d0a5a" Version="12">
+  <Clips Version="1">
+    <Clip Index="0" ObjectRef="111"/>
+  </Clips>
+  <Name>broll.mov</Name>
+</MasterClip>
+<ClipProjectItem ObjectUID="cccccccc-0000-4000-8000-000000000002" ClassID="cb4e0ed7-aca1-4f8a-b5f5-0ca8a9a1b3f7" Version="1">
+  <ProjectItem Version="1"><Name>broll.mov</Name></ProjectItem>
+  <MasterClip ObjectURef="bbbbbbbb-0000-4000-8000-000000000002"/>
+</ClipProjectItem>
+<AudioMediaSource ObjectID="112" ClassID="e64ddf70-d1d1-4c0e-9e37-6e6aa1cbd3a6" Version="2">
+  <MediaSource Version="4">
+    <Media ObjectURef="aaaaaaaa-0000-4000-8000-000000000003"/>
+    <OriginalDuration>45722880000000</OriginalDuration>
+  </MediaSource>
+</AudioMediaSource>
+<AudioClip ObjectID="113" ClassID="9308dbef-2440-4acb-9ab2-953b9a4e82ec" Version="3">
+  <Clip Version="18">
+    <Source ObjectRef="112"/>
+    <InPoint>0</InPoint>
+    <OutPoint>45722880000000</OutPoint>
+  </Clip>
+</AudioClip>
+<MasterClip ObjectUID="bbbbbbbb-0000-4000-8000-000000000003" ClassID="fb11c33a-b0a3-4d5f-9a6a-8b1b8a1d0a5a" Version="12">
+  <Clips Version="1">
+    <Clip Index="0" ObjectRef="113"/>
+  </Clips>
+  <Name>theme song.wav</Name>
+</MasterClip>
+<ClipProjectItem ObjectUID="cccccccc-0000-4000-8000-000000000003" ClassID="cb4e0ed7-aca1-4f8a-b5f5-0ca8a9a1b3f7" Version="1">
+  <ProjectItem Version="1"><Name>theme song.wav</Name></ProjectItem>
+  <MasterClip ObjectURef="bbbbbbbb-0000-4000-8000-000000000003"/>
+</ClipProjectItem>
+<VideoMediaSource ObjectID="114" ClassID="e64ddf70-d1d1-4c0e-9e37-6e6aa1cbd3a6" Version="2">
+  <MediaSource Version="4">
+    <Media ObjectURef="aaaaaaaa-0000-4000-8000-000000000004"/>
+    <OriginalDuration>1270080000000</OriginalDuration>
+  </MediaSource>
+</VideoMediaSource>
+<VideoClip ObjectID="115" ClassID="9308dbef-2440-4acb-9ab2-953b9a4e82ec" Version="3">
+  <Clip Version="18">
+    <Source ObjectRef="114"/>
+    <InPoint>0</InPoint>
+    <OutPoint>1270080000000</OutPoint>
+  </Clip>
+  <FrameRect>0,0,1280,720</FrameRect>
+</VideoClip>
+<MasterClip ObjectUID="bbbbbbbb-0000-4000-8000-000000000004" ClassID="fb11c33a-b0a3-4d5f-9a6a-8b1b8a1d0a5a" Version="12">
+  <Clips Version="1">
+    <Clip Index="0" ObjectRef="115"/>
+  </Clips>
+  <Name>overlay.png</Name>
+</MasterClip>
+<ClipProjectItem ObjectUID="cccccccc-0000-4000-8000-000000000004" ClassID="cb4e0ed7-aca1-4f8a-b5f5-0ca8a9a1b3f7" Version="1">
+  <ProjectItem Version="1"><Name>overlay.png</Name></ProjectItem>
+  <MasterClip ObjectURef="bbbbbbbb-0000-4000-8000-000000000004"/>
+</ClipProjectItem>
+<BinProjectItem ObjectUID="dddddddd-0000-4000-8000-000000000001" ClassID="dbfd21a6-b6d3-4b6a-a4a0-0e8d6c6b1d33" Version="1">
+  <ProjectItemContainer Version="1"><Items Version="1">
+    <Item Index="0" ObjectURef="cccccccc-0000-4000-8000-000000000004"/>
+  </Items></ProjectItemContainer>
+  <ProjectItem Version="1"><Name>Graphics</Name></ProjectItem>
+</BinProjectItem>
+<BinProjectItem ObjectUID="dddddddd-0000-4000-8000-000000000002" ClassID="dbfd21a6-b6d3-4b6a-a4a0-0e8d6c6b1d33" Version="1">
+  <ProjectItemContainer Version="1"><Items Version="1">
+    <Item Index="0" ObjectURef="cccccccc-0000-4000-8000-000000000001"/>
+    <Item Index="1" ObjectURef="cccccccc-0000-4000-8000-000000000002"/>
+    <Item Index="2" ObjectURef="dddddddd-0000-4000-8000-000000000001"/>
+  </Items></ProjectItemContainer>
+  <ProjectItem Version="1"><Name>Footage</Name></ProjectItem>
+</BinProjectItem>
+<BinProjectItem ObjectUID="dddddddd-0000-4000-8000-000000000003" ClassID="dbfd21a6-b6d3-4b6a-a4a0-0e8d6c6b1d33" Version="1">
+  <ProjectItemContainer Version="1"><Items Version="1">
+    <Item Index="0" ObjectURef="cccccccc-0000-4000-8000-000000000003"/>
+  </Items></ProjectItemContainer>
+  <ProjectItem Version="1"><Name>Audio</Name></ProjectItem>
+</BinProjectItem>
+<VideoComponentParam ObjectID="116" ClassID="a8f0a3e5-57a1-4e8e-8a3a-9e0f8f2a9a44" Version="7">
+  <Name>Position</Name>
+  <CurrentValue>0.5:0.5</CurrentValue>
+</VideoComponentParam>
+<VideoComponentParam ObjectID="117" ClassID="a8f0a3e5-57a1-4e8e-8a3a-9e0f8f2a9a44" Version="7">
+  <Name>Scale</Name>
+  <CurrentValue>100</CurrentValue>
+</VideoComponentParam>
+<VideoComponentParam ObjectID="118" ClassID="a8f0a3e5-57a1-4e8e-8a3a-9e0f8f2a9a44" Version="7">
+  <Name>Rotation</Name>
+  <CurrentValue>0</CurrentValue>
+</VideoComponentParam>
+<VideoFilterComponent ObjectID="119" ClassID="0970b8ba-3d9f-4c4a-8a3c-3a64cf6a7b55" Version="9">
+  <Component Version="7"><Params Version="1">
+    <Param Index="0" ObjectRef="116"/>
+    <Param Index="1" ObjectRef="117"/>
+    <Param Index="2" ObjectRef="118"/>
+  </Params></Component>
+  <MatchName>AE.ADBE Motion</MatchName>
+  <DisplayName>Motion</DisplayName>
+</VideoFilterComponent>
+<VideoClip ObjectID="120" ClassID="9308dbef-2440-4acb-9ab2-953b9a4e82ec" Version="3">
+  <Clip Version="18"><Source ObjectRef="110"/><InPoint>254016000000</InPoint><OutPoint>1016064000000</OutPoint></Clip>
+</VideoClip>
+<SubClip ObjectID="121" ClassID="e0c6bd4a-5f55-4a76-9bd8-6f0d3a1c2e99" Version="5">
+  <Clip ObjectRef="120"/>
+  <MasterClip ObjectURef="bbbbbbbb-0000-4000-8000-000000000002"/>
+  <Name>broll.mov</Name>
+</SubClip>
+<VideoComponentChain ObjectID="122" ClassID="0d6e4a9d-4b5c-4d0e-8f9a-6a7b8c9d0e1f" Version="3">
+  <ComponentChain Version="3"><Components Version="1">
+    <Component Index="0" ObjectRef="119"/>
+  </Components></ComponentChain>
+</VideoComponentChain>
+<VideoClipTrackItem ObjectID="123" ClassID="368b0d13-5e1c-4b0f-a9a2-5d7f3e0c1b77" Version="8">
+  <ClipTrackItem Version="8">
+    <ComponentOwner Version="1"><Components ObjectRef="122"/></ComponentOwner>
+    <SubClip ObjectRef="121"/>
+    <TrackItem Version="4">
+      <Start>0</Start>
+      <End>762048000000</End>
+    </TrackItem>
+  </ClipTrackItem>
+</VideoClipTrackItem>
+<VideoClipTrack ObjectUID="eeeeeeee-0000-4000-8000-000000000001" ClassID="e2b8bcd1-8f2d-4a6e-b1d8-7a1f2c3d4e55" Version="5">
+  <ClipTrack Version="3">
+    <Track Version="4"><ID>1</ID><Index>0</Index></Track>
+    <ClipItems Version="3"><TrackItems Version="1">
+      <TrackItem Index="0" ObjectRef="123"/>
+    </TrackItems></ClipItems>
+  </ClipTrack>
+</VideoClipTrack>
+<VideoTrackGroup ObjectID="124" ClassID="f1e2d3c4-b5a6-4978-8a9b-0c1d2e3f4a5b" Version="9">
+  <TrackGroup Version="1">
+    <Tracks Version="1">
+      <Track Index="0" ObjectURef="eeeeeeee-0000-4000-8000-000000000001"/>
+    </Tracks>
+    <FrameRect>0,0,1920,1080</FrameRect>
+    <FrameRate>10160640000</FrameRate>
+  </TrackGroup>
+</VideoTrackGroup>
+<Sequence ObjectUID="ffffffff-0000-4000-8000-000000000003" ClassID="6a15d903-8739-11d5-af2d-9b7855ad8974" Version="1">
+  <Node Version="1"><Properties Version="1"/></Node>
+  <TrackGroups Version="1">
+    <TrackGroup Version="1" Index="0"><First>0</First><Second ObjectRef="124"/></TrackGroup>
+  </TrackGroups>
+  <Name>Lower Third Nest</Name>
+</Sequence>
+<VideoClip ObjectID="125" ClassID="9308dbef-2440-4acb-9ab2-953b9a4e82ec" Version="3">
+  <Clip Version="18"><Source ObjectRef="106"/><InPoint>0</InPoint><OutPoint>508032000000</OutPoint></Clip>
+</VideoClip>
+<SubClip ObjectID="126" ClassID="e0c6bd4a-5f55-4a76-9bd8-6f0d3a1c2e99" Version="5">
+  <Clip ObjectRef="125"/>
+  <MasterClip ObjectURef="bbbbbbbb-0000-4000-8000-000000000001"/>
+  <Name>interview.mp4</Name>
+</SubClip>
+<VideoClipTrackItem ObjectID="127" ClassID="368b0d13-5e1c-4b0f-a9a2-5d7f3e0c1b77" Version="8">
+  <ClipTrackItem Version="8">
+    <SubClip ObjectRef="126"/>
+    <TrackItem Version="4">
+      <Start>0</Start>
+      <End>508032000000</End>
+    </TrackItem>
+  </ClipTrackItem>
+</VideoClipTrackItem>
+<VideoClipTrack ObjectUID="eeeeeeee-0000-4000-8000-000000000002" ClassID="e2b8bcd1-8f2d-4a6e-b1d8-7a1f2c3d4e55" Version="5">
+  <ClipTrack Version="3">
+    <Track Version="4"><ID>1</ID><Index>0</Index></Track>
+    <ClipItems Version="3"><TrackItems Version="1">
+      <TrackItem Index="0" ObjectRef="127"/>
+    </TrackItems></ClipItems>
+  </ClipTrack>
+</VideoClipTrack>
+<VideoTrackGroup ObjectID="128" ClassID="f1e2d3c4-b5a6-4978-8a9b-0c1d2e3f4a5b" Version="9">
+  <TrackGroup Version="1">
+    <Tracks Version="1">
+      <Track Index="0" ObjectURef="eeeeeeee-0000-4000-8000-000000000002"/>
+    </Tracks>
+    <FrameRect>0,0,1920,1080</FrameRect>
+    <FrameRate>8475667200</FrameRate>
+  </TrackGroup>
+</VideoTrackGroup>
+<Sequence ObjectUID="ffffffff-0000-4000-8000-000000000002" ClassID="6a15d903-8739-11d5-af2d-9b7855ad8974" Version="1">
+  <Node Version="1"><Properties Version="1"/></Node>
+  <TrackGroups Version="1">
+    <TrackGroup Version="1" Index="0"><First>0</First><Second ObjectRef="128"/></TrackGroup>
+  </TrackGroups>
+  <Name>Alt Cut</Name>
+</Sequence>
+<VideoComponentParam ObjectID="129" ClassID="a8f0a3e5-57a1-4e8e-8a3a-9e0f8f2a9a44" Version="7">
+  <Name>Position</Name>
+  <CurrentValue>0.5:0.5</CurrentValue>
+</VideoComponentParam>
+<VideoComponentParam ObjectID="130" ClassID="a8f0a3e5-57a1-4e8e-8a3a-9e0f8f2a9a44" Version="7">
+  <Name>Scale</Name>
+  <CurrentValue>100</CurrentValue>
+</VideoComponentParam>
+<VideoComponentParam ObjectID="131" ClassID="a8f0a3e5-57a1-4e8e-8a3a-9e0f8f2a9a44" Version="7">
+  <Name>Rotation</Name>
+  <CurrentValue>0</CurrentValue>
+</VideoComponentParam>
+<VideoFilterComponent ObjectID="132" ClassID="0970b8ba-3d9f-4c4a-8a3c-3a64cf6a7b55" Version="9">
+  <Component Version="7"><Params Version="1">
+    <Param Index="0" ObjectRef="129"/>
+    <Param Index="1" ObjectRef="130"/>
+    <Param Index="2" ObjectRef="131"/>
+  </Params></Component>
+  <MatchName>AE.ADBE Motion</MatchName>
+  <DisplayName>Motion</DisplayName>
+</VideoFilterComponent>
+<VideoComponentParam ObjectID="133" ClassID="a8f0a3e5-57a1-4e8e-8a3a-9e0f8f2a9a44" Version="7">
+  <Name>Opacity</Name>
+  <CurrentValue>100</CurrentValue>
+</VideoComponentParam>
+<VideoFilterComponent ObjectID="134" ClassID="0970b8ba-3d9f-4c4a-8a3c-3a64cf6a7b55" Version="9">
+  <Component Version="7"><Params Version="1">
+    <Param Index="0" ObjectRef="133"/>
+  </Params></Component>
+  <MatchName>AE.ADBE Opacity</MatchName>
+  <DisplayName>Opacity</DisplayName>
+</VideoFilterComponent>
+<VideoClip ObjectID="135" ClassID="9308dbef-2440-4acb-9ab2-953b9a4e82ec" Version="3">
+  <Clip Version="18"><Source ObjectRef="106"/><InPoint>508032000000</InPoint><OutPoint>1778112000000</OutPoint></Clip>
+</VideoClip>
+<SubClip ObjectID="136" ClassID="e0c6bd4a-5f55-4a76-9bd8-6f0d3a1c2e99" Version="5">
+  <Clip ObjectRef="135"/>
+  <MasterClip ObjectURef="bbbbbbbb-0000-4000-8000-000000000001"/>
+  <Name>interview.mp4</Name>
+</SubClip>
+<VideoComponentChain ObjectID="137" ClassID="0d6e4a9d-4b5c-4d0e-8f9a-6a7b8c9d0e1f" Version="3">
+  <ComponentChain Version="3"><Components Version="1">
+    <Component Index="0" ObjectRef="132"/>
+    <Component Index="1" ObjectRef="134"/>
+  </Components></ComponentChain>
+</VideoComponentChain>
+<VideoClipTrackItem ObjectID="138" ClassID="368b0d13-5e1c-4b0f-a9a2-5d7f3e0c1b77" Version="8">
+  <ClipTrackItem Version="8">
+    <ComponentOwner Version="1"><Components ObjectRef="137"/></ComponentOwner>
+    <SubClip ObjectRef="136"/>
+    <TrackItem Version="4">
+      <Start>0</Start>
+      <End>1270080000000</End>
+    </TrackItem>
+  </ClipTrackItem>
+</VideoClipTrackItem>
+<VideoComponentParam ObjectID="139" ClassID="a8f0a3e5-57a1-4e8e-8a3a-9e0f8f2a9a44" Version="7">
+  <Name>Position</Name>
+  <CurrentValue>0.75:0.25</CurrentValue>
+</VideoComponentParam>
+<VideoComponentParam ObjectID="140" ClassID="a8f0a3e5-57a1-4e8e-8a3a-9e0f8f2a9a44" Version="7">
+  <Name>Scale</Name>
+  <CurrentValue>50</CurrentValue>
+</VideoComponentParam>
+<VideoComponentParam ObjectID="141" ClassID="a8f0a3e5-57a1-4e8e-8a3a-9e0f8f2a9a44" Version="7">
+  <Name>Rotation</Name>
+  <CurrentValue>0</CurrentValue>
+</VideoComponentParam>
+<VideoFilterComponent ObjectID="142" ClassID="0970b8ba-3d9f-4c4a-8a3c-3a64cf6a7b55" Version="9">
+  <Component Version="7"><Params Version="1">
+    <Param Index="0" ObjectRef="139"/>
+    <Param Index="1" ObjectRef="140"/>
+    <Param Index="2" ObjectRef="141"/>
+  </Params></Component>
+  <MatchName>AE.ADBE Motion</MatchName>
+  <DisplayName>Motion</DisplayName>
+</VideoFilterComponent>
+<VideoComponentParam ObjectID="143" ClassID="a8f0a3e5-57a1-4e8e-8a3a-9e0f8f2a9a44" Version="7">
+  <Name>Opacity</Name>
+  <CurrentValue>100</CurrentValue>
+</VideoComponentParam>
+<VideoFilterComponent ObjectID="144" ClassID="0970b8ba-3d9f-4c4a-8a3c-3a64cf6a7b55" Version="9">
+  <Component Version="7"><Params Version="1">
+    <Param Index="0" ObjectRef="143"/>
+  </Params></Component>
+  <MatchName>AE.ADBE Opacity</MatchName>
+  <DisplayName>Opacity</DisplayName>
+</VideoFilterComponent>
+<VideoClip ObjectID="145" ClassID="9308dbef-2440-4acb-9ab2-953b9a4e82ec" Version="3">
+  <Clip Version="18"><Source ObjectRef="110"/><InPoint>0</InPoint><OutPoint>2032128000000</OutPoint></Clip>
+</VideoClip>
+<SubClip ObjectID="146" ClassID="e0c6bd4a-5f55-4a76-9bd8-6f0d3a1c2e99" Version="5">
+  <Clip ObjectRef="145"/>
+  <MasterClip ObjectURef="bbbbbbbb-0000-4000-8000-000000000002"/>
+  <Name>broll.mov</Name>
+</SubClip>
+<VideoComponentChain ObjectID="147" ClassID="0d6e4a9d-4b5c-4d0e-8f9a-6a7b8c9d0e1f" Version="3">
+  <ComponentChain Version="3"><Components Version="1">
+    <Component Index="0" ObjectRef="142"/>
+    <Component Index="1" ObjectRef="144"/>
+  </Components></ComponentChain>
+</VideoComponentChain>
+<VideoClipTrackItem ObjectID="148" ClassID="368b0d13-5e1c-4b0f-a9a2-5d7f3e0c1b77" Version="8">
+  <ClipTrackItem Version="8">
+    <ComponentOwner Version="1"><Components ObjectRef="147"/></ComponentOwner>
+    <SubClip ObjectRef="146"/>
+    <TrackItem Version="4">
+      <Start>1270080000000</Start>
+      <End>2286144000000</End>
+    </TrackItem>
+  </ClipTrackItem>
+</VideoClipTrackItem>
+<VideoClip ObjectID="149" ClassID="9308dbef-2440-4acb-9ab2-953b9a4e82ec" Version="3">
+  <Clip Version="18"><Source ObjectRef="106"/><InPoint>0</InPoint><OutPoint>508032000000</OutPoint></Clip>
+</VideoClip>
+<SubClip ObjectID="150" ClassID="e0c6bd4a-5f55-4a76-9bd8-6f0d3a1c2e99" Version="5">
+  <Clip ObjectRef="149"/>
+  <MasterClip ObjectURef="bbbbbbbb-0000-4000-8000-000000000001"/>
+  <Name>interview.mp4</Name>
+</SubClip>
+<VideoClipTrackItem ObjectID="151" ClassID="368b0d13-5e1c-4b0f-a9a2-5d7f3e0c1b77" Version="8">
+  <ClipTrackItem Version="8">
+    <SubClip ObjectRef="150"/>
+    <TrackItem Version="4">
+      <Start>2286144000000</Start>
+      <End>2794176000000</End>
+      <Disabled>true</Disabled>
+    </TrackItem>
+  </ClipTrackItem>
+</VideoClipTrackItem>
+<VideoFilterComponent ObjectID="152" ClassID="0970b8ba-3d9f-4c4a-8a3c-3a64cf6a7b55" Version="9">
+  <Component Version="7"><Params Version="1">
+  </Params></Component>
+  <MatchName>AE.ADBE Cross Dissolve</MatchName>
+  <DisplayName>Cross Dissolve</DisplayName>
+</VideoFilterComponent>
+<VideoComponentChain ObjectID="153" ClassID="0d6e4a9d-4b5c-4d0e-8f9a-6a7b8c9d0e1f" Version="3">
+  <ComponentChain Version="3"><Components Version="1">
+    <Component Index="0" ObjectRef="152"/>
+  </Components></ComponentChain>
+</VideoComponentChain>
+<VideoTransitionItem ObjectID="154" ClassID="4a3b2c1d-0e9f-4a8b-9c7d-6e5f4a3b2c1d" Version="3">
+  <TransitionTrackItem Version="3">
+    <ComponentOwner Version="1"><Components ObjectRef="153"/></ComponentOwner>
+    <TrackItem Version="4"><Start>1143072000000</Start><End>1397088000000</End></TrackItem>
+  </TransitionTrackItem>
+  <TransitionName>Cross Dissolve</TransitionName>
+</VideoTransitionItem>
+<VideoClipTrack ObjectUID="eeeeeeee-0000-4000-8000-000000000003" ClassID="e2b8bcd1-8f2d-4a6e-b1d8-7a1f2c3d4e55" Version="5">
+  <ClipTrack Version="3">
+    <Track Version="4"><ID>1</ID><Index>0</Index></Track>
+    <ClipItems Version="3"><TrackItems Version="1">
+      <TrackItem Index="0" ObjectRef="138"/>
+      <TrackItem Index="1" ObjectRef="148"/>
+      <TrackItem Index="2" ObjectRef="151"/>
+    </TrackItems></ClipItems>
+    <TransitionItems Version="1"><TrackItems Version="1">
+      <TrackItem Index="0" ObjectRef="154"/>
+    </TrackItems></TransitionItems>
+  </ClipTrack>
+</VideoClipTrack>
+<VideoComponentParam ObjectID="155" ClassID="a8f0a3e5-57a1-4e8e-8a3a-9e0f8f2a9a44" Version="7">
+  <Name>Position</Name>
+  <CurrentValue>0.5:0.5</CurrentValue>
+</VideoComponentParam>
+<VideoComponentParam ObjectID="156" ClassID="a8f0a3e5-57a1-4e8e-8a3a-9e0f8f2a9a44" Version="7">
+  <Name>Scale</Name>
+  <CurrentValue>100</CurrentValue>
+</VideoComponentParam>
+<VideoComponentParam ObjectID="157" ClassID="a8f0a3e5-57a1-4e8e-8a3a-9e0f8f2a9a44" Version="7">
+  <Name>Rotation</Name>
+  <CurrentValue>0</CurrentValue>
+</VideoComponentParam>
+<VideoFilterComponent ObjectID="158" ClassID="0970b8ba-3d9f-4c4a-8a3c-3a64cf6a7b55" Version="9">
+  <Component Version="7"><Params Version="1">
+    <Param Index="0" ObjectRef="155"/>
+    <Param Index="1" ObjectRef="156"/>
+    <Param Index="2" ObjectRef="157"/>
+  </Params></Component>
+  <MatchName>AE.ADBE Motion</MatchName>
+  <DisplayName>Motion</DisplayName>
+</VideoFilterComponent>
+<VideoComponentParam ObjectID="159" ClassID="a8f0a3e5-57a1-4e8e-8a3a-9e0f8f2a9a44" Version="7">
+  <Name>Opacity</Name>
+  <CurrentValue>50</CurrentValue>
+</VideoComponentParam>
+<VideoFilterComponent ObjectID="160" ClassID="0970b8ba-3d9f-4c4a-8a3c-3a64cf6a7b55" Version="9">
+  <Component Version="7"><Params Version="1">
+    <Param Index="0" ObjectRef="159"/>
+  </Params></Component>
+  <MatchName>AE.ADBE Opacity</MatchName>
+  <DisplayName>Opacity</DisplayName>
+</VideoFilterComponent>
+<VideoComponentParam ObjectID="161" ClassID="a8f0a3e5-57a1-4e8e-8a3a-9e0f8f2a9a44" Version="7">
+  <Name>Blurriness</Name>
+  <CurrentValue>25</CurrentValue>
+</VideoComponentParam>
+<VideoFilterComponent ObjectID="162" ClassID="0970b8ba-3d9f-4c4a-8a3c-3a64cf6a7b55" Version="9">
+  <Component Version="7"><Params Version="1">
+    <Param Index="0" ObjectRef="161"/>
+  </Params></Component>
+  <MatchName>AE.ADBE Gaussian Blur 2</MatchName>
+  <DisplayName>Gaussian Blur</DisplayName>
+</VideoFilterComponent>
+<VideoClip ObjectID="163" ClassID="9308dbef-2440-4acb-9ab2-953b9a4e82ec" Version="3">
+  <Clip Version="18"><Source ObjectRef="114"/><InPoint>0</InPoint><OutPoint>762048000000</OutPoint></Clip>
+</VideoClip>
+<SubClip ObjectID="164" ClassID="e0c6bd4a-5f55-4a76-9bd8-6f0d3a1c2e99" Version="5">
+  <Clip ObjectRef="163"/>
+  <MasterClip ObjectURef="bbbbbbbb-0000-4000-8000-000000000004"/>
+  <Name>overlay.png</Name>
+</SubClip>
+<VideoComponentChain ObjectID="165" ClassID="0d6e4a9d-4b5c-4d0e-8f9a-6a7b8c9d0e1f" Version="3">
+  <ComponentChain Version="3"><Components Version="1">
+    <Component Index="0" ObjectRef="158"/>
+    <Component Index="1" ObjectRef="160"/>
+    <Component Index="2" ObjectRef="162"/>
+  </Components></ComponentChain>
+</VideoComponentChain>
+<VideoClipTrackItem ObjectID="166" ClassID="368b0d13-5e1c-4b0f-a9a2-5d7f3e0c1b77" Version="8">
+  <ClipTrackItem Version="8">
+    <ComponentOwner Version="1"><Components ObjectRef="165"/></ComponentOwner>
+    <SubClip ObjectRef="164"/>
+    <TrackItem Version="4">
+      <Start>254016000000</Start>
+      <End>1016064000000</End>
+    </TrackItem>
+  </ClipTrackItem>
+</VideoClipTrackItem>
+<VideoSequenceSource ObjectID="167" ClassID="1c9a8d37-0e7a-4d6f-b0c3-2f4e5d6c7b88" Version="1">
+  <Sequence ObjectURef="ffffffff-0000-4000-8000-000000000003"/>
+</VideoSequenceSource>
+<VideoClip ObjectID="168" ClassID="9308dbef-2440-4acb-9ab2-953b9a4e82ec" Version="3">
+  <Clip Version="18"><Source ObjectRef="167"/><InPoint>0</InPoint><OutPoint>508032000000</OutPoint></Clip>
+</VideoClip>
+<SubClip ObjectID="169" ClassID="e0c6bd4a-5f55-4a76-9bd8-6f0d3a1c2e99" Version="5">
+  <Clip ObjectRef="168"/>
+  <Name>Lower Third Nest</Name>
+</SubClip>
+<VideoClipTrackItem ObjectID="170" ClassID="368b0d13-5e1c-4b0f-a9a2-5d7f3e0c1b77" Version="8">
+  <ClipTrackItem Version="8">
+    <SubClip ObjectRef="169"/>
+    <TrackItem Version="4">
+      <Start>1524096000000</Start>
+      <End>2032128000000</End>
+    </TrackItem>
+  </ClipTrackItem>
+</VideoClipTrackItem>
+<VideoClipTrack ObjectUID="eeeeeeee-0000-4000-8000-000000000004" ClassID="e2b8bcd1-8f2d-4a6e-b1d8-7a1f2c3d4e55" Version="5">
+  <ClipTrack Version="3">
+    <Track Version="4"><ID>2</ID><Index>1</Index></Track>
+    <ClipItems Version="3"><TrackItems Version="1">
+      <TrackItem Index="0" ObjectRef="166"/>
+      <TrackItem Index="1" ObjectRef="170"/>
+    </TrackItems></ClipItems>
+  </ClipTrack>
+</VideoClipTrack>
+<VideoComponentParam ObjectID="171" ClassID="a8f0a3e5-57a1-4e8e-8a3a-9e0f8f2a9a44" Version="7">
+  <Name>Level</Name>
+  <CurrentValue>1</CurrentValue>
+</VideoComponentParam>
+<VideoFilterComponent ObjectID="172" ClassID="0970b8ba-3d9f-4c4a-8a3c-3a64cf6a7b55" Version="9">
+  <Component Version="7"><Params Version="1">
+    <Param Index="0" ObjectRef="171"/>
+  </Params></Component>
+  <MatchName>AC.ADBE Volume</MatchName>
+  <DisplayName>Volume</DisplayName>
+</VideoFilterComponent>
+<AudioClip ObjectID="173" ClassID="9308dbef-2440-4acb-9ab2-953b9a4e82ec" Version="3">
+  <Clip Version="18"><Source ObjectRef="108"/><InPoint>508032000000</InPoint><OutPoint>1778112000000</OutPoint></Clip>
+</AudioClip>
+<SubClip ObjectID="174" ClassID="e0c6bd4a-5f55-4a76-9bd8-6f0d3a1c2e99" Version="5">
+  <Clip ObjectRef="173"/>
+  <MasterClip ObjectURef="bbbbbbbb-0000-4000-8000-000000000001"/>
+  <Name>interview.mp4</Name>
+</SubClip>
+<VideoComponentChain ObjectID="175" ClassID="0d6e4a9d-4b5c-4d0e-8f9a-6a7b8c9d0e1f" Version="3">
+  <ComponentChain Version="3"><Components Version="1">
+    <Component Index="0" ObjectRef="172"/>
+  </Components></ComponentChain>
+</VideoComponentChain>
+<AudioClipTrackItem ObjectID="176" ClassID="368b0d13-5e1c-4b0f-a9a2-5d7f3e0c1b77" Version="8">
+  <ClipTrackItem Version="8">
+    <ComponentOwner Version="1"><Components ObjectRef="175"/></ComponentOwner>
+    <SubClip ObjectRef="174"/>
+    <TrackItem Version="4">
+      <Start>0</Start>
+      <End>1270080000000</End>
+    </TrackItem>
+  </ClipTrackItem>
+</AudioClipTrackItem>
+<AudioClipTrack ObjectUID="eeeeeeee-0000-4000-8000-000000000505" ClassID="e2b8bcd1-8f2d-4a6e-b1d8-7a1f2c3d4e55" Version="5">
+  <ClipTrack Version="3">
+    <Track Version="4"><ID>1</ID><Index>0</Index></Track>
+    <ClipItems Version="3"><TrackItems Version="1">
+      <TrackItem Index="0" ObjectRef="176"/>
+    </TrackItems></ClipItems>
+  </ClipTrack>
+</AudioClipTrack>
+<VideoComponentParam ObjectID="177" ClassID="a8f0a3e5-57a1-4e8e-8a3a-9e0f8f2a9a44" Version="7">
+  <Name>Level</Name>
+  <CurrentValue>0.5</CurrentValue>
+</VideoComponentParam>
+<VideoFilterComponent ObjectID="178" ClassID="0970b8ba-3d9f-4c4a-8a3c-3a64cf6a7b55" Version="9">
+  <Component Version="7"><Params Version="1">
+    <Param Index="0" ObjectRef="177"/>
+  </Params></Component>
+  <MatchName>AC.ADBE Volume</MatchName>
+  <DisplayName>Volume</DisplayName>
+</VideoFilterComponent>
+<AudioClip ObjectID="179" ClassID="9308dbef-2440-4acb-9ab2-953b9a4e82ec" Version="3">
+  <Clip Version="18"><Source ObjectRef="112"/><InPoint>0</InPoint><OutPoint>2032128000000</OutPoint></Clip>
+</AudioClip>
+<SubClip ObjectID="180" ClassID="e0c6bd4a-5f55-4a76-9bd8-6f0d3a1c2e99" Version="5">
+  <Clip ObjectRef="179"/>
+  <MasterClip ObjectURef="bbbbbbbb-0000-4000-8000-000000000003"/>
+  <Name>theme song.wav</Name>
+</SubClip>
+<VideoComponentChain ObjectID="181" ClassID="0d6e4a9d-4b5c-4d0e-8f9a-6a7b8c9d0e1f" Version="3">
+  <ComponentChain Version="3"><Components Version="1">
+    <Component Index="0" ObjectRef="178"/>
+  </Components></ComponentChain>
+</VideoComponentChain>
+<AudioClipTrackItem ObjectID="182" ClassID="368b0d13-5e1c-4b0f-a9a2-5d7f3e0c1b77" Version="8">
+  <ClipTrackItem Version="8">
+    <ComponentOwner Version="1"><Components ObjectRef="181"/></ComponentOwner>
+    <SubClip ObjectRef="180"/>
+    <TrackItem Version="4">
+      <Start>0</Start>
+      <End>2032128000000</End>
+    </TrackItem>
+  </ClipTrackItem>
+</AudioClipTrackItem>
+<AudioClip ObjectID="183" ClassID="9308dbef-2440-4acb-9ab2-953b9a4e82ec" Version="3">
+  <Clip Version="18"><Source ObjectRef="112"/><InPoint>5080320000000</InPoint><OutPoint>5588352000000</OutPoint></Clip>
+</AudioClip>
+<SubClip ObjectID="184" ClassID="e0c6bd4a-5f55-4a76-9bd8-6f0d3a1c2e99" Version="5">
+  <Clip ObjectRef="183"/>
+  <MasterClip ObjectURef="bbbbbbbb-0000-4000-8000-000000000003"/>
+  <Name>theme song.wav</Name>
+</SubClip>
+<AudioClipTrackItem ObjectID="185" ClassID="368b0d13-5e1c-4b0f-a9a2-5d7f3e0c1b77" Version="8">
+  <ClipTrackItem Version="8">
+    <SubClip ObjectRef="184"/>
+    <TrackItem Version="4">
+      <Start>2032128000000</Start>
+      <End>2540160000000</End>
+    </TrackItem>
+    <PlayBackwards>true</PlayBackwards>
+  </ClipTrackItem>
+</AudioClipTrackItem>
+<AudioClipTrack ObjectUID="eeeeeeee-0000-4000-8000-000000000506" ClassID="e2b8bcd1-8f2d-4a6e-b1d8-7a1f2c3d4e55" Version="5">
+  <ClipTrack Version="3">
+    <Track Version="4"><ID>2</ID><Index>1</Index><IsMuted>false</IsMuted><IsTargeted>true</IsTargeted></Track>
+    <ClipItems Version="3"><TrackItems Version="1">
+      <TrackItem Index="0" ObjectRef="182"/>
+      <TrackItem Index="1" ObjectRef="185"/>
+    </TrackItems></ClipItems>
+  </ClipTrack>
+</AudioClipTrack>
+<VideoTrackGroup ObjectID="186" ClassID="f1e2d3c4-b5a6-4978-8a9b-0c1d2e3f4a5b" Version="9">
+  <TrackGroup Version="1">
+    <Tracks Version="1">
+      <Track Index="0" ObjectURef="eeeeeeee-0000-4000-8000-000000000003"/>
+      <Track Index="1" ObjectURef="eeeeeeee-0000-4000-8000-000000000004"/>
+    </Tracks>
+    <FrameRect>0,0,1920,1080</FrameRect>
+    <FrameRate>10160640000</FrameRate>
+  </TrackGroup>
+</VideoTrackGroup>
+<AudioTrackGroup ObjectID="187" ClassID="f1e2d3c4-b5a6-4978-8a9b-0c1d2e3f4a5b" Version="9">
+  <TrackGroup Version="1">
+    <Tracks Version="1">
+      <Track Index="0" ObjectURef="eeeeeeee-0000-4000-8000-000000000505"/>
+      <Track Index="1" ObjectURef="eeeeeeee-0000-4000-8000-000000000506"/>
+    </Tracks>
+    <FrameRate>10160640000</FrameRate>
+  </TrackGroup>
+</AudioTrackGroup>
+<Marker ObjectID="188" ClassID="5b6c7d8e-9f0a-4b1c-8d2e-3f4a5b6c7d8e" Version="4">
+  <Name>Intro</Name><Comment>start here</Comment><Type>Comment</Type>
+  <Start>254016000000</Start><Duration>0</Duration>
+</Marker>
+<Marker ObjectID="189" ClassID="5b6c7d8e-9f0a-4b1c-8d2e-3f4a5b6c7d8e" Version="4">
+  <Name>Chapter 2</Name><Comment></Comment><Type>Chapter</Type>
+  <Start>1524096000000</Start><Duration>508032000000</Duration>
+</Marker>
+<Markers ObjectID="190" ClassID="6c7d8e9f-0a1b-4c2d-9e3f-4a5b6c7d8e9f" Version="3">
+  <Markers Version="1">
+    <Marker Index="0" ObjectRef="188"/>
+    <Marker Index="1" ObjectRef="189"/>
+  </Markers>
+</Markers>
+<Sequence ObjectUID="ffffffff-0000-4000-8000-000000000001" ClassID="6a15d903-8739-11d5-af2d-9b7855ad8974" Version="1">
+  <Node Version="1"><Properties Version="1"/></Node>
+  <TrackGroups Version="1">
+    <TrackGroup Version="1" Index="0"><First>0</First><Second ObjectRef="186"/></TrackGroup>
+    <TrackGroup Version="1" Index="1"><First>1</First><Second ObjectRef="187"/></TrackGroup>
+  </TrackGroups>
+  <Markers ObjectRef="190"/>
+  <Name>Main Cut</Name>
+</Sequence>
+<RootProjectItem ObjectUID="99999999-0000-4000-8000-000000000001" ClassID="1e2f3a4b-5c6d-4e7f-8091-a2b3c4d5e6f7" Version="1">
+  <ProjectItemContainer Version="1"><Items Version="1">
+    <Item Index="0" ObjectURef="dddddddd-0000-4000-8000-000000000002"/>
+    <Item Index="1" ObjectURef="dddddddd-0000-4000-8000-000000000003"/>
+  </Items></ProjectItemContainer>
+  <ProjectItem Version="1"><Name>Root</Name></ProjectItem>
+</RootProjectItem>
+</PremiereData>

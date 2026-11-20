@@ -200,6 +200,9 @@ function globalFingerprint(project: Project): string {
     // Undefined (the Rec.709 / 203 nit defaults) is dropped by stableStringify, so default projects keep their keys.
     workingColorSpace: project.settings.workingColorSpace,
     graphicsWhiteNits: project.settings.graphicsWhiteNits,
+    // ACES mode changes every pixel; absent (display-referred) keys are dropped so legacy caches stay valid.
+    colorManagement: project.settings.colorManagement === "aces" ? "aces" : undefined,
+    acesOutput: project.settings.colorManagement === "aces" ? project.settings.acesOutput : undefined,
     // Sequence PAR / field order; undefined (square, progressive) is dropped so legacy keys are unchanged.
     pixelAspectRatio: project.settings.pixelAspectRatio,
     fieldOrder: project.settings.fieldOrder,

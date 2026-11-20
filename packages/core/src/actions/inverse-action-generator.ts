@@ -178,6 +178,8 @@ export class InverseActionGenerator {
           ...projectBefore.settings,
           // Optional settings must be named so undo can clear a value the project did not have before.
           workingColorSpace: projectBefore.settings.workingColorSpace,
+          colorManagement: projectBefore.settings.colorManagement,
+          acesOutput: projectBefore.settings.acesOutput,
           graphicsWhiteNits: projectBefore.settings.graphicsWhiteNits,
           channelLayout: projectBefore.settings.channelLayout,
           startTimecode: projectBefore.settings.startTimecode,

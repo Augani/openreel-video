@@ -30,6 +30,7 @@ import type { Project, TextStyle } from "@openreel/core";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
 import { useTimelineStore } from "../../stores/timeline-store";
+import { isPremiereProjectFile, openTimelineFileForImport } from "../../services/timeline-interchange";
 import { RAW_FILE_ACCEPT, groupCinemaDng, interpretedDisplaySize, type MediaItem } from "@openreel/core";
 import { enqueueImportBatch, takeNextImportBatch, type PendingImportBatch } from "../../services/import-batch-queue";
 import { importCinemaDngSequence, looksLikeCinemaDngFrame } from "../../services/cinemadng-sequence";
@@ -890,7 +891,12 @@ export const AssetsPanel: React.FC = () => {
     async (files: FileList | readonly File[] | null, dropOwner?: MediaOwner): Promise<void> => {
       if (!files?.length) return;
       // Snapshot now: the picker clears its FileList as soon as the change handler returns.
-      const picked = Array.from(files);
+      const all = Array.from(files);
+      // Premiere projects are timelines, not media: the first one opens the import dialog (one undoable import).
+      const premiere = all.find((file) => isPremiereProjectFile(file.name));
+      if (premiere) void openTimelineFileForImport(premiere);
+      const picked = all.filter((file) => !isPremiereProjectFile(file.name));
+      if (picked.length === 0) return;
       const current = useProjectStore.getState();
       const owner = dropOwner ?? { projectId: current.project.id, executor: current.actionExecutor };
       if (!ownsMediaSession(owner)) return;
@@ -1546,7 +1552,7 @@ export const AssetsPanel: React.FC = () => {
           ref={fileInputRef}
           type="file"
           aria-label="Import media"
-          accept={`video/*,audio/*,image/*,.mxf,${RAW_FILE_ACCEPT}`}
+          accept={`video/*,audio/*,image/*,.mxf,.prproj,${RAW_FILE_ACCEPT}`}
           multiple
           className="hidden"
           onChange={(event) => {

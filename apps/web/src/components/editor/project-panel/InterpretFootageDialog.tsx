@@ -19,9 +19,14 @@ import {
   effectiveSourceColor,
   inputSpaceForItem,
   isHdrTransfer,
+  mapOcioColorSpaces,
+  OcioConfigError,
+  parseOcioConfig,
   type FootageColorPreset,
   type MediaItem,
+  type OcioMapping,
 } from "@openreel/core";
+import { useProjectStore } from "../../../stores/project-store";
 import { applyFootageInterpretation, runOrganize } from "../../../services/project-panel-commands";
 import { actionTargetIds } from "./ProjectPanelMenus";
 
@@ -36,6 +41,21 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
   const willTransform = inputSpaceForItem({ ...media, colorInterpretation: choice === "tagged" ? undefined : choice }) !== null;
   const hdr = isHdrTransfer(effective);
   const cameraLog = cameraPresetOf(choice === "tagged" ? undefined : choice);
+  const acesMode = useProjectStore((s) => s.project.settings.colorManagement === "aces");
+  // OCIO config import: a transient mapping of the config's colour spaces onto the built-in presets.
+  const [ocio, setOcio] = React.useState<{ fileName: string; mapping: OcioMapping } | null>(null);
+  const [ocioError, setOcioError] = React.useState<string | null>(null);
+  const importOcio = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const mapping = mapOcioColorSpaces(parseOcioConfig(await file.text()));
+      setOcio({ fileName: file.name, mapping });
+      setOcioError(null);
+    } catch (error) {
+      setOcio(null);
+      setOcioError(error instanceof OcioConfigError ? error.message : "The file could not be read as an OCIO config.");
+    }
+  };
 
   const isVideo = media.type === "video";
   const [fps, setFps] = React.useState(String(media.interpretation?.frameRate ?? media.metadata.frameRate ?? ""));
@@ -92,7 +112,9 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
           <dd data-testid="media-color-effective">{describeSourceColor(effective)}</dd>
           <dt className="text-fg-3">Input transform</dt>
           <dd data-testid="media-color-transform">
-            {willTransform
+            {acesMode
+              ? "ACES input transform (IDT) to ACEScg, then the ACES output transform, identical in preview and export"
+              : willTransform
               ? hdr
                 ? "HDR to SDR working image (tone-mapped), identical in preview and export"
                 : cameraLog
@@ -131,6 +153,54 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
               </optgroup>
             ))}
           </select>
+        </div>
+        <div className="space-y-1 text-xs" data-testid="interpret-ocio">
+          <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-x-3">
+            <label htmlFor="interpret-ocio-file" className="text-fg-3">OCIO config</label>
+            <input
+              id="interpret-ocio-file"
+              type="file"
+              accept=".ocio,.yaml,.yml,text/plain"
+              onChange={(e) => { void importOcio(e.target.files?.[0]); e.target.value = ""; }}
+              className="min-w-0 text-[11px]"
+              data-testid="interpret-ocio-file"
+            />
+          </div>
+          {ocioError && <p className="text-[10px] text-red-400" data-testid="interpret-ocio-error">{ocioError}</p>}
+          {ocio && (
+            <div className="space-y-1" data-testid="interpret-ocio-result">
+              <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-x-3">
+                <label htmlFor="interpret-ocio-space" className="text-fg-3">Colour space</label>
+                <select
+                  id="interpret-ocio-space"
+                  value=""
+                  onChange={(e) => e.target.value && setChoice(e.target.value as FootageColorPreset)}
+                  className="h-7 w-full min-w-0 rounded border border-border bg-bg-2 px-1"
+                  data-testid="interpret-ocio-select"
+                >
+                  <option value="" disabled>{ocio.mapping.supported.length} supported of {ocio.mapping.supported.length + ocio.mapping.unsupported.length} in {ocio.fileName}</option>
+                  {ocio.mapping.supported.map((space) => (
+                    <option key={space.name} value={space.preset}>
+                      {space.name} → {FOOTAGE_COLOR_PRESETS.find((p) => p.id === space.preset)?.label ?? space.preset}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {ocio.mapping.unsupported.length > 0 && (
+                <details className="text-[10px] leading-snug text-fg-3" data-testid="interpret-ocio-unsupported">
+                  <summary className="cursor-pointer">{ocio.mapping.unsupported.length} colour spaces are not supported</summary>
+                  <ul className="mt-1 space-y-0.5">
+                    {ocio.mapping.unsupported.map((space) => (
+                      <li key={space.name}><span className="text-fg-2">{space.name}</span>: {space.reason}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+          )}
+          <p className="text-[10px] leading-snug text-fg-3">
+            Reads the colour space list of an .ocio file and applies the matching built-in preset. The config's own transforms and LUTs are not run.
+          </p>
         </div>
         {isVideo && (
           <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 text-xs" data-testid="interpret-timing">

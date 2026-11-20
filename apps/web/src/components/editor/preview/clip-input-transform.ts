@@ -26,10 +26,14 @@ function rebuild(): void {
     const transform = inputTransformFor(inputSpaceForItem(item));
     if (transform) byMedia.set(item.id, transform);
   }
-  if (byMedia.size === 0) return;
+  const itemById = new Map(mediaLibrary.items.map((item) => [item.id, item] as const));
   for (const track of timeline.tracks) {
     for (const clip of track.clips) {
-      const transform = byMedia.get(clip.mediaId);
+      // A clip's own Interpret Footage override wins over its footage item's.
+      const item = clip.colorInterpretation ? itemById.get(clip.mediaId) : undefined;
+      const transform = item
+        ? item.type === "video" || item.type === "image" ? inputTransformFor(inputSpaceForItem(item, clip.colorInterpretation)) : null
+        : byMedia.get(clip.mediaId);
       if (transform) byClip.set(clip.id, transform);
     }
   }

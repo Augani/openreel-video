@@ -70,7 +70,9 @@ const measured = {
   entry: sizes(resolveAsset(entryRef)),
   initialJs: sum([...closure]),
   editor: biggest(find("EditorInterface-")) ? sizes(biggest(find("EditorInterface-"))) : null,
-  agent: biggest(find("executor-")) ? sizes(biggest(find("executor-"))) : null,
+  // The tool registry is the bulk of the agent stack. It sits in the executor chunk or, when only the
+  // registry is shared with a lazy chat chunk, in a registry chunk of its own: measure the larger.
+  agent: biggest([...find("executor-"), ...find("registry-")]) ? sizes(biggest([...find("executor-"), ...find("registry-")])) : null,
 };
 
 const kb = (n) => Math.round(n / 100) / 10;

@@ -39,7 +39,11 @@ export * from "./motion-gpu-blend";
 export * from "./motion-gpu-compositor";
 export * from "./motion-gpu-render";
 export * from "./motion-scene3d";
-export * from "./motion-three-renderer";
+// The three.js renderer (MotionThreeRenderer and its environment helpers) is loaded on demand by
+// motion-renderer; re-exporting it from this barrel pulled the whole three chunk into every importer
+// of @openreel/core. Only its three-free parts stay on the barrel.
+export { DEFAULT_MOTION_RENDER_QUALITY, mergeMotionRenderQuality, type MotionRenderQuality } from "./motion-render-quality";
+export { sampleMotionObjectMeshFrame } from "./motion-object-sampling";
 export * from "./shaders";
 export * from "./native-aurora-bridge";
 export * from "./motion-shape-path";

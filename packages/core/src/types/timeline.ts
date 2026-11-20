@@ -363,6 +363,11 @@ export interface Clip {
   readonly freezeFrames?: FreezeFrame[];
   readonly pitchCorrection?: boolean;
   /**
+   * Input colour space override for this clip (an Interpret Footage preset). Wins over the footage item's own
+   * `colorInterpretation` and its tags; absent = use the footage's. See `inputSpaceForItem`.
+   */
+  readonly colorInterpretation?: import("../color/source-color").FootageColorPreset;
+  /**
    * Essential Sound tag. When absent the type is inferred from the parent
    * track's `role` (see resolveAudioType in audio/essential-sound.ts).
    */
