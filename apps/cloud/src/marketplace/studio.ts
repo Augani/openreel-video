@@ -210,7 +210,7 @@ app.get("/submissions", async (c) => {
   const id = requireCreator(c);
   if (isResponse(id)) return id;
   const state = c.req.query("state");
-  return c.json({ submissions: await getStore(c.env).listSubmissions(state) });
+  return c.json({ submissions: await getStore(c.env).listSubmissions(state, id.creatorId) });
 });
 
 app.post("/submissions/:id/review", async (c) => {

@@ -92,9 +92,12 @@ export class InMemoryStore implements Store {
 
   async putSubmission(s: Submission) { this.submissions.set(s.id, s); }
   async getSubmission(id: string) { return this.submissions.get(id); }
-  async listSubmissions(state?: string) {
+  async listSubmissions(state?: string, creatorId?: string) {
     const all = [...this.submissions.values()];
-    return state ? all.filter((s) => s.state === state) : all;
+    // A creator listing "their" submissions must not see everyone else's —
+    // the route only proves the caller is *a* creator, not which rows are theirs.
+    const mine = creatorId ? all.filter((s) => s.creatorId === creatorId) : all;
+    return state ? mine.filter((s) => s.state === state) : mine;
   }
 
   async install(userId: string, assetId: string) {
@@ -206,10 +209,16 @@ export class R2Store implements Store {
     if (!idx.includes(s.id)) { idx.push(s.id); await this.writeJson("index/submissions.json", idx); }
   }
   async getSubmission(id: string) { return this.readJson<Submission>(`submissions/${id}.json`); }
-  async listSubmissions(state?: string) {
+  async listSubmissions(state?: string, creatorId?: string) {
     const ids = (await this.readJson<string[]>("index/submissions.json")) ?? [];
     const out: Submission[] = [];
-    for (const id of ids) { const s = await this.getSubmission(id); if (s && (!state || s.state === state)) out.push(s); }
+    for (const id of ids) {
+      const s = await this.getSubmission(id);
+      if (!s) continue;
+      if (state && s.state !== state) continue;
+      if (creatorId && s.creatorId !== creatorId) continue;
+      out.push(s);
+    }
     return out;
   }
 
