@@ -1,5 +1,5 @@
 import { Suspense, lazy, useMemo, useRef, useState } from "react";
-import { Button, Input, ColorPicker, ScrollArea, Collapsible, CollapsibleTrigger, CollapsibleContent, Label, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@openreel/ui";
+import { Button, Input, ColorPicker, ScrollArea, Collapsible, CollapsibleTrigger, CollapsibleContent, Label } from "@openreel/ui";
 import {
   Circle,
   Hexagon,
@@ -25,13 +25,12 @@ import { EssentialGraphicsPanel } from "./graphics/EssentialGraphicsPanel";
 // The overlay catalog (and its preview compositor) is only fetched when the Overlays tab is first opened.
 const OverlayCards = lazy(() => import("./graphics/OverlayCards").then((m) => ({ default: m.OverlayCards })));
 import { WorkspaceTabs, workspaceTabPanel } from "./WorkspacePrimitives";
-import { FONT_CATEGORIES, useCustomFonts } from "./inspector/font-options";
+import { FontPicker } from "./inspector/FontPicker";
 import { useTextFontEdit } from "./inspector/useTextFontEdit";
 import { ensureFontFamily } from "../../services/project-fonts";
 
 /** The overlay templates offered here, in order: each is a real editing template, drawn on the card by its own recipe. */
 export const OVERLAY_TEMPLATE_IDS = ["overlay-progress-bar", "cinema-letterbox", "overlay-follow-callout", "cinema-light-frame"] as const;
-const builtInFonts = Object.values(FONT_CATEGORIES).flat();
 const DEFAULT_BRAND_COLORS = ["#34D399", "#111318", "#FFFFFF", "#8A8F98"] as const;
 
 /** New shapes use the brand primary once a brand kit exists, otherwise white, never a stock blue. */
@@ -128,8 +127,6 @@ export function WorkspaceGraphicsPanel({
     });
   }, [project.textClips, project.timeline.tracks]);
   const beginBrandEdit = useTextFontEdit(project.id, targets.map(clip => clip.id));
-  const customFonts = useCustomFonts();
-  const fonts = useMemo(() => [...new Set([brandFont, ...builtInFonts, ...customFonts])], [brandFont, customFonts]);
   const applyBrand = async () => {
     if (applyRequest.current || targets.length === 0) return;
     const request = {};
@@ -290,15 +287,12 @@ export function WorkspaceGraphicsPanel({
               </div>
               <div className="mt-3 space-y-1.5">
                 <Label htmlFor="brand-title-font" className="text-[11px] text-fg-muted">Title font</Label>
-                <Select value={brandFont} onValueChange={family => {
+                <FontPicker id="brand-title-font" ariaLabel="Brand title font" triggerClassName="h-[30px]" value={brandFont} onChange={family => {
                   brandRevision.current += 1;
                   setBrandConfigured(true);
                   setBrandFont(family);
                   saveBrandValue("openreel-brand-font", family);
-                }}>
-                  <SelectTrigger id="brand-title-font" aria-label="Brand title font" className="h-[30px] text-[12px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>{fonts.map(family => <SelectItem key={family} value={family}>{family}</SelectItem>)}</SelectContent>
-                </Select>
+                }} />
               </div>
               {brandConfigured && (
                 <div className="workspace-brand-summary">

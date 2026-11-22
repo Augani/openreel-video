@@ -1737,6 +1737,11 @@ button.workspace-track-badge:hover {
 .workspace-sound-row.is-playing .workspace-sound-play { background: var(--accent); color: var(--accent-fg); }
 .workspace-sound-row .workspace-sound-add { width: 26px; height: 26px; flex-shrink: 0; padding: 0; border-radius: 6px; color: var(--fg-3); }
 .workspace-sound-row .workspace-sound-add > svg { width: 15px; height: 15px; }
+.workspace-sound-row .workspace-sound-favorite { width: 24px; height: 24px; flex-shrink: 0; padding: 0; border-radius: 6px; color: var(--fg-muted); opacity: 0; transition: opacity 120ms; }
+.workspace-sound-row:hover .workspace-sound-favorite,
+.workspace-sound-row .workspace-sound-favorite:focus-visible,
+.workspace-sound-row .workspace-sound-favorite.is-favorite { opacity: 1; }
+.workspace-sound-row .workspace-sound-favorite.is-favorite { color: #f5b301; }
 .workspace-sound-waveform { height: 20px; width: 100%; display: flex; align-items: center; gap: 1px; overflow: hidden; }
 .workspace-sound-waveform span { width: 2px; flex-shrink: 0; background: var(--sound-wave-color, color-mix(in srgb, var(--accent, #34D399) 45%, var(--fg-muted))); border-radius: 1px; }
 .workspace-sound-waveform span.is-played { background: var(--accent); }

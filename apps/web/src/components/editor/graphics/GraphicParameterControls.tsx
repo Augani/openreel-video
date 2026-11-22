@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ColorPicker, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider, Switch } from "@openreel/ui";
+import { ColorPicker, Input, Slider, Switch } from "@openreel/ui";
 import { Diamond } from "lucide-react";
 import {
   groupParameters,
@@ -15,11 +15,10 @@ import {
   removeParamKeyframeCommand,
   setParamKeyframeCommand,
 } from "../../../services/linked-comp-commands";
-import { FONT_CATEGORIES, useCustomFonts } from "../inspector/font-options";
+import { FontPicker } from "../inspector/FontPicker";
 import { ensureFontFamily } from "../../../services/project-fonts";
 import { setGraphicValue } from "../../../services/graphic-commands";
 
-const builtInFonts = Object.values(FONT_CATEGORIES).flat();
 
 /** Text that commits once (blur / Enter), so typing never floods undo history. */
 const CommitText: React.FC<{ value: string; label: string; onCommit: (value: string) => void; multiline?: boolean }> = ({ value, label, onCommit }) => {
@@ -175,7 +174,6 @@ const KeyframeControls: React.FC<{ instance: GraphicInstance; parameter: Graphic
 };
 
 const GraphicControl: React.FC<ControlProps> = ({ instance, parameter, value }) => {
-  const customFonts = useCustomFonts();
   const playhead = useTimelineStore((state) => state.playheadPosition);
   const keyed = Boolean(instance.linkedCompositionId) && isKeyframableParameter(parameter) && (instance.paramKeyframes?.[parameter.id]?.length ?? 0) > 0;
   // An animated control shows its value at the playhead, and editing it keys that time.
@@ -197,28 +195,17 @@ const GraphicControl: React.FC<ControlProps> = ({ instance, parameter, value }) 
       return (
         <ColorControl label={parameter.label} value={String(value)} onCommit={set} />
       );
-    case "font": {
-      const fonts = [...new Set([String(value), ...(parameter.options ?? []), ...builtInFonts, ...customFonts])];
+    case "font":
       return (
-        <Select
+        <FontPicker
+          ariaLabel={parameter.label}
           value={String(value)}
-          onValueChange={(font) => {
+          suggestedFonts={parameter.options}
+          onChange={(font) => {
             void ensureFontFamily(font, 700).finally(() => set(font));
           }}
-        >
-          <SelectTrigger aria-label={parameter.label} className="h-7 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {fonts.map((font) => (
-              <SelectItem key={font} value={font}>
-                {font}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        />
       );
-    }
     case "checkbox":
       return <Switch aria-label={parameter.label} checked={value === true} onCheckedChange={set} />;
     case "number":

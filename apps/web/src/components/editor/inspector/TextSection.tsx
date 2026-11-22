@@ -33,12 +33,8 @@ import {
   getMotionShaderFillDefs,
   getMotionShaderTextDefs,
 } from "@openreel/core";
-import {
-  FONT_CATEGORIES,
-  FONT_FILE_ACCEPT,
-  registerCustomFont,
-  useCustomFonts,
-} from "./font-options";
+import { FONT_FILE_ACCEPT, registerCustomFont } from "./font-options";
+import { FontPicker } from "./FontPicker";
 import { toast } from "../../../stores/notification-store";
 import { ColorSelector } from "../../../motion/components/primitives";
 import { useNumericDraft } from "./shell/useNumericDraft";
@@ -143,54 +139,16 @@ const ToggleButtonGroup: React.FC<{
 const FontSelector: React.FC<{
   value: string;
   onChange: (font: string) => void;
-}> = ({ value, onChange }) => {
-  const customFonts = useCustomFonts();
-  const options = useMemo(() => [
-    ...Object.entries(FONT_CATEGORIES).map(([category, fonts]) => ({
-      type: "section" as const,
-      title: category,
-      options: fonts.map((font) => ({
-        label: font,
-        value: font,
-      })),
-    })),
-    ...(customFonts.length > 0
-      ? [
-          {
-            type: "section" as const,
-            title: "Custom Uploads",
-            options: customFonts.map((font) => ({
-              label: font,
-              value: font,
-            })),
-          },
-        ]
-      : []),
-  ], [customFonts]);
-
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-[12px] leading-5 text-fg-2 font-normal">
-        Font
-      </span>
-      <div className="min-w-0 space-y-1.5 w-[160px]">
-        <Select value={value} onValueChange={onChange}>
-          <SelectTrigger aria-label="Font" className={cn(textControlClassName, "h-7 text-[12px]")}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {options.map((section) => (
-              <SelectGroup key={section.title}>
-                <SelectLabel>{section.title}</SelectLabel>
-                {section.options.map((font) => <SelectItem key={font.value} value={font.value}>{font.label}</SelectItem>)}
-              </SelectGroup>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+}> = ({ value, onChange }) => (
+  <div className="flex items-center justify-between">
+    <span className="text-[12px] leading-5 text-fg-2 font-normal">
+      Font
+    </span>
+    <div className="min-w-0 space-y-1.5 w-[160px]">
+      <FontPicker value={value} onChange={onChange} />
     </div>
-  );
-};
+  </div>
+);
 
 interface TextSectionProps {
   clipId: string;

@@ -1,26 +1,19 @@
 import {
   Button,
   Textarea,
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
   ColorPicker,
   Switch,
 } from "@openreel/ui";
 import { parseMotionColor, type TextStyle, type FontWeight } from "@openreel/core";
-import { useMemo, useRef } from "react";
+import { useRef } from "react";
 import { useProjectStore } from "../../../stores/project-store";
 import { TextAnimationPhaseControl } from "./TextAnimationPhaseControl";
 import { ValueField } from "./PrimaryVideoProperties";
 import { ensureFontFamily } from "../../../services/project-fonts";
 import { toast } from "../../../stores/notification-store";
 import { InspectorSlider } from "./shell/InspectorSlider";
-import { FONT_CATEGORIES, useCustomFonts } from "./font-options";
+import { FontPicker } from "./FontPicker";
 import { useTextFontEdit } from "./useTextFontEdit";
-
-const builtInFonts = Object.values(FONT_CATEGORIES).flat();
 
 const alignmentPaths = { left: "M4 6h16M4 12h10M4 18h14", center: "M4 6h16M7 12h10M5 18h14", right: "M4 6h16M10 12h10M6 18h14" };
 const fontWeights: Record<FontWeight, string> = { normal: "Regular", bold: "Bold", 100: "Thin", 200: "Extra Light", 300: "Light", 400: "Regular", 500: "Medium", 600: "Semi Bold", 700: "Bold", 800: "Extra Bold", 900: "Black" };
@@ -31,10 +24,7 @@ export function PrimaryTextProperties({ clipId }: { clipId: string }) {
   const text =
     project.textClips?.find((c) => c.id === clipId) ??
     useProjectStore.getState().getTextClip(clipId);
-  const customFonts = useCustomFonts();
   const beginFontEdit = useTextFontEdit(project.id, [clipId]);
-  const fontFamily = text?.style.fontFamily ?? "Inter";
-  const fonts = useMemo(() => [...new Set([fontFamily, ...builtInFonts, ...customFonts])], [fontFamily, customFonts]);
   if (!text) return null;
   const style = text.style;
   const shadowOpacity = parseMotionColor(style.shadowColor ?? "#000000")?.a;
@@ -56,9 +46,11 @@ export function PrimaryTextProperties({ clipId }: { clipId: string }) {
         }
       />
       <div className="workspace-text-font-row">
-        <Select
+        <FontPicker
+          ariaLabel="Font family"
           value={style.fontFamily}
-          onValueChange={async (fontFamily) => {
+          triggerContent={<>{style.fontFamily} · {fontWeights[style.fontWeight]}{style.fontStyle === "italic" ? " Italic" : ""}</>}
+          onChange={async (fontFamily) => {
             const edit = beginFontEdit();
             try {
               await ensureFontFamily(fontFamily, style.fontWeight, text.text);
@@ -72,21 +64,7 @@ export function PrimaryTextProperties({ clipId }: { clipId: string }) {
               edit.cancel();
             }
           }}
-        >
-          <SelectTrigger
-            aria-label="Font family"
-            icon={<span aria-hidden="true" className="workspace-text-font-caret">▾</span>}
-          >
-            <SelectValue>{style.fontFamily} · {fontWeights[style.fontWeight]}{style.fontStyle === "italic" ? " Italic" : ""}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {fonts.map((f) => (
-              <SelectItem value={f} key={f}>
-                {f}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        />
         <ValueField
           label="Font size"
           value={style.fontSize}
