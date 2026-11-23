@@ -1,4 +1,5 @@
 import { getDefaultTransitionParams, getGLContextCounters } from "@openreel/core";
+import { scaleBorderToFrame } from "@openreel/core/video/transition-defaults";
 import type {
   ChromaKeyEngine,
   ColorGradingEngine,
@@ -266,7 +267,8 @@ export class EngineEffectRenderer implements EffectRenderer {
       clipBId: "preview-b",
       type: def.type as TransitionType,
       duration: 1,
-      params: { ...getDefaultTransitionParams(def.type as TransitionType), ...(def.params ?? {}) },
+      // A saved preset's border is in pixels of a 1920-wide frame; the thumbnail is much smaller.
+      params: scaleBorderToFrame({ ...getDefaultTransitionParams(def.type as TransitionType), ...(def.params ?? {}) }, frame.width, 1920),
     };
     try {
       const canvas = await lane.transitions.renderTransitionToCanvas(

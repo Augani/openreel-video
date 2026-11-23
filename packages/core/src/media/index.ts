@@ -9,6 +9,7 @@ export {
   nativeMediaAvailable,
   proxyViaNative,
   probeAudioStreamCountViaNative,
+  probeAudioStreamsViaNative,
 } from "./native-media-bridge";
 export { extractAudioWav } from "./extract-audio";
 export {

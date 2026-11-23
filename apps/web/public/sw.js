@@ -36,6 +36,9 @@ const CACHEABLE_PATTERNS = [
   /\.gif$/,
   /\.webp$/,
   /\.ico$/,
+  // Enhance Speech: the on-device model and the WASM runtime it runs on, so it works offline after the first use.
+  /\/models\/deepfilternet3\/.*\.onnx$/,
+  /\/ort\/ort-wasm-simd-threaded\.(wasm|mjs)$/,
 ];
 
 /**

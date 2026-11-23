@@ -14,6 +14,8 @@ import { EffectLivePreview, EffectPreviewProvider } from "./effect-previews/Effe
 import type { PreviewEffectDef } from "./effect-previews/preview-engine";
 import { toast } from "../../../stores/notification-store";
 import type { VideoEffect, VideoEffectType } from "../../../bridges/effects-bridge";
+import { getGlobalTransitionPresets, useGlobalTransitionPresets } from "../../../services/global-transition-presets";
+import { resolveDefaultPreset } from "@openreel/core/video/transition-presets";
 import { getDefaultTransitionParams, getMotionShaderDef, getPluginRegistry, isPluginEffectType, pluginEffectType, pluginIdFromEffectType, type Clip, type Track, type TransitionType, type Project, type LoadedPlugin } from "@openreel/core";
 import { useInstalledPlugins } from "../../../hooks/use-plugin-registry";
 import { usePluginManagerStore } from "../../../stores/plugin-manager-store";
@@ -40,7 +42,8 @@ export type EffectCategory =
   | "Keying"
   | "Distort"
   | "Generate"
-  | "Time";
+  | "Time"
+  | "Immersive Video";
 type EffectCategoryFilter =
   | "All"
   | "Adjust"
@@ -50,6 +53,7 @@ type EffectCategoryFilter =
   | "Generate"
   | "Keying"
   | "Time"
+  | "Immersive"
   | "Plugins"
   | "Audio";
 const workspaceEffectCategories: EffectCategoryFilter[] = [
@@ -61,6 +65,7 @@ const workspaceEffectCategories: EffectCategoryFilter[] = [
   "Generate",
   "Keying",
   "Time",
+  "Immersive",
   "Plugins",
   "Audio",
 ];
@@ -78,7 +83,8 @@ function matchesEffectCategory(
     (category === "Distort" && effect.category === "Distort") ||
     (category === "Generate" && effect.category === "Generate") ||
     (category === "Keying" && effect.category === "Keying") ||
-    (category === "Time" && effect.category === "Time")
+    (category === "Time" && effect.category === "Time") ||
+    (category === "Immersive" && effect.category === "Immersive Video")
   );
 }
 
@@ -516,6 +522,7 @@ export const EDITOR_EFFECT_CATEGORIES: EffectCategory[] = [
   "Distort",
   "Generate",
   "Time",
+  "Immersive Video",
 ];
 
 interface TransitionDef {
@@ -524,6 +531,12 @@ interface TransitionDef {
   label: string;
   description: string;
   params?: Record<string, unknown>;
+  /** Saved presets carry their own duration (seconds); built-ins use the panel's default duration. */
+  duration?: number;
+  /** Set for a saved custom preset. */
+  presetId?: string;
+  /** Where the preset is stored: this project, or the app-wide library. */
+  scope?: "project" | "global";
 }
 
 function matchesPresetParams(actual: unknown, expected: unknown): boolean {
@@ -536,7 +549,7 @@ function matchesPresetParams(actual: unknown, expected: unknown): boolean {
 }
 
 type TransitionCategory = "Dissolve" | "Wipe" | "Slide" | "Zoom" | "Glitch";
-type TransitionCategoryFilter = "All" | TransitionCategory;
+type TransitionCategoryFilter = "All" | "Presets" | TransitionCategory;
 
 const TRANSITION_CATEGORIES: TransitionCategory[] = [
   "Dissolve",
@@ -547,10 +560,31 @@ const TRANSITION_CATEGORIES: TransitionCategory[] = [
 ];
 
 const transitionCategory = (type: TransitionType): TransitionCategory => {
-  if (type === "crossfade" || type === "dipToBlack" || type === "dipToWhite") {
+  if (
+    type === "crossfade" ||
+    type === "dipToBlack" ||
+    type === "dipToWhite" ||
+    type === "filmDissolve" ||
+    type === "additiveDissolve" ||
+    type === "morphCut"
+  ) {
     return "Dissolve";
   }
   if (
+    type === "irisRound" ||
+    type === "irisBox" ||
+    type === "irisCross" ||
+    type === "irisDiamond" ||
+    type === "bandWipe" ||
+    type === "barnDoor" ||
+    type === "clockWipe" ||
+    type === "gradientWipe" ||
+    type === "checkerboard" ||
+    type === "checkerWipe" ||
+    type === "inset" ||
+    type === "wedgeWipe" ||
+    type === "randomBlocks" ||
+    type === "randomWipe" ||
     type === "wipe" ||
     type === "circleReveal" ||
     type === "radialWipe" ||
@@ -567,11 +601,15 @@ const transitionCategory = (type: TransitionType): TransitionCategory => {
     type === "whipPan" ||
     type === "spin" ||
     type === "flip" ||
-    type === "pageTurn"
+    type === "pageTurn" ||
+    type === "pagePeel" ||
+    type === "split" ||
+    type === "flipOver" ||
+    type === "cubeSpin"
   ) {
     return "Slide";
   }
-  return type === "zoom" ? "Zoom" : "Glitch";
+  return type === "zoom" || type === "crossZoom" ? "Zoom" : "Glitch";
 };
 
 const TRANSITIONS: TransitionDef[] = [
@@ -907,6 +945,53 @@ const TRANSITIONS: TransitionDef[] = [
     description: `Motion-blurred whip ${direction}`,
     params: { direction },
   })),
+  ...(
+    [
+      { id: "iris-round", type: "irisRound", label: "Iris Round", description: "Circle opens from the centre" },
+      { id: "iris-box", type: "irisBox", label: "Iris Box", description: "Rectangle opens from the centre" },
+      { id: "iris-cross", type: "irisCross", label: "Iris Cross", description: "Plus shape opens from the centre" },
+      { id: "iris-diamond", type: "irisDiamond", label: "Iris Diamond", description: "Diamond opens from the centre" },
+      { id: "iris-round-reverse", type: "irisRound", label: "Iris Round In", description: "Circle closes onto the centre", params: { reverse: true } },
+      { id: "band-wipe", type: "bandWipe", label: "Band Wipe", description: "Alternating bands slide in", params: { bands: 5 } },
+      { id: "band-wipe-vertical", type: "bandWipe", label: "Band Wipe Vertical", description: "Alternating columns slide in", params: { bands: 6, orientation: "vertical" } },
+      { id: "barn-door", type: "barnDoor", label: "Barn Door", description: "Doors open from the centre" },
+      { id: "barn-door-vertical", type: "barnDoor", label: "Barn Door Horizontal", description: "Doors open from the middle line", params: { orientation: "vertical" } },
+      { id: "clock-wipe", type: "clockWipe", label: "Clock Wipe", description: "Sweep clockwise from 12 o'clock" },
+      { id: "clock-wipe-feather", type: "clockWipe", label: "Soft Clock Wipe", description: "Feathered clockwise sweep", params: { feather: 0.25 } },
+      { id: "gradient-wipe", type: "gradientWipe", label: "Gradient Wipe", description: "Soft left-to-right gradient reveal" },
+      { id: "gradient-wipe-radial", type: "gradientWipe", label: "Radial Gradient Wipe", description: "Radial gradient reveal", params: { gradient: "radial" } },
+      { id: "gradient-wipe-noise", type: "gradientWipe", label: "Noise Gradient Wipe", description: "Organic noise reveal", params: { gradient: "noise", feather: 0.2 } },
+      { id: "film-dissolve", type: "filmDissolve", label: "Film Dissolve", description: "Dissolve blended in linear light" },
+      { id: "additive-dissolve", type: "additiveDissolve", label: "Additive Dissolve", description: "Brightens through the middle" },
+      { id: "cube-spin-left", type: "cubeSpin", label: "Cube Spin Left", description: "Turn a cube to the left", params: { direction: "left" } },
+      { id: "cube-spin-right", type: "cubeSpin", label: "Cube Spin Right", description: "Turn a cube to the right", params: { direction: "right" } },
+      { id: "cube-spin-up", type: "cubeSpin", label: "Cube Spin Up", description: "Turn a cube upward", params: { direction: "up" } },
+      { id: "cube-spin-down", type: "cubeSpin", label: "Cube Spin Down", description: "Turn a cube downward", params: { direction: "down" } },
+      { id: "cross-zoom", type: "crossZoom", label: "Cross Zoom", description: "Zoom into the shot, settle out of the next" },
+      { id: "page-peel", type: "pagePeel", label: "Page Peel", description: "Peel the page off from the bottom-right corner" },
+      { id: "page-peel-top-left", type: "pagePeel", label: "Page Peel Top Left", description: "Peel the page off from the top-left corner", params: { corner: "topLeft" } },
+      { id: "checkerboard", type: "checkerboard", label: "Checkerboard", description: "Squares open in two waves" },
+      { id: "checker-wipe", type: "checkerWipe", label: "Checker Wipe", description: "Squares wipe in, alternating ways" },
+      { id: "checker-wipe-up", type: "checkerWipe", label: "Checker Wipe Up", description: "Squares wipe in from the top, alternating", params: { direction: "up" } },
+      { id: "inset", type: "inset", label: "Inset", description: "A rectangle grows from the top-left corner" },
+      { id: "inset-bottom-right", type: "inset", label: "Inset Bottom Right", description: "A rectangle grows from the bottom-right corner", params: { corner: "bottomRight" } },
+      { id: "split", type: "split", label: "Split", description: "The shot splits and slides apart" },
+      { id: "split-vertical", type: "split", label: "Split Vertical", description: "The shot splits top and bottom", params: { orientation: "vertical" } },
+      { id: "split-in", type: "split", label: "Split In", description: "The next shot slides in from both sides", params: { reverse: true } },
+      { id: "wedge-wipe", type: "wedgeWipe", label: "Wedge Wipe", description: "A fan opens from the centre" },
+      { id: "random-blocks", type: "randomBlocks", label: "Random Blocks", description: "Blocks appear in a seeded random order" },
+      { id: "random-wipe", type: "randomWipe", label: "Random Wipe", description: "A wipe with a ragged edge" },
+      { id: "flip-over-left", type: "flipOver", label: "Flip Over Left", description: "Flip the shot over to the left", params: { direction: "left" } },
+      { id: "flip-over-up", type: "flipOver", label: "Flip Over Up", description: "Flip the shot over upward", params: { direction: "up" } },
+      { id: "morph-cut", type: "morphCut", label: "Morph Cut", description: "Hide a jump cut in one shot: matches and morphs the two sides (analysed in the background)" },
+    ] as const
+  ).map<TransitionDef>(({ id, type, label, description, ...rest }) => ({
+    id,
+    type,
+    label,
+    description,
+    ...("params" in rest ? { params: rest.params as Record<string, unknown> } : {}),
+  })),
 ];
 
 // ─── Drag payload helpers ──────────────────────────────────────────
@@ -1027,11 +1112,12 @@ const TransitionCard: React.FC<{
       const payload = JSON.stringify({
         transitionType: def.type,
         transitionParams: def.params,
+        ...(def.duration ? { transitionDuration: def.duration } : {}),
       });
       e.dataTransfer.setData(TRANSITION_DRAG_MIME, payload);
       e.dataTransfer.setData("text/plain", `transition:${def.type}`);
     },
-    [def.params, def.type],
+    [def.duration, def.params, def.type],
   );
 
   return (
@@ -1384,6 +1470,51 @@ function createTransitionLibrarySelector() {
   };
 }
 
+/** Export / Import for the app-wide transition preset library, as a small JSON file. */
+const PresetLibraryFile: React.FC<{ hasPresets: boolean }> = ({ hasPresets }) => {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        disabled={!hasPresets}
+        aria-label="Export preset library"
+        onClick={async () => {
+          const text = await getGlobalTransitionPresets().exportJson();
+          const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = "openreel-transition-presets.json";
+          link.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }}
+      >
+        Export presets
+      </Button>
+      <Button variant="ghost" size="sm" aria-label="Import preset library" onClick={() => inputRef.current?.click()}>
+        Import presets
+      </Button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="application/json,.json"
+        hidden
+        aria-label="Preset library file"
+        data-testid="transition-preset-import"
+        onChange={async (event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+          if (!file) return;
+          const outcome = await getGlobalTransitionPresets().importJson(await file.text());
+          if (outcome.ok) toast.success("Preset library", outcome.message);
+          else toast.error("Preset library", outcome.error);
+        }}
+      />
+    </>
+  );
+};
+
 export const TransitionsPanel: React.FC = () => {
   const selectLibrary = useMemo(createTransitionLibrarySelector, []);
   const { frameRate, eligibleCutCount, usedTransitions } = useProjectStore(selectLibrary);
@@ -1397,6 +1528,39 @@ export const TransitionsPanel: React.FC = () => {
   const [searchOpen, setSearchOpen] = useState(false);
   const searchTriggerRef = React.useRef<HTMLButtonElement>(null);
   const duration = useEditorWorkspaceStore((s) => s.transitionDuration);
+  const savedPresets = useProjectStore((state) => state.project.transitionPresets);
+  const defaultTransition = useProjectStore((state) => state.project.defaultTransition);
+  const globalPresets = useGlobalTransitionPresets();
+  const defaultLink = useMemo(
+    () => (defaultTransition ? resolveDefaultPreset(defaultTransition, savedPresets ?? [], globalPresets) : { preset: null, missing: false }),
+    [defaultTransition, savedPresets, globalPresets],
+  );
+  const presetDefs = useMemo<TransitionDef[]>(
+    () => [
+      ...(savedPresets ?? []).map<TransitionDef>((preset) => ({
+        id: preset.id,
+        presetId: preset.id,
+        scope: "project",
+        type: preset.type,
+        label: preset.name,
+        description: `Project preset: ${preset.type}, ${preset.duration.toFixed(2)}s`,
+        params: preset.params,
+        duration: preset.duration,
+      })),
+      ...globalPresets.map<TransitionDef>((preset) => ({
+        id: preset.id,
+        presetId: preset.id,
+        scope: "global",
+        type: preset.type,
+        label: preset.name,
+        description: `Library preset: ${preset.type}, ${preset.duration.toFixed(2)}s`,
+        params: preset.params,
+        duration: preset.duration,
+      })),
+    ],
+    [savedPresets, globalPresets],
+  );
+  const allDefs = useMemo(() => [...presetDefs, ...TRANSITIONS], [presetDefs]);
   const [selectedTransition, setSelectedTransition] = useState<TransitionDef>(
     TRANSITIONS[0],
   );
@@ -1405,8 +1569,9 @@ export const TransitionsPanel: React.FC = () => {
     useState<TransitionCategoryFilter>("All");
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return TRANSITIONS.filter((transition) => {
+    return allDefs.filter((transition) => {
       const category = transitionCategory(transition.type);
+      if (categoryFilter === "Presets") return !!transition.presetId;
       if (categoryFilter !== "All" && category !== categoryFilter) {
         return false;
       }
@@ -1417,7 +1582,7 @@ export const TransitionsPanel: React.FC = () => {
         category.toLowerCase().includes(q)
       );
     });
-  }, [categoryFilter, query]);
+  }, [allDefs, categoryFilter, query]);
 
   const applyToSelectedCut = useCallback(
     async (def: TransitionDef) => {
@@ -1489,13 +1654,14 @@ export const TransitionsPanel: React.FC = () => {
         ...bridge.getDefaultParams(def.type),
         ...def.params,
       };
+      const useDuration = def.duration ?? duration;
       const result = clipB
-        ? bridge.createTransition(clipA, clipB, def.type, duration, params)
+        ? bridge.createTransition(clipA, clipB, def.type, useDuration, params)
         : bridge.createClipEdgeTransition(
             clipA,
             "out",
             def.type,
-            duration,
+            useDuration,
             params,
           );
       if (!result.success || !result.transitionId) {
@@ -1564,7 +1730,7 @@ export const TransitionsPanel: React.FC = () => {
           role="group"
           aria-label="Transition categories"
         >
-          {(["All", ...TRANSITION_CATEGORIES] as const).map((category) => {
+          {(["All", ...(presetDefs.length ? (["Presets"] as const) : []), ...TRANSITION_CATEGORIES] as const).map((category) => {
             return (
               <Button variant="ghost" size="sm"
                 key={category}
@@ -1599,6 +1765,7 @@ export const TransitionsPanel: React.FC = () => {
           <div className="workspace-transition-grid">
             {[...filtered]
               .sort((a, b) => {
+                if (!!a.presetId !== !!b.presetId) return a.presetId ? -1 : 1;
                 const order = [
                   "crossfade",
                   "dipToBlack",
@@ -1619,7 +1786,7 @@ export const TransitionsPanel: React.FC = () => {
               })
               .filter(
                 (_, index) =>
-                  searchOpen || categoryFilter !== "All" || index < 12,
+                  searchOpen || categoryFilter !== "All" || index < 12 + presetDefs.length,
               )
               .map((def) => (
                 <div
@@ -1645,6 +1812,51 @@ export const TransitionsPanel: React.FC = () => {
         </div>
       </ScrollArea>{" "}
       <div className="workspace-transition-footer">
+        <div className="workspace-transition-default" data-testid="transition-default-row">
+          <small title={defaultLink.missing ? "The preset this default came from is not in this project or the preset library here. The default keeps the settings it was saved with." : undefined}>
+            Default: {defaultTransition?.label ?? defaultTransition?.type ?? "Cross dissolve"}
+            {defaultLink.missing ? " (preset not found, using saved settings)" : ""}
+          </small>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={`Set ${selectedTransition.label} as default transition`}
+            onClick={async () => {
+              const { setDefaultTransition } = await import("../../../services/transition-presets");
+              const outcome = await setDefaultTransition(
+                selectedTransition.presetId
+                  ? { id: selectedTransition.presetId, name: selectedTransition.label, type: selectedTransition.type, duration: selectedTransition.duration ?? duration, params: selectedTransition.params ?? {}, createdAt: 0 }
+                  : { type: selectedTransition.type, duration: selectedTransition.duration ?? duration, params: selectedTransition.params ?? {}, label: selectedTransition.label },
+                selectedTransition.scope ?? "project",
+              );
+              if (outcome.ok) toast.success("Default transition", outcome.message);
+              else toast.error("Default transition", outcome.error);
+            }}
+          >
+            Set as default
+          </Button>
+          {selectedTransition.presetId && (
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label={`Delete preset ${selectedTransition.label}`}
+              onClick={async () => {
+                const { deleteTransitionPreset } = await import("../../../services/transition-presets");
+                const outcome =
+                  selectedTransition.scope === "global"
+                    ? await getGlobalTransitionPresets().remove(selectedTransition.presetId!)
+                    : await deleteTransitionPreset(selectedTransition.presetId!);
+                if (outcome.ok) {
+                  setSelectedTransition(TRANSITIONS[0]);
+                  toast.success("Preset deleted", outcome.message);
+                } else toast.error("Preset", outcome.error);
+              }}
+            >
+              Delete preset
+            </Button>
+          )}
+          <PresetLibraryFile hasPresets={globalPresets.length > 0} />
+        </div>
         <Button
           variant="secondary"
           className="w-full h-[34px] rounded-lg text-xs font-semibold"
@@ -1682,7 +1894,7 @@ export const TransitionsPanel: React.FC = () => {
                   clipA,
                   clipB,
                   selectedTransition.type,
-                  duration,
+                  selectedTransition.duration ?? duration,
                   {
                     ...bridge.getDefaultParams(selectedTransition.type),
                     ...selectedTransition.params,

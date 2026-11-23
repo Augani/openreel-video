@@ -1,0 +1,271 @@
+ocio_profile_version: 2.1
+
+environment:
+  LUT_DIR: luts
+
+search_path: $LUT_DIR
+strictparsing: true
+luma: [0.2126, 0.7152, 0.0722]
+name: openreel-handmade
+description: Hand-made test config for the OpenReel OCIO runtime.
+
+roles:
+  scene_linear: Linear
+  reference: Linear
+  default: Gamma 2.2
+  data: Raw
+  color_picking: Gamma 2.2
+
+file_rules:
+  - !<Rule> {name: Default, colorspace: Gamma 2.2}
+
+displays:
+  Test Display:
+    - !<View> {name: Standard, view_transform: Simple Tone, display_colorspace: Display Gamma 2.4}
+    - !<View> {name: Film, view_transform: Simple Tone, display_colorspace: Display Gamma 2.4, looks: Film Print}
+    - !<View> {name: Raw, colorspace: Raw}
+    - !<View> {name: Gamma Only, colorspace: Gamma 2.2}
+
+active_displays: [Test Display]
+active_views: [Standard, Film, Raw, Gamma Only]
+
+default_view_transform: Simple Tone
+
+view_transforms:
+  - !<ViewTransform>
+    name: Simple Tone
+    from_scene_reference: !<GroupTransform>
+      children:
+        - !<MatrixTransform> {matrix: [0.9, 0.05, 0.05, 0, 0.02, 0.95, 0.03, 0, 0.01, 0.04, 0.95, 0, 0, 0, 0, 1]}
+        - !<ExponentWithLinearTransform> {gamma: 2.4, offset: 0.055, direction: inverse}
+        - !<ExponentWithLinearTransform> {gamma: 2.4, offset: 0.055}
+
+looks:
+  - !<Look>
+    name: Warm CDL
+    process_space: Linear
+    transform: !<CDLTransform> {slope: [1.1, 1.0, 0.9], offset: [0.01, 0.0, -0.01], power: [0.95, 1.0, 1.05], sat: 1.2}
+  - !<Look>
+    name: Noclamp CDL
+    process_space: Linear
+    transform: !<CDLTransform> {slope: [1.2, 0.9, 1.0], offset: [-0.02, 0.01, 0.0], power: [1.1, 0.9, 1.0], sat: 0.8, style: noclamp}
+  - !<Look>
+    name: Film Print
+    process_space: Log Camera
+    transform: !<FileTransform> {src: film_twist.cube, interpolation: linear}
+  - !<Look>
+    name: Film Tetra
+    process_space: Log Camera
+    transform: !<FileTransform> {src: film_twist.spi3d, interpolation: tetrahedral}
+  - !<Look>
+    name: Inverse Only
+    process_space: Linear
+    inverse_transform: !<CDLTransform> {slope: [1.3, 1.0, 0.8], offset: [0.0, 0.02, 0.0], power: [1.0, 1.1, 1.0], sat: 1.1}
+  - !<Look>
+    name: CSP Look
+    process_space: Linear
+    transform: !<FileTransform> {src: film_twist.csp}
+
+display_colorspaces:
+  - !<ColorSpace>
+    name: Display Gamma 2.4
+    family: Display
+    from_display_reference: !<ExponentTransform> {value: 2.4, direction: inverse, style: mirror}
+
+  - !<ColorSpace>
+    name: Display Clamp Matrix
+    from_display_reference: !<GroupTransform>
+      children:
+        - !<MatrixTransform> {matrix: [1.05, -0.02, -0.03, 0, -0.01, 1.04, -0.03, 0, 0.0, -0.02, 1.02, 0, 0, 0, 0, 1]}
+        - !<RangeTransform> {min_in_value: 0, max_in_value: 1, min_out_value: 0, max_out_value: 1}
+
+colorspaces:
+  - !<ColorSpace>
+    name: Linear
+    family: Scene
+    isdata: false
+    description: Scene-linear reference.
+    encoding: scene-linear
+
+  - !<ColorSpace>
+    name: Raw
+    family: Data
+    isdata: true
+
+  - !<ColorSpace>
+    name: Gamma 2.2
+    aliases: [g22]
+    family: Display
+    to_scene_reference: !<ExponentTransform> {value: 2.2, style: pass_thru}
+
+  - !<ColorSpace>
+    name: Gamma 1.8 Mirror
+    to_scene_reference: !<ExponentTransform> {value: [1.8, 1.9, 2.0, 1], style: mirror}
+
+  - !<ColorSpace>
+    name: Gamma Clamp
+    from_scene_reference: !<ExponentTransform> {value: 2.4, direction: inverse}
+
+  - !<ColorSpace>
+    name: sRGB Curve
+    to_scene_reference: !<ExponentWithLinearTransform> {gamma: 2.4, offset: 0.055}
+
+  - !<ColorSpace>
+    name: Rec709 Curve Mirror
+    from_scene_reference: !<ExponentWithLinearTransform> {gamma: 2.2222222222, offset: 0.099, style: mirror}
+
+  - !<ColorSpace>
+    name: Log Camera
+    to_scene_reference: !<GroupTransform>
+      children:
+        - !<LogCameraTransform> {base: 10, log_side_slope: 0.2471896, log_side_offset: 0.3855369, lin_side_slope: 5.5555556, lin_side_offset: 0.0522722, lin_side_break: 0.0105909, direction: inverse}
+        - !<MatrixTransform> {matrix: [0.7, 0.2, 0.1, 0, 0.05, 0.9, 0.05, 0, 0.0, 0.1, 0.9, 0, 0, 0, 0, 1]}
+
+  - !<ColorSpace>
+    name: Log Camera Explicit Slope
+    to_scene_reference: !<LogCameraTransform> {base: 2, log_side_slope: [0.06, 0.065, 0.07], log_side_offset: [-0.29, -0.3, -0.31], lin_side_slope: 2231.8, lin_side_offset: 64, lin_side_break: -0.018, linear_slope: [30, 31, 32], direction: inverse}
+
+  - !<ColorSpace>
+    name: Log Affine
+    to_scene_reference: !<LogAffineTransform> {base: 2.71828182845905, log_side_slope: 0.0869, log_side_offset: 0.53, lin_side_slope: 1.1, lin_side_offset: 0.0055, direction: inverse}
+
+  - !<ColorSpace>
+    name: Log10 Pure
+    from_scene_reference: !<LogTransform> {base: 10}
+
+  - !<ColorSpace>
+    name: Legal Range
+    to_scene_reference: !<GroupTransform>
+      children:
+        - !<RangeTransform> {min_in_value: 0.0627, max_in_value: 0.9214, min_out_value: 0, max_out_value: 1}
+        - !<ExponentTransform> {value: 2.0}
+
+  - !<ColorSpace>
+    name: Half Range
+    to_scene_reference: !<RangeTransform> {min_in_value: 0, max_in_value: 0.5, min_out_value: 0, max_out_value: 4, style: noclamp}
+
+  - !<ColorSpace>
+    name: Lower Clamp
+    to_scene_reference: !<RangeTransform> {min_in_value: 0.1, min_out_value: 0.1}
+
+  - !<ColorSpace>
+    name: Film Scan Cube
+    to_scene_reference: !<FileTransform> {src: film_twist.cube, interpolation: linear}
+
+  - !<ColorSpace>
+    name: Film Scan Cube Tetra
+    to_scene_reference: !<FileTransform> {src: film_twist.cube, interpolation: tetrahedral}
+
+  - !<ColorSpace>
+    name: Film Scan SPI Best
+    to_scene_reference: !<FileTransform> {src: film_twist.spi3d, interpolation: best}
+
+  - !<ColorSpace>
+    name: Film Scan SPI Default
+    to_scene_reference: !<FileTransform> {src: film_twist.spi3d}
+
+  - !<ColorSpace>
+    name: Shaper Cube1D
+    to_scene_reference: !<FileTransform> {src: shaper.cube}
+
+  - !<ColorSpace>
+    name: Shaper Cube1D Inverse
+    from_scene_reference: !<FileTransform> {src: shaper.cube}
+
+  - !<ColorSpace>
+    name: Curve SPI1D
+    to_scene_reference: !<FileTransform> {src: curve.spi1d}
+
+  - !<ColorSpace>
+    name: Curve SPI1D Mono
+    to_scene_reference: !<FileTransform> {src: mono.spi1d, direction: inverse}
+
+  - !<ColorSpace>
+    name: Cinespace
+    to_scene_reference: !<FileTransform> {src: film_twist.csp}
+
+  - !<ColorSpace>
+    name: Cinespace Curved Prelut
+    to_scene_reference: !<FileTransform> {src: film_twist_curved.csp}
+
+  - !<ColorSpace>
+    name: ACES Fixed Functions
+    to_scene_reference: !<GroupTransform>
+      children:
+        - !<FixedFunctionTransform> {style: ACES_Glow03}
+        - !<FixedFunctionTransform> {style: ACES_RedMod10}
+        - !<FixedFunctionTransform> {style: ACES_Glow10}
+        - !<FixedFunctionTransform> {style: ACES_DarkToDim10}
+
+  - !<ColorSpace>
+    name: ACES Fixed Functions Inverse
+    from_scene_reference: !<GroupTransform>
+      children:
+        - !<FixedFunctionTransform> {style: ACES_Glow03}
+        - !<FixedFunctionTransform> {style: ACES_RedMod10}
+        - !<FixedFunctionTransform> {style: ACES_Glow10}
+        - !<FixedFunctionTransform> {style: ACES_DarkToDim10}
+
+  - !<ColorSpace>
+    name: FF RedMod10
+    to_scene_reference: !<FixedFunctionTransform> {style: ACES_RedMod10}
+
+  - !<ColorSpace>
+    name: FF Glow03
+    to_scene_reference: !<FixedFunctionTransform> {style: ACES_Glow03}
+
+  - !<ColorSpace>
+    name: FF Glow10
+    to_scene_reference: !<FixedFunctionTransform> {style: ACES_Glow10}
+
+  - !<ColorSpace>
+    name: FF DarkToDim
+    to_scene_reference: !<FixedFunctionTransform> {style: ACES_DarkToDim10}
+
+  - !<ColorSpace>
+    name: Surround
+    to_scene_reference: !<FixedFunctionTransform> {style: REC2100_Surround, params: [0.8333333333]}
+
+  - !<ColorSpace>
+    name: XYZ To xyY
+    to_scene_reference: !<FixedFunctionTransform> {style: XYZ_TO_xyY}
+
+  - !<ColorSpace>
+    name: XYZ To uvY
+    to_scene_reference: !<FixedFunctionTransform> {style: XYZ_TO_uvY}
+
+  - !<ColorSpace>
+    name: XYZ To LUV
+    to_scene_reference: !<FixedFunctionTransform> {style: XYZ_TO_LUV}
+
+  - !<ColorSpace>
+    name: RGB To HSV
+    to_scene_reference: !<FixedFunctionTransform> {style: RGB_TO_HSV}
+
+  - !<ColorSpace>
+    name: Gamut Comp
+    to_scene_reference: !<FixedFunctionTransform> {style: ACES_GamutComp13, params: [1.147, 1.264, 1.312, 0.815, 0.803, 0.88, 1.2]}
+
+  - !<ColorSpace>
+    name: ACEScct Builtin
+    to_scene_reference: !<BuiltinTransform> {style: ACEScct_to_ACES2065-1}
+
+  - !<ColorSpace>
+    name: Nested Colorspace Transform
+    to_scene_reference: !<GroupTransform>
+      children:
+        - !<ColorSpaceTransform> {src: Gamma 2.2, dst: Linear}
+        - !<MatrixTransform> {offset: [0.01, 0.02, 0.03, 0]}
+
+  - !<ColorSpace>
+    name: FF RedMod03 Unsupported
+    to_scene_reference: !<FixedFunctionTransform> {style: ACES_RedMod03}
+
+  - !<ColorSpace>
+    name: Needs Missing LUT
+    to_scene_reference: !<FileTransform> {src: not_provided.cube}
+
+  - !<ColorSpace>
+    name: Uses Grading
+    to_scene_reference: !<ExposureContrastTransform> {exposure: 1}
+

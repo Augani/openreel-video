@@ -23,6 +23,12 @@ export {
 export type { TimeRange as RenderTimeRange, FrameRange } from "./time-ranges";
 export { FrameIndex } from "./frame-index";
 export { MemoryChunkStore, IndexedDbChunkStore } from "./chunk-store";
+export { OpfsChunkStore, opfsWritable } from "./opfs-chunk-store";
+export type { OpfsDirectoryLike, OpfsFileLike } from "./opfs-chunk-store";
+export { createSegmentHasher, hashString, RENDER_PIXEL_VERSION } from "./segment-hash";
+export type { SegmentHasher } from "./segment-hash";
+export { createChunkIndexStore, parseIndex, serializeIndex } from "./persistent-index";
+export type { PersistedIndex, IndexStore } from "./persistent-index";
 export type { ChunkStore } from "./chunk-store";
 export {
   createFrameCodec,
@@ -43,6 +49,8 @@ export type {
   RenderProgress,
   RenderSummary,
   RenderRangeOptions,
+  RenderCachePersistence,
+  RestoreSummary,
 } from "./render-cache-engine";
 export {
   buildRenderStatusSegments,

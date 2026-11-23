@@ -1,4 +1,4 @@
-import type { Project } from "../types";
+import type { Project, Track } from "../types";
 import { getTrackItems, isStandardTrack } from "./timeline-items";
 
 /**
@@ -69,12 +69,27 @@ export function resolveTimelinePlacement(
   project: Project,
   request: TimelinePlacementRequest,
 ): TimelinePlacementResult {
-  const targetIndex = project.timeline.tracks.findIndex(
+  return resolvePlacementOn(
+    project.timeline.tracks,
+    (trackId, startTime, duration, exclude) => isTimelineIntervalClear(project, trackId, startTime, duration, exclude),
+    request,
+  );
+}
+
+type PlacementTrack = Pick<Track, "id" | "locked">;
+
+/** The placement rules, independent of where occupancy comes from (the project, or a planner's running picture of it). */
+function resolvePlacementOn(
+  tracks: readonly PlacementTrack[],
+  isClear: (trackId: string, startTime: number, duration: number, excludeItemIds?: readonly string[]) => boolean,
+  request: TimelinePlacementRequest,
+): TimelinePlacementResult {
+  const targetIndex = tracks.findIndex(
     (track) => track.id === request.targetTrackId,
   );
   if (targetIndex < 0) return { ok: false, reason: "track-not-found" };
 
-  const target = project.timeline.tracks[targetIndex];
+  const target = tracks[targetIndex];
   if (target.locked && request.policy === "gap") {
     return { ok: false, reason: "track-locked" };
   }
@@ -86,8 +101,7 @@ export function resolveTimelinePlacement(
   }
   if (
     !target.locked &&
-    isTimelineIntervalClear(
-      project,
+    isClear(
       target.id,
       startTime,
       request.duration,
@@ -100,12 +114,11 @@ export function resolveTimelinePlacement(
   if (request.policy === "gap") return { ok: false, reason: "overlap" };
 
   for (let index = targetIndex - 1; index >= 0; index -= 1) {
-    const candidate = project.timeline.tracks[index];
+    const candidate = tracks[index];
     if (
       !candidate.locked &&
-      isStandardTrack(candidate) &&
-      isTimelineIntervalClear(
-        project,
+      isStandardTrack(candidate as Track) &&
+      isClear(
         candidate.id,
         startTime,
         request.duration,
@@ -122,5 +135,45 @@ export function resolveTimelinePlacement(
     trackId: newTrackId,
     startTime,
     createdTrack: { id: newTrackId, position: targetIndex },
+  };
+}
+
+/**
+ * Placement of MANY items in one pass (paste of a big selection): the same rules as `resolveTimelinePlacement`, applied to a
+ * running picture of the timeline that already contains the items planned so far and the rows they created. Resolving item
+ * by item against the live project costs one project read per item; this reads the project once.
+ */
+export interface TimelinePlacementPlanner {
+  /** The rows as they will be once everything planned so far is applied (new rows included, in order). */
+  readonly tracks: readonly PlacementTrack[];
+  /** Resolves one item (policy "stack-above" or "gap") against what is planned so far; does not reserve it. */
+  place(request: Omit<TimelinePlacementRequest, "excludeItemIds">): TimelinePlacementResult;
+  /** Reserves an item at a resolved placement (and the new row, when the placement created one). */
+  reserve(placement: Extract<TimelinePlacementResult, { ok: true }>, duration: number): void;
+}
+
+export function createTimelinePlacementPlanner(project: Project): TimelinePlacementPlanner {
+  const tracks: PlacementTrack[] = project.timeline.tracks.map((track) => ({ id: track.id, locked: track.locked }));
+  const occupancy = new Map<string, Array<{ startTime: number; duration: number }>>();
+  const occupancyOf = (trackId: string) => {
+    let list = occupancy.get(trackId);
+    if (!list) {
+      list = getTrackItems(project, trackId).map((item) => ({ startTime: item.startTime, duration: item.duration }));
+      occupancy.set(trackId, list);
+    }
+    return list;
+  };
+  const isClear = (trackId: string, startTime: number, duration: number) =>
+    occupancyOf(trackId).every((item) => !timelineIntervalsOverlap(startTime, duration, item.startTime, item.duration));
+  return {
+    tracks,
+    place: (request) => resolvePlacementOn(tracks, isClear, request),
+    reserve: (placement, duration) => {
+      if (placement.createdTrack) {
+        tracks.splice(placement.createdTrack.position, 0, { id: placement.createdTrack.id, locked: false });
+        occupancy.set(placement.createdTrack.id, []);
+      }
+      occupancyOf(placement.trackId).push({ startTime: placement.startTime, duration });
+    },
   };
 }

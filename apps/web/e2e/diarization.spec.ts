@@ -273,4 +273,52 @@ test.describe("Speaker diarization", () => {
     expect(detected.profiles).toEqual(["Speaker 1", "Speaker 2"]);
     expect(detected.translated).toEqual(detected.source);
   });
+
+  test("two voices: two speakers found, rename one, merge is one undo step, caption export carries the names", async ({ page }) => {
+    test.setTimeout(240_000);
+    await openTwoVoices(page);
+    const speakers = () =>
+      page.evaluate(() =>
+        (window as any).__openreelE2E.project.getState().project.timeline.subtitles.map((c: any) => c.speaker),
+      );
+    const exportText = async (format: string): Promise<string> => {
+      await page.getByRole("combobox", { name: "Caption export format" }).click();
+      await page.getByRole("option", { name: format, exact: true }).click();
+      const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Export captions" }).click()]);
+      const stream = await download.createReadStream();
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+      return Buffer.concat(chunks).toString("utf8");
+    };
+
+    await page.getByRole("button", { name: "Detect speakers" }).click();
+    await expect.poll(speakers, { timeout: 120_000 }).toEqual(["Speaker 1", "Speaker 2", "Speaker 1", "Speaker 2", "Speaker 1", "Speaker 2"]);
+    expect(new Set(await speakers()).size).toBe(2);
+
+    await page.getByRole("button", { name: "Speaker Speaker 2. Click to rename" }).first().click();
+    await page.getByLabel("Rename speaker Speaker 2").fill("Guest");
+    await page.keyboard.press("Enter");
+    await expect.poll(speakers).toEqual(["Speaker 1", "Guest", "Speaker 1", "Guest", "Speaker 1", "Guest"]);
+
+    // Exports carry the names: WebVTT voice tags, SRT "Name: " prefix.
+    const vtt = await exportText("WebVTT");
+    expect(vtt).toContain("<v Guest>");
+    expect(vtt).toContain("<v Speaker 1>");
+    expect(await exportText("SRT")).toMatch(/\nGuest: /);
+
+    // The toggle takes names out of every format.
+    await page.getByRole("checkbox", { name: "Include speaker names in exported captions" }).uncheck();
+    expect(await exportText("WebVTT")).not.toContain("<v ");
+    expect(await exportText("SRT")).not.toContain("Guest:");
+    await page.getByRole("checkbox", { name: "Include speaker names in exported captions" }).check();
+
+    // Merge Guest into Speaker 1: every passage is one speaker, undo restores both.
+    const before = (await readState(page)).historyLength;
+    await page.getByRole("region", { name: "Speakers" }).getByRole("button", { name: /^Speakers/ }).click();
+    await page.getByLabel("Merge Guest into another speaker").selectOption("Speaker 1");
+    await expect.poll(speakers).toEqual(Array(6).fill("Speaker 1"));
+    expect((await readState(page)).historyLength).toBe(before + 1);
+    await undo(page);
+    await expect.poll(speakers).toEqual(["Speaker 1", "Guest", "Speaker 1", "Guest", "Speaker 1", "Guest"]);
+  });
 });

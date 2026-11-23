@@ -147,3 +147,21 @@ describe("keyframe clipboard", () => {
     expect(out).toHaveLength(1);
   });
 });
+
+describe("retargetCopiedKeyframes", () => {
+  const k = (id: string, property: string): Keyframe => ({ id, time: 0, property, value: 1, easing: "linear" });
+  it("moves effect keys onto the single same-type effect of the target and keeps transform keys", async () => {
+    const { retargetCopiedKeyframes } = await import("./keyframe-clipboard");
+    const out = retargetCopiedKeyframes(
+      [k("a", "opacity"), k("b", "fx:src1:radius"), k("c", "fx:src2:amount"), k("d", "fx:t9:radius")],
+      [{ id: "src1", type: "blur" }, { id: "src2", type: "glow" }],
+      [{ id: "t1", type: "blur" }, { id: "t9", type: "blur" }, { id: "t2", type: "sharpen" }],
+    );
+    // blur has two instances on the target, so src1 is ambiguous; glow has none; t9 already exists there.
+    expect(out.keyframes.map((x) => x.property)).toEqual(["opacity", "fx:t9:radius"]);
+    expect(out.dropped).toBe(2);
+    const one = retargetCopiedKeyframes([k("b", "fx:src1:radius")], [{ id: "src1", type: "blur" }], [{ id: "t1", type: "blur" }]);
+    expect(one.keyframes[0].property).toBe("fx:t1:radius");
+    expect(one.dropped).toBe(0);
+  });
+});

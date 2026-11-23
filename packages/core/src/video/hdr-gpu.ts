@@ -513,6 +513,41 @@ interface Program {
   uniforms: Map<string, WebGLUniformLocation | null>;
 }
 
+/** The OCIO decode: the layer / decode shaders with `decodeCodes` running the config's transform instead of the fixed decode. */
+function withOcioDecode(fragment: string, snippet: string): string {
+  const marker = "vec4 decodeCodes(ivec2 p) {";
+  const at = fragment.indexOf(marker);
+  if (at < 0) throw new Error("The HDR decode hook is missing from the shader.");
+  const patched = fragment.slice(0, at) + snippet + "\n" + fragment.slice(at);
+  return patched.replace("vec4(u_toBt2020 * decodeTransfer(raw.rgb), raw.a)", "vec4(ocioTransform(raw.rgb), raw.a)");
+}
+
+/** The OCIO output pass: view (mode 0) or encode (mode 1) through the project's transform. */
+function ocioOutputFragment(snippet: string): string {
+  return `#version 300 es
+precision highp float;
+precision highp int;
+precision highp sampler2D;
+out vec4 outColor;
+uniform sampler2D u_acc;
+uniform int u_mode;
+${snippet}
+float ocioSane(float x) { return x == x ? x : 0.0; }
+void main() {
+  vec4 acc = texelFetch(u_acc, ivec2(gl_FragCoord.xy), 0);
+  vec3 enc = ocioTransform(acc.rgb);
+  enc = vec3(ocioSane(enc.r), ocioSane(enc.g), ocioSane(enc.b));
+  outColor = vec4(enc, u_mode == 0 ? clamp(acc.a, 0.0, 1.0) : 1.0);
+}
+`;
+}
+
+/** Texture units of the OCIO LUT textures: after the layer program's own (0..8). */
+const OCIO_LAYER_LUT_UNIT = 9;
+const OCIO_DECODE_LUT_UNIT = 3;
+const OCIO_OUTPUT_LUT_UNIT = 1;
+const OCIO_SCRATCH_UNIT = 15;
+
 interface FxTargets {
   width: number;
   height: number;
@@ -546,6 +581,11 @@ export class GpuHdrCompositor implements HdrCompositor {
   private effectProgram: Program;
   /** Compiled the first time an ACES frame is output (the RRT / ODT shader is the largest one). */
   private acesProgram: Program | null = null;
+  /** OCIO variants, by transform key: layer / decode shaders with a config transform in them, and the output passes. */
+  private ocioLayerPrograms = new Map<string, Program>();
+  private ocioDecodePrograms = new Map<string, Program>();
+  private ocioOutputPrograms = new Map<string, Program>();
+  private ocioLutTextures = new Map<string, WebGLTexture>();
   private pipeline: HdrColorPipeline = SCENE_HDR_PIPELINE;
   private graphicsGain = 1;
   private fx: FxTargets | null = null;
@@ -611,6 +651,41 @@ export class GpuHdrCompositor implements HdrCompositor {
     gl.deleteShader(vs);
     gl.deleteShader(fs);
     return { program, uniforms: new Map() };
+  }
+
+  /** The RGBA32F data texture of a transform's LUTs (one per transform key), or a 1x1 dummy when it has none. */
+  private ocioLutTexture(transform: NonNullable<HdrSourceDecode["ocio"]>): WebGLTexture {
+    let texture = this.ocioLutTextures.get(transform.key);
+    if (!texture) {
+      const gl = this.gl;
+      const lut = transform.gpu().lut;
+      // Create on a scratch unit: texture creation binds on the active unit and must not displace a texture the caller
+      // has already bound for this pass.
+      gl.activeTexture(gl.TEXTURE0 + OCIO_SCRATCH_UNIT);
+      texture = lut ? this.createTexture(lut.width, lut.height, gl.RGBA32F, gl.RGBA, gl.FLOAT, lut.data) : this.createTexture(1, 1, gl.RGBA32F, gl.RGBA, gl.FLOAT, new Float32Array(4));
+      this.ocioLutTextures.set(transform.key, texture);
+    }
+    return texture;
+  }
+
+  private layerProgramFor(decode: HdrSourceDecode): Program {
+    if (!decode.ocio) return this.layerProgram;
+    let p = this.ocioLayerPrograms.get(decode.ocio.key);
+    if (!p) {
+      p = this.compile(withOcioDecode(LAYER_FRAGMENT, decode.ocio.gpu().source));
+      this.ocioLayerPrograms.set(decode.ocio.key, p);
+    }
+    return p;
+  }
+
+  private decodeProgramFor(decode: HdrSourceDecode): Program {
+    if (!decode.ocio) return this.decodeProgram;
+    let p = this.ocioDecodePrograms.get(decode.ocio.key);
+    if (!p) {
+      p = this.compile(withOcioDecode(DECODE_FRAGMENT, decode.ocio.gpu().source));
+      this.ocioDecodePrograms.set(decode.ocio.key, p);
+    }
+    return p;
   }
 
   private uniform(p: Program, name: string): WebGLUniformLocation | null {
@@ -728,9 +803,8 @@ export class GpuHdrCompositor implements HdrCompositor {
     gl.uniform1i(this.uniform(program, name), unit);
   }
 
-  private uploadGrade(grade: HdrGradeSpec | null): void {
+  private uploadGrade(grade: HdrGradeSpec | null, p: Program): void {
     const gl = this.gl;
-    const p = this.layerProgram;
     const set1 = (name: string, v: number): void => gl.uniform1f(this.uniform(p, name), v);
     const setB = (name: string, v: boolean): void => gl.uniform1i(this.uniform(p, name), v ? 1 : 0);
     const set3 = (name: string, x: number, y: number, z: number): void => gl.uniform3f(this.uniform(p, name), x, y, z);
@@ -804,7 +878,7 @@ export class GpuHdrCompositor implements HdrCompositor {
     options: { gain?: number; solid?: readonly [number, number, number] } = {},
   ): void {
     const gl = this.gl;
-    const p = this.layerProgram;
+    const p = this.layerProgramFor(decode);
     const next = 1 - this.current;
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.accFbos[next]);
     gl.viewport(0, 0, this.width, this.height);
@@ -830,7 +904,8 @@ export class GpuHdrCompositor implements HdrCompositor {
     gl.uniform2f(this.uniform(p, "u_scale"), g.scale[0], g.scale[1]);
     gl.uniform2f(this.uniform(p, "u_srcSize"), src.width, src.height);
     gl.uniform1f(this.uniform(p, "u_opacity"), draw.opacity);
-    this.uploadGrade(draw.grade);
+    this.uploadGrade(draw.grade, p);
+    if (decode.ocio) this.bindTex(OCIO_LAYER_LUT_UNIT, this.ocioLutTexture(decode.ocio), p, "ocioLut");
     // The 3D LUT unit is bound last: uploadLut may have replaced the texture.
     gl.activeTexture(gl.TEXTURE0 + 7);
     gl.bindTexture(gl.TEXTURE_3D, draw.grade?.lut ? this.lutTexture : this.dummy3d);
@@ -843,7 +918,21 @@ export class GpuHdrCompositor implements HdrCompositor {
   }
 
   setColorPipeline(pipeline: HdrColorPipeline): void {
+    // OCIO shaders and LUT textures belong to one settings key; drop them when the settings (or the mode) change.
+    const key = pipeline.kind === "ocio" ? pipeline.key : null;
+    const had = this.pipeline.kind === "ocio" ? this.pipeline.key : null;
+    if (had !== null && had !== key) this.purgeOcio();
     this.pipeline = pipeline;
+  }
+
+  private purgeOcio(): void {
+    const gl = this.gl;
+    for (const map of [this.ocioLayerPrograms, this.ocioDecodePrograms, this.ocioOutputPrograms]) {
+      for (const p of map.values()) gl.deleteProgram(p.program);
+      map.clear();
+    }
+    for (const t of this.ocioLutTextures.values()) gl.deleteTexture(t);
+    this.ocioLutTextures.clear();
   }
 
   setGraphicsWhite(nits: number): void {
@@ -892,7 +981,7 @@ export class GpuHdrCompositor implements HdrCompositor {
     const gl = this.gl;
     const fx = this.ensureFx(src.width, src.height);
     // 1. codes -> float
-    const dp = this.decodeProgram;
+    const dp = this.decodeProgramFor(decode);
     gl.bindFramebuffer(gl.FRAMEBUFFER, fx.fbos[0]);
     gl.viewport(0, 0, src.width, src.height);
     gl.useProgram(dp.program);
@@ -901,6 +990,7 @@ export class GpuHdrCompositor implements HdrCompositor {
     gl.uniform1i(this.uniform(dp, "u_depth"), src.depth);
     gl.uniform1i(this.uniform(dp, "u_transfer"), decode.transfer);
     gl.uniformMatrix3fv(this.uniform(dp, "u_toBt2020"), false, flatten3(decode.toBt2020));
+    if (decode.ocio) this.bindTex(OCIO_DECODE_LUT_UNIT, this.ocioLutTexture(decode.ocio), dp, "ocioLut");
     gl.drawArrays(gl.TRIANGLES, 0, 3);
 
     // 2. the effect stack, ping-ponging between three textures
@@ -1032,6 +1122,21 @@ export class GpuHdrCompositor implements HdrCompositor {
 
   private runOutput(mode: 0 | 1, spec: OutputColorSpec | null): void {
     const gl = this.gl;
+    if (this.pipeline.kind === "ocio") {
+      const out = this.pipeline.output;
+      let op = this.ocioOutputPrograms.get(out.key);
+      if (!op) {
+        op = this.compile(ocioOutputFragment(out.gpu().source));
+        this.ocioOutputPrograms.set(out.key, op);
+      }
+      gl.useProgram(op.program);
+      this.bindTex(0, this.accTextures[this.current], op, "u_acc");
+      this.bindTex(OCIO_OUTPUT_LUT_UNIT, this.ocioLutTexture(out), op, "ocioLut");
+      gl.uniform1i(this.uniform(op, "u_mode"), mode);
+      gl.viewport(0, 0, this.width, this.height);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      return;
+    }
     if (this.pipeline.kind === "aces") {
       this.acesProgram ??= this.compile(ACES_OUTPUT_FRAGMENT);
       const ap = this.acesProgram;
@@ -1111,6 +1216,8 @@ export class GpuHdrCompositor implements HdrCompositor {
     gl.deleteProgram(this.decodeProgram.program);
     gl.deleteProgram(this.effectProgram.program);
     if (this.acesProgram) gl.deleteProgram(this.acesProgram.program);
+    for (const p of [...this.ocioLayerPrograms.values(), ...this.ocioDecodePrograms.values(), ...this.ocioOutputPrograms.values()]) gl.deleteProgram(p.program);
+    for (const t of this.ocioLutTextures.values()) gl.deleteTexture(t);
     gl.getExtension("WEBGL_lose_context")?.loseContext();
   }
 }

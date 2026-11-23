@@ -13,6 +13,22 @@ without `sequenceId` the active sequence is exported. The file is named after
 the sequence. UI: File > Export timeline > Choose sequence. Agent:
 `export_timeline_xml { sequence: "<id or name>" }`.
 
+## Transitions
+
+Cross dissolve, dip to black / white, wipe, push and slide have always been written as themselves. Every other
+transition with a Premiere Pro name is written as follows (table: `packages/core/src/interchange/transition-names.ts`;
+unit-tested for every type in `transition-interchange.test.ts`):
+
+| Format | Written as | Report |
+|--------|-----------|--------|
+| XMEML  | `<transitionitem>` with Premiere's name as `<name>` / `<effectid>` and its bin as `<effectcategory>` (Film Dissolve, Additive Dissolve, Iris Round / Box / Cross / Diamond, Band Wipe, Barn Doors, Clock Wipe, Gradient Wipe, Radial Wipe, Venetian Blinds, Checkerboard, Checker Wipe, Inset, Wedge Wipe, Random Blocks, Random Wipe, Split, Cube Spin, Flip Over, Cross Zoom, Page Peel, Page Turn). The same names import as the same OpenReel type with default settings. | Approximated only when the transition has non-default settings (direction, border, seed...): XMEML does not carry them. |
+| OTIO   | `Transition.1` `Custom_Transition` named as above, with the exact OpenReel type, kind and alignment in `metadata.openreel`; the type is read back from the metadata (or from an exact Premiere name from another tool). | Approximated only for non-default settings, which stay in the metadata and are restored on import back into OpenReel. |
+| FCPXML | A cross dissolve. Final Cut matches transitions by its own effect ids, which are not written. | Approximated, naming the closest Final Cut transition to apply by hand. |
+| EDL / AAF | A dissolve (the EDL adds `* EFFECT NAME: <NAME>` as a comment). | Approximated. |
+
+A transition with no Premiere name (Glitch Cut, Ripple, Color Split, Pixelate, Blur Dissolve...) is a cross dissolve everywhere and approximated.
+These XML files were not opened in Premiere Pro or DaVinci Resolve for this change, so whether they map each name to its built-in transition is unverified.
+
 ## Nested sequences
 
 | Format  | Nest clip (export)                                               | Import |

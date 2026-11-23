@@ -1,3 +1,5 @@
+import { VR_PRO_EFFECT_TYPES } from "./vr-effects";
+import { VR_IMAGE_EFFECT_TYPES } from "./vr-image-effects";
 import { describe, expect, it } from "vitest";
 import { VideoEffectsEngine } from "./video-effects-engine";
 import {
@@ -18,6 +20,7 @@ import {
   hash01,
   isProEffectNeutral,
   isProEffectType,
+  proEffectActingParams,
   proEffectGpuUniforms,
   resolveProEffectParams,
   vhsFrameIndex,
@@ -86,6 +89,8 @@ describe("pro effects registration", () => {
         "hsl-secondary",
         ...EXTRA_PRO_EFFECT_TYPES,
         ...TEMPORAL_PRO_EFFECT_TYPES,
+        ...VR_PRO_EFFECT_TYPES,
+        ...VR_IMAGE_EFFECT_TYPES,
       ].sort(),
     );
   });
@@ -117,9 +122,11 @@ describe("pro effects neutral-parameter identity", () => {
     it.skipIf(isTemporalEffectType(type))(`${type} changes the image with its default params and is not neutral`, () => {
       const original = makeImage(W, H);
       const data = new Uint8ClampedArray(original);
-      applyProEffect(type, { ...PRO_EFFECT_DEFAULTS[type] }, data, W, H);
+      // Effects whose defaults are neutral (every VR effect, as in Premiere) are given a non-neutral value first.
+      const acting = proEffectActingParams(type);
+      applyProEffect(type, { ...acting }, data, W, H);
       expect(Array.from(data)).not.toEqual(Array.from(original));
-      expect(isProEffectNeutral(type, PRO_EFFECT_DEFAULTS[type])).toBe(false);
+      expect(isProEffectNeutral(type, acting)).toBe(false);
     });
 
     it.skipIf(PRO_EFFECTS_WRITING_ALPHA.includes(type))(`${type} never mutates alpha for opaque input`, () => {

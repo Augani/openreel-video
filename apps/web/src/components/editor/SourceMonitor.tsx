@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@openreel/ui";
-import { getRawDeveloper, isDevelopedRaw, mediaImageVersion, type MediaItem } from "@openreel/core";
+import { effectiveVrProperties, getRawDeveloper, isDevelopedRaw, isVrProperties, mediaImageVersion, type MediaItem } from "@openreel/core";
 import { addSourceMarker } from "../../services/clip-marker-commands";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
@@ -30,6 +30,10 @@ import { PreviewScrubber } from "./PreviewScrubber";
 import { PreviewTransportIcon } from "./PreviewTransportControls";
 import { MonitorTabs } from "./MonitorTabs";
 import { SourcePatch } from "./SourcePatch";
+import { useSourceVrViewStore } from "../../stores/vr-view-store";
+
+// The Source monitor VR view loads the first time it is switched on for a VR clip.
+const SourceVrOverlay = React.lazy(() => import("./preview/SourceVrOverlay").then((m) => ({ default: m.SourceVrOverlay })));
 
 /** Drag payload marker read by the timeline lanes. */
 export const SOURCE_DRAG_KEY = "sourceMonitor";
@@ -38,6 +42,11 @@ export const SOURCE_DRAG_KEY = "sourceMonitor";
 function SourceHistory({ current }: { current: MediaItem | undefined }) {
   const history = useSourceMonitorStore((s) => s.history);
   const library = useProjectStore((s) => s.project.mediaLibrary.items);
+  const marks = useSourceMonitorStore((s) => s.marks);
+  const positions = useSourceMonitorStore((s) => s.positions);
+  const livePosition = useSourceMonitorStore((s) => s.position);
+  const loadedId = useSourceMonitorStore((s) => s.mediaId);
+  const fallbackFps = useProjectStore((s) => s.project.settings.frameRate) || 30;
   const entries = history
     .map((id) => library.find((item) => item.id === id))
     .filter((item): item is MediaItem => !!item);
@@ -68,12 +77,30 @@ function SourceHistory({ current }: { current: MediaItem | undefined }) {
             }}
             className={item.id === current?.id ? "font-medium text-accent" : undefined}
           >
-            <span className="truncate">{item.name}</span>
+            <span className="flex min-w-0 flex-col">
+              <span className="truncate">{item.name}</span>
+              <span className="truncate font-mono text-[10px] text-fg-muted" data-testid="source-history-detail">
+                {historyDetail(
+                  marks[item.id],
+                  item.id === loadedId ? livePosition : positions[item.id],
+                  item.metadata.frameRate || fallbackFps,
+                )}
+              </span>
+            </span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+/** "In 0:01:00 · Out 0:04:12 · at 0:02:05": what a history entry will reopen with. */
+function historyDetail(marks: { in?: number; out?: number } | undefined, position: number | undefined, fps: number): string {
+  const parts: string[] = [];
+  if (marks?.in !== undefined) parts.push(`In ${formatFrameTimecode(marks.in, fps)}`);
+  if (marks?.out !== undefined) parts.push(`Out ${formatFrameTimecode(marks.out, fps)}`);
+  if (position !== undefined && position > 0) parts.push(`at ${formatFrameTimecode(position, fps)}`);
+  return parts.join(" · ") || "No marks";
 }
 
 function useBlobUrl(blob: Blob | null | undefined): string | null {
@@ -193,9 +220,40 @@ export function SourceMonitor() {
   const projectFrameRate = useProjectStore((s) => s.project.settings.frameRate);
   const replaceKeeps = useSourceMonitorStore((s) => s.replaceKeepsAttributes);
   const rangeMarked = useTimelineStore((s) => s.loopEnd - s.loopStart > 1e-6);
-  const media = useProjectStore((s) =>
+  const external = useSourceMonitorStore((s) => s.externalPreview);
+  const libraryMedia = useProjectStore((s) =>
     mediaId ? s.project.mediaLibrary.items.find((m) => m.id === mediaId) : undefined,
   );
+  const externalMedia = React.useMemo<MediaItem | undefined>(
+    () =>
+      external
+        ? ({
+            id: external.id,
+            name: external.name,
+            type: external.type,
+            fileHandle: null,
+            blob: external.blob,
+            thumbnailUrl: null,
+            waveformData: null,
+            metadata: {
+              duration: external.duration,
+              width: external.width ?? 0,
+              height: external.height ?? 0,
+              frameRate: external.frameRate ?? 0,
+              codec: "",
+              sampleRate: 0,
+              channels: 0,
+              fileSize: external.blob.size,
+              hasAudio: external.hasAudio,
+              hasVideo: external.type === "video",
+            },
+          } as MediaItem)
+        : undefined,
+    [external],
+  );
+  const media = external ? externalMedia : libraryMedia;
+  /** A preview from the Media Browser cannot be edited into the timeline until it is imported. */
+  const readOnly = !!external;
   const url = useMediaDisplayUrl(media);
   const containerRef = useRef<HTMLDivElement>(null);
   const elRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
@@ -299,20 +357,29 @@ export function SourceMonitor() {
 
   const onDragStart = useCallback(
     (component: "both" | "video" | "audio") => (event: React.DragEvent) => {
-      if (!mediaId) return;
+      if (!mediaId || readOnly) {
+        event.preventDefault();
+        return;
+      }
       event.dataTransfer.setData(
         "application/json",
         JSON.stringify({ mediaId, [SOURCE_DRAG_KEY]: true, component }),
       );
       event.dataTransfer.effectAllowed = "copy";
     },
-    [mediaId],
+    [mediaId, readOnly],
   );
 
   const noFocusSteal = (event: React.MouseEvent) => event.preventDefault();
   const tc = (seconds: number) => formatFrameTimecode(seconds, frameRate);
   const hasAudio = media?.type === "audio" || (media?.type === "video" && media.metadata.hasAudio !== false);
   const hasVideo = media?.type === "video" || media?.type === "image";
+  // Immersive video: the VR video view of the loaded clip (view only; needs the clip's VR Properties).
+  const vrViewOn = useSourceVrViewStore((s) => s.enabled);
+  const setVrViewOn = useSourceVrViewStore((s) => s.setEnabled);
+  const mediaIsVr = hasVideo && !!media && isVrProperties(effectiveVrProperties(media));
+  const imageRef = useRef<HTMLImageElement>(null);
+  const getVrElement = useCallback(() => (elRef.current as HTMLVideoElement | null) ?? imageRef.current, [elRef]);
 
   const inPct = marks?.in !== undefined ? (marks.in / duration) * 100 : 0;
   const outPct = marks?.out !== undefined ? (marks.out / duration) * 100 : 100;
@@ -337,6 +404,20 @@ export function SourceMonitor() {
         <MonitorTabs active="source" />
         <SourceHistory current={media} />
         <div className="workspace-preview-options">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            data-testid="source-vr-toggle"
+            aria-pressed={vrViewOn && mediaIsVr}
+            title={mediaIsVr ? "Toggle VR video view of this clip (view only; never changes an export)" : "Set VR Properties on this clip in the project panel to use the VR video view"}
+            onMouseDown={noFocusSteal}
+            disabled={!mediaIsVr}
+            onClick={() => setVrViewOn(!vrViewOn)}
+            className={vrViewOn && mediaIsVr ? "bg-[#26282d] text-fg" : "text-fg-3"}
+          >
+            VR view
+          </Button>
           <Button type="button" variant="ghost" size="sm" data-testid="reverse-match-frame" title="Reverse Match Frame (Shift+F)" onMouseDown={noFocusSteal} disabled={!media} onClick={() => runWithToast("Reverse match frame", reverseMatchFrame)}>Find in sequence</Button>
           <span className="font-mono text-[11px] tabular-nums text-fg-3" data-testid="source-duration">
             {media ? `Dur ${tc(rangeLength)}` : ""}
@@ -344,6 +425,16 @@ export function SourceMonitor() {
         </div>
       </div>
 
+      {external && (
+        <div data-testid="source-external-banner" className="flex items-center gap-3 border-b border-border bg-bg-2 px-3 py-1.5 text-[11px] text-fg-2">
+          <span className="rounded bg-accent/20 px-1.5 py-0.5 font-medium text-accent">Preview</span>
+          <span className="min-w-0 truncate">{external.name} is not in the project yet{external.note ? ` (${external.note})` : ""}.</span>
+          <span className="ml-auto flex gap-2">
+            {external.onImport && <Button type="button" size="sm" variant="secondary" data-testid="source-external-import" onMouseDown={noFocusSteal} onClick={external.onImport}>Import</Button>}
+            <Button type="button" size="sm" variant="ghost" data-testid="source-external-close" onMouseDown={noFocusSteal} onClick={() => useSourceMonitorStore.getState().closeExternal()}>Close preview</Button>
+          </span>
+        </div>
+      )}
       <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden p-4">
         {!media ? (
           <p className="text-sm text-fg-3">
@@ -355,6 +446,7 @@ export function SourceMonitor() {
           <img
             src={url}
             alt={media.name}
+            ref={imageRef}
             draggable
             onDragStart={onDragStart("both")}
             className="max-h-full max-w-full object-contain"
@@ -394,6 +486,11 @@ export function SourceMonitor() {
             className="max-h-full max-w-full bg-black object-contain"
           />
         )}
+        {media && url && mediaIsVr && vrViewOn ? (
+          <React.Suspense fallback={null}>
+            <SourceVrOverlay media={media} getElement={getVrElement} />
+          </React.Suspense>
+        ) : null}
       </div>
 
       <div className="workspace-preview-controls">
@@ -451,9 +548,9 @@ export function SourceMonitor() {
             <span className="text-fg-3">Out <span data-testid="source-out">{marks?.out !== undefined ? tc(marks.out) : "--:--:--:--"}</span></span>
             {rate !== 0 && <span className="text-accent" data-testid="source-rate">{rate}x</span>}
           </div>
-          {media && <SourcePatch hasVideo={hasVideo} hasAudio={hasAudio} />}
+          {media && <SourcePatch hasVideo={hasVideo} hasAudio={hasAudio} media={media} />}
           <div className="ml-auto flex flex-wrap items-center justify-end gap-2 [&>*]:whitespace-nowrap">
-            <Button type="button" variant="ghost" size="sm" data-testid="source-add-marker" title="Add a master-clip marker at the playhead (M)" onMouseDown={noFocusSteal} disabled={!media} onClick={() => void addSourceMarker()}>Add marker</Button>
+            <Button type="button" variant="ghost" size="sm" data-testid="source-add-marker" title="Add a master-clip marker at the playhead (M)" onMouseDown={noFocusSteal} disabled={!media || readOnly} onClick={() => void addSourceMarker()}>Add marker</Button>
             <Button type="button" variant="ghost" size="sm" onMouseDown={noFocusSteal} disabled={!media || (marks?.in === undefined && marks?.out === undefined)} onClick={clearSourceMarks}>Clear marks</Button>
             {hasVideo && media?.type === "video" && (
               <span
@@ -483,7 +580,7 @@ export function SourceMonitor() {
                 Audio only
               </span>
             )}
-            {media && media.type !== "image" && (
+            {media && media.type !== "image" && !readOnly && (
               <>
                 <Button
                   type="button"
@@ -515,8 +612,8 @@ export function SourceMonitor() {
                 </Button>
               </>
             )}
-            <Button type="button" variant="secondary" size="sm" onMouseDown={noFocusSteal} disabled={!media} aria-label="Insert (,)" title="Insert at the timeline playhead (,)" onClick={() => runWithToast("Insert", () => insertFromSource())}>Insert</Button>
-            <Button type="button" variant="secondary" size="sm" onMouseDown={noFocusSteal} disabled={!media} aria-label="Overwrite (.)" title="Overwrite at the timeline playhead (.)" onClick={() => runWithToast("Overwrite", () => overwriteFromSource())}>Overwrite</Button>
+            <Button type="button" variant="secondary" size="sm" onMouseDown={noFocusSteal} disabled={!media || readOnly} aria-label="Insert (,)" title="Insert at the timeline playhead (,)" onClick={() => runWithToast("Insert", () => insertFromSource())}>Insert</Button>
+            <Button type="button" variant="secondary" size="sm" onMouseDown={noFocusSteal} disabled={!media || readOnly} aria-label="Overwrite (.)" title="Overwrite at the timeline playhead (.)" onClick={() => runWithToast("Overwrite", () => overwriteFromSource())}>Overwrite</Button>
             <Button
               type="button"
               variant="secondary"
@@ -525,7 +622,7 @@ export function SourceMonitor() {
               aria-label="Replace (⇧G)"
               title="Replace the selected timeline clip, or the clip under the playhead, with this source. The clip keeps its place and length; the Source playhead lines up with the timeline playhead (Shift+G)"
               onMouseDown={noFocusSteal}
-              disabled={!media}
+              disabled={!media || readOnly}
               onClick={() => runWithToast("Replace", () => replaceFromSource())}
             >
               Replace
@@ -558,7 +655,7 @@ export function SourceMonitor() {
                     : "Set In and Out marks on the timeline to fill (Alt+Shift+F)"
               }
               onMouseDown={noFocusSteal}
-              disabled={!media || media.type === "image" || !rangeMarked}
+              disabled={!media || readOnly || media.type === "image" || !rangeMarked}
               onClick={() => runWithToast("Fit to Fill", () => fitToFillFromSource())}
             >
               Fit to Fill

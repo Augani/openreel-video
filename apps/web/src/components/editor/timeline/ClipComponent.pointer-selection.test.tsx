@@ -76,6 +76,29 @@ describe("native clip pointer ordering", () => {
     expect(useProjectStore.getState().getClip(companion.id)?.startTime).toBe(7);
     expect(useProjectStore.getState().actionHistory.getDisplayHistory()).toHaveLength(1);
   });
+  it("drags a big selection (off-screen clips included) through one batched move and one Undo step", async () => {
+    // 40 clips selected (more than the 32 kept mounted off-screen); clips 6.. start far past the viewport.
+    const clips = Array.from({ length: 40 }, (_, i) => ({ ...clip, id: `c${i}`, startTime: i < 6 ? i * 5 : 100 + i * 5, duration: 4 }));
+    const project = useProjectStore.getState().project;
+    useProjectStore.setState({ project: { ...project, timeline: { ...project.timeline, tracks: [{ ...track, clips }] } } });
+    useUIStore.setState({ selectedItems: clips.map(({ id }) => ({ type: "clip" as const, id })) });
+    useUIStore.setState({ snapSettings: { ...useUIStore.getState().snapSettings, enabled: false } });
+    useTimelineStore.setState({ pixelsPerSecond: 50, scrollX: 0, scrollY: 0, playheadPosition: 0, viewportWidth: 1000, viewportHeight: 100 });
+    render(<StrictMode><Timeline /></StrictMode>);
+    expect(screen.getAllByRole("button", { name: "Select clip Source.mp4" }).length).toBeLessThan(40);
+    const button = screen.getAllByRole("button", { name: "Select clip Source.mp4" })[0];
+    fireEvent.mouseDown(button, { button: 0, clientX: 20, clientY: 20 });
+    fireEvent.mouseMove(window, { buttons: 1, clientX: 120, clientY: 20 });
+    fireEvent.mouseMove(window, { buttons: 1, clientX: 170, clientY: 20 });
+    await act(async () => { fireEvent.mouseUp(window, { button: 0, clientX: 170, clientY: 20 }); });
+    await waitFor(() => expect(button.className).not.toContain("cursor-grabbing"));
+    const starts = () => Object.fromEntries(clips.map(({ id }) => [id, useProjectStore.getState().getClip(id)?.startTime]));
+    // Dragged 150 px at 50 px/s = 3 s: every selected clip moved by the same delta, mounted or not.
+    expect(starts()).toEqual(Object.fromEntries(clips.map(({ id, startTime }) => [id, startTime + 3])));
+    expect(useProjectStore.getState().actionHistory.getDisplayHistory()).toHaveLength(1);
+    await act(async () => { expect((await useProjectStore.getState().undo()).success).toBe(true); });
+    expect(starts()).toEqual(Object.fromEntries(clips.map(({ id, startTime }) => [id, startTime])));
+  });
   it.each([false,true])("keeps a multi-frame drag in one real Undo step with linked audio=%s", async linked => {
     useEditorWorkspaceStore.setState({ linkedSelection:linked });
     useTimelineStore.setState({pixelsPerSecond:50,scrollX:0,scrollY:0,playheadPosition:0,viewportWidth:1000,viewportHeight:100});

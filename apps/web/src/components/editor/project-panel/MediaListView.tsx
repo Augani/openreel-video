@@ -237,7 +237,11 @@ export const MediaListView: React.FC<MediaListViewProps> = ({
       case "scene":
       case "shot":
       case "take":
+      case "logComment":
+      case "reel":
         return <EditableText item={item} field={column} value={item[column] ?? ""} />;
+      case "keywords":
+        return <EditableText item={item} field="keywords" value={(item.keywords ?? []).join(", ")} />;
       case "goodTake":
         return (
           <input

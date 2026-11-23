@@ -1,3 +1,4 @@
+import { rackForFingerprint, sanitizePluginRack } from "./native-plugin/native-plugin-rack";
 import type { Project } from "../types/project";
 import type {
   AudioBus,
@@ -191,6 +192,7 @@ export function sanitizeBus(raw: unknown): AudioBus | undefined {
   const b = raw as Partial<AudioBus>;
   if (typeof b.id !== "string" || b.id.length === 0) return undefined;
   const rack = sanitizeAudioRack(b.rack);
+  const pluginRack = sanitizePluginRack(b.pluginRack);
   const volume = sanitizeAutomationPoints(b.automation?.volume, 4);
   const role: AudioBusRole | undefined =
     b.role === "dialogue" || b.role === "music" || b.role === "effects" || b.role === "general" ? b.role : undefined;
@@ -200,6 +202,7 @@ export function sanitizeBus(raw: unknown): AudioBus | undefined {
     ...(role ? { role } : {}),
     ...(typeof b.color === "string" ? { color: b.color } : {}),
     ...(rack ? { rack } : {}),
+    ...(pluginRack ? { pluginRack } : {}),
     muted: b.muted === true,
     solo: b.solo === true,
     ...(typeof b.output === "string" && b.output !== MASTER_OUTPUT ? { output: b.output } : {}),
@@ -664,8 +667,9 @@ export function isolateBusStem(project: Project, busId: string): Project | undef
     };
   });
   if (needsSink) buses.push({ id: STEM_SINK_ID, name: "Stem sink", muted: true, solo: false });
-  const { masterAudioRack: _m, audioBuses: _b, ...timelineRest } = timeline;
+  const { masterAudioRack: _m, masterPluginRack: _mp, audioBuses: _b, ...timelineRest } = timeline;
   void _m;
+  void _mp;
   void _b;
   return { ...project, timeline: { ...timelineRest, tracks, audioBuses: buses } };
 }
@@ -678,7 +682,7 @@ export interface RoutingFingerprintInput {
 /** Audio-relevant routing state only (names/colours excluded) for the mixdown cache key. */
 export function routingFingerprintInput(timeline: RoutingTimeline): RoutingFingerprintInput {
   return {
-    buses: getAudioBuses(timeline).map((b) => [b.id, b.rack, b.muted, b.solo, b.output, b.automation]),
+    buses: getAudioBuses(timeline).map((b) => [b.id, b.rack, b.muted, b.solo, b.output, b.automation, rackForFingerprint(b.pluginRack)]),
     tracks: timeline.tracks.map((t) => [t.id, t.output, t.sends]),
   };
 }

@@ -48,6 +48,44 @@ export function recordPlaybackEvent(kind: string, playhead: number): void {
   if (events.length > 200) events.shift();
 }
 
+/**
+ * Slow stages of the playback frame loop (a stage that took longer than STAGE_TRACE_MIN_MS), kept in a short ring so a
+ * stall can be attributed to the stage that caused it (decoder open, decode, effects, transition render).
+ */
+export const STAGE_TRACE_MIN_MS = 16;
+export interface PlaybackStageTrace {
+  at: number;
+  stage: string;
+  ms: number;
+  playhead: number;
+}
+const stageTraces: PlaybackStageTrace[] = [];
+
+export function tracePlaybackStage(stage: string, startedAt: number, playhead: number): void {
+  const ms = performance.now() - startedAt;
+  if (ms < STAGE_TRACE_MIN_MS) return;
+  stageTraces.push({ at: Math.round(performance.now()), stage, ms: Math.round(ms * 10) / 10, playhead: Math.round(playhead * 100) / 100 });
+  if (stageTraces.length > 1500) stageTraces.shift();
+}
+
+/** A frame that started this long after the previous one is a frame-loop gap worth naming. */
+export const LOOP_GAP_TRACE_MS = 120;
+
+export function tracePlaybackLoopGap(previousStage: string, gapMs: number, playheadDelta: number, playhead: number): void {
+  if (gapMs < LOOP_GAP_TRACE_MS) return;
+  stageTraces.push({
+    at: Math.round(performance.now()),
+    stage: `loop-gap(after:${previousStage}) playheadDelta=${Math.round(playheadDelta * 1000)}ms`,
+    ms: Math.round(gapMs * 10) / 10,
+    playhead: Math.round(playhead * 100) / 100,
+  });
+  if (stageTraces.length > 1500) stageTraces.shift();
+}
+
+export function getPlaybackStageTraces(): readonly PlaybackStageTrace[] {
+  return stageTraces;
+}
+
 export function getPlaybackEvents(): readonly PlaybackEvent[] {
   return events;
 }

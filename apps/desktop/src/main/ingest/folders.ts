@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { DesktopIngestConfig } from "../../../../../packages/core/src/types/project";
+import type { DesktopIngestConfig, DesktopProxyProfile } from "../../../../../packages/core/src/types/project";
 
 export interface IngestFolders {
   /** Folder holding the project file (or the app-data folder of an unsaved project). */
@@ -39,9 +39,23 @@ export function resolveIngestFolders(args: {
   };
 }
 
+/**
+ * Where one proxy is written: the project's Proxies folder (the default), a "Proxies" folder next to the media
+ * file, or a folder the preset names. A relative custom folder is taken relative to the project folder.
+ */
+export function proxyOutDir(profile: DesktopProxyProfile, projectProxyDir: string, srcPath: string, projectDir?: string): string {
+  const dest = profile.destination;
+  if (dest?.mode === "media") return path.join(path.dirname(path.resolve(srcPath)), "Proxies");
+  if (dest?.mode === "custom" && dest.folder?.trim()) {
+    const folder = dest.folder.trim();
+    return path.isAbsolute(folder) ? path.normalize(folder) : path.resolve(projectDir ?? path.dirname(projectProxyDir), folder);
+  }
+  return projectProxyDir;
+}
+
 /** Names this app gives proxy files: `<name>_<size>_proxy.(mov|mp4)` and the `.preview.mp4` twin. */
 export function isOwnProxyFileName(fileName: string): boolean {
-  return /_(half|quarter|720p|1080p)_proxy(\.preview)?\.(mov|mp4)$/i.test(fileName);
+  return /_(half|quarter|720p|1080p|full|w\d+)(-(lt|422|sq|lb|bn|tc|na))*_proxy(\.preview)?\.(mov|mp4)$/i.test(fileName);
 }
 
 /** The H.264 preview twin that rides along with a ProRes proxy (not a proxy of its own). */

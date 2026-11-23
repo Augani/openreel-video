@@ -6,6 +6,9 @@ import { isFootageColorPreset, type FootageColorPreset } from "../../color/sourc
 import { normalizeRawSettings, type RawSourceSettings } from "../../raw/settings";
 import { interpretationSpeed, normalizeInterpretation, validateInterpretation, type FootageInterpretation } from "../../media/interpretation";
 import { isMediaColumnId, isMediaLabelId } from "../../media/bins";
+import { normalizeKeywords } from "../../media/xmp";
+import { sanitizeSourceLayout, type SourceChannelGroup } from "../../audio/source-channels";
+import { normalizeVrProperties, validateVrProperties, type VrProperties } from "../../vr/vr-properties";
 import { registerActionHandler, createInverseAction } from "../registry";
 
 /**
@@ -27,14 +30,23 @@ export interface MediaItemPatch {
   take?: string;
   /** false clears the flag. */
   goodTake?: boolean;
+  /** XMP-style metadata; [] / "" clears. */
+  keywords?: string[];
+  logComment?: string;
+  reel?: string;
+  xmpSource?: "embedded" | "sidecar" | null;
   name?: string;
   /** "Interpret footage": a preset id, or null for "as tagged". */
   colorInterpretation?: FootageColorPreset | null;
   /** "Interpret footage": frame rate / pixel aspect ratio / field order override; null clears it. */
   interpretation?: FootageInterpretation | null;
+  /** Immersive video: the VR properties of the clip's source (projection, layout, captured view); null clears the override. */
+  vrProperties?: VrProperties | null;
   /** RAW Source Settings of a camera RAW still (a full or partial settings object; clamped). */
   rawSettings?: Partial<RawSourceSettings>;
   subclipRestrictTrims?: boolean;
+  /** Modify > Audio Channels: how the file's audio channels group into audio clips; null = use file. */
+  channelLayout?: readonly SourceChannelGroup[] | null;
   /** Attach / replace a proxy reference; null detaches it. */
   proxy?: MediaProxyRef | null;
   /** Desktop copy-to-project: point the item at the copy. */
@@ -185,10 +197,21 @@ function validate(action: Action, project: Project): ValidationResult {
     if (patch.name !== undefined && !patch.name.trim()) return fail("A media name cannot be empty.");
     if (patch.colorInterpretation != null && !isFootageColorPreset(patch.colorInterpretation))
       return fail("Unknown footage colour interpretation.");
+    if (patch.channelLayout != null) {
+      if (!sanitizeSourceLayout(patch.channelLayout)) return fail("The audio channel layout needs at least one valid clip.", "INVALID_PARAMS");
+      const target = project.mediaLibrary.items.find((i) => i.id === id);
+      if (target && target.type === "image") return fail("Audio channels apply to audio and video media.", "INVALID_PARAMS");
+    }
     if (patch.interpretation) {
       const target = project.mediaLibrary.items.find((i) => i.id === id);
       if (target && target.type !== "video") return fail("Frame rate, pixel aspect ratio and field order apply to video footage only.", "INVALID_PARAMS");
       const bad = validateInterpretation(patch.interpretation);
+      if (bad) return fail(bad, "INVALID_PARAMS");
+    }
+    if (patch.vrProperties) {
+      const target = project.mediaLibrary.items.find((i) => i.id === id);
+      if (target && target.type !== "video" && target.type !== "image") return fail("VR properties apply to video and image media.", "INVALID_PARAMS");
+      const bad = validateVrProperties(patch.vrProperties);
       if (bad) return fail(bad, "INVALID_PARAMS");
     }
     if (patch.rawSettings !== undefined) {
@@ -249,6 +272,21 @@ function patchItem(item: MediaItem, patch: MediaItemPatch): MediaItem {
     if (value === "") delete next[field];
     else next[field] = value;
   }
+  if (patch.keywords !== undefined) {
+    const words = normalizeKeywords(patch.keywords);
+    if (words.length) next.keywords = words;
+    else delete next.keywords;
+  }
+  for (const field of ["logComment", "reel"] as const) {
+    const value = patch[field];
+    if (value === undefined) continue;
+    if (value === "") delete next[field];
+    else next[field] = value;
+  }
+  if (patch.xmpSource !== undefined) {
+    if (patch.xmpSource === null) delete next.xmpSource;
+    else next.xmpSource = patch.xmpSource;
+  }
   if (patch.goodTake !== undefined) {
     if (patch.goodTake) next.goodTake = true;
     else delete next.goodTake;
@@ -258,10 +296,20 @@ function patchItem(item: MediaItem, patch: MediaItemPatch): MediaItem {
     if (patch.colorInterpretation === null) delete next.colorInterpretation;
     else next.colorInterpretation = patch.colorInterpretation;
   }
+  if (patch.channelLayout !== undefined) {
+    const layout = patch.channelLayout === null ? undefined : sanitizeSourceLayout(patch.channelLayout);
+    if (layout) next.channelLayout = layout;
+    else delete next.channelLayout;
+  }
   if (patch.interpretation !== undefined) {
     const normalized = patch.interpretation === null ? undefined : normalizeInterpretation(patch.interpretation, next.metadata);
     if (normalized) next.interpretation = normalized;
     else delete next.interpretation;
+  }
+  if (patch.vrProperties !== undefined) {
+    const vr = patch.vrProperties === null ? undefined : normalizeVrProperties(patch.vrProperties);
+    if (vr) next.vrProperties = vr;
+    else delete next.vrProperties;
   }
   if (patch.rawSettings !== undefined && next.raw?.settings) {
     next.raw = { ...next.raw, settings: normalizeRawSettings(patch.rawSettings, next.raw.settings) };
@@ -389,9 +437,15 @@ function invert(action: Action, before: Project): Action {
       if ("shot" in patch) undo.shot = item.shot ?? "";
       if ("take" in patch) undo.take = item.take ?? "";
       if ("goodTake" in patch) undo.goodTake = !!item.goodTake;
+      if ("keywords" in patch) undo.keywords = item.keywords ? [...item.keywords] : [];
+      if ("logComment" in patch) undo.logComment = item.logComment ?? "";
+      if ("reel" in patch) undo.reel = item.reel ?? "";
+      if ("xmpSource" in patch) undo.xmpSource = item.xmpSource ?? null;
       if ("name" in patch) undo.name = item.name;
       if ("colorInterpretation" in patch) undo.colorInterpretation = item.colorInterpretation ?? null;
+      if ("channelLayout" in patch) undo.channelLayout = item.channelLayout ?? null;
       if ("interpretation" in patch) undo.interpretation = item.interpretation ?? null;
+      if ("vrProperties" in patch) undo.vrProperties = item.vrProperties ?? null;
       if ("rawSettings" in patch && item.raw?.settings) undo.rawSettings = item.raw.settings;
       if ("proxy" in patch) undo.proxy = item.proxy ?? null;
       if ("sourceFile" in patch) undo.sourceFile = item.sourceFile;

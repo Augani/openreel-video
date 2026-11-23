@@ -41,6 +41,16 @@ describe("mirrorSpeakersToTranslations", () => {
     expect(out2[2].speaker).toBeUndefined();
   });
 
+  it("follows translated pieces that were split or lengthened for reading speed", () => {
+    const pieces = [
+      cue("fa", 0, 1.1, { captionTrackId: "fr", language: "fr", hidden: true }),
+      cue("fa-p2", 1.1, 2.3, { captionTrackId: "fr", language: "fr", hidden: true }),
+      cue("fb", 2.4, 4, { captionTrackId: "fr", language: "fr", hidden: true }),
+    ];
+    const out = mirrorSpeakersToTranslations([{ ...source[0], speaker: "Ann" }, { ...source[1], speaker: "Bob" }, ...pieces], new Set(["a", "b"]));
+    expect(out.slice(2).map((c) => c.speaker)).toEqual(["Ann", "Ann", "Bob"]);
+  });
+
   it("does not touch cues whose range differs", () => {
     const other = cue("x", 5, 6, { captionTrackId: "fr", hidden: true });
     const out = mirrorSpeakersToTranslations([{ ...source[0], speaker: "Ann" }, other], new Set(["a"]));

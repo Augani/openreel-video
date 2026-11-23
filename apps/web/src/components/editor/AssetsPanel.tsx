@@ -1,7 +1,6 @@
 import type { ActionExecutorLike } from "../../services/lazy-action-executor";
 import { WorkspaceStockPanel } from "./WorkspaceStockPanel";
 import { RecordingsPanel } from "./RecordingsPanel";
-import { WorkspaceGraphicsPanel } from "./WorkspaceGraphicsPanel";
 import { AudioLibraryIcon } from "@/icons/audio-library";
 import { WorkspaceTextPanel } from "./WorkspaceTextPanel";
 import { Button as ShadcnButton, Input, ScrollArea, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@openreel/ui";
@@ -10,10 +9,9 @@ import { MediaLibraryIcon } from "@/icons/media-library";
 import { useEditorWorkspaceStore, type AssetSection } from "../../stores/editor-workspace-store";
 import { WorkspaceTabs, workspaceTabPanel } from "./WorkspacePrimitives";
 import { WorkspaceSettingsPanel } from "./WorkspaceSettingsPanel";
-import { MusicLibraryPanel } from "./inspector/MusicLibraryPanel";
 import { VoiceOverPanel } from "./inspector/VoiceOverPanel";
 import { TextToSpeechPanel } from "./inspector/TextToSpeechPanel";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { formatMediaFileSize, getMediaFileSize, getMediaLibrarySizeLabel } from "./media-library-size";
 import {
@@ -31,6 +29,7 @@ import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
 import { useTimelineStore } from "../../stores/timeline-store";
 import { isPremiereProjectFile, openTimelineFileForImport } from "../../services/timeline-interchange";
+import { isCaptionFileName } from "../../services/caption-file-names";
 import { RAW_FILE_ACCEPT, groupCinemaDng, interpretedDisplaySize, type MediaItem } from "@openreel/core";
 import { enqueueImportBatch, takeNextImportBatch, type PendingImportBatch } from "../../services/import-batch-queue";
 import { importCinemaDngSequence, looksLikeCinemaDngFrame } from "../../services/cinemadng-sequence";
@@ -64,9 +63,16 @@ import { ProjectPanelBar, ProjectPanelDialogs, useMediaSelectionCount } from "./
 import { writeMediaDrag } from "./project-panel/dnd";
 import { Scissors } from "@/icons/lucide-compat";
 
+
+// Tab panels that most sessions never open: kept out of the editor chunk, fetched on first use.
+const WorkspaceGraphicsPanel = lazy(() => import("./WorkspaceGraphicsPanel").then((module) => ({ default: module.WorkspaceGraphicsPanel })));
+const MusicLibraryPanel = lazy(() => import("./inspector/MusicLibraryPanel").then((module) => ({ default: module.MusicLibraryPanel })));
+
 const panelFallback = <div className="h-full" role="status" aria-label="Loading panel" />;
 const WorkspaceGeneratePanel = React.lazy(() => import("./WorkspaceGeneratePanel").then((m) => ({ default: m.WorkspaceGeneratePanel })));
 const WorkspaceRecipesPanel = React.lazy(() => import("./panels/WorkspaceRecipesPanel").then((m) => ({ default: m.WorkspaceRecipesPanel })));
+const MediaBrowserPanel = React.lazy(() => import("./MediaBrowserPanel").then((m) => ({ default: m.MediaBrowserPanel })));
+const MetadataPanel = React.lazy(() => import("./MetadataPanel").then((m) => ({ default: m.MetadataPanel })));
 const MarkersPanel = React.lazy(() => import("./MarkersPanel").then((m) => ({ default: m.MarkersPanel })));
 const CommentsPanel = React.lazy(() => import("./CommentsPanel").then((m) => ({ default: m.CommentsPanel })));
 
@@ -895,7 +901,10 @@ export const AssetsPanel: React.FC = () => {
       // Premiere projects are timelines, not media: the first one opens the import dialog (one undoable import).
       const premiere = all.find((file) => isPremiereProjectFile(file.name));
       if (premiere) void openTimelineFileForImport(premiere);
-      const picked = all.filter((file) => !isPremiereProjectFile(file.name));
+      // Caption files (SRT, VTT, SCC, MCC, STL, TTML...) are not media: they become caption cues, one undo step.
+      const captions = all.filter((file) => isCaptionFileName(file.name));
+      if (captions.length) void import("../../services/caption-file-import").then((m) => m.importCaptionFiles(captions));
+      const picked = all.filter((file) => !isPremiereProjectFile(file.name) && !isCaptionFileName(file.name));
       if (picked.length === 0) return;
       const current = useProjectStore.getState();
       const owner = dropOwner ?? { projectId: current.project.id, executor: current.actionExecutor };
@@ -931,9 +940,10 @@ export const AssetsPanel: React.FC = () => {
           if (!owns()) return;
           const file = fileArray[i];
           setImportProgress(`Importing ${file.name} (${i + 1}/${fileArray.length})...`);
-          await importMedia(file, stage => {
+          const imported = await importMedia(file, stage => {
             if (owns()) setImportProgress(`${stage} · ${file.name} (${i + 1}/${fileArray.length})`);
           });
+          if (imported?.success && imported.actionId && owns()) void import("../../services/xmp-import").then((m) => m.applyImportedXmp(imported.actionId!, file));
           if (!owns()) return;
         }
       } catch (error) {
@@ -1479,9 +1489,9 @@ export const AssetsPanel: React.FC = () => {
       case "settings":
         return <WorkspaceSettingsPanel />;
       case "audio":
-        return <div className="workspace-audio-panel flex flex-col h-full min-h-0"><WorkspaceTabs label="Audio sources" value={audioSource === "tts" ? "voiceover" : audioSource} onChange={setAudioSource} options={[{value:"music",label:"Music"},{value:"sfx",label:"Sound FX"},{value:"voiceover",label:"Voiceover"}]} /><div className="flex-1 min-h-0 overflow-auto" {...workspaceTabPanel("Audio sources",audioSource === "tts" ? "voiceover" : audioSource)}>{audioSource === "voiceover" ? <VoiceOverPanel /> : audioSource === "tts" ? <TextToSpeechPanel /> : <MusicLibraryPanel source={audioSource === "sfx" ? "sfx" : "music"} />}</div><div className="workspace-audio-footer p-2.5 border-t border-border flex gap-2"><ShadcnButton variant="secondary" className="flex-1 h-8 text-xs" onClick={() => setAudioSource("voiceover")}><AudioLibraryIcon name="voiceover" className="workspace-audio-icon workspace-audio-voice-icon" />Voiceover</ShadcnButton><ShadcnButton variant="secondary" className="flex-1 h-8 text-xs" onClick={() => setAudioSource("tts")}><AudioLibraryIcon name="speech" className="workspace-audio-icon workspace-audio-speech-icon" />Text to speech</ShadcnButton></div></div>;
+        return <div className="workspace-audio-panel flex flex-col h-full min-h-0"><WorkspaceTabs label="Audio sources" value={audioSource === "tts" ? "voiceover" : audioSource} onChange={setAudioSource} options={[{value:"music",label:"Music"},{value:"sfx",label:"Sound FX"},{value:"voiceover",label:"Voiceover"}]} /><div className="flex-1 min-h-0 overflow-auto" {...workspaceTabPanel("Audio sources",audioSource === "tts" ? "voiceover" : audioSource)}>{audioSource === "voiceover" ? <VoiceOverPanel /> : audioSource === "tts" ? <TextToSpeechPanel /> : <Suspense fallback={null}><MusicLibraryPanel source={audioSource === "sfx" ? "sfx" : "music"} /></Suspense>}</div><div className="workspace-audio-footer p-2.5 border-t border-border flex gap-2"><ShadcnButton variant="secondary" className="flex-1 h-8 text-xs" onClick={() => setAudioSource("voiceover")}><AudioLibraryIcon name="voiceover" className="workspace-audio-icon workspace-audio-voice-icon" />Voiceover</ShadcnButton><ShadcnButton variant="secondary" className="flex-1 h-8 text-xs" onClick={() => setAudioSource("tts")}><AudioLibraryIcon name="speech" className="workspace-audio-icon workspace-audio-speech-icon" />Text to speech</ShadcnButton></div></div>;
       case "graphics":
-        return <WorkspaceGraphicsPanel backgrounds={BACKGROUND_PRESETS} onImportBackground={handleImportBackground} generatingBackground={generatingBackground} />;
+        return <Suspense fallback={null}><WorkspaceGraphicsPanel backgrounds={BACKGROUND_PRESETS} onImportBackground={handleImportBackground} generatingBackground={generatingBackground} /></Suspense>;
       case "text":
         return null; // The text workspace stays mounted below to preserve caption work.
       case "effects":
@@ -1512,6 +1522,18 @@ export const AssetsPanel: React.FC = () => {
         return (
           <div className="flex min-h-0 flex-1 flex-col bg-background-secondary content-area-fix">
             <React.Suspense fallback={panelFallback}><MarkersPanel /></React.Suspense>
+          </div>
+        );
+      case "browser":
+        return (
+          <div className="flex min-h-0 flex-1 flex-col bg-background-secondary content-area-fix">
+            <React.Suspense fallback={panelFallback}><MediaBrowserPanel /></React.Suspense>
+          </div>
+        );
+      case "metadata":
+        return (
+          <div className="flex min-h-0 flex-1 flex-col bg-background-secondary content-area-fix">
+            <React.Suspense fallback={panelFallback}><MetadataPanel /></React.Suspense>
           </div>
         );
       case "comments":
@@ -1552,7 +1574,7 @@ export const AssetsPanel: React.FC = () => {
           ref={fileInputRef}
           type="file"
           aria-label="Import media"
-          accept={`video/*,audio/*,image/*,.mxf,.prproj,${RAW_FILE_ACCEPT}`}
+          accept={`video/*,audio/*,image/*,.mxf,.prproj,.srt,.vtt,.sbv,.ttml,.dfxp,.itt,.scc,.mcc,.stl,${RAW_FILE_ACCEPT}`}
           multiple
           className="hidden"
           onChange={(event) => {

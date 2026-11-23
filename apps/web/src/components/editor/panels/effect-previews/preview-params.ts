@@ -37,6 +37,7 @@ export const DIP_POSTER_PROGRESS = 0.3;
 export const FLARE_POSTER_PROGRESS = 0.18;
 export const FLIP_POSTER_PROGRESS = 0.15;
 export const SPIN_POSTER_PROGRESS = 0.09;
+export const FLIP_OVER_POSTER_PROGRESS = 0.2;
 export function transitionPosterProgress(def: PreviewEffectDef): number {
   switch (def.type) {
     case "dipToBlack":
@@ -50,6 +51,9 @@ export function transitionPosterProgress(def: PreviewEffectDef): number {
     // enough to read as footage turning about its axis.
     case "flip":
       return FLIP_POSTER_PROGRESS;
+    // The perspective card is edge-on (nothing on screen) at the half way point: rest while the outgoing side is still wide.
+    case "flipOver":
+      return FLIP_OVER_POSTER_PROGRESS;
     // A half turn (0.5) is the same still clockwise and counter-clockwise, and by 0.3 the outgoing shot is a
     // small faded tilted tile: rest while it is still large and clearly turned.
     case "spin":
@@ -72,7 +76,8 @@ export function transitionPosterProgress(def: PreviewEffectDef): number {
  * badge on the card instead of silently looking like the source.
  */
 export function previewNote(def: PreviewEffectDef): string | null {
-  if (def.kind === "transition") return null;
+  // Morph Cut analyses the two clips it is applied to; a card has no pair of related shots, so it previews as a dissolve.
+  if (def.kind === "transition") return def.type === "morphCut" ? "Needs analysis" : null;
   switch (def.type) {
     case "chromaKey":
     case "ultra-key":

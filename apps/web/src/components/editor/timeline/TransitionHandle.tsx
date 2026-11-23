@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   Button,
@@ -15,6 +15,7 @@ import type { TransitionType } from "@openreel/core";
 import type { ResolvedTransitionHandle } from "./transition-handles";
 import { useProjectStore } from "../../../stores/project-store";
 import { getTransitionBridge } from "../../../bridges/transition-bridge";
+import { TRANSITION_CARDS } from "../../../bridges/transition-cards";
 import { toast } from "../../../stores/notification-store";
 
 const BADGE_SIZE = 18;
@@ -27,14 +28,49 @@ interface TransitionHandleProps {
   onSelect: (transitionId: string, trackId: string) => void;
 }
 
-export const TransitionHandle: React.FC<TransitionHandleProps> = ({
+/**
+ * TrackLane re-resolves its handles on every project change, so each render hands
+ * over a fresh `handle` object even when nothing about this cut changed. Compare
+ * its fields instead of its identity so an edit elsewhere does not rebuild the
+ * whole Radix dropdown tree of every cut.
+ */
+export function areTransitionHandlePropsEqual(
+  prev: TransitionHandleProps,
+  next: TransitionHandleProps,
+): boolean {
+  const a = prev.handle;
+  const b = next.handle;
+  return (
+    prev.trackId === next.trackId &&
+    prev.isSelected === next.isSelected &&
+    prev.onSelect === next.onSelect &&
+    a.clipA === b.clipA &&
+    a.clipB === b.clipB &&
+    a.transition === b.transition &&
+    a.edge === b.edge &&
+    a.centerX === b.centerX
+  );
+}
+
+export const TransitionHandle: React.FC<TransitionHandleProps> = React.memo(function TransitionHandle({
   handle,
   trackId,
   isSelected,
   onSelect,
-}) => {
+}) {
   const { centerX, transition, clipA, clipB, edge } = handle;
   const [open, setOpen] = useState(false);
+  const [armed, setArmed] = useState(false);
+  // Arming moves the badge inside the dropdown tree, which remounts the button. Carry keyboard focus
+  // over to the new element, otherwise Tab -> Enter / Shift+F10 would find focus on <body>.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const refocusRef = useRef(false);
+  useLayoutEffect(() => {
+    if (armed && refocusRef.current) {
+      refocusRef.current = false;
+      rootRef.current?.querySelector<HTMLElement>("[data-timeline-transition]")?.focus();
+    }
+  }, [armed]);
   // The badge sits on the cut, exactly where Ripple/Roll/Rate Stretch grab the
   // clip edges. While a trim tool is active it must not swallow those drags; the
   // Hand and Zoom tools never open anything by clicking, and an opened menu would
@@ -50,7 +86,7 @@ export const TransitionHandle: React.FC<TransitionHandleProps> = ({
       removeClipTransition: state.removeClipTransition,
     })));
   const bridge = getTransitionBridge();
-  const types = bridge.getAvailableTransitionTypes();
+  const types = TRANSITION_CARDS;
 
   const applyType = useCallback(
     async (type: TransitionType) => {
@@ -128,53 +164,79 @@ export const TransitionHandle: React.FC<TransitionHandleProps> = ({
     : `Edit transition between clips: ${label}`;
   const isActive = Boolean(transition) || isSelected || open;
 
+  const arm = () => setArmed(true);
+  const armWithFocus = () => {
+    refocusRef.current = true;
+    setArmed(true);
+  };
+  const button = (
+    <Button
+      type="button"
+      variant="ghost"
+      title={label}
+      aria-label={ariaLabel}
+      aria-pressed={isSelected}
+      data-transition-id={transition?.id}
+      data-timeline-transition
+      // Until the pointer or focus reaches the badge it is a plain button: the Radix dropdown chain
+      // (about 15 components per cut, hundreds per lane) mounts on first contact instead of with every cut.
+      onPointerEnter={arm}
+      onFocus={armWithFocus}
+      onPointerDown={armed ? undefined : (e) => {
+        // No hover first (touch): open straight away.
+        if (e.button === 0 && !e.ctrlKey) {
+          // The remount below swallows the click that would select the cut, so select it here.
+          if (transition) onSelect(transition.id, trackId);
+          setArmed(true);
+          setOpen(true);
+        }
+      }}
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (transition) onSelect(transition.id, trackId);
+      }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (transition) onSelect(transition.id, trackId);
+        refocusRef.current = true;
+        setArmed(true);
+        setOpen(true);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "F10" && e.shiftKey) {
+          e.preventDefault();
+          refocusRef.current = true;
+          setArmed(true);
+          setOpen(true);
+        }
+      }}
+      className={`${trimToolActive ? "pointer-events-none" : "pointer-events-auto"} flex items-center justify-center rounded-[3px] p-0 border transition-colors ${isActive ? "border-accent bg-accent/20 text-fg" : "border-border-strong bg-bg-2 text-fg-muted hover:border-accent"}`}
+      style={{
+        width: BADGE_SIZE,
+        height: transition ? 34 : 18,
+        marginLeft: -(BADGE_SIZE / 2),
+      }}
+    >
+      {transition ? <X size={12} /> : <Plus size={12} />}
+    </Button>
+  );
+
   return (
     <div
+      ref={rootRef}
       className="absolute top-0 bottom-0 z-30 flex items-center pointer-events-none"
       style={{ left: centerX }}
     >
+      {!armed ? button : (
       <DropdownMenu
         open={open}
         onOpenChange={(next) => {
           if (!next || !transition) setOpen(next);
         }}
       >
-        <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            title={label}
-            aria-label={ariaLabel}
-            aria-pressed={isSelected}
-            data-transition-id={transition?.id}
-            data-timeline-transition
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (transition) onSelect(transition.id, trackId);
-            }}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (transition) onSelect(transition.id, trackId);
-              setOpen(true);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "F10" && e.shiftKey) {
-                e.preventDefault();
-                setOpen(true);
-              }
-            }}
-            className={`${trimToolActive ? "pointer-events-none" : "pointer-events-auto"} flex items-center justify-center rounded-[3px] p-0 border transition-colors ${isActive ? "border-accent bg-accent/20 text-fg" : "border-border-strong bg-bg-2 text-fg-muted hover:border-accent"}`}
-            style={{
-              width: BADGE_SIZE,
-              height: transition ? 34 : 18,
-              marginLeft: -(BADGE_SIZE / 2),
-            }}
-          >
-            {transition ? <X size={12} /> : <Plus size={12} />}
-          </Button>
-        </DropdownMenuTrigger>
+        <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
         <DropdownMenuContent
           className="w-52 max-h-72 overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
@@ -202,6 +264,7 @@ export const TransitionHandle: React.FC<TransitionHandleProps> = ({
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
+      )}
     </div>
   );
-};
+}, areTransitionHandlePropsEqual);

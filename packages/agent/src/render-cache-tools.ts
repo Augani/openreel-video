@@ -34,8 +34,8 @@ export const RENDER_CACHE_TOOLS: RegisteredTool[] = [
     domain: "export",
     title: "Render In to Out",
     description:
-      "Render the timeline's In/Out range (or the whole sequence when none is marked) into the preview render cache so effects, transitions and grades play back at full frame rate. Optional rangeStart/rangeEnd (seconds, start<end) render that span instead. Frames already cached are skipped. Returns data.status (completed|canceled|failed), framesRendered, framesSkipped, elapsedMs and the codec. Not an edit: no undo step. Expensive — requires confirmation.",
-    inputSchema: obj({ rangeStart: num, rangeEnd: num }),
+      "Render the timeline's In/Out range (or the whole sequence when none is marked) into the preview render cache so effects, transitions and grades play back at full frame rate. Optional rangeStart/rangeEnd (seconds, start<end) render that span instead. Set effectsOnly to render only the stretches that carry effects, transitions, grades or layers (Render Effects In to Out; plain media is skipped). Frames already cached are skipped; render files persist across app restarts and only edited ranges are re-rendered. Returns data.status (completed|canceled|failed), framesRendered, framesSkipped, elapsedMs and the codec. Not an edit: no undo step. Expensive — requires confirmation.",
+    inputSchema: obj({ rangeStart: num, rangeEnd: num, effectsOnly: { type: "boolean" } }),
     readOnly: false,
     destructive: false,
     expensive: true,
@@ -52,8 +52,13 @@ export const RENDER_CACHE_TOOLS: RegisteredTool[] = [
           return fail("rangeStart must be >= 0 and rangeEnd must be greater than rangeStart.", "INVALID_PARAMS");
         }
       }
+      const effectsOnly = args.effectsOnly === true;
       const result = await host.renderCache.renderInToOut(
-        rangeStart !== undefined && rangeEnd !== undefined ? { rangeStart, rangeEnd } : undefined,
+        rangeStart !== undefined && rangeEnd !== undefined
+          ? { rangeStart, rangeEnd, ...(effectsOnly ? { effectsOnly } : {}) }
+          : effectsOnly
+            ? { effectsOnly }
+            : undefined,
       );
       if (result.status === "failed") {
         return fail(result.message ?? "Render failed", "RENDER_FAILED");

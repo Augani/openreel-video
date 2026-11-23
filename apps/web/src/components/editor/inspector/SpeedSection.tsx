@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
 import { Button, Card, Input, Label, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, cn } from "@openreel/ui";
 import { RotateCcw, Sparkles } from "@/icons/lucide-compat";
-import { SPEED_MIN, SPEED_MAX, type Clip } from "@openreel/core";
+import { SPEED_MIN, SPEED_MAX, TIME_INTERPOLATION_LABELS, TIME_INTERPOLATION_MODES, effectiveTimeInterpolation, isTimeInterpolation, type Clip } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
@@ -41,6 +41,8 @@ function SpeedControls({ clip, projectId }: { clip: Clip; projectId: string }) {
   const isReversed = clip.reversed ?? false;
   const disabled = exporting || operationLocked || locked;
   const hasAudio = linkedSpeedClipIds(clip.id).length > 1;
+  const isVideoClip = useProjectStore(state => state.project.mediaLibrary.items.find(item => item.id === clip.mediaId)?.type === "video");
+  const interpolation = effectiveTimeInterpolation(clip);
   const enqueue = (change: ClipSpeedChange | ((current: Clip) => ClipSpeedChange)) => {
     const audio = affectAudio;
     const owner = useProjectStore.getState().actionHistory;
@@ -54,7 +56,7 @@ function SpeedControls({ clip, projectId }: { clip: Clip; projectId: string }) {
         const latest = useProjectStore.getState().getClip(clip.id);
         if (latest && Object.entries(changes).some(([key, value]) => {
           const actual = key === "speed" ? latest.speed ?? 1 : key === "reversed" ? latest.reversed ?? false
-            : key === "smoothSlowMo" ? latest.smoothSlowMo ?? false : latest.interpolationQuality ?? "medium";
+            : key === "timeInterpolation" ? effectiveTimeInterpolation(latest) : latest.interpolationQuality ?? "medium";
           return actual !== value;
         })) throw new Error("The speed edit could not be applied. Unlock the clip and finish processing before retrying.");
       }
@@ -92,26 +94,26 @@ function SpeedControls({ clip, projectId }: { clip: Clip; projectId: string }) {
     <Button type="button" variant={isReversed ? "default" : "outline"} aria-label={isReversed ? "Reversed" : "Reverse Clip"}
       aria-pressed={isReversed} className="h-[30px] w-full rounded-[6px] text-xs"
       onClick={() => enqueue(current => ({ reversed: !current.reversed }))}><RotateCcw size={14} aria-hidden />{isReversed ? "Reversed" : "Reverse Clip"}</Button>
-    {currentSpeed < 1 && <Card className="min-w-0 space-y-2 rounded-[7px] border-border bg-bg-2 p-3 shadow-none">
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-2 text-xs text-fg-2"><Sparkles size={14} aria-hidden />Smooth Slow Motion</span>
-        <InspectorToggle ariaLabel="Smooth Slow Motion" checked={clip.smoothSlowMo ?? false}
-          onChange={smoothSlowMo => enqueue({ smoothSlowMo })} isDisabled={disabled} />
-      </div>
-      {clip.smoothSlowMo && <div className="space-y-1.5">
-        <Label className="block space-y-1.5 text-xs font-normal text-fg-2"><span>Quality</span>
-          <Select value={clip.interpolationQuality ?? "medium"} disabled={disabled}
-            onValueChange={value => { if (value === "low" || value === "medium" || value === "high") enqueue({ interpolationQuality: value }); }}>
-            <SelectTrigger aria-label="Quality" className="h-[30px] text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="low">Low (faster)</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="high">High (slower)</SelectItem></SelectContent>
-          </Select>
-        </Label>
-        <p className="text-[10px] text-fg-3">Uses optical flow to generate smooth in-between frames</p>
-      </div>}
+    {isVideoClip && <Card className="min-w-0 space-y-2 rounded-[7px] border-border bg-bg-2 p-3 shadow-none">
+      <Label className="block space-y-1.5 text-xs font-normal text-fg-2"><span className="flex items-center gap-2"><Sparkles size={14} aria-hidden />Time Interpolation</span>
+        <Select value={interpolation} disabled={disabled}
+          onValueChange={value => { if (isTimeInterpolation(value)) enqueue({ timeInterpolation: value }); }}>
+          <SelectTrigger aria-label="Time Interpolation" className="h-[30px] text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>{TIME_INTERPOLATION_MODES.map(mode => <SelectItem key={mode} value={mode}>{TIME_INTERPOLATION_LABELS[mode]}</SelectItem>)}</SelectContent>
+        </Select>
+      </Label>
+      {interpolation === "opticalFlow" && <Label className="block space-y-1.5 text-xs font-normal text-fg-2"><span>Quality</span>
+        <Select value={clip.interpolationQuality ?? "medium"} disabled={disabled}
+          onValueChange={value => { if (value === "low" || value === "medium" || value === "high") enqueue({ interpolationQuality: value }); }}>
+          <SelectTrigger aria-label="Quality" className="h-[30px] text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="low">Low (faster)</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="high">High (slower)</SelectItem></SelectContent>
+        </Select>
+      </Label>}
+      <p className="text-[10px] text-fg-3">{interpolation === "frameSampling" ? "Repeats the nearest source frame (default)." : interpolation === "frameBlending" ? "Blends the two nearest source frames." : "Estimates motion to build smooth in-between frames. Heavy: render in to out for real-time playback."}</p>
     </Card>}
-    {(currentSpeed !== 1 || isReversed) && <Card className="min-w-0 rounded-[7px] border-border bg-bg-2 p-3 shadow-none">
+    {(currentSpeed !== 1 || isReversed || interpolation !== "frameSampling") && <Card className="min-w-0 rounded-[7px] border-border bg-bg-2 p-3 shadow-none">
       <p className="mb-1 text-xs text-fg-2">Current Settings</p>
-      <p className="text-sm text-fg">Speed: {formatSpeed(currentSpeed)}× {isReversed && "• Reversed"}{clip.smoothSlowMo && " • Smooth"}</p>
+      <p className="text-sm text-fg">Speed: {formatSpeed(currentSpeed)}× {isReversed && "• Reversed"}{interpolation !== "frameSampling" && ` • ${TIME_INTERPOLATION_LABELS[interpolation]}`}</p>
     </Card>}
   </fieldset>;
 }

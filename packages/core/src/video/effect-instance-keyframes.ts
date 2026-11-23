@@ -6,6 +6,7 @@ import {
   PRO_EFFECT_SPECS,
   PRO_EFFECT_KEYFRAME_PROPERTIES,
   isProEffectType,
+  proEffectParamWrap,
 } from "./pro-effects";
 import { isPluginEffectType } from "../plugins/manifest";
 
@@ -315,7 +316,7 @@ export function applyEffectInstanceKeyframes(
     if (own.length === 0) return effect;
     for (const param of new Set(own.map((keyframe) => parseEffectInstanceKeyframeProperty(keyframe.property)!.param))) {
       const group = getEffectParamKeyframes(own, effect.id, param);
-      const sampled = keyframeEngine.getValueAtTime(group, localTime).value;
+      const sampled = keyframeEngine.getValueAtTime(group, localTime, { wrap: proEffectParamWrap(effect.type, param) }).value;
       if (typeof sampled === "number" && Number.isFinite(sampled)) patch[param] = sampled;
     }
     return Object.keys(patch).length === 0

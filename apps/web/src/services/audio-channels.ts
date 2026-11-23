@@ -1,6 +1,11 @@
 import { v4 as uuidv4 } from "uuid";
 import {
+  buildSourceGroups,
   getMediaItemCapabilities,
+  sameSourceLayout,
+  sourceAudioShape,
+  type SourceChannelGroup,
+  type SourceLayoutPreset,
   type ActionResult,
   type Clip,
   type ClipChannelMap,
@@ -10,6 +15,7 @@ import {
 } from "@openreel/core";
 import { useProjectStore } from "../stores/project-store";
 import { useUIStore } from "../stores/ui-store";
+import { useSourceMonitorStore } from "../stores/source-monitor-store";
 import { useAudioChannelsStore } from "../stores/audio-channels-store";
 import { cloneProjectForEdit } from "../stores/project/clone-project-for-edit";
 
@@ -31,11 +37,68 @@ export function selectedAudioClipIds(): string[] {
   });
 }
 
-/** Clip > Audio Channels…: opens the dialog for the selected clips (no-op without a selected clip that has audio). */
-export function openAudioChannelsForSelection(ids: readonly string[] = selectedAudioClipIds()): boolean {
-  if (ids.length === 0) return false;
-  useAudioChannelsStore.getState().openFor(ids);
+/** Media items in the selection that carry audio (project-panel items), in library order. */
+export function selectedAudioMediaIds(): string[] {
+  const { project } = useProjectStore.getState();
+  const selected = new Set(useUIStore.getState().selectedItems.map((item) => item.id));
+  return project.mediaLibrary.items
+    .filter((item) => selected.has(item.id) && item.type !== "image" && (item.type === "audio" || item.metadata.hasAudio !== false))
+    .map((item) => item.id);
+}
+
+/** Modify > Audio Channels on project items: the dialog that regroups a source's channels into audio clips. */
+export function openSourceChannelsFor(mediaIds: readonly string[]): boolean {
+  if (mediaIds.length === 0) return false;
+  useAudioChannelsStore.getState().openSourceFor(mediaIds);
   return true;
+}
+
+/**
+ * Modify > Audio Channels: opens the dialog for the selected clips; with none selected, for the selected project items
+ * (their channel layout), then the Source monitor's clip. False when there is nothing with audio to modify.
+ */
+export function openAudioChannelsForSelection(ids: readonly string[] = selectedAudioClipIds()): boolean {
+  if (ids.length > 0) {
+    useAudioChannelsStore.getState().openFor(ids);
+    return true;
+  }
+  const media = selectedAudioMediaIds();
+  if (media.length > 0) return openSourceChannelsFor(media);
+  const sourceId = useSourceMonitorStore.getState().mediaId;
+  if (sourceId && selectedMediaWithAudio(sourceId)) return openSourceChannelsFor([sourceId]);
+  return false;
+}
+
+function selectedMediaWithAudio(id: string): boolean {
+  const item = useProjectStore.getState().project.mediaLibrary.items.find((candidate) => candidate.id === id);
+  return !!item && item.type !== "image" && (item.type === "audio" || item.metadata.hasAudio !== false);
+}
+
+/**
+ * Sets the channel layout of one or many project items in ONE undo step: a preset (applied to each item's own streams and
+ * channels; "file" clears the layout) or an explicit list of audio clips for one item.
+ */
+export function setMediaChannelLayout(
+  mediaIds: readonly string[],
+  layout: SourceLayoutPreset | readonly SourceChannelGroup[],
+): Promise<ActionResult> {
+  const { project } = useProjectStore.getState();
+  const itemPatches: Record<string, { channelLayout: readonly SourceChannelGroup[] | null }> = {};
+  for (const id of mediaIds) {
+    const item = project.mediaLibrary.items.find((candidate) => candidate.id === id);
+    if (!item) continue;
+    const shape = sourceAudioShape(item);
+    const groups = typeof layout === "string" ? buildSourceGroups(layout, shape) : layout;
+    const own = buildSourceGroups("file", shape);
+    // The file's own grouping is stored as "no layout", so a later file with more channels is not pinned to this one.
+    itemPatches[id] = { channelLayout: sameSourceLayout(groups, own) ? null : groups };
+  }
+  return useProjectStore.getState().executeAction({
+    id: uuidv4(),
+    timestamp: Date.now(),
+    type: "media/organize",
+    params: { label: "Audio channels", itemPatches } as unknown as Record<string, unknown>,
+  });
 }
 
 /** Sets (map) or clears (null) the channel map of one or many clips: one undoable step. */

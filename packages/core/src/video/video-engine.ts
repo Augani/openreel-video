@@ -17,16 +17,22 @@ import {
   computeLayerGeometry,
   graphicsWhiteGain,
   hdrPipelineFor,
+  ocioPipeline,
+  ocioSourceDecode,
   hdrSourceDecode,
   registerAcesOutputTransform,
   isHdrWorkingMode,
   prepareHdrGrade,
   attachHdrPayload,
+  type HdrColorPipeline,
   type HdrCompositor,
+  type HdrSourceDecode,
   type SourceCodes,
 } from "../color/hdr-working";
 import { resolveHdrEffects } from "../color/hdr-effects";
 import { acesOutputTransform } from "../color/aces-output";
+import { ocioSettingsKey } from "../color/ocio/settings";
+import type { OcioPipelineParts } from "../color/ocio/runtime";
 import { isHdrTransitionKind, planHdrTransition } from "./hdr-transition";
 import { getNativeFrameCodes } from "../media/native-frame-source";
 import {
@@ -74,6 +80,7 @@ import {
 } from "./color-grading-defaults";
 import { planColorGrading } from "./lumetri-pipeline";
 import { TransitionEngine } from "./transition-engine";
+import { scaleBorderToFrame } from "./transition-defaults";
 import { MaskEngine, type Mask } from "./mask-engine";
 import type { Transition } from "../types/timeline";
 import { getMediaEngine } from "../media/mediabunny-engine";
@@ -90,7 +97,8 @@ import type {
   PreloadRequest,
 } from "./types";
 import { getAnimatedImageSourceTime, getSpeedEngine } from "./speed-engine";
-import { getFrameInterpolationEngine } from "./frame-interpolation";
+import { effectiveTimeInterpolation, planSourceSamples } from "./time-interpolation/types";
+import { interpolationSourceKey } from "./time-interpolation/source-key";
 import {
   getStabilizedTransform,
   getVidstabEngine,
@@ -106,6 +114,7 @@ import {
 import { GPUCompositor, initializeGPUCompositor } from "./gpu-compositor";
 import { getRendererFactory, type Renderer } from "./renderer-factory";
 import { keyframeEngine } from "./keyframe-engine";
+import { samplePositionPath } from "../animation/spatial-path";
 import { getAnimatedVideoEffects, isRenderableVideoEffect } from "./animated-video-effects";
 import { createBurnInSource, drawBurnIn, timecodeBurnInOverlay, withBurnInText, type BurnInSource, type TimecodeBurnInSettings } from "./burn-in";
 import { getAnimatedColorGrading } from "./animated-color-grading";
@@ -191,6 +200,19 @@ interface TemporalClipContext {
  * const frame = await engine.renderFrame(project, 1.5);
  * ```
  */
+/** A decoded frame letterboxed (contain, centred) into a width x height RGBA frame, the way the transition engine fits its inputs. */
+function bitmapToFitRGBA(bitmap: ImageBitmap, width: number, height: number): { width: number; height: number; data: Uint8ClampedArray } {
+  const canvas = new OffscreenCanvas(width, height);
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) throw new Error("2D canvas unavailable");
+  const scale = Math.min(width / bitmap.width, height / bitmap.height);
+  const w = bitmap.width * scale;
+  const h = bitmap.height * scale;
+  ctx.drawImage(bitmap, (width - w) / 2, (height - h) / 2, w, h);
+  const image = ctx.getImageData(0, 0, width, height);
+  return { width, height, data: image.data };
+}
+
 export class VideoEngine {
   private overlay3DRenderer: ThreeJSLayerRenderer | null = null;
   private overlay3DLoading: Promise<ThreeJSLayerRenderer | null> | null = null;
@@ -231,6 +253,12 @@ export class VideoEngine {
   /** Set by an HDR export: the output colour space and chroma layout the float frames are encoded to. */
   private hdrExportTarget: HdrExportTarget | null = null;
   private hdrCompositor: HdrCompositor | null = null;
+  /** OCIO mode: the compiled transforms of the project's OCIO settings (built lazily; null until built or when they failed). */
+  private ocioState: { readonly key: string; readonly parts: OcioPipelineParts; readonly pipeline: HdrColorPipeline } | null = null;
+  private ocioBuildKey: string | null = null;
+  private ocioBuilding: { readonly key: string; readonly promise: Promise<void> } | null = null;
+  private ocioError: string | null = null;
+  private ocioClipWarnings = new Set<string>();
   private hdrGpuFailed = false;
 
   private gpuCompositor: GPUCompositor | null = null;
@@ -439,119 +467,46 @@ export class VideoEngine {
     }
   }
 
-  private interpFrameCache: Map<string, { bitmap: ImageBitmap; time: number }> =
-    new Map();
-  private static readonly INTERP_FRAME_CACHE_MAX = 2;
-
-  private getCachedInterpFrame(key: string): ImageBitmap | null {
-    const entry = this.interpFrameCache.get(key);
-    if (!entry) return null;
-    entry.time = performance.now();
-    return entry.bitmap;
-  }
-
-  private setCachedInterpFrame(key: string, bitmap: ImageBitmap): void {
-    if (this.interpFrameCache.size >= VideoEngine.INTERP_FRAME_CACHE_MAX) {
-      let oldestKey = "";
-      let oldestTime = Infinity;
-      for (const [k, v] of this.interpFrameCache) {
-        if (v.time < oldestTime) {
-          oldestTime = v.time;
-          oldestKey = k;
-        }
-      }
-      if (oldestKey) {
-        this.interpFrameCache.get(oldestKey)?.bitmap.close();
-        this.interpFrameCache.delete(oldestKey);
-      }
-    }
-    this.interpFrameCache.set(key, { bitmap, time: performance.now() });
-  }
-
+  /**
+   * The Time Interpolation frame of a clip at `sourceTime` (Frame Blending or Optical Flow), or null when the
+   * clip samples frames, sits exactly on a source frame, or a neighbour cannot be decoded (the caller then
+   * samples). Preview and export both come through here with the same quantised time, so they agree.
+   */
   private async decodeInterpolatedFrame(
     clip: Clip,
     mediaItem: MediaItem,
-    _sourceTime: number,
-    _timelineTime: number,
+    sourceTime: number,
     width: number,
     height: number,
   ): Promise<ImageBitmap | null> {
+    const mode = effectiveTimeInterpolation(clip);
+    if (mode === "frameSampling" || !mediaItem.blob) return null;
+    // A stabilized render replaces the source; interpolating its frames is not supported.
+    if (getVidstabEngine().hasStabilized(clip.id)) return null;
     try {
-      const frameRate = mediaItem.metadata?.frameRate ?? 30;
-      const speedEngine = getSpeedEngine();
-      const clipLocalTime = _timelineTime - clip.startTime;
-      const interpInfo = speedEngine.getInterpolationInfo(
-        clip.id,
-        clipLocalTime,
-        frameRate,
-      );
-
-      if (!interpInfo.needsInterpolation) return null;
-
-      const timeBefore = clip.inPoint + interpInfo.frameBefore;
-      const timeAfter = clip.inPoint + interpInfo.frameAfter;
-
-      const cacheKey1 = `${mediaItem.id}:${timeBefore.toFixed(4)}`;
-      const cacheKey2 = `${mediaItem.id}:${timeAfter.toFixed(4)}`;
-
-      let frame1 = this.getCachedInterpFrame(cacheKey1);
-      if (!frame1) {
-        frame1 = await this.decodeFrameWithMediaBunny(
-          mediaItem.blob!,
-          timeBefore,
-          width,
-          height,
-          mediaItem.id,
-        );
-        if (frame1) {
-          const clone = await createImageBitmap(frame1);
-          this.setCachedInterpFrame(cacheKey1, clone);
-        }
-      }
-
-      let frame2 = this.getCachedInterpFrame(cacheKey2);
-      if (!frame2) {
-        frame2 = await this.decodeFrameWithMediaBunny(
-          mediaItem.blob!,
-          timeAfter,
-          width,
-          height,
-          mediaItem.id,
-        );
-        if (frame2) {
-          const clone = await createImageBitmap(frame2);
-          this.setCachedInterpFrame(cacheKey2, clone);
-        }
-      }
-
-      if (!frame1 || !frame2) return null;
-
-      if (!this.exportMode) {
-        const canvas = new OffscreenCanvas(frame1.width, frame1.height);
-        const ctx = canvas.getContext("2d")!;
-        ctx.globalAlpha = 1 - interpInfo.t;
-        ctx.drawImage(frame1, 0, 0);
-        ctx.globalAlpha = interpInfo.t;
-        ctx.drawImage(frame2, 0, 0);
-        ctx.globalAlpha = 1;
-        return canvas.transferToImageBitmap();
-      }
-
-      const engine = getFrameInterpolationEngine();
-      const quality = clip.interpolationQuality ?? "medium";
-      engine.setQuality(quality);
-
-      const result = await engine.interpolate(
-        frame1,
-        frame2,
-        interpInfo.t,
-        mediaItem.id,
-        timeBefore,
-        timeAfter,
-      );
-
-      return result.frame;
-    } catch {
+      const plan = planSourceSamples(sourceTime, mediaItem.metadata?.frameRate ?? 30);
+      if (!plan.needsInterpolation) return null;
+      const blob = mediaItem.blob;
+      // loaded on first use: the flow / blend / scene-cut code is not part of the startup or editor chunks
+      const { getTimeInterpolator, bitmapToRGBA, rgbaToBitmap } = await import("./time-interpolation/runtime");
+      const result = await getTimeInterpolator().render({
+        mode,
+        sourceKey: interpolationSourceKey(mediaItem.id, blob, width, height),
+        plan,
+        quality: clip.interpolationQuality,
+        loadFrame: async (time) => {
+          const bitmap = await this.decodeFrameWithMediaBunny(blob, time, width, height, mediaItem.id);
+          if (!bitmap) return null;
+          try {
+            return bitmapToRGBA(bitmap);
+          } finally {
+            bitmap.close();
+          }
+        },
+      });
+      return result ? await rgbaToBitmap(result) : null;
+    } catch (error) {
+      console.warn("[VideoEngine] time interpolation failed, sampling frames instead:", error);
       return null;
     }
   }
@@ -845,6 +800,76 @@ export class VideoEngine {
     this.hdrExportTarget = target;
   }
 
+  /** The last OCIO build error ("" when the OCIO pipeline is fine or not in use), for the editor to show. */
+  getOcioError(): string | null {
+    return this.ocioError;
+  }
+
+  /**
+   * OCIO mode: builds (once per settings change) the compiled transforms the compositors run. The OCIO runtime is
+   * imported here, on first use, so projects that never use it never load it.
+   */
+  private async ensureOcioPipeline(settings: Project["settings"]): Promise<void> {
+    if (settings.colorManagement !== "ocio" || !settings.ocio) {
+      this.ocioState = null;
+      this.ocioBuildKey = null;
+      this.ocioBuilding = null;
+      this.ocioError = null;
+      return;
+    }
+    const ocio = settings.ocio;
+    const key = ocioSettingsKey(ocio);
+    if (this.ocioBuildKey === key) return;
+    // Frames that start while the build is running wait for it, so none renders with a half-built pipeline.
+    if (this.ocioBuilding?.key === key) {
+      await this.ocioBuilding.promise;
+      return;
+    }
+    const promise = (async (): Promise<void> => {
+      this.ocioClipWarnings.clear();
+      const { buildOcioPipeline } = await import("../color/ocio/runtime");
+      const result = buildOcioPipeline(ocio);
+      if (!result.ok) {
+        this.ocioState = null;
+        this.ocioError = result.error;
+        console.warn("[ocio] The OCIO settings cannot be run, using the ACES pipeline instead:", result.error);
+      } else {
+        this.ocioError = null;
+        this.ocioState = { key, parts: result.parts, pipeline: ocioPipeline(key, result.parts.output, result.parts.overlay) };
+      }
+      this.ocioBuildKey = key;
+    })();
+    this.ocioBuilding = { key, promise };
+    try {
+      await promise;
+    } finally {
+      if (this.ocioBuilding?.promise === promise) this.ocioBuilding = null;
+    }
+  }
+
+  private colorPipelineFor(settings: Project["settings"]): HdrColorPipeline {
+    return hdrPipelineFor(settings, this.ocioState?.pipeline ?? null);
+  }
+
+  /** The decode of a clip's footage: the OCIO input transform of its colour space in OCIO mode, the built-in interpretation otherwise. */
+  private sourceDecodeFor(settings: Project["settings"], mediaItem: MediaItem, clip: Clip, pipeline: HdrColorPipeline): HdrSourceDecode {
+    if (pipeline.kind === "ocio" && this.ocioState) {
+      const wanted = clip.ocioInputSpace ?? settings.ocio?.defaultInputSpace ?? "";
+      try {
+        return ocioSourceDecode(this.ocioState.parts.input(wanted));
+      } catch (error) {
+        // A clip set to a colour space the runtime cannot run reads as the project's default, and says so once.
+        const fallback = settings.ocio?.defaultInputSpace ?? "";
+        if (!this.ocioClipWarnings.has(wanted)) {
+          this.ocioClipWarnings.add(wanted);
+          console.warn(`[ocio] Colour space "${wanted}" cannot be run (${error instanceof Error ? error.message : String(error)}); reading it as "${fallback}".`);
+        }
+        return ocioSourceDecode(this.ocioState.parts.input(fallback));
+      }
+    }
+    return hdrSourceDecode(inputSpaceForItem(mediaItem, clip.colorInterpretation), pipeline);
+  }
+
   private async composeFrame(
     project: Project,
     time: number,
@@ -896,6 +921,7 @@ export class VideoEngine {
     options: FrameRenderOptions = {},
   ): Promise<RenderedFrame> {
     this.ensureInitialized();
+    await this.ensureOcioPipeline(project.settings);
 
     const { timeline, mediaLibrary, settings } = project;
     const width = targetWidth ?? settings.width;
@@ -988,12 +1014,12 @@ export class VideoEngine {
       this.hdrCompositor ??= createHdrCompositor(!this.hdrGpuFailed);
       hdr = this.hdrCompositor;
       hdr.begin(width, height);
-      hdr.setColorPipeline(hdrPipelineFor(settings));
+      hdr.setColorPipeline(this.colorPipelineFor(settings));
       // The CPU reference compositor's ACES output (the GPU one runs the shader port).
       registerAcesOutputTransform(acesOutputTransform);
       hdr.setGraphicsWhite(settings.graphicsWhiteNits ?? DEFAULT_GRAPHICS_WHITE_NITS);
     }
-    const colorPipeline = hdrPipelineFor(settings);
+    const colorPipeline = this.colorPipelineFor(settings);
     let hdrDirty = false;
 
     await this.renderMotionInstancesToCanvasCtx(
@@ -1219,16 +1245,11 @@ export class VideoEngine {
               );
             }
           } else {
-            const effectiveSpeed = clip.speed ?? 1;
-            const shouldInterpolate =
-              clip.smoothSlowMo === true && effectiveSpeed < 1;
-
-            if (shouldInterpolate && mediaItem.metadata?.frameRate) {
+            if (effectiveTimeInterpolation(clip) !== "frameSampling" && mediaItem.type === "video") {
               bitmap = await this.decodeInterpolatedFrame(
                 clip,
                 mediaItem,
                 clipInfo.sourceTime,
-                time,
                 settings.width,
                 settings.height,
               );
@@ -1312,7 +1333,7 @@ export class VideoEngine {
               this.flushHdrOverlay(hdr, ctx, width, height);
               hdrDirty = false;
             }
-            hdr.drawCodes(codes, hdrSourceDecode(inputSpaceForItem(mediaItem, clip.colorInterpretation), colorPipeline), {
+            hdr.drawCodes(codes, this.sourceDecodeFor(settings, mediaItem, clip, colorPipeline), {
               geometry,
               opacity: t.opacity,
               grade: prepareHdrGrade(clipGrading, colorPipeline),
@@ -1625,8 +1646,8 @@ export class VideoEngine {
         width,
         height,
       );
-      const colorPipeline = hdrPipelineFor(project.settings);
-      hdr.drawCodes(codes, hdrSourceDecode(inputSpaceForItem(mediaItem, clip.colorInterpretation), colorPipeline), {
+      const colorPipeline = this.colorPipelineFor(project.settings);
+      hdr.drawCodes(codes, this.sourceDecodeFor(project.settings, mediaItem, clip, colorPipeline), {
         geometry,
         opacity: t.opacity * opacityScale,
         grade: prepareHdrGrade(grading, colorPipeline),
@@ -2782,7 +2803,11 @@ export class VideoEngine {
       ),
     );
 
-    let bitmap = await this.decodeFrameWithMediaBunny(
+    let bitmap =
+      mediaItem.type === "video"
+        ? await this.decodeInterpolatedFrame(clip, mediaItem, sourceTime, width, height)
+        : null;
+    bitmap ??= await this.decodeFrameWithMediaBunny(
       mediaItem.blob,
       sourceTime,
       width,
@@ -2808,11 +2833,68 @@ export class VideoEngine {
     return bitmap;
   }
 
+  /**
+   * Morph Cut analysis of a transition: decodes the two reference frames (the outgoing clip's last frame and the
+   * incoming clip's first frame, at the project size, letterboxed into one frame size) and runs / reuses the cached
+   * analysis. State is published on the Morph Cut registry ("Analysing in background", then ready or failed).
+   * Resolves with null when the frames cannot be read.
+   */
+  async analyseMorphCutTransition(
+    transition: Transition,
+    clipA: Clip,
+    clipB: Clip,
+    mediaA: MediaItem,
+    mediaB: MediaItem,
+    settings: Project["settings"],
+  ): Promise<import("./morph-cut/types").MorphAnalysis | null> {
+    if (!mediaA.blob || !mediaB.blob) return null;
+    const { runMorphCutAnalysis, morphCutCacheKey } = await import("./morph-cut/analyse-job");
+    const { morphCutQualityOf } = await import("./morph-cut/types");
+    const width = settings.width;
+    const height = settings.height;
+    const timeA = this.morphReferenceSourceTime(clipA, clipA.duration);
+    const timeB = this.morphReferenceSourceTime(clipB, 0);
+    const quality = morphCutQualityOf(transition.params);
+    const key = morphCutCacheKey({
+      sourceKeyA: interpolationSourceKey(mediaA.id, mediaA.blob, width, height),
+      timeA,
+      sourceKeyB: interpolationSourceKey(mediaB.id, mediaB.blob, width, height),
+      timeB,
+      width,
+      height,
+      quality,
+    });
+    const load = async (clip: Clip, media: MediaItem, time: number) => {
+      const bitmap = await this.decodeClipBitmap(clip, media, time, width, height);
+      if (!bitmap) return null;
+      try {
+        return bitmapToFitRGBA(bitmap, width, height);
+      } finally {
+        if (media.type !== "image") bitmap.close();
+      }
+    };
+    return runMorphCutAnalysis({
+      transitionId: transition.id,
+      key,
+      quality,
+      loadFrames: async () => {
+        const [a, b] = [await load(clipA, mediaA, clipA.startTime + clipA.duration), await load(clipB, mediaB, clipB.startTime)];
+        return a && b ? { a, b } : null;
+      },
+    });
+  }
+
+  /** Source time a clip's frame is read at for clip-local time `localTime` (same clamping as decodeClipBitmap). */
+  private morphReferenceSourceTime(clip: Clip, localTime: number): number {
+    const speedEngine = getSpeedEngine();
+    return Math.max(clip.inPoint, Math.min(clip.outPoint, clip.inPoint + speedEngine.getSourceTimeAtPlaybackTime(clip.id, localTime)));
+  }
+
   private async renderActiveTransition(
     track: Track,
     time: number,
     mediaLibrary: Project["mediaLibrary"],
-    _settings: Project["settings"],
+    settings: Project["settings"],
     width: number,
     height: number,
     ctx: OffscreenCanvasRenderingContext2D,
@@ -2843,12 +2925,19 @@ export class VideoEngine {
     let processedB: ImageBitmap | null = null;
 
     try {
-      [bitmapA, bitmapB] = await Promise.all([
-        this.decodeClipBitmap(clipA, mediaA, time, width, height),
+      const decodeB = (): Promise<ImageBitmap | null> =>
         clipB && mediaB
           ? this.decodeClipBitmap(clipB, mediaB, time, width, height)
-          : this.createTransparentTransitionBitmap(width, height),
-      ]);
+          : this.createTransparentTransitionBitmap(width, height);
+      if (this.exportMode) {
+        // The export decoder hands every caller the same reusable canvas. Both sides of a transition are very often
+        // two positions of ONE file (a jump cut), so they are decoded one after the other: concurrent requests could
+        // see the second side's frame in the first side's bitmap.
+        bitmapA = await this.decodeClipBitmap(clipA, mediaA, time, width, height);
+        bitmapB = await decodeB();
+      } else {
+        [bitmapA, bitmapB] = await Promise.all([this.decodeClipBitmap(clipA, mediaA, time, width, height), decodeB()]);
+      }
       if (!bitmapA || !bitmapB) {
         return rendered;
       }
@@ -2899,6 +2988,13 @@ export class VideoEngine {
         this.transitionEngine = new TransitionEngine({ width, height });
       }
 
+      if (transition.type === "morphCut" && clipB && mediaB) {
+        // Export waits for the analysis so every frame is a morph; the preview dissolves until it is ready.
+        const analysing = this.analyseMorphCutTransition(transition, clipA, clipB, mediaA, mediaB, settings);
+        if (this.exportMode) await analysing;
+        else void analysing.catch(() => undefined);
+      }
+
       const outgoingBitmap =
         !clipB && transition.edge === "in" ? processedB : processedA;
       const incomingBitmap =
@@ -2907,7 +3003,8 @@ export class VideoEngine {
       const result = await this.transitionEngine.renderTransition(
         outgoingBitmap,
         incomingBitmap,
-        transition,
+        // Border width is in project-frame pixels; a scaled preview frame scales it so it matches the export.
+        { ...transition, params: scaleBorderToFrame(transition.params, width, settings.width) },
         progress,
       );
 
@@ -3526,25 +3623,34 @@ export class VideoEngine {
       }
     }
 
-    const posXKfs = keyframeEngine.getKeyframesForProperty(
-      keyframes,
-      "position.x",
+    // A spatial (Bezier) motion path owns both axes; otherwise each axis is evaluated on its own.
+    const route = samplePositionPath(keyframes, localTime, (t, key) =>
+      keyframeEngine.easeSegment(t, key),
     );
-    if (posXKfs.length > 0) {
-      const result = keyframeEngine.getValueAtTime(posXKfs, localTime);
-      if (typeof result.value === "number") {
-        positionX = result.value;
+    if (route) {
+      positionX = route.x;
+      positionY = route.y;
+    } else {
+      const posXKfs = keyframeEngine.getKeyframesForProperty(
+        keyframes,
+        "position.x",
+      );
+      if (posXKfs.length > 0) {
+        const result = keyframeEngine.getValueAtTime(posXKfs, localTime);
+        if (typeof result.value === "number") {
+          positionX = result.value;
+        }
       }
-    }
 
-    const posYKfs = keyframeEngine.getKeyframesForProperty(
-      keyframes,
-      "position.y",
-    );
-    if (posYKfs.length > 0) {
-      const result = keyframeEngine.getValueAtTime(posYKfs, localTime);
-      if (typeof result.value === "number") {
-        positionY = result.value;
+      const posYKfs = keyframeEngine.getKeyframesForProperty(
+        keyframes,
+        "position.y",
+      );
+      if (posYKfs.length > 0) {
+        const result = keyframeEngine.getValueAtTime(posYKfs, localTime);
+        if (typeof result.value === "number") {
+          positionY = result.value;
+        }
       }
     }
 

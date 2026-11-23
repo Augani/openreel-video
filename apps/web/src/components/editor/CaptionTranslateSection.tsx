@@ -116,6 +116,13 @@ export function CaptionTranslateSection({ trackId, trackLanguage, cueCount, onTr
           {availability && availability.state !== "unavailable" ? `Translator: ${availability.engine === "ai" ? "AI model" : "Browser"} · ${availability.label}` : "Checking translators…"}
         </p>
       )}
+      {!unavailable && availability && availability.state !== "unavailable" ? (
+        <p className="text-[10px] text-fg-3" data-testid="translate-privacy">
+          {availability.engine === "ai"
+            ? "Pressing Translate sends this track's caption text to your connected AI provider. Nothing is sent before that."
+            : "Runs on this device. No caption text leaves it."}
+        </p>
+      ) : null}
       {running ? (
         <div className="space-y-1" role="status" aria-live="polite">
           <div className="h-1.5 overflow-hidden rounded-full bg-bg-3" aria-hidden>

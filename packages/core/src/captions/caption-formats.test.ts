@@ -17,6 +17,17 @@ const cues: Subtitle[] = [
   { id: "3", text: "No speaker", startTime: 3600.5, endTime: 3601 },
 ];
 
+describe("speaker names in exports", () => {
+  it("includeSpeakers: false drops voice tags and TTML agents; true or unset keeps them; SRT prefixes only when asked", () => {
+    expect(exportCaptions(cues, "vtt", { includeSpeakers: false })).not.toContain("<v ");
+    expect(exportCaptions(cues, "ttml", { includeSpeakers: false })).not.toContain("ttm:agent");
+    expect(exportCaptions(cues, "vtt")).toContain("<v Ann>");
+    expect(exportCaptions(cues, "vtt", { includeSpeakers: true })).toContain("<v Bob O&apos;Neil>".replace("&apos;", "'"));
+    expect(exportCaptions(cues, "srt", { includeSpeakers: true })).toContain("Ann: Hello & <welcome>");
+    expect(exportCaptions(cues, "srt")).not.toContain("Ann:");
+  });
+});
+
 describe("caption formats", () => {
   it("exports WebVTT with voice tags and escaping", () => {
     const vtt = exportVtt(cues);
@@ -106,5 +117,18 @@ describe("speakers and search", () => {
     const t = buildTranscript([{ id: "a", text: "The quick, brown fox. The end", startTime: 0, endTime: 6 }]);
     expect(searchTranscript(t.words, "quick brown")).toEqual([{ wordStart: 1, wordEnd: 2 }]);
     expect(searchTranscript(t.words, "the")).toHaveLength(2);
+  });
+});
+
+describe("WebVTT clip metadata note", () => {
+  const cues: Subtitle[] = [{ id: "1", text: "Hello", startTime: 0, endTime: 1 } as Subtitle];
+  it("writes a NOTE block under the header and leaves other formats alone", async () => {
+    const { exportCaptionFile, parseCaptions } = await import("./caption-formats");
+    const vtt = new TextDecoder().decode(exportCaptionFile(cues, "vtt", { metadataNote: ["A001: Scene 12A / Take 3", "Keywords: a --> b"] }).bytes);
+    expect(vtt.startsWith("WEBVTT\n\nNOTE OpenReel clip metadata\nA001: Scene 12A / Take 3\nKeywords: a -> b\n")).toBe(true);
+    expect(parseCaptions(vtt).subtitles.map((c) => c.text)).toEqual(["Hello"]);
+    const srt = new TextDecoder().decode(exportCaptionFile(cues, "srt", { metadataNote: ["x"] }).bytes);
+    expect(srt).not.toContain("NOTE");
+    expect(new TextDecoder().decode(exportCaptionFile(cues, "vtt").bytes)).not.toContain("NOTE");
   });
 });

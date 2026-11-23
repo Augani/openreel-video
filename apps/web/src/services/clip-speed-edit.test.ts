@@ -62,9 +62,9 @@ describe("atomic speed edits", () => {
 
   it("keeps smoothing/quality on the selected clip and makes each undoable", async () => {
     const before = structuredClone(clips());
-    await editClipSpeed(state().project.id, "video", { smoothSlowMo: true }, true);
+    await editClipSpeed(state().project.id, "video", { timeInterpolation: "opticalFlow" }, true);
     await editClipSpeed(state().project.id, "video", { interpolationQuality: "high" }, true);
-    expect(state().getClip("video")).toMatchObject({ smoothSlowMo: true, interpolationQuality: "high" });
+    expect(state().getClip("video")).toMatchObject({ timeInterpolation: "opticalFlow", interpolationQuality: "high" });
     expect(clips().slice(1)).toEqual(before.slice(1));
     await state().undo();
     expect(state().getClip("video")?.interpolationQuality).toBeUndefined();

@@ -180,3 +180,20 @@ describe("timeline interchange keeps markers", () => {
     expect(otio.tracks.markers).toEqual([]);
   });
 });
+
+describe("markersCsv source-clip metadata", () => {
+  const marker = (time: number, label: string): Marker => ({ id: label, time, label, color: "#3b82f6" }) as Marker;
+  it("keeps the Premiere columns unless a marker has clip metadata", async () => {
+    const { markersCsv, CSV_COLUMNS, CSV_SOURCE_COLUMNS } = await import("./marker-export");
+    const plain = markersCsv([marker(1, "a")], 25, { sourceMetadata: () => undefined });
+    expect(plain.split("\n")[0]).toBe(CSV_COLUMNS.join(","));
+    const rich = markersCsv([marker(1, "a"), marker(2, "b")], 25, {
+      sourceMetadata: (m) => (m.label === "a" ? { clip: "A001.mov", keywords: ["night", "interior"], scene: "12A", take: "3", reel: "R1", logComment: "good, \"tight\"" } : undefined),
+    });
+    const lines = rich.split("\n");
+    expect(lines[0]).toBe([...CSV_COLUMNS, ...CSV_SOURCE_COLUMNS].join(","));
+    expect(lines[1]).toContain("A001.mov,night; interior,12A,,3,R1,");
+    expect(lines[1]).toContain('"good, ""tight"""');
+    expect(lines[2].split(",").length).toBe(lines[0].split(",").length);
+  });
+});

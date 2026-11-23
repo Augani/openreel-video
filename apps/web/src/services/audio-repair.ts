@@ -84,6 +84,7 @@ export async function renderClipPcm(
       duration: clip.startTime + clip.duration,
       audioBuses: undefined,
       masterAudioRack: undefined,
+      masterPluginRack: undefined,
       tracks: [
         {
           id: clip.trackId,

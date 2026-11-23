@@ -30,6 +30,7 @@ import { useTimelineStore } from "../../stores/timeline-store";
 import { useUIStore } from "../../stores/ui-store";
 import { useSettingsStore } from "../../stores/settings-store";
 import { usePluginManagerStore } from "../../stores/plugin-manager-store";
+import { useProjectManagerStore } from "../../stores/project-manager-store";
 import {
   useEditorWorkspaceStore,
   type AssetSection,
@@ -39,10 +40,11 @@ import { renderCacheService } from "../../services/render-cache-service";
 import { useSourceMonitorStore } from "../../stores/source-monitor-store";
 import { flattenMulticamCommand } from "../../services/multicam-controller";
 import { useRouter } from "../../hooks/use-router";
-import { startTour, startMoGraphTour } from "./tour";
+import { launchEditorTour, launchMoGraphTour } from "./tour/tour-launch";
 import { DOCS_URL, ISSUES_URL } from "./about-links";
 import { useOnboardingStore } from "../../stores/onboarding-store";
 import { openAudioChannelsForSelection } from "../../services/audio-channels";
+import { runEnhanceSpeechCommand } from "../../services/enhance-speech";
 import { canResetClipTransform, resetClipTransform } from "../../services/reset-clip-transform";
 
 // Reset Transform enablement is a boolean derived from the selection and the project. Reading it
@@ -145,8 +147,10 @@ export function EditorMenuBar({
           action: () => onQuickExport(preset.id),
         })),
       }] : []),
+      ...(window.openreel?.projectManager ? [{ label: "Project Manager…", description: "Collect or consolidate the project and its media into a new folder", disabled: exporting || applying, action: () => useProjectManagerStore.getState().setOpen(true) }] : []),
       { label: "Collaborate…", description: "Edit this project live with other people", action: command("collab.open"), shortcut: "⇧⌘J" },
       { label: "Compress video…", action: onCompress },
+      { label: "Import captions…", description: "SRT, WebVTT, SBV, TTML / DFXP / iTT, SCC, MCC or EBU-STL as caption cues (one undo step); anything a format carries that OpenReel cannot show is listed", disabled: exporting || applying || playbackLocked, action: () => { void import("../../services/caption-file-import").then((module) => module.openCaptionImport()); } },
       { label: "Embed CEA-608 captions…", description: "Write the captions into an exported MP4 / MOV video stream (H.264 SEI), no re-encode", disabled: exporting || applying || playbackLocked, action: () => { void import("../../services/caption-sei").then((module) => module.openCea608Embed()); } },
       {
         label: "Export timeline",
@@ -246,6 +250,7 @@ export function EditorMenuBar({
       { label: "Extract In/Out range", action: command("editing.extract"), shortcut: "'" },
       { label: "Add edit to all tracks", action: command("editing.addEditAllTracks"), shortcut: "⇧⌘K" },
       { label: "Add edit to targeted tracks", action: command("editing.addEdit"), shortcut: "⇧K" },
+      { label: "Apply default transition", action: command("editing.applyDefaultTransition"), shortcut: "⇧⌘D" },
       { label: "Paste insert", action: command("editing.pasteInsert"), shortcut: "⇧⌘V" },
       { label: "Toggle track target", action: command("tracks.toggleTarget"), shortcut: "⇧T" },
       { label: "Toggle sync lock", action: command("tracks.toggleSyncLock"), shortcut: "⇧Y" },
@@ -258,6 +263,10 @@ export function EditorMenuBar({
       { label: "Reverse match frame", action: command("editing.reverseMatchFrame"), shortcut: "⇧F" },
       null,
       { label: "Audio channels…", description: "Map source channels: left only, swap, mono, stereo, 5.1", action: () => { if (!openAudioChannelsForSelection()) toast.info("Select a clip with audio", "Audio channels applies to the selected clips."); } },
+      { label: "Audio: Enhance Speech", description: "Remove noise and room reverb from the selected dialogue, on this device", disabled: exporting || applying || playbackLocked,
+        action: () => { const ids = useUIStore.getState().getSelectedClipIds(); if (ids.length === 0) toast.info("Select a clip with audio", "Enhance Speech applies to the selected dialogue clips."); else void runEnhanceSpeechCommand(ids); } },
+      { label: "Audio: Reduce Reverb", description: "Remove the late reverb tail from the selected dialogue, on this device", disabled: exporting || applying || playbackLocked,
+        action: () => { const ids = useUIStore.getState().getSelectedClipIds(); if (ids.length === 0) toast.info("Select a clip with audio", "Reduce Reverb applies to the selected dialogue clips."); else void import("../../services/reduce-reverb").then((module) => module.runReduceReverbCommand(ids)); } },
       { label: "Speed/Duration…", description: "Speed, duration, reverse and pitch for the selected clips, with ripple", action: command("editing.speedDuration"), shortcut: "⌥⌘R" },
       null,
       { label: "Replace with linked composition", action: command("linked.replace"), shortcut: "⌥⌘L" },
@@ -295,6 +304,7 @@ export function EditorMenuBar({
       },
       { label: "Toggle snapping", action: command("timeline.toggleSnap") },
       null,
+      { label: "Render Effects In to Out", action: command("sequence.renderEffectsInToOut") },
       { label: "Render In to Out", action: command("sequence.renderInToOut"), shortcut: "↵" },
       { label: "Delete render files", action: () => { void renderCacheService.deleteRenderFiles(); } },
       null,
@@ -312,6 +322,8 @@ export function EditorMenuBar({
       { label: "Audio mixer", action: () => ui().togglePanel("audioMixer") },
       { label: "Recipes", action: section("recipes") },
       { label: "Markers", action: section("markers") },
+      { label: "Media Browser", action: section("browser") },
+      { label: "Metadata", action: section("metadata") },
       { label: "Review comments", action: section("comments") },
       { label: "Version history", action: section("versions") },
       { label: "Project templates", action: section("templates") },
@@ -378,8 +390,8 @@ export function EditorMenuBar({
         action: command("view.showShortcuts"),
         shortcut: "?",
       },
-      { label: "Editor tour", action: startTour },
-      { label: "Animation & effects tour", action: startMoGraphTour },
+      { label: "Editor tour", action: launchEditorTour },
+      { label: "Animation & effects tour", action: launchMoGraphTour },
       // The lessons sheet is hosted by the desktop shell only; the web build has no host for it.
       ...(window.openreel?.platform === "desktop"
         ? [{ label: "Learn OpenReel…", action: () => useOnboardingStore.getState().showSheet("lessons") }]

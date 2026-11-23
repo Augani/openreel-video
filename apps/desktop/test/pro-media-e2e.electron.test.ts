@@ -280,7 +280,7 @@ const broadcastBase = {
 let xdcamMaster = "";
 
 d("broadcast delivery on the desktop: XDCAM HD422, AVC-Intra, OP-Atom, mono tracks and timecode", () => {
-  it("exports XDCAM HD422 1080i25 in MXF OP1a with 8 mono tracks (mix, one stem, silence) and a 10:00:00:00 timecode", async () => {
+  it("exports XDCAM HD422 1080i25 in MXF OP1a with 8 mono tracks (mix, one stem per MXF stream, silence) and a 10:00:00:00 timecode", async () => {
     const out = await exportAndWait(
       { ...broadcastBase, format: "mxf", codec: "xdcamhd422", broadcast: { scan: "interlaced-tff", audioTracks: 8, extraTracks: "stems", startTimecode: "10:00:00:00" } },
       "XDCAM HD422 1080i25",
@@ -295,11 +295,13 @@ d("broadcast delivery on the desktop: XDCAM HD422, AVC-Intra, OP-Atom, mono trac
     expect(audio).toHaveLength(8);
     for (const track of audio) expect(track).toMatchObject({ codec_name: "pcm_s24le", channels: 1, sample_rate: "48000" });
     expect(tcOf(p)).toBe("10:00:00:00");
-    // 1 and 2: the stereo mix (the imported MXF's tones). 3: the "Untyped" stem carries the same clip audio. 4-8: silence.
+    // 1 and 2: the stereo mix (the imported MXF's tones). The MXF has two mono streams, and an edit places one audio clip per stream
+    // (per-stream widths, multichannel source patching), so each of the two clips' tracks is its own stem: 3 and 4 carry them. 5-8: silence.
     expect(streamPeak(out, 0)).toBeGreaterThan(-40);
     expect(streamPeak(out, 1)).toBeGreaterThan(-40);
     expect(streamPeak(out, 2)).toBeGreaterThan(-40);
-    for (let i = 3; i < 8; i++) expect(streamPeak(out, i), `track ${i + 1} is silent`).toBeLessThan(-80);
+    expect(streamPeak(out, 3)).toBeGreaterThan(-40);
+    for (let i = 4; i < 8; i++) expect(streamPeak(out, i), `track ${i + 1} is silent`).toBeLessThan(-80);
   }, 600_000);
 
   it("exports AVC-Intra 100 1080p25 in MXF OP1a (High 4:2:2 Intra, 10-bit, progressive) with silent extra tracks", async () => {

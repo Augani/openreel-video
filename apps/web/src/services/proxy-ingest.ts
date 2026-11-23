@@ -2,13 +2,17 @@ import { create } from "zustand";
 import { v4 as uuidv4 } from "uuid";
 import {
   createProxyRef,
-  effectiveIngestPreset,
   getMediaEngine,
+  ingestModeOf,
+  ingestModeSettings,
   isProxyRecordId,
   itemNeedsIngestProxy,
   matchProxyFiles,
   proxyRecordId,
   validateProxy,
+  type DesktopIngestConfig,
+  type DesktopProxyProfile,
+  type IngestMode,
   type IngestPreset,
   type MediaItem,
   type MediaOrganizeParams,
@@ -21,9 +25,9 @@ import { deleteMediaBlob, loadMediaRecord, saveMediaBlob } from "./media-storage
 import { toast } from "../stores/notification-store";
 import {
   cancelDesktopJob,
-  copyMediaToProject,
   desktopIngestAvailable,
   loadDesktopProxy,
+  queueDesktopCopies,
   queueDesktopProxies,
   startDesktopIngest,
   useDesktopIngestStore,
@@ -71,7 +75,7 @@ interface ProxyIngestState {
   /** Size of proxies the queue builds. */
   quality: PreviewProxyPreset;
   /** Per-import choice; null follows the project default. */
-  importOverride: IngestPreset | null;
+  importOverride: IngestMode | null;
   /** Persisted proxy refs whose bytes were not found (media id -> true). */
   missing: Record<string, true>;
   lastAttach: AttachReport | null;
@@ -86,7 +90,7 @@ export const setProxyQuality = (quality: PreviewProxyPreset): void => {
   writeStorage(QUALITY_KEY, quality);
   useProxyIngestStore.setState({ quality });
 };
-export const setImportOverride = (importOverride: IngestPreset | null): void => useProxyIngestStore.setState({ importOverride });
+export const setImportOverride = (importOverride: IngestMode | null): void => useProxyIngestStore.setState({ importOverride });
 
 const project = () => useProjectStore.getState().project;
 
@@ -103,6 +107,18 @@ async function organize(params: MediaOrganizeParams): Promise<boolean> {
 /** Project default ingest preset: one undo step. */
 export const setProjectIngestPreset = (preset: IngestPreset): Promise<boolean> =>
   organize({ label: "Set ingest preset", ingestPreset: preset });
+
+/**
+ * Project default ingest setting (None / Copy / Copy and create proxies / Create proxies): one undo step.
+ * "Copy" and "Copy and create proxies" are the stored `copy` preset with the "proxies with copy" flag off or on.
+ */
+export function setProjectIngestMode(mode: IngestMode): Promise<boolean> {
+  const { ingestPreset, proxiesWithCopy } = ingestModeSettings(mode);
+  const current = (project().mediaLibrary.desktopIngest ?? {}) as DesktopIngestConfig;
+  const next: Record<string, unknown> = { ...current, proxiesWithCopy };
+  if (!proxiesWithCopy && current.proxiesWithCopy === undefined) delete next.proxiesWithCopy;
+  return organize({ label: "Set ingest setting", ingestPreset, desktopIngest: next as DesktopIngestConfig });
+}
 
 // ---- Toggle Proxies ------------------------------------------------------------------------
 
@@ -153,9 +169,9 @@ export interface QueueResult {
  * known file on disk goes to the native ffmpeg queue in the main process (project proxy format, Proxies
  * folder); anything else, and the whole web build, uses the in-app encoder below.
  */
-export function queueProxies(mediaIds: readonly string[], quality: PreviewProxyPreset = useProxyIngestStore.getState().quality, force = false): QueueResult {
+export function queueProxies(mediaIds: readonly string[], quality: PreviewProxyPreset = useProxyIngestStore.getState().quality, force = false, batchProfile?: DesktopProxyProfile | null): QueueResult {
   if (!desktopIngestAvailable()) return queueInApp(mediaIds, quality, force);
-  const native = queueDesktopProxies(mediaIds, force);
+  const native = queueDesktopProxies(mediaIds, force, batchProfile);
   if (!native.legacy.length) return { queued: native.queued, skipped: native.skipped };
   const rest = queueInApp(native.legacy, quality, force);
   return { queued: [...native.queued, ...rest.queued], skipped: [...native.skipped, ...rest.skipped] };
@@ -392,25 +408,28 @@ function onProjectChange(): void {
     resumeQuality = stored.quality;
     jobsInitialised = current.id;
   } else {
-    const preset = effectiveIngestPreset(current, useProxyIngestStore.getState().importOverride);
+    const mode = useProxyIngestStore.getState().importOverride ?? ingestModeOf(current);
     const fresh = items.filter((item) => !seen.has(item.id));
     for (const item of items) seen.add(item.id);
-    if (preset === "copy" && desktopIngestAvailable()) {
+    if ((mode === "copy" || mode === "copy-proxies") && desktopIngestAvailable()) {
       const copyIds = fresh
         .filter((item) => item.sourceFile?.path && !item.copiedFrom && !item.isPlaceholder && Date.now() - (item.importedAt ?? 0) < FRESH_IMPORT_MS)
         .map((item) => item.id);
+      // Copies (and, for "copy and create proxies", the proxies built from each verified copy) run in the main
+      // process's background queue: cancellable, one copy at a time, resumed after a restart.
       if (copyIds.length) {
-        void copyMediaToProject(copyIds).then(() => {
-          if (!project().mediaLibrary.desktopIngest?.proxiesWithCopy) return;
-          const ids = copyIds.filter((id) => {
-            const item = project().mediaLibrary.items.find((candidate) => candidate.id === id);
-            return item && itemNeedsIngestProxy(item);
-          });
-          if (ids.length) queueProxies(ids);
-        });
+        const wantsProxy = (id: string): boolean => {
+          const item = items.find((candidate) => candidate.id === id);
+          return mode === "copy-proxies" && item !== undefined && itemNeedsIngestProxy(item);
+        };
+        const withProxies = copyIds.filter(wantsProxy);
+        const plain = copyIds.filter((id) => !wantsProxy(id));
+        // Audio and stills have no proxy; they are still copied.
+        if (withProxies.length) void queueDesktopCopies(withProxies, { thenProxies: true });
+        if (plain.length) void queueDesktopCopies(plain, { thenProxies: false });
       }
     }
-    if (preset === "proxies") {
+    if (mode === "proxies") {
       const ids = fresh
         .filter((item) => itemNeedsIngestProxy(item) && !item.isPlaceholder && Date.now() - (item.importedAt ?? 0) < FRESH_IMPORT_MS)
         .map((item) => item.id);

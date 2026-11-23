@@ -12,6 +12,8 @@ import {
   createSubclipItem,
   filterMediaItems,
   formatMediaDuration,
+  isMediaColumnId,
+  mediaColumnText,
   mediaTrimBounds,
   normalizeBins,
   parseMediaLabel,
@@ -498,5 +500,49 @@ describe("logging metadata and smart bins", () => {
     expect(normalizeSmartBins([{ id: "1", name: " A ", query: "q", column: "nope" }, { id: "1", name: "dup", query: "q" }, null])).toEqual([
       { id: "1", name: "A", query: "q", column: "all" },
     ]);
+  });
+});
+
+describe("XMP-style metadata columns", () => {
+  const ctx = { usage: new Map<string, number>() };
+  const lib = () => [
+    media("a", { keywords: ["night", "interior"], reel: "A007", logComment: "use second half" }),
+    media("b", { keywords: ["day"] }),
+  ];
+
+  it("searches keywords, log comment and reel across all columns and by field", () => {
+    const items = lib();
+    expect(filterMediaItems(items, "night", "all", ctx).map((i) => i.id)).toEqual(["a"]);
+    expect(filterMediaItems(items, "keyword:day", "all", ctx).map((i) => i.id)).toEqual(["b"]);
+    expect(filterMediaItems(items, "reel:a007", "all", ctx).map((i) => i.id)).toEqual(["a"]);
+    expect(filterMediaItems(items, "second half", "logComment", ctx).map((i) => i.id)).toEqual(["a"]);
+  });
+
+  it("sorts and prints the new columns", () => {
+    const [a, b] = lib();
+    expect(sortMediaItems([a, b], "keywords", "asc", ctx).map((i) => i.id)).toEqual(["b", "a"]);
+    expect(mediaColumnText(a, "keywords", ctx)).toBe("night, interior");
+    expect(isMediaColumnId("reel")).toBe(true);
+  });
+
+  it("patches keywords / log comment / reel as one undoable step; [] and '' clear", async () => {
+    const p = project(lib(), []);
+    const executor = new ActionExecutor();
+    const r = await executor.execute(
+      act("media/organize", { label: "Edit metadata", itemPatches: { a: { keywords: ["Street", "street", " lamp "], reel: "" }, b: { logComment: "hold", keywords: [] } } }),
+      p,
+    );
+    expect(r.success).toBe(true);
+    const byId = (id: string) => p.mediaLibrary.items.find((i) => i.id === id)!;
+    expect(byId("a").keywords).toEqual(["Street", "lamp"]);
+    expect(byId("a").reel).toBeUndefined();
+    expect(byId("b")).toMatchObject({ logComment: "hold" });
+    expect(byId("b").keywords).toBeUndefined();
+    await executor.undo(p);
+    expect(byId("a")).toMatchObject({ keywords: ["night", "interior"], reel: "A007" });
+    expect(byId("b").keywords).toEqual(["day"]);
+    expect(byId("b").logComment).toBeUndefined();
+    await executor.redo(p);
+    expect(byId("a").keywords).toEqual(["Street", "lamp"]);
   });
 });

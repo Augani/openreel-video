@@ -27,6 +27,8 @@ import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { useUIStore } from "../../../stores/ui-store";
 import { getTimelineSelectionItem } from "../../../utils/timeline-item-actions";
+import { buildClipIndex } from "../../../utils/clip-index";
+import { getEffectsBridge } from "../../../bridges/effects-bridge";
 import { InspectorSection } from "./shell/InspectorSection";
 import { NestedSequenceSection } from "./NestedSequenceSection";
 import { EssentialSoundSection } from "./EssentialSoundSection";
@@ -49,6 +51,9 @@ interface SelectedClipEntry {
   readonly kind: SelectedClipKind;
   readonly transform: Transform;
   readonly visual: boolean;
+  /** Timeline clips: the audio-bearing and effect facts the panels need, resolved once per project. */
+  readonly hasAudio?: boolean;
+  readonly hasTimelineEffects?: boolean;
 }
 
 const DEFAULT_TRANSFORM: Transform = {
@@ -59,9 +64,23 @@ const DEFAULT_TRANSFORM: Transform = {
   opacity: 1,
 };
 
+/**
+ * The paste button shows the playhead time, so it alone subscribes to it. Subscribing in the inspector made a
+ * select-all (1000 clips) re-render the whole multi-clip inspector on every scrub frame.
+ */
+function PasteClipboardButton({ onPaste, disabled, className }: { onPaste: () => void; disabled: boolean; className: string }): JSX.Element {
+  const playheadPosition = useTimelineStore((state) => state.playheadPosition);
+  const label = `Paste clipboard at ${playheadPosition.toFixed(2)}s`;
+  return (
+    <Button onClick={onPaste} type="button" aria-label={label} disabled={disabled} className={className}>
+      <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<ClipboardPaste size={14} aria-hidden />}</span>
+      <span className="truncate">{label}</span>
+    </Button>
+  );
+}
+
 export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.Element {
   const project = useProjectStore((state) => state.project);
-  const getClip = useProjectStore((state) => state.getClip);
   const updateClipTransform = useProjectStore(
     (state) => state.updateClipTransform,
   );
@@ -96,7 +115,6 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
   const getGraphicsEngine = useEngineStore((state) => state.getGraphicsEngine);
   const clearSelection = useUIStore((state) => state.clearSelection);
   const selectMultiple = useUIStore((state) => state.selectMultiple);
-  const playheadPosition = useTimelineStore((state) => state.playheadPosition);
   const [isBusy, setIsBusy] = useState(false);
   const [hasEffectClipboard, setHasEffectClipboard] = useState(
     hasVideoEffectStackClipboard(),
@@ -104,9 +122,12 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
   const operationQueueRef = useRef<Promise<void>>(Promise.resolve());
   const pendingOperationCountRef = useRef(0);
 
+  // Resolved against one id index per project: a select-all otherwise did an O(clips) lookup per selected clip.
   const selectedEntries = useMemo(() => {
     const titleEngine = getTitleEngine();
     const graphicsEngine = getGraphicsEngine();
+    const index = buildClipIndex(project.timeline.tracks);
+    const media = new Map(project.mediaLibrary.items.map((item) => [item.id, item] as const));
     return clipIds.flatMap<SelectedClipEntry>((id) => {
       const textClip = titleEngine?.getTextClip(id);
       if (textClip) {
@@ -152,34 +173,32 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
           },
         ];
       }
-      const timelineClip = getClip(id);
+      const timelineClip = index.clips.get(id);
       if (timelineClip) {
-        const track = project.timeline.tracks.find((candidate) =>
-          candidate.clips.some((clip) => clip.id === id),
-        );
+        const track = index.tracks.get(timelineClip.trackId);
+        const source = media.get(timelineClip.mediaId);
         return [
           {
             id,
             kind: "timeline",
             transform: timelineClip.transform ?? DEFAULT_TRANSFORM,
             visual: track?.type !== "audio",
+            hasAudio:
+              track?.type === "audio" ||
+              source?.type === "audio" ||
+              (source?.type === "video" && (source.metadata?.channels ?? 0) > 0),
+            hasTimelineEffects: (timelineClip.effects?.length ?? 0) > 0,
           },
         ];
       }
       return [];
     });
-  }, [clipIds, getClip, getGraphicsEngine, getTitleEngine, project]);
+  }, [clipIds, getGraphicsEngine, getTitleEngine, project]);
 
   const visualEntries = selectedEntries.filter((entry) => entry.visual);
   // Essential Sound applies to every selected timeline clip that has audio.
   const audioClipIds = selectedEntries
-    .filter((entry) => {
-      if (entry.kind !== "timeline") return false;
-      const clip = getClip(entry.id);
-      const track = project.timeline.tracks.find((candidate) => candidate.id === clip?.trackId);
-      const media = project.mediaLibrary.items.find((item) => item.id === clip?.mediaId);
-      return track?.type === "audio" || media?.type === "audio" || (media?.type === "video" && (media.metadata?.channels ?? 0) > 0);
-    })
+    .filter((entry) => entry.kind === "timeline" && entry.hasAudio)
     .map((entry) => entry.id);
   const timelineEntryCount = selectedEntries.filter(
     (entry) => entry.kind === "timeline",
@@ -340,7 +359,7 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
   };
 
   const pasteClipboard = async () => {
-    await pasteClips(clipboardTrackId, playheadPosition);
+    await pasteClips(clipboardTrackId, useTimelineStore.getState().playheadPosition);
     const pastedSelection = useProjectStore
       .getState()
       .lastPastedClipIds.flatMap((id) => {
@@ -361,6 +380,15 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
       }
       clearSelection();
     });
+
+  // Timeline clips answer from the resolved entry (their effects live on the clip) and the effects bridge;
+  // only overlay items fall back to the per-id store lookup.
+  const hasAnyVideoEffects = visualEntries.some((entry) => {
+    if (entry.kind !== "timeline") return getVideoEffects(entry.id).length > 0;
+    if (entry.hasTimelineEffects) return true;
+    const bridge = getEffectsBridge();
+    return bridge.isInitialized() && bridge.getEffects(entry.id).length > 0;
+  });
 
   const sourceEffects = visualEntries[0]
     ? getVideoEffects(visualEntries[0].id)
@@ -563,9 +591,7 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
                 <span className="truncate">{"Replace effects on selection"}</span>
               </Button>
               <Button onClick={() => void clearSelectedEffectStacks()} type="button" aria-label="Clear effects from selection" disabled={(isBusy ||
-                  !visualEntries.some(
-                    (entry) => getVideoEffects(entry.id).length > 0,
-                  ))} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+                  !hasAnyVideoEffects)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Trash2 size={14} aria-hidden />}</span>
                 <span className="truncate">{"Clear effects from selection"}</span>
               </Button>
@@ -598,10 +624,7 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
             <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Copy size={14} aria-hidden />}</span>
             <span className="truncate">{`Copy ${selectedEntries.length} selected clips`}</span>
           </Button>
-          <Button onClick={() => void pasteClipboard()} type="button" aria-label={(`Paste clipboard at ${playheadPosition.toFixed(2)}s`).trim() || undefined} disabled={(isBusy || clipboardSize === 0)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
-            <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<ClipboardPaste size={14} aria-hidden />}</span>
-            <span className="truncate">{`Paste clipboard at ${playheadPosition.toFixed(2)}s`}</span>
-          </Button>
+          <PasteClipboardButton onPaste={() => void pasteClipboard()} disabled={isBusy || clipboardSize === 0} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg" />
           <Button onClick={() => void duplicateSelection()} type="button" aria-label={(`Duplicate ${selectedEntries.length} selected clips`).trim() || undefined} disabled={(isBusy || selectedEntries.length === 0)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
             <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Copy size={14} aria-hidden />}</span>
             <span className="truncate">{`Duplicate ${selectedEntries.length} selected clips`}</span>

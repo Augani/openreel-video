@@ -685,6 +685,16 @@ const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
     enabled: true,
   },
   {
+    id: "editing.applyDefaultTransition",
+    name: "Apply Default Transition",
+    description: "Add the default transition to the selected cut",
+    category: "editing",
+    defaultKey: "cmd+shift+d",
+    currentKey: "cmd+shift+d",
+    action: "editing.applyDefaultTransition",
+    enabled: true,
+  },
+  {
     id: "editing.addEdit",
     name: "Add Edit",
     description: "Split the targeted tracks (all unlocked tracks when none is targeted) at the playhead",
@@ -883,6 +893,16 @@ const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
     defaultKey: "enter",
     currentKey: "enter",
     action: "sequence.renderInToOut",
+    enabled: true,
+  },
+  {
+    id: "sequence.renderEffectsInToOut",
+    name: "Render Effects In to Out",
+    description: "Render only the stretches with effects, transitions or layers in the In/Out range (the yellow and red render bar)",
+    category: "timeline",
+    defaultKey: "cmd+enter",
+    currentKey: "cmd+enter",
+    action: "sequence.renderEffectsInToOut",
     enabled: true,
   },
   {
@@ -1087,6 +1107,8 @@ const PRESETS: ShortcutPreset[] = [
     description: "Premiere Pro-style shortcuts",
     shortcuts: {
       "editing.split": "cmd+k",
+      // Premiere's Apply Video Transition default; Duplicate (which holds Cmd+D here) moves to Alt+Cmd+D.
+      "editing.applyDefaultTransition": "cmd+d",
       "playback.playPause": "space",
       "playback.frameBack": "arrowleft",
       "playback.frameForward": "arrowright",

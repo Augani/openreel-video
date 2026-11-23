@@ -52,6 +52,27 @@ export function readMicrophoneAccess(platform: NodeJS.Platform = process.platfor
   }
 }
 
+/**
+ * `getMediaAccessStatus` is a synchronous OS (TCC) query that blocks the main thread for 6-18 ms, and Chromium's
+ * permission CHECK handler is asked about audio several times while the editor boots (three calls in the first
+ * 700 ms, in the middle of the chunk burst the main thread serves). The answer only changes when the user flips the
+ * switch in System Settings, so a short-lived cache keeps those repeats off the startup path while a change still
+ * shows up within `MIC_STATUS_TTL_MS`. The explicit status IPC and the request flow always read fresh.
+ */
+const MIC_STATUS_TTL_MS = 3000;
+let micStatusCache: { at: number; value: MicrophoneAccess } | null = null;
+
+export function readMicrophoneAccessCached(now: number = Date.now(), platform: NodeJS.Platform = process.platform): MicrophoneAccess {
+  if (micStatusCache && now - micStatusCache.at >= 0 && now - micStatusCache.at < MIC_STATUS_TTL_MS) return micStatusCache.value;
+  const value = readMicrophoneAccess(platform);
+  micStatusCache = { at: now, value };
+  return value;
+}
+
+export function resetMicrophoneAccessCache(): void {
+  micStatusCache = null;
+}
+
 /** Resolves once the OS prompt (macOS only) has been answered; elsewhere reports the current state. */
 export async function requestMicrophoneAccess(): Promise<MicrophoneAccess> {
   const current = readMicrophoneAccess();
@@ -61,6 +82,7 @@ export async function requestMicrophoneAccess(): Promise<MicrophoneAccess> {
     } catch {
       // The status read below reports the outcome either way.
     }
+    resetMicrophoneAccessCache();
     return readMicrophoneAccess();
   }
   return current;
@@ -76,7 +98,9 @@ export function installMediaPermissionHandlers(target: Session = session.default
   target.setPermissionRequestHandler((webContents, permission, callback, details) => {
     const mediaTypes = (details as { mediaTypes?: string[] }).mediaTypes;
     const wantsAudio = permission === "media" && (mediaTypes ?? ["audio"]).includes("audio");
-    void (wantsAudio ? requestMicrophoneAccess() : Promise.resolve(readMicrophoneAccess())).then((micAccess) => {
+    // Only an audio request depends on the OS microphone state (decidePermission ignores it otherwise), so
+    // every other request skips the blocking OS query.
+    void (wantsAudio ? requestMicrophoneAccess() : Promise.resolve<MicrophoneAccess>("granted")).then((micAccess) => {
       callback(
         decidePermission({ permission, requestingUrl: details.requestingUrl || webContents.getURL(), mediaTypes, micAccess }),
       );
@@ -88,7 +112,7 @@ export function installMediaPermissionHandlers(target: Session = session.default
       permission,
       requestingUrl: requestingOrigin || webContents?.getURL() || "",
       mediaTypes: mediaType && mediaType !== "unknown" ? [mediaType] : undefined,
-      micAccess: mediaType === "audio" ? readMicrophoneAccess() : "granted",
+      micAccess: mediaType === "audio" ? readMicrophoneAccessCached() : "granted",
     });
   });
 }

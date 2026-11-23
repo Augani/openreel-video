@@ -1,4 +1,5 @@
-import type { Subtitle } from "../types/timeline";
+import type { CueSettings, Subtitle, SubtitleStyle } from "../types/timeline";
+import { DEFAULT_CAPTION_STYLE } from "./caption-layout";
 import type { CaptionFormatIssue } from "./scc";
 
 /**
@@ -145,8 +146,9 @@ function decodeGsiText(bytes: Uint8Array, page: string): string {
 /** ISO 6937 upper half, byte -> character (diacritic prefixes are handled separately). */
 const ISO6937_HIGH: ReadonlyMap<number, string> = new Map([
   [0xa1, "¡"], [0xa2, "¢"], [0xa3, "£"], [0xa4, "$"], [0xa5, "¥"], [0xa6, "#"], [0xa7, "§"], [0xa8, "¤"],
-  [0xab, "«"], [0xb0, "°"], [0xb1, "±"], [0xb2, "²"], [0xb3, "³"], [0xb4, "×"], [0xb5, "µ"], [0xb6, "¶"],
-  [0xb7, "·"], [0xb8, "÷"], [0xbb, "»"], [0xbc, "¼"], [0xbd, "½"], [0xbe, "¾"], [0xbf, "¿"],
+  [0xa9, "\u2018"], [0xaa, "\u201c"], [0xab, "«"], [0xac, "←"], [0xad, "↑"], [0xae, "→"], [0xaf, "↓"], [0xb0, "°"], [0xb1, "±"], [0xb2, "²"], [0xb3, "³"], [0xb4, "×"], [0xb5, "µ"], [0xb6, "¶"],
+  [0xb7, "·"], [0xb8, "÷"], [0xb9, "\u2019"], [0xba, "\u201d"], [0xbb, "»"], [0xbc, "¼"], [0xbd, "½"], [0xbe, "¾"], [0xbf, "¿"],
+  [0xd0, "\u2015"], [0xdc, "⅛"], [0xdd, "⅜"], [0xde, "⅝"], [0xdf, "⅞"],
   [0xe0, "Ω"], [0xe1, "Æ"], [0xe2, "Đ"], [0xe3, "ª"], [0xe4, "Ħ"], [0xe6, "Ĳ"], [0xe7, "Ŀ"], [0xe8, "Ł"],
   [0xe9, "Ø"], [0xea, "Œ"], [0xeb, "º"], [0xec, "Þ"], [0xed, "Ŧ"], [0xee, "Ŋ"], [0xef, "ŉ"], [0xf0, "ĸ"],
   [0xf1, "æ"], [0xf2, "đ"], [0xf3, "ð"], [0xf4, "ħ"], [0xf5, "ı"], [0xf6, "ĳ"], [0xf7, "ŀ"], [0xf8, "ł"],
@@ -448,8 +450,8 @@ export function parseStl(bytes: Uint8Array, options: StlParseOptions = {}): StlP
     maxRows: Number(field(253, 2)) || 0,
     frameBase,
   };
-  if (header.characterCodeTable !== "00")
-    issues.push({ severity: "warning", code: "stl-cct", message: `Character code table ${header.characterCodeTable} is not Latin (00); text was read as ISO 6937.` });
+  if (!["00", "01", "02", "03", "04"].includes(header.characterCodeTable))
+    issues.push({ severity: "warning", code: "stl-cct", message: `Character code table ${header.characterCodeTable} is not one of 00 (Latin) to 04 (Hebrew); text was read as ISO 6937.` });
   if (frameBase !== 25 && frameBase !== 30)
     issues.push({ severity: "warning", code: "stl-frame-base", message: `Unusual frame base ${frameBase}.` });
   const fps = stlTimecodeRate(options.frameRate, frameBase);
@@ -468,10 +470,24 @@ export function parseStl(bytes: Uint8Array, options: StlParseOptions = {}): StlP
   let endTc: number[] | null = null;
   let cumulative: string[] = [];
   let pendingCs = 0;
+  let pendingVp = 0;
+  let pendingJc = 0;
+  let userBlocks = 0;
+  let commentBlocks = 0;
+  const tally = { colouredCues: 0, mixedColourCues: 0, doubleHeight: 0, boxing: 0, mosaic: 0, positioned: 0, justified: 0 };
+  // Rows the vertical positions are relative to: teletext displays have 23 usable rows; open subtitling uses the GSI's maximum.
+  const teletext = header.displayStandard === "1" || header.displayStandard === "2";
+  const maxVp = (() => {
+    let m = 0;
+    for (let n = 0; n < available; n++) m = Math.max(m, bytes[GSI_SIZE + n * TTI_SIZE + 13] || 0);
+    return m;
+  })();
+  const gridRows = teletext ? 23 : Math.max(header.maxRows, maxVp, 1);
 
   const flush = () => {
     if (!startTc || !endTc) return;
-    const raw = decodeText(pendingBytes, keepTags);
+    const info: TextInfo = { colours: [], distinct: new Set(), doubleHeight: false, boxing: false, mosaic: false };
+    const raw = decodeText(pendingBytes, keepTags, header.characterCodeTable, info, teletext);
     pendingBytes = [];
     if (!raw) return;
     const text = pendingCs === 2 || pendingCs === 3 ? [...cumulative, raw].join("\n") : raw;
@@ -484,11 +500,27 @@ export function parseStl(bytes: Uint8Array, options: StlParseOptions = {}): StlP
       issues.push({ severity: "warning", code: "stl-empty-duration", message: `A subtitle at ${startTc.join(":")} ends before it starts and was skipped.` });
       return;
     }
+    if (info.doubleHeight) tally.doubleHeight++;
+    if (info.boxing) tally.boxing++;
+    if (info.mosaic) tally.mosaic++;
+    let style: SubtitleStyle | undefined;
+    if (info.colours.length) {
+      tally.colouredCues++;
+      if (info.distinct.size > 1) tally.mixedColourCues++;
+      style = { ...DEFAULT_CAPTION_STYLE, color: STL_TELETEXT_COLOURS[info.colours[0]] };
+    }
+    const cueSettings = stlCueSettings(pendingVp, pendingJc, text.split("\n").length, gridRows);
+    if (cueSettings) {
+      if (cueSettings.line !== undefined) tally.positioned++;
+      if (cueSettings.align && cueSettings.align !== "center") tally.justified++;
+    }
     subtitles.push({
       id: `stl-${Date.now().toString(36)}-${(stlCounter++).toString(36)}`,
       text,
       startTime: start,
       endTime: end,
+      ...(style ? { style } : {}),
+      ...(cueSettings ? { cueSettings } : {}),
       ...(options.language ? { language: options.language } : {}),
       ...(options.captionTrackId ? { captionTrackId: options.captionTrackId } : {}),
     });
@@ -498,28 +530,106 @@ export function parseStl(bytes: Uint8Array, options: StlParseOptions = {}): StlP
     const at = GSI_SIZE + n * TTI_SIZE;
     const ebn = bytes[at + 3];
     const cf = bytes[at + 15];
-    if (cf === 0xff) {
-      pendingBytes = [];
-      continue; // comment block
+    if (ebn >= 0xf0 && ebn !== 0xff) {
+      // EBN 0xF0..0xFE: reserved and user-data blocks carry no subtitle text.
+      userBlocks++;
+      continue;
+    }
+    if (cf !== 0) {
+      // CF 00h is subtitle data; 01h..FFh marks a comment that is not meant for transmission.
+      commentBlocks++;
+      if (ebn === 0xff) pendingBytes = [];
+      continue;
     }
     if (pendingBytes.length === 0) {
       startTc = [bytes[at + 5], bytes[at + 6], bytes[at + 7], bytes[at + 8]];
       endTc = [bytes[at + 9], bytes[at + 10], bytes[at + 11], bytes[at + 12]];
       pendingCs = bytes[at + 4];
+      pendingVp = bytes[at + 13];
+      pendingJc = bytes[at + 14];
     }
     for (let k = 0; k < TF_SIZE; k++) pendingBytes.push(bytes[at + 16 + k]);
     if (ebn === 0xff || ebn > 0xef) flush();
   }
   if (pendingBytes.length) flush();
+  const n = (count: number, what: string) => `${count} subtitle${count === 1 ? "" : "s"} ${what}`;
+  if (tally.mixedColourCues)
+    issues.push({ severity: "warning", code: "stl-colours-mixed", message: `${n(tally.mixedColourCues, "changed teletext colour inside the subtitle")}; each takes its first colour for all of its text.` });
+  if (tally.doubleHeight)
+    issues.push({ severity: "info", code: "stl-double-height", message: `${n(tally.doubleHeight, "used double-height or double-width teletext characters")}; they are shown at normal size.` });
+  if (tally.boxing)
+    issues.push({ severity: "info", code: "stl-boxing", message: `${n(tally.boxing, "used teletext boxes or background colour codes")}; the caption background is the default one.` });
+  if (tally.mosaic)
+    issues.push({ severity: "warning", code: "stl-mosaic", message: `${n(tally.mosaic, "contained teletext mosaic graphics")}; the graphics were dropped.` });
+  if (tally.positioned)
+    issues.push({ severity: "info", code: "stl-positioned", message: `${n(tally.positioned, "sat away from the bottom of the picture")}; the EBU row number is mapped to an approximate vertical position (${gridRows} rows).` });
+  if (commentBlocks)
+    issues.push({ severity: "info", code: "stl-comments", message: `${commentBlocks} comment block${commentBlocks === 1 ? " was" : "s were"} not imported (the comment flag marks text that is not meant for transmission).` });
+  if (userBlocks)
+    issues.push({ severity: "info", code: "stl-user-data", message: `${userBlocks} user-data block${userBlocks === 1 ? " was" : "s were"} ignored.` });
   subtitles.sort((a, b) => a.startTime - b.startTime);
+  if (options.offsetSeconds === undefined && subtitles.length && subtitles[0].startTime >= 3600)
+    issues.push({
+      severity: "warning",
+      code: "stl-programme-start",
+      message: `The first subtitle starts at ${Math.floor(subtitles[0].startTime / 3600)} h of file time (the file's programme start is ${field(256, 8).replace(/(..)(..)(..)(..)/, "$1:$2:$3:$4")}); it was imported at that time. Import it with a programme start offset to move it to the start of the project.`,
+    });
   return { subtitles, errors, issues, header, format: "stl" };
 }
 
-function decodeText(field: number[], keepTags: boolean): string {
+
+/** EBU vertical position (row, 1 = top) and justification code -> WebVTT cue settings. Bottom, centred subtitles map to nothing. */
+function stlCueSettings(vp: number, jc: number, lineCount: number, rows: number): CueSettings | undefined {
+  const bottomRow = vp + Math.max(1, lineCount) - 1;
+  const atBottom = vp === 0 || bottomRow >= rows - 3;
+  const out: { -readonly [K in keyof CueSettings]: CueSettings[K] } = {};
+  if (!atBottom) {
+    out.line = Math.round((Math.max(0, vp - 1) / rows) * 1000) / 10;
+    out.snapToLines = false;
+    out.lineAlign = "start";
+  }
+  if (jc === 1) Object.assign(out, { position: 10, positionAlign: "line-left", size: 80, align: "left" });
+  else if (jc === 3) Object.assign(out, { position: 90, positionAlign: "line-right", size: 80, align: "right" });
+  else if (out.line !== undefined) Object.assign(out, { position: 50, positionAlign: "center", size: 80, align: "center" });
+  return Object.keys(out).length ? out : undefined;
+}
+
+interface TextInfo {
+  /** Teletext alpha colours used by text (0 black .. 7 white); white is omitted. */
+  colours: number[];
+  /** Every colour (white included) that visible text was set in. */
+  distinct: Set<number>;
+  doubleHeight: boolean;
+  boxing: boolean;
+  mosaic: boolean;
+}
+
+const CCT_CHARSETS: Record<string, string> = { "01": "iso-8859-5", "02": "iso-8859-6", "03": "iso-8859-7", "04": "iso-8859-8" };
+
+/** Text bytes -> string through ISO 6937 (code table 00) or the ISO 8859 part the GSI selects (01..04). */
+function decodeBytes(bytes: number[], cct: string): string {
+  const charset = CCT_CHARSETS[cct];
+  if (charset && bytes.some((b) => b >= 0xa0)) {
+    try {
+      return new TextDecoder(charset).decode(Uint8Array.from(bytes.filter((b) => b !== 0xff)));
+    } catch {
+      /* the runtime lacks this charset: fall through */
+    }
+  }
+  return decode6937(bytes);
+}
+
+export const STL_TELETEXT_COLOURS = ["#000000", "#ff0000", "#00ff00", "#ffff00", "#0000ff", "#ff00ff", "#00ffff", "#ffffff"] as const;
+
+function decodeText(field: number[], keepTags: boolean, cct: string, info: TextInfo, teletext = false): string {
   let result = "";
   let current: number[] = [];
+  let colour = 7;
   const flush = () => {
-    result += decode6937(current);
+    const piece = decodeBytes(current, cct);
+    if (piece.trim()) info.distinct.add(colour);
+    if (piece.trim() && colour !== 7 && !info.colours.includes(colour)) info.colours.push(colour);
+    result += piece;
     current = [];
   };
   const mark = (tag: string) => {
@@ -534,6 +644,8 @@ function decodeText(field: number[], keepTags: boolean): string {
     if (b === 0x8a) {
       flush();
       result += "\n";
+      // Teletext rows start white again.
+      if (teletext) colour = 7;
     } else if (b === 0x80) {
       if (!italic) mark("<i>");
       italic = true;
@@ -547,7 +659,12 @@ function decodeText(field: number[], keepTags: boolean): string {
       if (underline) mark("</u>");
       underline = false;
     } else if (b < 0x20 || (b >= 0x84 && b <= 0x9f)) {
-      // Teletext colour / box / size controls and boxing: display attributes only.
+      // Teletext colour / size / box controls: colours map to the cue colour, the rest is reported.
+      flush();
+      if (b <= 0x07) colour = b;
+      else if (b >= 0x10 && b <= 0x17) info.mosaic = true;
+      else if (b === 0x0d || b === 0x0e || b === 0x0f) info.doubleHeight = true;
+      else if (b === 0x0a || b === 0x0b || b === 0x1c || b === 0x1d || b === 0x84 || b === 0x85) info.boxing = true;
     } else current.push(b);
   }
   flush();

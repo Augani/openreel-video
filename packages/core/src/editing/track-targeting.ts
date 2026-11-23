@@ -189,3 +189,105 @@ export function resolveSourceTracks(
     return { primary, audio: { kind: "existing", track: audioTrack } };
   return { primary };
 }
+
+/** Where one audio channel group (A1..An of the source patch) goes. */
+export interface AudioChannelDestination {
+  /** 0-based index of the group in the source's channel layout (A1 = 0). */
+  channel: number;
+  choice: TrackChoice;
+}
+
+export interface MultichannelPatch extends SourcePatch {
+  /** Track patched to each audio channel group; entry 0 mirrors `audio`. Absent / null = automatic. */
+  channels?: readonly (string | null | undefined)[];
+  /** Channel groups whose patch indicator is switched off: nothing is placed for them. */
+  disabledChannels?: readonly boolean[];
+}
+
+export interface MultichannelSourceResolution {
+  /** The picture (video and image sources, component both / video). */
+  primary?: TrackChoice;
+  /** One destination per enabled audio channel, in channel order. Never two on the same track. */
+  audio: AudioChannelDestination[];
+}
+
+/**
+ * Premiere's multichannel source patching. Each audio channel group of the source is patched to an audio track or
+ * switched off. A patched group goes to its track (a track patched twice goes to the first group only); the others
+ * cascade: group 0 follows targeting (targeted track, selected track, main track) and every later group takes the next
+ * free unlocked audio track below the previous group's, then any free one, then a new audio track.
+ * A group with no free track gets `{ kind: "create" }`; the caller creates those tracks one after another.
+ *
+ * `freeRange` makes the placement non-destructive (Add to timeline, a drop from the Project panel): a track that already
+ * holds a clip inside the range is treated as taken, so the picture and every group land on free tracks or on new ones.
+ */
+export function resolveMultichannelSourceTracks(
+  project: Project,
+  input: {
+    mediaType: "video" | "audio" | "image";
+    component?: "both" | "video" | "audio";
+    groupCount: number;
+    patch?: MultichannelPatch;
+    targetedTrackIds?: readonly string[];
+    selectedTrackId?: string | null;
+    freeRange?: { start: number; end: number };
+  },
+): MultichannelSourceResolution {
+  const component = input.component ?? "both";
+  const patch = input.patch ?? {};
+  const common = { targetedTrackIds: input.targetedTrackIds, selectedTrackId: input.selectedTrackId };
+  const wantsPicture = input.mediaType !== "audio" && component !== "audio";
+  const wantsSound = input.mediaType === "audio" || (input.mediaType === "video" && component !== "video");
+  const out: MultichannelSourceResolution = { audio: [] };
+  const range = input.freeRange;
+  const occupied = (track: Track): boolean =>
+    !!range && track.clips.some((clip) => clip.startTime < range.end - 1e-6 && clip.startTime + clip.duration > range.start + 1e-6);
+  if (wantsPicture) {
+    const mediaKind = input.mediaType === "image" ? "image" : "video";
+    const picture = chooseTrackForMedia(project, { ...common, mediaKind, targetTrackId: patch.video });
+    out.primary = picture.kind === "existing" && occupied(picture.track) ? { kind: "create", trackType: mediaKind } : picture;
+  }
+  if (!wantsSound || input.groupCount <= 0) return out;
+
+  const explicit = (channel: number): string | null | undefined => (channel === 0 ? (patch.channels?.[0] ?? patch.audio) : patch.channels?.[channel]);
+  const enabled = (channel: number) => !(patch.disabledChannels?.[channel] === true);
+  const tracks = project.timeline.tracks;
+  const used = new Set<string>();
+  const chosen = new Map<number, TrackChoice>();
+
+  for (let channel = 0; channel < input.groupCount; channel++) {
+    if (!enabled(channel)) continue;
+    const track = tracks.find((candidate) => candidate.id === explicit(channel));
+    if (canTargetTrack(track, "audio") && !used.has(track.id) && !occupied(track)) {
+      used.add(track.id);
+      chosen.set(channel, { kind: "existing", track });
+    }
+  }
+
+  const audioTracks = tracks.filter((track) => track.type === "audio");
+  const free = (track: Track) => canTargetTrack(track, "audio") && !used.has(track.id) && !occupied(track);
+  let previous: Track | undefined;
+  for (let channel = 0; channel < input.groupCount; channel++) {
+    if (!enabled(channel)) continue;
+    let choice = chosen.get(channel);
+    if (!choice) {
+      let track: Track | undefined;
+      if (previous === undefined && channel === 0) {
+        const first = chooseTrackForMedia(project, { ...common, mediaKind: "audio" });
+        if (first.kind === "existing" && free(first.track)) track = first.track;
+      } else if (previous) {
+        const after = audioTracks.findIndex((candidate) => candidate.id === previous!.id);
+        track = audioTracks.slice(after + 1).find(free);
+      }
+      track ??= audioTracks.find(free);
+      if (track) choice = { kind: "existing", track };
+      else {
+        choice = { kind: "create", trackType: "audio" };
+      }
+      if (choice.kind === "existing") used.add(choice.track.id);
+    }
+    if (choice.kind === "existing") previous = choice.track;
+    out.audio.push({ channel, choice });
+  }
+  return out;
+}

@@ -299,7 +299,7 @@ describe("project setting: undoable and persisted", () => {
   it("the validator rejects unknown modes and output transforms", () => {
     const validator = new ActionValidator();
     const p = project();
-    const bad = validator.validate({ type: "project/updateSettings", id: "x", timestamp: 1, params: { colorManagement: "ocio" } } as never, p);
+    const bad = validator.validate({ type: "project/updateSettings", id: "x", timestamp: 1, params: { colorManagement: "p3-magic" } } as never, p);
     expect(bad.valid).toBe(false);
     const bad2 = validator.validate({ type: "project/updateSettings", id: "y", timestamp: 1, params: { acesOutput: "rec2020-pq" } } as never, p);
     expect(bad2.valid).toBe(false);

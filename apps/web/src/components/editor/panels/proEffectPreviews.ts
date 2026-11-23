@@ -125,6 +125,18 @@ const PREVIEW_STYLES: Record<ProEffectType, (p: number) => CSSProperties> = {
     filter: `drop-shadow(${lerp(0, -7, p)}px 0 0 rgba(255,255,255,0.35)) drop-shadow(${lerp(0, -14, p)}px 0 0 rgba(255,255,255,0.18))`,
   }),
   "posterize-time": (p) => ({ transform: `translateX(${Math.floor(p * 4) * 2 - 3}px)` }),
+  // Immersive video: CSS stand-ins for the card fallback only (the real cards render footage through the shaders).
+  "vr-rotate-sphere": (p) => ({ transform: `translateX(${lerp(-6, 6, p)}px)` }),
+  "vr-projection": (p) => ({ transform: `scale(${lerp(1, 1.35, p)})` }),
+  "vr-blur": (p) => ({ filter: `blur(${lerp(0, 2.5, p)}px)` }),
+  "vr-sharpen": (p) => ({ filter: `contrast(${lerp(1, 1.25, p)}) saturate(${lerp(1, 1.15, p)})` }),
+  "vr-glow": (p) => ({ filter: `brightness(${lerp(1, 1.25, p)}) drop-shadow(0 0 ${lerp(0, 5, p)}px rgba(255,255,255,0.6))` }),
+  "vr-chromatic-aberrations": (p) => ({
+    filter: `drop-shadow(${lerp(0, 3, p)}px 0 0 rgba(255,0,0,0.45)) drop-shadow(${lerp(0, -3, p)}px 0 0 rgba(0,120,255,0.45))`,
+  }),
+  "vr-digital-glitch": (p) => ({ transform: `translateX(${Math.floor(p * 5) % 2 ? lerp(0, 5, p) : lerp(0, -4, p)}px)` }),
+  "vr-de-noise": (p) => ({ filter: `blur(${lerp(0, 0.8, p)}px) contrast(${lerp(1, 0.95, p)})` }),
+  "vr-plane-to-sphere": (p) => ({ transform: `scale(${lerp(1, 0.8, p)})`, borderRadius: `${lerp(0, 18, p)}%` }),
   grid: (p) => ({
     backgroundImage: `linear-gradient(rgba(255,255,255,${lerp(0, 0.6, p)}) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,${lerp(0, 0.6, p)}) 1px, transparent 1px)`,
     backgroundSize: "12px 12px",

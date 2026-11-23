@@ -7,12 +7,14 @@ import React, {
   useEffect,
   useMemo,
   useRef,
+  useSyncExternalStore,
   useState,
 } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
 import { useUIStore, type SelectionItem } from "../../stores/ui-store";
+import { isClipDragActive, subscribeClipDragActivity } from "./timeline/clip-drag-activity";
 import { InspectorSelectionProvider } from "./inspector/shell/InspectorSelection";
 import { useEngineStore } from "../../stores/engine-store";
 import type { Transform, EditingTemplatePrimitive } from "@openreel/core";
@@ -29,7 +31,6 @@ import {
 import { toast } from "../../stores/notification-store";
 import { getNoiseReductionPreset } from "./inspector/noise-reduction-presets";
 import { ScrollArea } from "@openreel/ui";
-import { SubtitleInspector } from "./inspector/SubtitleInspector";
 import {
   getTabIdsForClipType,
   getInspectorTabOptions,
@@ -59,6 +60,9 @@ import { GraphicInspector } from "./graphics/GraphicInspector";
 import { selectedGraphicInstance } from "../../services/graphic-commands";
 import { linkedInstanceOfBakedClip } from "@openreel/core";
 
+const SubtitleInspector = React.lazy(() =>
+  import("./inspector/SubtitleInspector").then((module) => ({ default: module.SubtitleInspector })),
+);
 const MultiCameraPanel = React.lazy(
   () => import("./inspector/MultiCameraPanel"),
 );
@@ -893,6 +897,13 @@ const InspectorPanelBody = React.memo(function InspectorPanelBody({ selectedItem
   }, [requestedSection, clipId, clipType, selectInspectorTab]);
   const visibleInspectorTab = inspectorTabState.scope === inspectorScope && inspectorTabs.some(tab => tab.value === inspectorTabState.value)
     ? inspectorTabState.value : inspectorTabs[0]?.value ?? "transform";
+  // Tab panels mount on first visit and stay mounted (their open sections and drafts survive a tab switch). Mounting
+  // every panel with the selection made selecting a clip one ~30 ms commit (and a forced style recalc) at 400 clips.
+  const mountedTabsRef = useRef<{ key: string; tabs: Set<string> }>({ key: "", tabs: new Set() });
+  const mountedKey = `${project.id}:${clipId}:${inspectorScope}`;
+  if (mountedTabsRef.current.key !== mountedKey) mountedTabsRef.current = { key: mountedKey, tabs: new Set() };
+  mountedTabsRef.current.tabs.add(visibleInspectorTab);
+  const tabMounted = (tab: string): boolean => mountedTabsRef.current.tabs.has(tab);
   const hasEffectsTab = inspectorTabs.some(tab => tab.value === "effects");
   const mountGraphicEffects = !hasEffectsTab || visibleInspectorTab === "effects"
     || (inspectorTabState.scope === inspectorScope && inspectorTabState.effectsVisited);
@@ -1055,18 +1066,20 @@ const InspectorPanelBody = React.memo(function InspectorPanelBody({ selectedItem
                     className="workspace-inspector-transform-group"
                     hidden={!(visibleInspectorTab === "transform")}
                   >
-                    <TransformTab
-                      clipId={clipId}
-                      clipType={clipType}
-                      selectedClip={selectedClip}
-                      showTransformControls={showTransformControls}
-                      showVideoControls={showVideoControls}
-                      transform={transform}
-                      canvasWidth={project.settings.width}
-                      canvasHeight={project.settings.height}
-                      handleTransformChange={handleTransformChange}
-                      afterPrimary={effectsControls}
-                    />
+                    {tabMounted("transform") && (
+                      <TransformTab
+                        clipId={clipId}
+                        clipType={clipType}
+                        selectedClip={selectedClip}
+                        showTransformControls={showTransformControls}
+                        showVideoControls={showVideoControls}
+                        transform={transform}
+                        canvasWidth={project.settings.width}
+                        canvasHeight={project.settings.height}
+                        handleTransformChange={handleTransformChange}
+                        afterPrimary={effectsControls}
+                      />
+                    )}
                   </div>
                 )}
 
@@ -1076,21 +1089,25 @@ const InspectorPanelBody = React.memo(function InspectorPanelBody({ selectedItem
                       visibleInspectorTab !== "style"
                     }
                   >
-                    <StyleTab
-                      clipId={clipId}
-                      showTextSection={showTextSection}
-                      showShapeSection={showShapeSection}
-                      showSVGSection={showSVGSection}
-                    />
+                    {tabMounted("style") && (
+                      <StyleTab
+                        clipId={clipId}
+                        showTextSection={showTextSection}
+                        showShapeSection={showShapeSection}
+                        showSVGSection={showSVGSection}
+                      />
+                    )}
                   </div>
                 )}
 
                 {tabIds.includes("color") && (
                   <div hidden={!(visibleInspectorTab === "color")}>
-                    <ColorTab
-                      clipId={clipId}
-                      showColorGrading={showColorGrading}
-                    />
+                    {tabMounted("color") && (
+                      <ColorTab
+                        clipId={clipId}
+                        showColorGrading={showColorGrading}
+                      />
+                    )}
                   </div>
                 )}
 
@@ -1098,25 +1115,29 @@ const InspectorPanelBody = React.memo(function InspectorPanelBody({ selectedItem
 
                 {tabIds.includes("audio") && (
                   <div hidden={!(visibleInspectorTab === "audio")}>
-                    <AudioTab
-                      clipId={clipId}
-                      clipType={clipType}
-                      showAudioEffects={showAudioEffects}
-                      noiseReductionSectionTitle={noiseReductionSectionTitle}
-                      selectedNoiseReductionEffect={
-                        selectedNoiseReductionEffect
-                      }
-                    />
+                    {tabMounted("audio") && (
+                      <AudioTab
+                        clipId={clipId}
+                        clipType={clipType}
+                        showAudioEffects={showAudioEffects}
+                        noiseReductionSectionTitle={noiseReductionSectionTitle}
+                        selectedNoiseReductionEffect={
+                          selectedNoiseReductionEffect
+                        }
+                      />
+                    )}
                   </div>
                 )}
 
                 {tabIds.includes("speed") && (
                   <div hidden={!(visibleInspectorTab === "speed")}>
-                    <SpeedTab
-                      showVideoControls={showVideoControls}
-                      showSpeedControls={showVideoControls || clipType === "audio"}
-                      selectedClip={selectedClip}
-                    />
+                    {tabMounted("speed") && (
+                      <SpeedTab
+                        showVideoControls={showVideoControls}
+                        showSpeedControls={showVideoControls || clipType === "audio"}
+                        selectedClip={selectedClip}
+                      />
+                    )}
                   </div>
                 )}
 
@@ -1126,35 +1147,39 @@ const InspectorPanelBody = React.memo(function InspectorPanelBody({ selectedItem
                       visibleInspectorTab !== "animate"
                     }
                   >
-                    <AnimateTab
-                      clipId={clipId}
-                      clipType={clipType}
-                      showTextSection={showTextSection}
-                    />
+                    {tabMounted("animate") && (
+                      <AnimateTab
+                        clipId={clipId}
+                        clipType={clipType}
+                        showTextSection={showTextSection}
+                      />
+                    )}
                   </div>
                 )}
 
                 {tabIds.includes("ai") && (
                   <div hidden={!(visibleInspectorTab === "ai")}>
-                    <AiTab
-                      clipId={clipId}
-                      clipType={clipType}
-                      showVideoControls={showVideoControls}
-                      showAudioEffects={showAudioEffects}
-                      showVideoEffects={showVideoEffects}
-                      handleSRTImport={handleSRTImport}
-                      srtInputRef={srtInputRef}
-                      handleRemoveBackground={handleRemoveBackground}
-                      handleEnhanceAudio={handleEnhanceAudio}
-                      handleAutoColor={handleAutoColor}
-                      isEnhancingAudio={isEnhancingAudio}
-                      audioEnhanced={audioEnhanced}
-                      isApplyingSelectedClipEffect={
-                        isApplyingSelectedClipEffect
-                      }
-                      captionWordsPerLine={captionWordsPerLine}
-                      onCaptionWordsPerLineChange={setCaptionWordsPerLine}
-                    />
+                    {tabMounted("ai") && (
+                      <AiTab
+                        clipId={clipId}
+                        clipType={clipType}
+                        showVideoControls={showVideoControls}
+                        showAudioEffects={showAudioEffects}
+                        showVideoEffects={showVideoEffects}
+                        handleSRTImport={handleSRTImport}
+                        srtInputRef={srtInputRef}
+                        handleRemoveBackground={handleRemoveBackground}
+                        handleEnhanceAudio={handleEnhanceAudio}
+                        handleAutoColor={handleAutoColor}
+                        isEnhancingAudio={isEnhancingAudio}
+                        audioEnhanced={audioEnhanced}
+                        isApplyingSelectedClipEffect={
+                          isApplyingSelectedClipEffect
+                        }
+                        captionWordsPerLine={captionWordsPerLine}
+                        onCaptionWordsPerLineChange={setCaptionWordsPerLine}
+                      />
+                    )}
                   </div>
                 )}
               </div>
@@ -1174,7 +1199,9 @@ const InspectorPanelBody = React.memo(function InspectorPanelBody({ selectedItem
               }}
             />
           ) : selectedSubtitle ? (
-            <SubtitleInspector key={selectedSubtitle.id} subtitle={selectedSubtitle} />
+            <React.Suspense fallback={null}>
+              <SubtitleInspector key={selectedSubtitle.id} subtitle={selectedSubtitle} />
+            </React.Suspense>
           ) : (
             <EmptyState />
           )}
@@ -1189,7 +1216,12 @@ export const InspectorPanel: React.FC = () => {
   // in a low-priority pass that React can interrupt if another click arrives. The tree lives in a
   // memoised body fed the deferred value, so the urgent selection render stops at this shell
   // instead of re-running the whole inspector against the previous selection.
-  const selectedItems = useDeferredValue(useUIStore((state) => state.selectedItems));
+  const liveSelection = useUIStore((state) => state.selectedItems);
+  // While a clip is being dragged the inspector keeps what it showed; it catches up just after the drop.
+  const dragging = useSyncExternalStore(subscribeClipDragActivity, isClipDragActive, () => false);
+  const heldSelection = useRef(liveSelection);
+  if (!dragging) heldSelection.current = liveSelection;
+  const selectedItems = useDeferredValue(heldSelection.current);
   return (
     <InspectorSelectionProvider value={selectedItems}>
       <InspectorPanelBody selectedItems={selectedItems} />

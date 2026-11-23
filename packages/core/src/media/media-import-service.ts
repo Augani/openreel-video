@@ -30,7 +30,7 @@ import {
   nativeMediaAvailable,
   proxyViaNative,
   transcodeViaNative,
-  probeAudioStreamCountViaNative,
+  probeAudioStreamsViaNative,
 } from "./native-media-bridge";
 
 function parseBitrateKbps(value: string | undefined, fallback: number): number {
@@ -176,6 +176,7 @@ export class MediaImportService {
           const probeResult = await this.probeAudioStreamsCompat(file);
           if (probeResult.audioStreamCount > 1) {
             metadata.audioTrackCount = probeResult.audioStreamCount;
+            if (probeResult.channels?.length === probeResult.audioStreamCount) metadata.audioStreamChannels = probeResult.channels;
           }
         } catch {
           // FFmpeg probe failed — keep existing count
@@ -406,6 +407,7 @@ export class MediaImportService {
         const probeResult = await this.probeAudioStreamsCompat(file);
         if (probeResult.audioStreamCount > 1) {
           metadata.audioTrackCount = probeResult.audioStreamCount;
+          if (probeResult.channels?.length === probeResult.audioStreamCount) metadata.audioStreamChannels = probeResult.channels;
         }
       } catch {
         // FFmpeg probe failed — keep existing count
@@ -491,7 +493,9 @@ export class MediaImportService {
       channels: processedMedia.metadata.channels,
       fileSize: processedMedia.metadata.fileSize,
       audioTrackCount: processedMedia.metadata.audioTrackCount,
+      ...(processedMedia.metadata.audioStreamChannels ? { audioStreamChannels: processedMedia.metadata.audioStreamChannels } : {}),
       ...(processedMedia.metadata.sourceColor ? { sourceColor: processedMedia.metadata.sourceColor } : {}),
+      ...(processedMedia.metadata.vr ? { vr: processedMedia.metadata.vr } : {}),
     };
 
     return {
@@ -611,11 +615,12 @@ export class MediaImportService {
 
   private async probeAudioStreamsCompat(
     file: File | Blob,
-  ): Promise<{ audioStreamCount: number }> {
+  ): Promise<{ audioStreamCount: number; channels?: number[] }> {
     if (nativeMediaAvailable()) {
-      return { audioStreamCount: await probeAudioStreamCountViaNative(file) };
+      return probeAudioStreamsViaNative(file);
     }
-    return this.ffmpegFallback.probeAudioStreams(file);
+    const probed = await this.ffmpegFallback.probeAudioStreams(file);
+    return { audioStreamCount: probed.audioStreamCount, channels: probed.streams.map((stream) => stream.channels) };
   }
 
   async generateProxyWithPreset(

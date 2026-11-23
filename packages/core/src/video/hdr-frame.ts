@@ -2,6 +2,7 @@ import type { Clip, Transform } from "../types/timeline";
 import type { HdrTransfer } from "../export/types";
 import { outputColorForExport, withBitDepth10, type OutputColorSpec } from "../export/color-output";
 import type { Project } from "../types/project";
+import { effectiveTimeInterpolation } from "./time-interpolation/types";
 import {
   CpuHdrCompositor,
   encodedRgbToYuv,
@@ -41,7 +42,7 @@ export function hdrOfTarget(target: HdrExportTarget | null): HdrTransfer | undef
 }
 
 export interface HdrClipFacts {
-  readonly clip: Pick<Clip, "smoothSlowMo" | "speed" | "emphasisAnimation" | "stabilization">;
+  readonly clip: Pick<Clip, "smoothSlowMo" | "timeInterpolation" | "speed" | "emphasisAnimation" | "stabilization">;
   readonly effects: readonly HdrEffectInput[];
   readonly hasMasks: boolean;
   readonly grading: ClipColorGrading | undefined;
@@ -55,7 +56,7 @@ export function isHdrEligibleClip(facts: HdrClipFacts): boolean {
   const { clip, transform } = facts;
   if (facts.rewritesFrame || facts.hasMasks) return false;
   if (resolveHdrEffects(facts.effects).unsupported) return false;
-  if (clip.smoothSlowMo === true && (clip.speed ?? 1) < 1) return false;
+  if (effectiveTimeInterpolation(clip) !== "frameSampling") return false;
   if (clip.stabilization?.enabled) return false;
   const emphasis = clip.emphasisAnimation as { type?: string } | undefined;
   if (emphasis && emphasis.type && emphasis.type !== "none") return false;

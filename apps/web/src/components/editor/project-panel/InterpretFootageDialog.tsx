@@ -42,6 +42,7 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
   const hdr = isHdrTransfer(effective);
   const cameraLog = cameraPresetOf(choice === "tagged" ? undefined : choice);
   const acesMode = useProjectStore((s) => s.project.settings.colorManagement === "aces");
+  const ocioMode = useProjectStore((s) => s.project.settings.colorManagement === "ocio");
   // OCIO config import: a transient mapping of the config's colour spaces onto the built-in presets.
   const [ocio, setOcio] = React.useState<{ fileName: string; mapping: OcioMapping } | null>(null);
   const [ocioError, setOcioError] = React.useState<string | null>(null);
@@ -112,7 +113,9 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
           <dd data-testid="media-color-effective">{describeSourceColor(effective)}</dd>
           <dt className="text-fg-3">Input transform</dt>
           <dd data-testid="media-color-transform">
-            {acesMode
+            {ocioMode
+              ? "OpenColorIO: the clip's OCIO input colour space (Color tab) or the project's default, then the config's looks and view; Interpret footage does not apply"
+              : acesMode
               ? "ACES input transform (IDT) to ACEScg, then the ACES output transform, identical in preview and export"
               : willTransform
               ? hdr

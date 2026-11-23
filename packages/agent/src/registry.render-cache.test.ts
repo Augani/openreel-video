@@ -106,4 +106,12 @@ describe("render cache tools", () => {
     expect(result.error?.code).toBe("RENDER_FAILED");
     expect(result.summary).toContain("full");
   });
+
+  it("passes effectsOnly through (Render Effects In to Out), with and without an explicit range", async () => {
+    const { host, calls } = hostWithCache();
+    await executeTool("render_in_to_out", { effectsOnly: true }, host);
+    await executeTool("render_in_to_out", { rangeStart: 1, rangeEnd: 3, effectsOnly: true }, host);
+    await executeTool("render_in_to_out", { rangeStart: 1, rangeEnd: 3 }, host);
+    expect(calls).toEqual([{ effectsOnly: true }, { rangeStart: 1, rangeEnd: 3, effectsOnly: true }, { rangeStart: 1, rangeEnd: 3 }]);
+  });
 });

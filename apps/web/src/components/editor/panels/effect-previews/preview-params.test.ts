@@ -24,6 +24,8 @@ describe("transitionPosterProgress", () => {
     expect(FLARE_POSTER_PROGRESS).toBeLessThan(0.25);
     expect(transitionPosterProgress({ kind: "transition", type: "flip" })).toBe(FLIP_POSTER_PROGRESS);
     expect(transitionPosterProgress({ kind: "transition", type: "spin" })).not.toBe(0.5);
+    // Flip Over is an empty frame edge-on at 0.5.
+    expect(transitionPosterProgress({ kind: "transition", type: "flipOver" })).toBeLessThan(0.3);
     expect(transitionPosterProgress({ kind: "transition", type: "radialWipe" })).not.toBe(0.5);
     expect(transitionPosterProgress({ kind: "transition", type: "crossfade", params: { curve: "ease-in" } })).toBe(0.7);
     expect(transitionPosterProgress({ kind: "transition", type: "crossfade", params: { curve: "ease-out" } })).toBe(0.3);
@@ -76,6 +78,9 @@ describe("previewNote", () => {
     expect(previewNote({ type: "stabilize" })).toBe("Needs analysis");
     expect(previewNote({ type: "grayscale" })).toBeNull();
     expect(previewNote({ kind: "transition", type: "chromaKey" })).toBeNull();
+    // Morph Cut needs the two clips it is applied to: its card previews as a dissolve and says so
+    expect(previewNote({ kind: "transition", type: "morphCut" })).toBe("Needs analysis");
+    expect(previewNote({ kind: "effect", type: "morphCut" })).toBeNull();
   });
 });
 

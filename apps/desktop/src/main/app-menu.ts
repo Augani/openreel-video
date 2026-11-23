@@ -34,6 +34,7 @@ export function buildMenuTemplate(platform: string): MenuNode[] {
       { label: "New Project", accelerator: "CmdOrCtrl+N", actionId: "newProject" },
       { label: "Open…", accelerator: "CmdOrCtrl+O", actionId: "open" },
       { label: "Export…", accelerator: "CmdOrCtrl+E", actionId: "export" },
+      { label: "Project Manager…", actionId: "projectManager" },
       { label: "Collaborate…", accelerator: "Shift+CmdOrCtrl+J", actionId: "collaborate" },
     ],
   });

@@ -331,6 +331,7 @@ import {
   withProEffectDefaults,
 } from "@openreel/core/video/pro-effects";
 import { getDefaultEffectParams } from "@openreel/core/video/effect-defaults";
+import { withVrSequenceLayout } from "@openreel/core/video/vr-effects";
 import type {
   EditingHost,
   JobKind,
@@ -340,6 +341,7 @@ import type {
   MotionRenderQueueAddInput,
 } from "./host";
 import type { JSONSchema, ToolDef, ToolDomain, ToolResult } from "./types";
+import { loadLazyToolGroups } from "./lazy-tool-groups";
 import {
   serializeEditorState,
   listMedia,
@@ -348,28 +350,7 @@ import {
   getClipDetail,
   type ClipFilter,
 } from "./serialize";
-import { createProductCinematicMotionComposition } from "./creation-product-motion";
-import { PRO_EDIT_TOOLS, proEffectParamError } from "./pro-edit-tools";
-import { INTERCHANGE_TOOLS } from "./interchange-tools";
-import { BIN_TOOLS } from "./bin-tools";
-import { SEQUENCE_TOOLS } from "./sequence-tools";
-import { MULTICAM_SOURCE_TOOLS } from "./multicam-source-tools";
-import { GRAPHIC_TOOLS } from "./graphic-tools";
-import { RENDER_CACHE_TOOLS } from "./render-cache-tools";
-import { EFFECT_INSTANCE_TOOLS } from "./effect-instance-tools";
-import { EXPORT_QUEUE_TOOLS, EXPORT_VIDEO_TOOL } from "./export-queue-tools";
-import { STILL_EXPORT_TOOLS } from "./still-export-tools";
-import { PATH_TOOLS } from "./path-tools";
-import { APP_STATE_TOOLS } from "./app-state-tools";
-import { PROXY_TOOLS } from "./proxy-tools";
-import { MOTION_TRACKING_TOOLS } from "./motion-tracking-tools";
-import { AUDIO_REPAIR_TOOLS } from "./audio-repair-tools";
-import { TRACK_AUDIO_RACK_TOOLS } from "./track-audio-rack-tools";
-import { AUDIO_ROUTING_TOOLS } from "./audio-routing-tools";
-import { LOUDNESS_TOOLS } from "./loudness-tools";
-import { COLOR_LIBRARY_TOOLS } from "./color-library-tools";
-import { CAPTION_TOOLS } from "./caption-tools";
-import { TEXT_STYLE_TOOLS } from "./text-style-tools";
+
 import {
   summarizeCreationState,
   validateCreationState,
@@ -379,32 +360,10 @@ import {
   evaluateCreationSceneAtTime,
   bakeProceduralTexture,
   bakeProceduralTexturePng,
-  renderMeshToImage,
-  renderMeshToPng,
-  rayTraceMeshToImage,
-  rayTraceMeshToPng,
-  renderMeshAuto,
-  encodePng,
-  encodeBase64,
-  meshToGltf,
-  meshToGlbBase64,
   computeMeshStats,
   solveTwoBoneIk,
   evaluateMaterialGraph,
-  createClothGrid,
-  simulateCloth,
-  stepCloth,
-  clothToMesh,
-  buildSkinnedLimb,
-  limbWavePose,
-  buildSkinnedHumanoid,
-  humanoidAnimationPose,
   type HumanoidAnimation,
-  skinMesh,
-  spawnParticles,
-  stepParticles,
-  makeRigidBody,
-  bakeRigidBodyTracks,
   type RigidBody,
   type ClothPin,
   type MaterialGraph,
@@ -2153,6 +2112,17 @@ function readTool(
       const data = run(args, host);
       return ok(`${name} ok`, data);
     },
+  };
+}
+
+/** A readTool whose run step is async (it loads a lazy chunk first). */
+function withAsyncRun(
+  tool: RegisteredTool,
+  run: (args: Record<string, unknown>, host: EditingHost) => Promise<unknown>,
+): RegisteredTool {
+  return {
+    ...tool,
+    handler: async (args, host) => ok(`${tool.name} ok`, await run(args, host)),
   };
 }
 
@@ -6228,12 +6198,16 @@ function rigidBodyRadiusForObject(
   return Math.max(0.05, baseRadius * maxScale);
 }
 
+type CreationRigLazy = typeof import("./creation-rig-lazy");
+
 function buildCreationRigidSolverTracks(
   args: Record<string, unknown>,
   objects: readonly CreationSceneObject[],
   clipId: string,
   assetsById: ReadonlyMap<string, CreationAssetRecipe>,
+  rig: CreationRigLazy,
 ): CreationRigidBuildResult {
+  const { makeRigidBody, bakeRigidBodyTracks } = rig;
   const dropHeight = Math.max(0, optionalNumber(args.dropHeight) ?? optionalNumber(args.height) ?? 2);
   const gravity = Math.max(0.1, optionalNumber(args.gravity) ?? 9.8);
   const groundY = optionalNumber(args.groundY) ?? 0;
@@ -6577,7 +6551,9 @@ function buildClothMeshFrames(
   args: Record<string, unknown>,
   worldWidth: number,
   worldHeight: number,
+  cloth: Pick<typeof import("./creation-cloth-lazy"), "createClothGrid" | "stepCloth" | "clothToMesh">,
 ): MotionObjectMeshFrames {
+  const { createClothGrid, stepCloth, clothToMesh } = cloth;
   const columns = Math.round(clampNumber(optionalNumber(args.columns) ?? 14, 2, 36));
   const rows = Math.round(clampNumber(optionalNumber(args.rows) ?? 14, 2, 36));
   const plane = optionalString(args.plane) === "xz" ? "xz" : "xy";
@@ -6672,7 +6648,9 @@ function updateCreationAssetClothBake(
 function buildSkinnedLimbMeshFrames(
   args: Record<string, unknown>,
   worldLength: number,
+  rig: CreationRigLazy,
 ): MotionObjectMeshFrames {
+  const { buildSkinnedLimb, limbWavePose, skinMesh } = rig;
   const segments = Math.round(clampNumber(optionalNumber(args.segments) ?? 8, 2, 24));
   const radialSegments = Math.round(clampNumber(optionalNumber(args.radialSegments) ?? 10, 3, 24));
   const radius = Math.max(0.02, optionalNumber(args.radius) ?? worldLength * 0.07);
@@ -6756,7 +6734,9 @@ function updateCreationAssetSkinnedLimb(
 function buildHumanoidMeshFrames(
   args: Record<string, unknown>,
   worldHeight: number,
+  rig: CreationRigLazy,
 ): MotionObjectMeshFrames {
+  const { buildSkinnedHumanoid, humanoidAnimationPose, skinMesh } = rig;
   const radialSegments = Math.round(clampNumber(optionalNumber(args.radialSegments) ?? 7, 3, 12));
   const human = buildSkinnedHumanoid({ height: worldHeight, radialSegments });
 
@@ -6868,7 +6848,9 @@ const PARTICLE_OCTA_FACES: ReadonlyArray<readonly [number, number, number]> = [
 function buildParticleMeshFrames(
   args: Record<string, unknown>,
   worldSize: number,
+  rig: CreationRigLazy,
 ): MotionObjectMeshFrames {
+  const { spawnParticles, stepParticles } = rig;
   const count = Math.round(clampNumber(optionalNumber(args.count) ?? 90, 1, 600));
   const seed = optionalString(args.seed) ?? "openreel-particles";
   const speed = Math.max(0, optionalNumber(args.speed) ?? worldSize * 1.1);
@@ -10822,7 +10804,7 @@ function overlayRemoveTool(
 }
 
 // ---- Tool list -------------------------------------------------------------
-const TOOLS: RegisteredTool[] = [
+const HEAD_TOOLS: RegisteredTool[] = [
   // read
   readTool("get_editor_state", "Editor state", "Project settings, durations, and counts.", obj({}), (_a, h) =>
     serializeEditorState(h.getProject()),
@@ -11220,6 +11202,7 @@ const TOOLS: RegisteredTool[] = [
       return evaluateMaterialGraph(graph);
     },
   ),
+  withAsyncRun(
   readTool(
     "simulate_creation_cloth",
     "Simulate cloth",
@@ -11238,7 +11221,11 @@ const TOOLS: RegisteredTool[] = [
       windZ: num,
       iterations: num,
     }),
-    (args) => {
+    () => ({}),
+    ),
+    async (args) => {
+      const cloth = await import("./creation-cloth-lazy");
+      const { createClothGrid, simulateCloth, clothToMesh } = cloth;
       const pinRaw = optionalString(args.pin);
       const validPins = ["none", "top", "bottom", "left", "right", "top-corners", "left-edge"];
       const pin = (validPins.includes(pinRaw ?? "") ? pinRaw : "top") as ClothPin;
@@ -11270,6 +11257,7 @@ const TOOLS: RegisteredTool[] = [
         bounds: stats.bounds,
       };
     },
+  
   ),
   {
     name: "probe_rigging_backend",
@@ -12841,10 +12829,12 @@ const TOOLS: RegisteredTool[] = [
         name: scene.name,
         baseColor: scene.environment.backgroundColor,
       };
-      const gltf =
-        includeExport && format === "gltf" ? meshToGltf(baked.mesh, exportOptions) : undefined;
-      const glbBase64 =
-        includeExport && format === "glb" ? meshToGlbBase64(baked.mesh, exportOptions) : undefined;
+      const { exportCreationMesh } = await import("./creation-render-lazy");
+      const { gltf, glbBase64 } = exportCreationMesh(
+        baked.mesh,
+        includeExport ? format : undefined,
+        exportOptions,
+      );
 
       return ok(
         `Exported creation scene "${scene.name}" (${format}): ${baked.stats.vertexCount} verts, ${baked.stats.triangleCount} tris across ${baked.objects.length} objects`,
@@ -12942,43 +12932,10 @@ const TOOLS: RegisteredTool[] = [
       const includePng = args.includePng !== false;
       const baseOptions = { width, height, camera, baseColor, background };
 
-      let renderWidth = width;
-      let renderHeight = height;
-      let coveredPixels = 0;
-      let shadowedPixels: number | undefined;
-      let backend: "webgpu" | "cpu" | undefined;
-      let dataUri: string | undefined;
-
-      if (mode === "auto") {
-        const image = await renderMeshAuto(baked.mesh, baseOptions);
-        renderWidth = image.width;
-        renderHeight = image.height;
-        coveredPixels = image.coveredPixels;
-        backend = image.backend;
-        dataUri = includePng
-          ? `data:image/png;base64,${encodeBase64(encodePng(image.rgba, image.width, image.height))}`
-          : undefined;
-      } else if (mode === "raytrace") {
-        const options = { ...baseOptions, shadows: args.shadows !== false };
-        const rendered = includePng
-          ? rayTraceMeshToPng(baked.mesh, options)
-          : rayTraceMeshToImage(baked.mesh, options);
-        renderWidth = rendered.width;
-        renderHeight = rendered.height;
-        coveredPixels = rendered.coveredPixels;
-        shadowedPixels = "shadowedPixels" in rendered ? rendered.shadowedPixels : undefined;
-        dataUri = "dataUri" in rendered ? rendered.dataUri : undefined;
-        backend = "cpu";
-      } else {
-        const rendered = includePng
-          ? renderMeshToPng(baked.mesh, baseOptions)
-          : renderMeshToImage(baked.mesh, baseOptions);
-        renderWidth = rendered.width;
-        renderHeight = rendered.height;
-        coveredPixels = rendered.coveredPixels;
-        dataUri = "dataUri" in rendered ? rendered.dataUri : undefined;
-        backend = "cpu";
-      }
+      // Rasterizer, ray tracer, WebGPU path and glTF writers are about 18 KB and used by two tools: loaded on first call.
+      const { renderCreationMesh } = await import("./creation-render-lazy");
+      const { renderWidth, renderHeight, coveredPixels, shadowedPixels, dataUri, backend } =
+        await renderCreationMesh(baked.mesh, mode, baseOptions, includePng, args.shadows !== false);
 
       return ok(
         `Rendered creation scene "${scene.name}" at ${timeSeconds.toFixed(2)}s (${mode}/${backend}, ${renderWidth}x${renderHeight}, ${coveredPixels} covered px)`,
@@ -13130,10 +13087,12 @@ const TOOLS: RegisteredTool[] = [
       const format = optionalString(args.format) === "glb" ? "glb" : "gltf";
       const wantExport = args.includeGltf === true;
       const exportOptions = { name: baked.asset.name, baseColor };
-      const gltf =
-        wantExport && format === "gltf" ? meshToGltf(baked.mesh, exportOptions) : undefined;
-      const glbBase64 =
-        wantExport && format === "glb" ? meshToGlbBase64(baked.mesh, exportOptions) : undefined;
+      const { exportCreationMesh } = await import("./creation-render-lazy");
+      const { gltf, glbBase64 } = exportCreationMesh(
+        baked.mesh,
+        wantExport ? format : undefined,
+        exportOptions,
+      );
 
       return ok(
         baked.placeholder
@@ -15746,7 +15705,8 @@ const TOOLS: RegisteredTool[] = [
         if (invalid) return fail(invalid, "INVALID_PARAMS");
         // A pro effect stored with {} resolves to neutral (a no-op): seed the
         // same defaults the editor UI does, explicit params win.
-        actionParams = { ...args, params: withProEffectDefaults(effectType, params) };
+        // A VR effect added to a VR sequence takes the sequence's frame layout unless the caller chose one.
+        actionParams = { ...args, params: withVrSequenceLayout(effectType, params, withProEffectDefaults(effectType, params), host.getProject().settings.vr) };
       } else if (Object.keys(params).length === 0) {
         // Legacy effects (blur, sharpen, vignette, glow, ...) also resolve a
         // missing param to neutral, which is a silent no-op: seed visible
@@ -15794,6 +15754,7 @@ const TOOLS: RegisteredTool[] = [
         .find((clip) => clip.id === args.clipId)
         ?.effects.find((effect) => effect.id === args.effectId);
       if (existing) {
+        const { proEffectParamError } = await import("./pro-edit-tools");
         const proError = proEffectParamError(existing.type, params);
         if (proError) return fail(proError, "INVALID_PARAMS");
       }
@@ -15885,8 +15846,8 @@ const TOOLS: RegisteredTool[] = [
   }),
 
   // transition
-  actionTool({ name: "add_transition", domain: "transition", actionType: "transition/add", title: "Add transition", description: "Add a rendered transition between two adjacent existing clips on the same main-timeline track. Use list_clips for ordered clip ids and get_capabilities transitionTypes for values such as whipPan, zoom, push, glitch, or flash.", inputSchema: obj({ clipAId: str, clipBId: str, transitionType: { type: "string", enum: [...TRANSITION_TYPES] }, duration: num }, ["clipAId", "clipBId", "transitionType", "duration"]) }),
-  actionTool({ name: "update_transition", domain: "transition", actionType: "transition/update", title: "Update transition", description: "Update an existing main-timeline transition's type and/or duration.", inputSchema: obj({ transitionId: str, type: { type: "string", enum: [...TRANSITION_TYPES] }, duration: num }, ["transitionId"]) }),
+  actionTool({ name: "add_transition", domain: "transition", actionType: "transition/add", title: "Add transition", description: "Add a rendered transition between two adjacent existing clips on the same main-timeline track. Use list_clips for clip ids; list_transitions shows types and params. morphCut (hides a jump cut in one shot) analyses in the background: dissolve until ready, see get_morph_cut_status.", inputSchema: obj({ clipAId: str, clipBId: str, transitionType: { type: "string", enum: [...TRANSITION_TYPES] }, duration: num, params: obj({}) }, ["clipAId", "clipBId", "transitionType", "duration"]) }),
+  actionTool({ name: "update_transition", domain: "transition", actionType: "transition/update", title: "Update transition", description: "Update a main-timeline transition's type, duration and/or params (merged into the current ones).", inputSchema: obj({ transitionId: str, type: { type: "string", enum: [...TRANSITION_TYPES] }, duration: num, params: obj({}) }, ["transitionId"]) }),
   actionTool({ name: "remove_transition", domain: "transition", actionType: "transition/remove", title: "Remove transition", description: "Remove a transition.", inputSchema: obj({ transitionId: str }, ["transitionId"]) }),
 
   // marker
@@ -20552,7 +20513,8 @@ const TOOLS: RegisteredTool[] = [
       const objects = objectsOrError;
       const clipId = optionalString(args.clipId) ?? `anim-${scene.id}-rigid-bodies`;
       const assetsById = new Map(state.assets.map((asset) => [asset.id, asset]));
-      const built = buildCreationRigidSolverTracks(args, objects, clipId, assetsById);
+      const rig = await import("./creation-rig-lazy");
+      const built = buildCreationRigidSolverTracks(args, objects, clipId, assetsById, rig);
       if (built.tracks.length === 0) {
         return fail("No creation objects selected for rigid-body simulation", "INVALID_PARAMS");
       }
@@ -20642,6 +20604,7 @@ const TOOLS: RegisteredTool[] = [
         return fail("No creation objects selected for cloth bake", "INVALID_PARAMS");
       }
 
+      const cloth = await import("./creation-cloth-lazy");
       const now = Date.now();
       const selectedAssetIds = new Set(selected.map((object) => object.assetId));
       const affectedObjects = scene.objects.filter((object) =>
@@ -20689,7 +20652,7 @@ const TOOLS: RegisteredTool[] = [
             syncedRenderObjectIds.push(renderObject.id);
             const worldWidth = (renderObject.object.size ?? 1) * 1.6;
             const worldHeight = worldWidth * (renderObject.object.aspect ?? 1);
-            const meshFrames = buildClothMeshFrames(args, worldWidth, worldHeight);
+            const meshFrames = buildClothMeshFrames(args, worldWidth, worldHeight, cloth);
             if (meshFrames.frames.length === 0 || meshFrames.indices.length < 3) {
               return renderObject;
             }
@@ -20806,6 +20769,7 @@ const TOOLS: RegisteredTool[] = [
         nextAssets.set(assetId, updateCreationAssetSkinnedLimb(asset, args, now));
       }
 
+      const rig = await import("./creation-rig-lazy");
       const syncedRenderObjectIds: string[] = [];
       const bakedRenderObjectIds: string[] = [];
       let frameCount = 0;
@@ -20840,7 +20804,7 @@ const TOOLS: RegisteredTool[] = [
             if (!sceneObject || !nextAssets.has(sceneObject.assetId)) return renderObject;
             syncedRenderObjectIds.push(renderObject.id);
             const worldLength = (renderObject.object.size ?? 1) * 1.6;
-            const meshFrames = buildSkinnedLimbMeshFrames(args, worldLength);
+            const meshFrames = buildSkinnedLimbMeshFrames(args, worldLength, rig);
             if (meshFrames.frames.length === 0 || meshFrames.indices.length < 3) {
               return renderObject;
             }
@@ -20953,6 +20917,7 @@ const TOOLS: RegisteredTool[] = [
         nextAssets.set(assetId, updateCreationAssetHumanoid(asset, args, now));
       }
 
+      const rig = await import("./creation-rig-lazy");
       const syncedRenderObjectIds: string[] = [];
       const bakedRenderObjectIds: string[] = [];
       let frameCount = 0;
@@ -20987,7 +20952,7 @@ const TOOLS: RegisteredTool[] = [
             if (!sceneObject || !nextAssets.has(sceneObject.assetId)) return renderObject;
             syncedRenderObjectIds.push(renderObject.id);
             const worldHeight = (renderObject.object.size ?? 1) * 1.6;
-            const meshFrames = buildHumanoidMeshFrames(args, worldHeight);
+            const meshFrames = buildHumanoidMeshFrames(args, worldHeight, rig);
             if (meshFrames.frames.length === 0 || meshFrames.indices.length < 3) {
               return renderObject;
             }
@@ -21108,6 +21073,7 @@ const TOOLS: RegisteredTool[] = [
         nextAssets.set(assetId, updateCreationAssetParticleBake(asset, args, now));
       }
 
+      const rig = await import("./creation-rig-lazy");
       const syncedRenderObjectIds: string[] = [];
       const bakedRenderObjectIds: string[] = [];
       let frameCount = 0;
@@ -21142,7 +21108,7 @@ const TOOLS: RegisteredTool[] = [
             if (!sceneObject || !nextAssets.has(sceneObject.assetId)) return renderObject;
             syncedRenderObjectIds.push(renderObject.id);
             const worldSize = (renderObject.object.size ?? 1) * 1.6;
-            const meshFrames = buildParticleMeshFrames(args, worldSize);
+            const meshFrames = buildParticleMeshFrames(args, worldSize, rig);
             if (meshFrames.frames.length === 0 || meshFrames.indices.length < 3) {
               return renderObject;
             }
@@ -22517,6 +22483,8 @@ const TOOLS: RegisteredTool[] = [
     handler: async (args, host) => {
       host.requireOpenProject();
       const project = host.getProject();
+      // Rarely used and about 20 KB of scene builders: loaded on first call so the executor chunk stays inside its budget.
+      const { createProductCinematicMotionComposition } = await import("./creation-product-motion");
       const result = createProductCinematicMotionComposition({
         compositionId: genId(),
         layerId: genId(),
@@ -32323,60 +32291,42 @@ const TOOLS: RegisteredTool[] = [
   },
 
   // Local render jobs delegated to the app host and gated as expensive.
-  EXPORT_VIDEO_TOOL,
-  jobTool(
+  // export_video and every domain group after export_audio live in per-domain chunks
+  // (see lazy-tool-groups.ts) and are spliced in below, in their original order.
+];
+
+const EXPORT_AUDIO_TOOL: RegisteredTool = jobTool(
     "export_audio",
     "export",
     "Export audio",
     "Render the project audio to a local file (format: mp3|wav|aac|flac|ogg, default wav) and return its local result metadata. Optional targetLufs (-40..-5) normalizes the mix to that integrated loudness with a true-peak ceiling (truePeakCeilingDb, default -1). Expensive — requires confirmation.",
     "exportAudio",
     obj({ format: str, targetLufs: num, truePeakCeilingDb: num }),
-  ),
-
-  // Premiere-parity tools: roll/slide/rate-stretch, insert/overwrite/lift/
-  // extract/add-edit/match-frame, scene detection, scopes, pro effects.
-  ...PRO_EDIT_TOOLS,
-
-  // Timeline interchange (Premiere/Resolve xmeml, FCPXML, EDL).
-  ...INTERCHANGE_TOOLS,
-  ...TRACK_AUDIO_RACK_TOOLS,
-  ...AUDIO_ROUTING_TOOLS,
-  ...LOUDNESS_TOOLS,
-  ...COLOR_LIBRARY_TOOLS,
-  ...CAPTION_TOOLS,
-  ...TEXT_STYLE_TOOLS,
-
-  // Project-panel organisation: bins, label colours, subclips.
-  ...BIN_TOOLS,
-
-  // Multi-sequence projects: list, create, open sequences; nest clips.
-  ...SEQUENCE_TOOLS,
-  ...GRAPHIC_TOOLS,
-
-  // Premiere-style multi-camera: create a synced source, switch angles, record cuts, flatten.
-  ...MULTICAM_SOURCE_TOOLS,
-
-  // Preview render cache: Render In to Out, delete render files, render status.
-  ...RENDER_CACHE_TOOLS,
-  ...EXPORT_QUEUE_TOOLS,
-  ...STILL_EXPORT_TOOLS,
-  ...PATH_TOOLS,
-  ...APP_STATE_TOOLS,
-  ...PROXY_TOOLS,
-  ...MOTION_TRACKING_TOOLS,
-  ...AUDIO_REPAIR_TOOLS,
-  ...EFFECT_INSTANCE_TOOLS,
-];
+  );
 
 // ---- Registry --------------------------------------------------------------
-const REGISTRY = new Map<string, RegisteredTool>(TOOLS.map((t) => [t.name, t]));
+// Tool order (the order the model and MCP clients see) is: the tools above, export_video,
+// export_audio, then each lazily loaded domain group. The groups load as one parallel batch the
+// first time this module is evaluated (top-level await) and are read on the first accessor call, so every
+// importer sees the complete registry and the synchronous accessors below stay valid.
+const readLazyGroups = await loadLazyToolGroups();
+let registryMap: Map<string, RegisteredTool> | undefined;
+/** Built on first use, not at module evaluation: a group folded into this chunk is not initialised until the top-level await above is done. */
+function registry(): Map<string, RegisteredTool> {
+  if (!registryMap) {
+    const lazy = readLazyGroups();
+    const tools: RegisteredTool[] = [...HEAD_TOOLS, lazy.exportVideo, EXPORT_AUDIO_TOOL, ...lazy.groups];
+    registryMap = new Map<string, RegisteredTool>(tools.map((t) => [t.name, t]));
+  }
+  return registryMap;
+}
 
 export function getTool(name: string): RegisteredTool | undefined {
-  return REGISTRY.get(name);
+  return registry().get(name);
 }
 
 export function listTools(): RegisteredTool[] {
-  return [...REGISTRY.values()];
+  return [...registry().values()];
 }
 
 export function toolDefs(): ToolDef[] {

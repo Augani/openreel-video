@@ -682,107 +682,112 @@ export function registerOverlayTemplateTests(): void {
   });
   }
 
-  test("Saved and cloud templates get a lazily rendered thumbnail; the modal hero plays the template on hover and focus", async ({ page }, testInfo) => {
-    test.setTimeout(180_000);
-    mkdirSync(SHOTS, { recursive: true });
-    await page.addInitScript(() => {
-      localStorage.setItem("openreel-onboarding-complete", "true");
-      localStorage.setItem("openreel-mograph-tour-complete", "true");
-    });
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto("/");
-    await page.getByRole("button", { name: "Browse templates" }).waitFor({ timeout: 30_000 });
-    await page.waitForFunction(() => !!(window as any).__openreelE2E, undefined, { timeout: 30_000 });
-    // A saved (IndexedDB) and a cloud (network) template built from real built-ins, with no thumbnail of their own.
-    const made = await page.evaluate(async () => {
-      const e = (window as any).__openreelE2E;
-      const engine = await e.engine.getState().getTemplateEngine();
-      await engine.initialize();
-      const source = engine.getBuiltinTemplates().find((t: any) => t.id === "builtin-quote-card") ?? engine.getBuiltinTemplates()[0];
-      const clone = (id: string, name: string) => ({ ...JSON.parse(JSON.stringify(source)), id, name, thumbnailUrl: null, previewUrl: null });
-      const saved = clone("saved-e2e-1", "Saved E2E");
-      await engine.saveTemplate(saved);
-      return { saved: saved.id, cloud: clone("cloud-e2e-1", "Cloud E2E") };
-    });
-    await page.route("**/templates/scriptable", (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        headers: { "access-control-allow-origin": "*" },
-        body: JSON.stringify({ templates: [{ ...made.cloud, socialCategory: "promo", placeholders: made.cloud.placeholders ?? [] }] }),
-      }),
-    );
-    await page.getByRole("button", { name: "Browse templates" }).click();
-    for (const id of ["saved-e2e-1", "cloud-e2e-1"]) {
-      const host = page.locator(`[data-template-thumb="${id}"]`);
-      await host.scrollIntoViewIfNeeded({ timeout: 30_000 });
-      const img = host.locator("img");
-      await expect(img, `${id} gets a rendered thumbnail`).toHaveAttribute("src", /^blob:/, { timeout: 40_000 });
-      const read = await img.evaluate(async (node: HTMLImageElement) => {
-        await node.decode();
-        const canvas = document.createElement("canvas");
-        canvas.width = 64;
-        canvas.height = 36;
-        const ctx = canvas.getContext("2d", { willReadFrequently: true }) as CanvasRenderingContext2D;
-        ctx.drawImage(node, 0, 0, 64, 36);
-        const data = ctx.getImageData(0, 0, 64, 36).data;
-        let sum = 0;
-        let sq = 0;
-        for (let i = 0; i < data.length; i += 4) {
-          const l = (data[i] + data[i + 1] + data[i + 2]) / 3;
-          sum += l;
-          sq += l * l;
-        }
-        const n = data.length / 4;
-        return { w: node.naturalWidth, h: node.naturalHeight, std: Math.sqrt(Math.max(0, sq / n - (sum / n) ** 2)) };
+  // A production build registers a service worker, and page.route cannot see requests it makes (the mocked cloud list would hit the real API
+  // and 404). Blocking it keeps the route in charge; the dev server has no worker, which is why this only failed against a built bundle.
+  test.describe("cloud list mocked by route", () => {
+    test.use({ serviceWorkers: "block" });
+    test("Saved and cloud templates get a lazily rendered thumbnail; the modal hero plays the template on hover and focus", async ({ page }, testInfo) => {
+      test.setTimeout(180_000);
+      mkdirSync(SHOTS, { recursive: true });
+      await page.addInitScript(() => {
+        localStorage.setItem("openreel-onboarding-complete", "true");
+        localStorage.setItem("openreel-mograph-tour-complete", "true");
       });
-      expect(read.w, `${id} is a real 640 px render`).toBeGreaterThanOrEqual(600);
-      expect(read.std, `${id} has structure, not a flat placeholder`).toBeGreaterThan(18);
-      expect(await host.locator("svg").count(), `${id} shows no placeholder icon`).toBe(0);
-    }
-    await page.screenshot({ path: `${SHOTS}/${testInfo.project.name}-template-lazy.png` });
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto("/");
+      await page.getByRole("button", { name: "Browse templates" }).waitFor({ timeout: 30_000 });
+      await page.waitForFunction(() => !!(window as any).__openreelE2E, undefined, { timeout: 30_000 });
+      // A saved (IndexedDB) and a cloud (network) template built from real built-ins, with no thumbnail of their own.
+      const made = await page.evaluate(async () => {
+        const e = (window as any).__openreelE2E;
+        const engine = await e.engine.getState().getTemplateEngine();
+        await engine.initialize();
+        const source = engine.getBuiltinTemplates().find((t: any) => t.id === "builtin-quote-card") ?? engine.getBuiltinTemplates()[0];
+        const clone = (id: string, name: string) => ({ ...JSON.parse(JSON.stringify(source)), id, name, thumbnailUrl: null, previewUrl: null });
+        const saved = clone("saved-e2e-1", "Saved E2E");
+        await engine.saveTemplate(saved);
+        return { saved: saved.id, cloud: clone("cloud-e2e-1", "Cloud E2E") };
+      });
+      await page.route("**/templates/scriptable", (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          headers: { "access-control-allow-origin": "*" },
+          body: JSON.stringify({ templates: [{ ...made.cloud, socialCategory: "promo", placeholders: made.cloud.placeholders ?? [] }] }),
+        }),
+      );
+      await page.getByRole("button", { name: "Browse templates" }).click();
+      for (const id of ["saved-e2e-1", "cloud-e2e-1"]) {
+        const host = page.locator(`[data-template-thumb="${id}"]`);
+        await host.scrollIntoViewIfNeeded({ timeout: 30_000 });
+        const img = host.locator("img");
+        await expect(img, `${id} gets a rendered thumbnail`).toHaveAttribute("src", /^blob:/, { timeout: 40_000 });
+        const read = await img.evaluate(async (node: HTMLImageElement) => {
+          await node.decode();
+          const canvas = document.createElement("canvas");
+          canvas.width = 64;
+          canvas.height = 36;
+          const ctx = canvas.getContext("2d", { willReadFrequently: true }) as CanvasRenderingContext2D;
+          ctx.drawImage(node, 0, 0, 64, 36);
+          const data = ctx.getImageData(0, 0, 64, 36).data;
+          let sum = 0;
+          let sq = 0;
+          for (let i = 0; i < data.length; i += 4) {
+            const l = (data[i] + data[i + 1] + data[i + 2]) / 3;
+            sum += l;
+            sq += l * l;
+          }
+          const n = data.length / 4;
+          return { w: node.naturalWidth, h: node.naturalHeight, std: Math.sqrt(Math.max(0, sq / n - (sum / n) ** 2)) };
+        });
+        expect(read.w, `${id} is a real 640 px render`).toBeGreaterThanOrEqual(600);
+        expect(read.std, `${id} has structure, not a flat placeholder`).toBeGreaterThan(18);
+        expect(await host.locator("svg").count(), `${id} shows no placeholder icon`).toBe(0);
+      }
+      await page.screenshot({ path: `${SHOTS}/${testInfo.project.name}-template-lazy.png` });
 
-    // Modal hero: still at rest, the template's own animation on hover, back to the still on leave, still on reduced motion.
-    await page.getByRole("button", { name: "Cloud E2E" }).first().click();
-    const hero = page.locator("[data-template-hero]");
-    await expect(hero).toBeVisible({ timeout: 20_000 });
-    await expect(hero).toHaveAttribute("data-hero-state", "still");
-    const readHero = async () =>
-      page.evaluate(() => {
-        const canvas = document.querySelector("[data-template-hero] canvas") as HTMLCanvasElement;
-        const probe = document.createElement("canvas");
-        probe.width = 64;
-        probe.height = 36;
-        const ctx = probe.getContext("2d", { willReadFrequently: true }) as CanvasRenderingContext2D;
-        ctx.drawImage(canvas, 0, 0, 64, 36);
-        return { frame: canvas.dataset.heroFrame, data: Array.from(ctx.getImageData(0, 0, 64, 36).data) };
-      });
-    await hero.hover();
-    await expect(hero).toHaveAttribute("data-hero-state", "playing", { timeout: 60_000 });
-    const seen = new Map<string | undefined, number[]>();
-    for (let i = 0; i < 30; i++) {
-      const frame = await readHero();
-      seen.set(frame.frame, frame.data);
-      await page.waitForTimeout(120);
-    }
-    expect(seen.size, `distinct hero frames: ${[...seen.keys()]}`).toBeGreaterThanOrEqual(4);
-    const frames = [...seen.values()];
-    let maxDiff = 0;
-    for (const other of frames) {
-      let diff = 0;
-      for (let k = 0; k < other.length; k++) diff += Math.abs(other[k] - frames[0][k]);
-      maxDiff = Math.max(maxDiff, diff / other.length);
-    }
-    expect(maxDiff, "the template layers actually move between frames").toBeGreaterThan(0.05);
-    await page.screenshot({ path: `${SHOTS}/${testInfo.project.name}-template-hero-playing.png` });
-    await page.mouse.move(5, 5);
-    await expect(hero).toHaveAttribute("data-hero-state", "still", { timeout: 5_000 });
-    await hero.focus();
-    await expect(hero).toHaveAttribute("data-hero-state", "playing", { timeout: 30_000 });
-    await hero.blur();
-    await page.emulateMedia({ reducedMotion: "reduce" });
-    await hero.hover();
-    await page.waitForTimeout(1500);
-    await expect(hero).toHaveAttribute("data-hero-state", "still");
+      // Modal hero: still at rest, the template's own animation on hover, back to the still on leave, still on reduced motion.
+      await page.getByRole("button", { name: "Cloud E2E" }).first().click();
+      const hero = page.locator("[data-template-hero]");
+      await expect(hero).toBeVisible({ timeout: 20_000 });
+      await expect(hero).toHaveAttribute("data-hero-state", "still");
+      const readHero = async () =>
+        page.evaluate(() => {
+          const canvas = document.querySelector("[data-template-hero] canvas") as HTMLCanvasElement;
+          const probe = document.createElement("canvas");
+          probe.width = 64;
+          probe.height = 36;
+          const ctx = probe.getContext("2d", { willReadFrequently: true }) as CanvasRenderingContext2D;
+          ctx.drawImage(canvas, 0, 0, 64, 36);
+          return { frame: canvas.dataset.heroFrame, data: Array.from(ctx.getImageData(0, 0, 64, 36).data) };
+        });
+      await hero.hover();
+      await expect(hero).toHaveAttribute("data-hero-state", "playing", { timeout: 60_000 });
+      const seen = new Map<string | undefined, number[]>();
+      for (let i = 0; i < 30; i++) {
+        const frame = await readHero();
+        seen.set(frame.frame, frame.data);
+        await page.waitForTimeout(120);
+      }
+      expect(seen.size, `distinct hero frames: ${[...seen.keys()]}`).toBeGreaterThanOrEqual(4);
+      const frames = [...seen.values()];
+      let maxDiff = 0;
+      for (const other of frames) {
+        let diff = 0;
+        for (let k = 0; k < other.length; k++) diff += Math.abs(other[k] - frames[0][k]);
+        maxDiff = Math.max(maxDiff, diff / other.length);
+      }
+      expect(maxDiff, "the template layers actually move between frames").toBeGreaterThan(0.05);
+      await page.screenshot({ path: `${SHOTS}/${testInfo.project.name}-template-hero-playing.png` });
+      await page.mouse.move(5, 5);
+      await expect(hero).toHaveAttribute("data-hero-state", "still", { timeout: 5_000 });
+      await hero.focus();
+      await expect(hero).toHaveAttribute("data-hero-state", "playing", { timeout: 30_000 });
+      await hero.blur();
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await hero.hover();
+      await page.waitForTimeout(1500);
+      await expect(hero).toHaveAttribute("data-hero-state", "still");
+    });
   });
 }

@@ -1,6 +1,10 @@
+import { isVrProperties } from "@openreel/core/vr/vr-properties";
 import {
   broadcastAudioTrackCount,
+  cleanTailFrames,
   effectiveRateControl,
+  extendCopyTails,
+  MAX_TAIL_PROBE_FRAMES,
   exportStartTimecode,
   exportWritesAlpha,
   isDolbyFormat,
@@ -17,6 +21,8 @@ import {
 } from "@openreel/core";
 import type {
   EncoderBackend,
+  SmartAudioPlan,
+  SmartAudioSourceInfo,
   SmartRenderMuxer,
   SmartRenderPlan,
   SourceFingerprint,
@@ -31,6 +37,35 @@ type ExportPortMessage =
   | { type: "done" }
   | { type: "runDone"; frames?: number }
   | { type: "error"; message?: string };
+
+/**
+ * What the smart-audio planner needs from the main process's packet listing of a source's first audio stream.
+ * AAC-LC with 1024-sample frames and a non-positive first packet time (the encoder delay), or 16/24-bit PCM from time 0;
+ * anything else cannot be copied exactly.
+ */
+export function audioSourceInfoFromProbe(
+  mediaId: string,
+  probe: {
+    codec: string;
+    profile?: string;
+    sampleRate: number;
+    channels: number;
+    bitrateKbps: number;
+    firstPts: number;
+    frameSamples: number;
+    packets: number;
+    endSamples: number;
+  } | null,
+): SmartAudioSourceInfo | null {
+  if (!probe || !Number.isFinite(probe.endSamples) || probe.endSamples <= 0) return null;
+  const base = { mediaId, sampleRate: probe.sampleRate, channels: probe.channels, sampleCount: Math.round(probe.endSamples), bitrateKbps: probe.bitrateKbps };
+  if (probe.codec === "aac") {
+    if (probe.profile !== "LC" || probe.frameSamples !== 1024 || !Number.isInteger(probe.firstPts)) return null;
+    return { ...base, codec: "aac", startsAtZero: probe.firstPts <= 0, priming: Math.max(0, -probe.firstPts), frameSamples: probe.frameSamples, packets: probe.packets };
+  }
+  if (/^pcm_s(16|24)(le|be)$/.test(probe.codec)) return { ...base, codec: "pcm", startsAtZero: probe.firstPts === 0 };
+  return null;
+}
 
 const WAV_HEADER_BYTES = 44;
 const BYTES_PER_SAMPLE = 2;
@@ -126,6 +161,13 @@ export function broadcastStartFields(settings: VideoExportSettings): BroadcastSt
   return fields;
 }
 
+/** A VR sequence in MP4 / MOV: the main process writes spherical metadata (st3d / sv3d) into the finished file. */
+export function vrStartFields(settings: VideoExportSettings, project: Project): { vr?: { layout: "mono" | "over-under" | "side-by-side"; horizontalFov: number; verticalFov: number; initialView?: { yaw: number; pitch: number; roll: number } } } {
+  const vr = project.settings.vr;
+  if (!isVrProperties(vr) || (settings.format !== "mp4" && settings.format !== "mov")) return {};
+  return { vr: { layout: vr.layout, horizontalFov: vr.horizontalFov, verticalFov: vr.verticalFov, ...(vr.initialView ? { initialView: { ...vr.initialView } } : {}) } };
+}
+
 /** The Dolby fields of the start request: the audio codec and the dialnorm to write; nothing for AAC / Opus / PCM audio. */
 export function dolbyStartFields(settings: VideoExportSettings): { audioCodec?: "ac3" | "eac3"; dialnorm?: number } {
   const audio = settings.audioSettings;
@@ -159,7 +201,15 @@ export class NativeFFmpegBackend implements EncoderBackend {
     beginEncodeRun: () => undefined,
     endEncodeRun: () => this.endEncodeRun(),
     copyRun: (source, start, end, outputStart) => this.copyRun(source, start, end, outputStart),
+    audio: {
+      probe: (mediaId, blob) => this.probeAudioSource(mediaId, blob),
+      begin: (plan, blobFor) => this.beginAudioCopy(plan, blobFor),
+      skip: (frames) => this.skipAudio(frames),
+    },
   };
+
+  /** Set once the main process has built and proved the audio copies; when every sample is copied no mixdown WAV is written. */
+  private audioCopy: { allCopied: boolean } | null = null;
 
   private smartPlan: SmartRenderPlan | null = null;
   private readonly sourceFiles = new NativeSourceFiles();
@@ -299,6 +349,7 @@ export class NativeFFmpegBackend implements EncoderBackend {
       audioBitrateKbps: settings.audioSettings.bitrate,
       ...dolbyStartFields(settings),
       ...broadcastStartFields(settings),
+      ...vrStartFields(settings, project),
       ...(this.colorOutput
         ? {
             color: {
@@ -434,7 +485,39 @@ export class NativeFFmpegBackend implements EncoderBackend {
       color = tags;
       colorKey = key;
     }
-    return { plan: { ...plan, encodeMatch: { ...match, color: color ?? undefined } } };
+    const matched = { ...plan, encodeMatch: { ...match, color: color ?? undefined } };
+    return { plan: await this.extendCopyTailsFor(matched, blobFor) };
+  }
+
+  /**
+   * Smart cut: a copy stops before the GOP the edit lands in. Ask ffmpeg for the picture types of that GOP and copy
+   * its leading frames too, up to the last anchor (I/P) frame before the edit, so only the rest of the GOP is
+   * re-encoded. Any probe that fails or disagrees with the plan just leaves the copy as planned.
+   */
+  private async extendCopyTailsFor(plan: SmartRenderPlan, blobFor: (mediaId: string) => Blob | undefined): Promise<SmartRenderPlan> {
+    const probe = window.openreel?.export.probeGopTypes;
+    if (!probe || !plan.encodeMatch) return plan;
+    // prepare runs before start(), so the rate comes from the plan (it equals the export's within 0.01 fps).
+    const frameRate = snapFrameRate(plan.encodeMatch.frameRate);
+    const extensions = new Map<number, number>();
+    for (const [index, segment] of plan.segments.entries()) {
+      const next = plan.segments[index + 1];
+      if (segment.kind !== "copy" || segment.tailLimitFrame === undefined || next?.kind !== "encode") continue;
+      const blob = blobFor(segment.mediaId);
+      const available = Math.min(segment.tailLimitFrame - segment.endFrame, MAX_TAIL_PROBE_FRAMES);
+      if (!blob || available <= 0) continue;
+      try {
+        const path = (await this.sourceFiles.resolve(blob)).path;
+        const result = await probe(path, segment.sourceEnd, available);
+        // The first frame out must be the key frame the copy stops before; otherwise the probe saw another GOP.
+        if (!result || Math.abs(result.firstTime - segment.sourceEnd) > 0.5 / frameRate) continue;
+        const frames = cleanTailFrames(result.types, available);
+        if (frames > 0) extensions.set(index, frames);
+      } catch {
+        /* keep the whole-GOP copy */
+      }
+    }
+    return extendCopyTails(plan, frameRate, extensions);
   }
 
   private endEncodeRun(): Promise<void> {
@@ -531,6 +614,8 @@ export class NativeFFmpegBackend implements EncoderBackend {
     if (!bridge) {
       throw new Error("NativeFFmpegBackend requires the desktop bridge");
     }
+    // The whole audio track is copied from the sources: nothing was mixed, nothing is written.
+    if (this.audioCopy?.allCopied) return;
 
     await this.ensureAudioHeader();
     if (this.audioFramesWritten === 0) {
@@ -700,6 +785,70 @@ export class NativeFFmpegBackend implements EncoderBackend {
       return data.buffer as ArrayBuffer;
     }
     return data.slice().buffer as ArrayBuffer;
+  }
+
+  /** The mixdown leaves out `frames` samples (copied from the sources): keep the later chunks at their positions in the WAV. */
+  private async skipAudio(frames: number): Promise<void> {
+    if (!this.audioCopy?.allCopied) await this.ensureAudioHeader();
+    this.audioDataOffset += frames * this.audioChannelCount * BYTES_PER_SAMPLE;
+    this.audioFramesWritten += frames;
+  }
+
+  private async probeAudioSource(mediaId: string, blob: Blob): Promise<SmartAudioSourceInfo | null> {
+    const probe = window.openreel?.export.probeAudioSource;
+    if (!probe) return null;
+    try {
+      const file = await this.sourceFiles.resolve(blob);
+      return audioSourceInfoFromProbe(mediaId, await probe(file.path));
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Hand the audio plan to the main process, which checks the source files, writes the AAC packets or PCM spans and proves them
+   * against the source's decode. Null when accepted, else why the audio is rendered and encoded instead.
+   */
+  private async beginAudioCopy(plan: SmartAudioPlan, blobFor: (mediaId: string) => Blob | undefined): Promise<string | null> {
+    const bridge = window.openreel;
+    if (!bridge?.export.prepareAudioCopy || !this.jobId) return "this build cannot copy audio";
+    const jobId = this.jobId;
+    const build = async (restage: boolean) => {
+      const segments = [];
+      for (const segment of plan.segments) {
+        if (segment.kind === "encode") {
+          segments.push(segment);
+          continue;
+        }
+        const blob = blobFor(segment.mediaId);
+        if (!blob) throw new Error("a source file is no longer available");
+        const file = await this.sourceFiles.resolve(blob, restage);
+        const fingerprint = await this.fingerprintOf(blob);
+        segments.push({
+          kind: "copy" as const,
+          start: segment.start,
+          end: segment.end,
+          sourcePath: file.path,
+          sourceStart: segment.sourceStart,
+          ...(segment.priming !== undefined ? { priming: segment.priming } : {}),
+          sourceSize: blob.size,
+          sourceContentHash: fingerprint.contentHash,
+          ...(!file.copied && fingerprint.mtimeMs !== undefined ? { sourceMtimeMs: fingerprint.mtimeMs } : {}),
+        });
+      }
+      return { codec: plan.codec, sampleRate: plan.sampleRate, channels: plan.channels, totalSamples: plan.totalSamples, segments };
+    };
+    let result: { declined?: string };
+    try {
+      result = await bridge.export.prepareAudioCopy(jobId, await build(false));
+    } catch (error) {
+      // The file the media was imported from changed or vanished: copy the Blob instead (as for a video copy).
+      if (!/SOURCE_CHANGED/.test(String(error))) throw error;
+      result = await bridge.export.prepareAudioCopy(jobId, await build(true));
+    }
+    if (result.declined) return result.declined;
+    this.audioCopy = { allCopied: plan.segments.every((segment) => segment.kind === "copy") };
+    return null;
   }
 
   private async ensureAudioHeader(buffer?: AudioBuffer): Promise<void> {

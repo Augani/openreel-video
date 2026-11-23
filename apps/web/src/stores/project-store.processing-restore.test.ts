@@ -59,7 +59,7 @@ describe("processing restored after asynchronous renderer setup", () => {
       effects: [{ id: "blur", type: "blur", enabled: true, params: { radius: 4 }, order: 0 }],
       colorGrading: before.timeline.tracks[0].clips[0].colorGrading,
     });
-    expect(bridges.transitions).toHaveBeenCalledWith("main", []);
+    expect(bridges.transitions).toHaveBeenCalledWith("main", [], expect.any(Number));
     expect(useProjectStore.getState().project).toBe(before);
     expect(useProjectStore.getState().canUndo()).toBe(false);
   });

@@ -1,5 +1,6 @@
 import type {
   ColorLibraryBridge,
+  TransitionLibraryBridge,
   EditingHost,
   JobKind,
   JobResult,
@@ -84,6 +85,7 @@ import { createLoudnessBridge } from "./loudness-bridge";
 import { createMotionTrackBridge } from "./motion-track-bridge";
 import { createProxyBridge } from "./proxy-bridge";
 import { createAudioRepairBridge } from "./audio-repair-bridge";
+import { createSpectralSourceBridge } from "./spectral-source-bridge";
 import { createStemExportBridge } from "./stem-bridge";
 import { createExportQueueBridge } from "./export-queue-bridge";
 import { createLocalFileAccess } from "./path-access";
@@ -193,6 +195,7 @@ export class LiveEditorHost implements EditingHost {
   readonly loudness = createLoudnessBridge();
   readonly stems = createStemExportBridge();
   readonly audioRepair = createAudioRepairBridge();
+  readonly spectralSource = createSpectralSourceBridge();
   readonly exportQueue = createExportQueueBridge();
   /** Allowed-roots-checked file access; present on the desktop app only. */
   readonly files: LocalFileAccess | undefined = createLocalFileAccess();
@@ -253,6 +256,10 @@ export class LiveEditorHost implements EditingHost {
     open: (mediaId: string, time?: number): void => {
       openInSourceMonitor(mediaId, time);
     },
+    getState: () => {
+      const { mediaId, position } = useSourceMonitorStore.getState();
+      return { mediaId, position };
+    },
     getMarks: (mediaId: string) => ({ ...useSourceMonitorStore.getState().getMarks(mediaId) }),
     setMarks: (mediaId: string, marks: { in?: number | null; out?: number | null }): void => {
       setSourceMarks(mediaId, marks);
@@ -261,11 +268,19 @@ export class LiveEditorHost implements EditingHost {
 
   targeting = {
     getState: () => {
-      const { targetedTrackIds, targetTracks } = useEditorWorkspaceStore.getState();
+      const { targetedTrackIds, targetTracks, channelPatches, disabledChannels } = useEditorWorkspaceStore.getState();
       return {
         targetedTrackIds: [...targetedTrackIds],
         sourcePatch: { ...targetTracks },
+        channelPatches: { ...channelPatches },
+        disabledChannels: [...disabledChannels],
       };
+    },
+    setChannelPatch: (channel: number, trackId: string | null): void => {
+      useEditorWorkspaceStore.getState().setChannelPatch(channel, trackId);
+    },
+    setChannelEnabled: (channel: number, enabled: boolean): void => {
+      useEditorWorkspaceStore.getState().setChannelEnabled(channel, enabled);
     },
     setTrackTargeted: (trackId: string, targeted: boolean): void => {
       useEditorWorkspaceStore.getState().setTrackTargeted(trackId, targeted);
@@ -307,6 +322,24 @@ export class LiveEditorHost implements EditingHost {
     saveLut: (entry) => useColorLibraryStore.getState().addLut(entry),
     deleteLut: (id) => useColorLibraryStore.getState().removeLut(id),
     exportCube: async (filename, text) => downloadCube(filename, text),
+  };
+
+  /** App-wide transition presets (IndexedDB): the same library the Transitions panel shows. Loaded on first use. */
+  readonly transitionLibrary: TransitionLibraryBridge = {
+    list: async () => (await import("../global-transition-presets")).getGlobalTransitionPresets().list(),
+    save: async (name, source) => {
+      const result = await (await import("../global-transition-presets")).getGlobalTransitionPresets().save(name, source);
+      return result.ok ? { ok: true, id: result.value.id } : { ok: false, error: result.error };
+    },
+    remove: async (id) => {
+      const result = await (await import("../global-transition-presets")).getGlobalTransitionPresets().remove(id);
+      return result.ok ? { ok: true } : { ok: false, error: result.error };
+    },
+    exportJson: async () => (await import("../global-transition-presets")).getGlobalTransitionPresets().exportJson(),
+    importJson: async (text) => {
+      const result = await (await import("../global-transition-presets")).getGlobalTransitionPresets().importJson(text);
+      return result.ok ? { ok: true, added: result.value.added.length, skipped: result.value.skipped.length } : { ok: false, error: result.error };
+    },
   };
 
   /** Match Frame: select the source media in the library like the UI does. */
@@ -517,11 +550,13 @@ export class LiveEditorHost implements EditingHost {
 
   renderCache: RenderCacheBridge = {
     renderInToOut: async (options) => {
-      const summary = await renderCacheService.renderInToOut(
+      const override =
         options?.rangeStart !== undefined && options?.rangeEnd !== undefined
           ? { start: options.rangeStart, end: options.rangeEnd }
-          : undefined,
-      );
+          : undefined;
+      const summary = options?.effectsOnly
+        ? await renderCacheService.renderEffectsInToOut(override)
+        : await renderCacheService.renderInToOut(override);
       if (!summary) {
         return {
           status: "failed",

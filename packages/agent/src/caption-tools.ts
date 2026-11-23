@@ -4,11 +4,10 @@ import type { TimelineToolPlan } from "@openreel/core/editing/timeline-tool-edit
 import {
   CAPTION_EXPORT_FORMATS,
   CAPTION_FORMAT_INFO,
-  exportCaptionFile,
   listCaptionTracks,
-  parseCaptionBytes,
   type CaptionExportFormat,
 } from "@openreel/core/captions/caption-formats";
+import { exportCaptionFileAsync, importCaptionFile, looksLikeTranscriptJson } from "@openreel/core/captions/caption-import";
 import { checkCaptions } from "@openreel/core/captions/caption-qc";
 import { planEmbeddedCaptions } from "@openreel/core/captions/caption-export";
 import {
@@ -206,7 +205,7 @@ export const CAPTION_TOOLS: RegisteredTool[] = [
     domain: "subtitle",
     title: "Export captions",
     description:
-      "Render the project's captions as a file: format srt, vtt (WebVTT with <v Speaker> voice tags), ttml (TTML/IMSC1), scc (Scenarist CEA-608: pop-on, odd-parity byte pairs, EOC on the cue start frame, 32-column rows, <i>/<u> as mid-row codes) or stl (EBU-STL, binary: returned as data.contentBase64). One caption track per call (captionTrackId, \"\" = default; omit for every cue). includeSpeakers prefixes SRT cues with \"Name: \". SCC/STL options: frameRate (SCC default 29.97 drop-frame, STL default 25), dropFrame (SCC), offsetSeconds (programme start, e.g. 3600), title (STL). SCC/STL return data.issues, the validation report (wrapped lines, rows dropped, characters substituted, captions delayed because the 608 channel was busy). embedded: \"subtitle\" or \"cea608\" instead returns data.embedded, the subtitle track a video export would embed (webvtt/mov_text/c608 payload text and warnings) for context mp4|mov (container) and desktop:true|false; pass those to queue_export captions to embed. Read-only.",
+      "Render the project's captions as a file: format srt, vtt (WebVTT with <v Speaker> voice tags), ttml (TTML/IMSC1), scc (CEA-608 pop-on, 32-column rows, <i>/<u> as mid-row codes), mcc (MacCaption: the same CEA-608 captions, one CDP per frame) or stl (EBU-STL, binary: returned as data.contentBase64). One track per call (captionTrackId, \"\" = default; omit for all). includeSpeakers true prefixes SRT cues with \"Name: \"; false drops speaker names everywhere (unset keeps WebVTT voice tags and TTML agents). SCC/MCC/STL options: frameRate (SCC/MCC default 29.97 DF, STL 25; 23.976 and 59.94 need it set), dropFrame, offsetSeconds (programme start, e.g. 3600), title (STL). SCC/MCC/STL return data.issues (wrapped lines, dropped rows, substituted characters, delayed captions). embedded: \"subtitle\" or \"cea608\" instead returns data.embedded, the subtitle track a video export would embed (payload text and warnings) for context mp4|mov and desktop:true|false. Read-only.",
     inputSchema: obj({
       format: { type: "string", enum: [...CAPTION_EXPORT_FORMATS] },
       captionTrackId: str,
@@ -223,7 +222,7 @@ export const CAPTION_TOOLS: RegisteredTool[] = [
     readOnly: true,
     destructive: false,
     expensive: false,
-    handler: guarded((args, host) => {
+    handler: guarded(async (args, host) => {
       host.requireOpenProject();
       const subtitles = subtitlesOf(host);
       const track = trackOption(args);
@@ -251,9 +250,10 @@ export const CAPTION_TOOLS: RegisteredTool[] = [
         });
       }
       const format = readFormat(args.format);
-      const file = exportCaptionFile(subtitles, format, {
+      const file = await exportCaptionFileAsync(subtitles, format, {
         ...track,
-        includeSpeakers: args.includeSpeakers === true,
+        // Unset keeps WebVTT voice tags and TTML agents and leaves SRT unprefixed; false drops them everywhere.
+        ...(typeof args.includeSpeakers === "boolean" ? { includeSpeakers: args.includeSpeakers } : {}),
         ...(typeof args.language === "string" ? { language: args.language } : {}),
         ...(frameRate ? { frameRate } : {}),
         ...(typeof args.dropFrame === "boolean" ? { dropFrame: args.dropFrame } : {}),
@@ -320,7 +320,7 @@ export const CAPTION_TOOLS: RegisteredTool[] = [
     domain: "subtitle",
     title: "Import captions",
     description:
-      "Add captions from SRT, WebVTT (speakers from <v Name> tags), SCC (Scenarist CEA-608: pop-on, paint-on and roll-up RU2/3/4 on CC1; frameRate default 29.97, drop-frame detected from the timecode separator), a word-timed transcript JSON ({segments:[{start,end,speaker?,words:[{word,start,end}]}]}) given as content, or an EBU-STL file given as contentBase64. For SCC/STL, offsetSeconds is subtracted from every time (the file's programme start) and styleTags:\"keep\" keeps <i>/<u> for italic/underlined runs. Optional captionTrackId and language put them on their own caption track (e.g. a translation). SCC/STL decoding notes come back in data.issues. One undo step.",
+      "Add captions from a caption file; the format is detected from the content. Text formats go in `content`: SRT, WebVTT (speakers from <v Name>), SBV, TTML / DFXP / iTT (styles, regions, agents, SMPTE drop-frame times), SCC (pop-on, paint-on, roll-up; frameRate default 29.97, drop-frame from the timecode separator), MCC (CEA-608 in CDP packets; 708 is reported, not decoded; 24/30/60 vs 23.976/29.97/59.94 follows the project rate), a timed text transcript ([00:01:02] lines) or word-timed transcript JSON ({segments:[{start,end,speaker?,words:[{word,start,end}]}]}). Binary EBU-STL goes in `contentBase64`. For SCC/MCC, ccChannel (1-4, default 1) picks CC1..CC4; row/indent become an approximate position, PAC/mid-row colours the cue colour. For SCC/MCC/STL, offsetSeconds is subtracted from every time (the file's programme start) and styleTags:\"keep\" keeps <i>/<u>. Optional captionTrackId and language put the cues on their own caption track (e.g. a translation). data.format is the detected format. data.issues lists what the caption model cannot hold (other channels, text service, colours, flashing, approximated positions, 708, ...), data.skipped the unreadable blocks: relay both to the user. One undo step.",
     inputSchema: obj(
       {
         content: str,
@@ -330,6 +330,7 @@ export const CAPTION_TOOLS: RegisteredTool[] = [
         frameRate: num,
         offsetSeconds: num,
         styleTags: { type: "string", enum: ["keep", "strip"] },
+        ccChannel: { type: "integer", enum: [1, 2, 3, 4] },
       },
     ),
     readOnly: false,
@@ -348,22 +349,26 @@ export const CAPTION_TOOLS: RegisteredTool[] = [
       };
       const broadcast = {
         ...options,
+        projectFrameRate: host.getProject().settings.frameRate,
         ...(typeof args.frameRate === "number" && args.frameRate > 0 ? { frameRate: args.frameRate } : {}),
         ...(typeof args.offsetSeconds === "number" ? { offsetSeconds: args.offsetSeconds } : {}),
         ...(args.styleTags === "keep" ? { styleTags: "keep" as const } : {}),
+        ...(args.ccChannel === 1 || args.ccChannel === 2 || args.ccChannel === 3 || args.ccChannel === 4
+          ? { ccChannel: args.ccChannel as 1 | 2 | 3 | 4 }
+          : {}),
       };
       let issues: unknown[] = [];
+      let format: string | undefined;
       const trimmed = hasText ? (args.content as string).trimStart() : "";
       let parsed: { subtitles: Subtitle[]; errors: string[] };
-      if (hasBinary) {
-        const r = parseCaptionBytes(fromBase64(args.contentBase64 as string), broadcast);
-        issues = r.issues ?? [];
-        parsed = { subtitles: r.subtitles, errors: r.errors.map((e) => `Line ${e.line}: ${e.message}`) };
-      } else if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      if (!hasBinary && looksLikeTranscriptJson(trimmed)) {
         parsed = parseTranscriptJson(args.content as string, { ...options, idPrefix: `tr-${genId().slice(0, 8)}` });
+        format = "transcript-json";
       } else {
-        const r = parseCaptionBytes(new TextEncoder().encode(args.content as string), broadcast);
-        issues = r.issues ?? [];
+        const bytes = hasBinary ? fromBase64(args.contentBase64 as string) : new TextEncoder().encode(args.content as string);
+        const r = await importCaptionFile(bytes, broadcast);
+        issues = r.issues;
+        format = r.format;
         parsed = { subtitles: r.subtitles, errors: r.errors.map((e) => `Line ${e.line}: ${e.message}`) };
       }
       if (!parsed.subtitles.length)
@@ -372,13 +377,14 @@ export const CAPTION_TOOLS: RegisteredTool[] = [
       if (failure) return failure;
       return ok(`Imported ${parsed.subtitles.length} captions (one undo step)`, {
         added: parsed.subtitles.length,
+        ...(format ? { format } : {}),
         skipped: parsed.errors,
         ...(issues.length ? { issues } : {}),
       });
     }),
   },
   {
-    name: "rename_speaker",
+        name: "rename_speaker",
     domain: "subtitle",
     title: "Rename speaker",
     description:
@@ -398,6 +404,32 @@ export const CAPTION_TOOLS: RegisteredTool[] = [
       if (failure) return failure;
       const changed = current.filter((c) => c.speaker === args.from).length;
       return ok(`Renamed "${args.from}" to "${args.to}" on ${changed} captions (one undo step)`, { changed });
+    }),
+  },
+  {
+    name: "merge_speakers",
+    domain: "subtitle",
+    title: "Merge speakers",
+    description:
+      "Merge speaker `from` into the existing speaker `into`: every caption labelled `from` takes `into` (and its look). Use when speaker detection split one voice in two. One undo step.",
+    inputSchema: obj({ from: str, into: str }, ["from", "into"]),
+    readOnly: false,
+    destructive: false,
+    expensive: false,
+    handler: guarded(async (args, host) => {
+      host.requireOpenProject();
+      if (typeof args.from !== "string" || typeof args.into !== "string" || !args.from.trim() || !args.into.trim())
+        return fail("from and into are required.", "INVALID_PARAMS");
+      if (args.from === args.into) return fail("Pick two different speakers.", "INVALID_PARAMS");
+      const current = subtitlesOf(host);
+      if (!current.some((c) => c.speaker === args.into))
+        return fail(`No captions are labelled "${args.into}". Use rename_speaker to rename instead.`, "NO_CHANGE");
+      const next = renameSpeaker(current, args.from, args.into);
+      if (next === current) return fail(`No captions are labelled "${args.from}".`, "NO_CHANGE");
+      const failure = await setSubtitles(host, next);
+      if (failure) return failure;
+      const changed = current.filter((c) => c.speaker === args.from).length;
+      return ok(`Merged "${args.from}" into "${args.into}" on ${changed} captions (one undo step)`, { changed });
     }),
   },
   {

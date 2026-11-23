@@ -13,6 +13,7 @@ import { descriptionBytes, parameterSetKey, parseAvcC, prependParameterSets, typ
 import { getAacEncoderPriming } from "./audio-priming";
 import { DOLBY_VIDEO_DESKTOP_ONLY_REASON, isDolbyFormat } from "./dolby";
 import { applyMp4AudioTiming, applyMovChannelLayout } from "./mp4-audio-timing";
+import { isVrProperties, normalizeVrProperties, type VrProperties } from "../vr/vr-properties";
 import { CHAN_TAG_MPEG_5_1_A } from "./surround-export";
 import { reorderChannels, resolveAacSurroundOrder } from "./aac-surround-order";
 import { trackHasAudioItems } from "../timeline/timeline-items";
@@ -63,6 +64,8 @@ export class WebCodecsBackend implements EncoderBackend {
   /** Six-channel AAC: the channel order the browser's encoder reads (see aac-surround-order.ts). Null = pass buffers through. */
   private aacInputOrder: readonly number[] | null = null;
   private movieMetadata: { bytes: Uint8Array; position: number } | null = null;
+  /** VR sequence in an MP4 / MOV: the trailing moov gets st3d / sv3d spherical metadata so players treat the file as 360. */
+  private sphericalVr: VrProperties | null = null;
   private submittedVideoFrames = 0;
   private encodedVideoFrames = 0;
   private readonly pendingFrameReleases = new Set<() => void>();
@@ -160,6 +163,7 @@ export class WebCodecsBackend implements EncoderBackend {
     this.audioSampleRate = settings.audioSettings.sampleRate;
     this.tagMovChannelLayout = settings.format === "mov" && settings.audioSettings.channels === 6;
     this.movieMetadata = null;
+    this.sphericalVr = (settings.format === "mp4" || settings.format === "mov") && isVrProperties(project.settings.vr) ? normalizeVrProperties(project.settings.vr) : null;
     this.submittedVideoFrames = 0;
     this.encodedVideoFrames = 0;
     const captureMovie = (bytes: Uint8Array, position: number) => { this.movieMetadata = { bytes, position }; };
@@ -457,13 +461,19 @@ export class WebCodecsBackend implements EncoderBackend {
     if (!this.smartEnabled && this.encodedVideoFrames !== this.submittedVideoFrames) {
       throw new Error(`The video encoder produced ${this.encodedVideoFrames} of ${this.submittedVideoFrames} frames. Retry with a lower resolution or a different codec.`);
     }
-    if ((this.audioPriming !== null || this.tagMovChannelLayout) && this.audioFrameCount > 0) {
-      if (!this.movieMetadata || !this.writableStream) throw new Error("MP4 audio timing metadata was not written.");
+    const patchAudio = (this.audioPriming !== null || this.tagMovChannelLayout) && this.audioFrameCount > 0;
+    if (patchAudio || this.sphericalVr) {
+      if (!this.movieMetadata || !this.writableStream) throw new Error("MP4 movie metadata was not written.");
       const { bytes, position } = this.movieMetadata;
-      let corrected = this.audioPriming !== null
+      let corrected = patchAudio && this.audioPriming !== null
         ? applyMp4AudioTiming(bytes, this.audioPriming, this.audioSampleRate, this.audioFrameCount)
         : bytes;
-      if (this.tagMovChannelLayout) corrected = applyMovChannelLayout(corrected, CHAN_TAG_MPEG_5_1_A);
+      if (patchAudio && this.tagMovChannelLayout) corrected = applyMovChannelLayout(corrected, CHAN_TAG_MPEG_5_1_A);
+      // The moov trails the media data (fastStart: false), so growing it moves no sample.
+      if (this.sphericalVr) {
+        const { applySphericalToMoov } = await import("./spherical-metadata");
+        corrected = applySphericalToMoov(corrected, this.sphericalVr);
+      }
       await this.writableStream.seek(position);
       await this.writableStream.write(corrected as unknown as FileSystemWriteChunkType);
       this.bytesWritten += corrected.byteLength;

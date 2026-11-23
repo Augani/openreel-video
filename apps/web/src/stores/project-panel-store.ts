@@ -80,6 +80,7 @@ export type ProjectPanelDialog =
   | { kind: "scene" | "shot" | "take"; mediaId: string }
   | { kind: "interpret-footage"; mediaId: string }
   | { kind: "raw-settings"; mediaId: string }
+  | { kind: "vr-properties"; mediaId: string }
   | { kind: "delete-bin"; binId: string }
   | { kind: "rename-smart-bin"; smartBinId: string };
 
@@ -173,7 +174,7 @@ export const useProjectPanelStore = create<ProjectPanelState>((set, get) => ({
     const next = columns.includes(column)
       ? columns.filter((c) => c !== column)
       : // Keep the canonical column order regardless of toggle order.
-        (["name", "label", "type", "duration", "frameRate", "resolution", "codec", "audio", "fileSize", "importedAt", "usage", "comment", "description", "scene", "shot", "take", "goodTake"] as MediaColumnId[]).filter(
+        (["name", "label", "type", "duration", "frameRate", "resolution", "codec", "audio", "fileSize", "importedAt", "usage", "comment", "description", "scene", "shot", "take", "goodTake", "keywords", "logComment", "reel"] as MediaColumnId[]).filter(
           (c) => c === column || columns.includes(c),
         );
     set({ columns: next });

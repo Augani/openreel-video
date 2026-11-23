@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { SmartRenderPlan } from "@openreel/core";
-import { NativeFFmpegBackend } from "./native-ffmpeg-backend";
+import type { SmartAudioPlan, SmartRenderPlan } from "@openreel/core";
+import { NativeFFmpegBackend, audioSourceInfoFromProbe } from "./native-ffmpeg-backend";
 import { NativeSourceFiles, diskPathOf } from "./native-source-staging";
 
 // jsdom's Blob has no arrayBuffer(); Chromium (the real renderer) does.
@@ -201,5 +201,123 @@ describe("native smart render: copy runs", () => {
     Object.assign(backend as unknown as Record<string, unknown>, { jobId: "job-1", frameRate: 30 });
     bridge.copyRun.mockRejectedValueOnce(new Error("ffmpeg exited with code 1"));
     await expect(backend.smartRender.copyRun(file("a.mp4"), 0, 4, 0)).rejects.toThrow(/code 1/);
+  });
+});
+
+describe("native smart render: audio copy", () => {
+  const aacProbe = { codec: "aac", profile: "LC", sampleRate: 48000, channels: 2, bitrateKbps: 128, firstPts: -1024, frameSamples: 1024, packets: 376, endSamples: 384000 };
+  const audioPlan = (over: Partial<SmartAudioPlan> = {}): SmartAudioPlan => ({
+    eligible: true,
+    codec: "aac",
+    sampleRate: 48000,
+    channels: 2,
+    totalSamples: 384000,
+    segments: [{ kind: "copy", start: 0, end: 384000, mediaId: "m1", sourceStart: 0, priming: 1024 }],
+    copiedSamples: 384000,
+    encodedSamples: 0,
+    copiedSeconds: 8,
+    encodedSeconds: 0,
+    mode: "whole",
+    reasons: [],
+    ...over,
+  });
+  let prepareAudioCopy: ReturnType<typeof vi.fn>;
+  let writeAudioChunk: ReturnType<typeof vi.fn>;
+  let finishAudio: ReturnType<typeof vi.fn>;
+  let probeAudioSource: ReturnType<typeof vi.fn>;
+  const backendWithJob = () => {
+    const backend = new NativeFFmpegBackend(() => "/out.mp4");
+    Object.assign(backend as unknown as Record<string, unknown>, { jobId: "job-1", frameRate: 30 });
+    return backend;
+  };
+
+  beforeEach(() => {
+    installBridge({ "a.mp4": "/m/a.mp4" });
+    prepareAudioCopy = vi.fn().mockResolvedValue({});
+    writeAudioChunk = vi.fn().mockResolvedValue(undefined);
+    finishAudio = vi.fn().mockResolvedValue(undefined);
+    probeAudioSource = vi.fn().mockResolvedValue(aacProbe);
+    Object.assign((window as unknown as { openreel: { export: object } }).openreel.export, { prepareAudioCopy, writeAudioChunk, finishAudio, probeAudioSource });
+  });
+  afterEach(() => {
+    delete (window as unknown as { openreel?: unknown }).openreel;
+  });
+
+  it("describes a source's audio for the planner: AAC-LC with its encoder delay, or 16/24-bit PCM from time zero", () => {
+    expect(audioSourceInfoFromProbe("m1", aacProbe)).toEqual({
+      mediaId: "m1", codec: "aac", sampleRate: 48000, channels: 2, sampleCount: 384000, bitrateKbps: 128, startsAtZero: true, priming: 1024, frameSamples: 1024, packets: 376,
+    });
+    const pcm = { ...aacProbe, codec: "pcm_s24le", profile: undefined, firstPts: 0, frameSamples: 1024 };
+    expect(audioSourceInfoFromProbe("m1", pcm)).toMatchObject({ codec: "pcm", startsAtZero: true });
+    expect(audioSourceInfoFromProbe("m1", { ...pcm, firstPts: 480 })).toMatchObject({ codec: "pcm", startsAtZero: false });
+    expect(audioSourceInfoFromProbe("m1", { ...aacProbe, profile: "HE-AAC" })).toBeNull();
+    expect(audioSourceInfoFromProbe("m1", { ...aacProbe, frameSamples: 0 })).toBeNull();
+    expect(audioSourceInfoFromProbe("m1", { ...pcm, codec: "pcm_f32le" })).toBeNull();
+    expect(audioSourceInfoFromProbe("m1", { ...aacProbe, codec: "mp3" })).toBeNull();
+    expect(audioSourceInfoFromProbe("m1", null)).toBeNull();
+  });
+
+  it("probes through the bridge using the file on disk", async () => {
+    const info = await backendWithJob().smartRender.audio!.probe("m1", file("a.mp4"));
+    expect(probeAudioSource).toHaveBeenCalledWith("/m/a.mp4");
+    expect(info).toMatchObject({ codec: "aac", priming: 1024 });
+  });
+
+  it("sends the plan with the source's path and fingerprint and accepts what the main process accepts", async () => {
+    const backend = backendWithJob();
+    expect(await backend.smartRender.audio!.begin(audioPlan(), () => file("a.mp4"))).toBeNull();
+    expect(prepareAudioCopy).toHaveBeenCalledWith("job-1", {
+      codec: "aac",
+      sampleRate: 48000,
+      channels: 2,
+      totalSamples: 384000,
+      segments: [
+        { kind: "copy", start: 0, end: 384000, sourcePath: "/m/a.mp4", sourceStart: 0, priming: 1024, sourceSize: 10, sourceContentHash: expect.stringMatching(/^[0-9a-f]{64}$/), sourceMtimeMs: expect.any(Number) },
+      ],
+    });
+  });
+
+  it("returns the main process's reason when it declines the copy, and writes the rendered audio as usual", async () => {
+    prepareAudioCopy.mockResolvedValue({ declined: "the AAC stream's decoder carries state" });
+    const backend = backendWithJob();
+    expect(await backend.smartRender.audio!.begin(audioPlan(), () => file("a.mp4"))).toBe("the AAC stream's decoder carries state");
+    await backend.closeAudio();
+    expect(finishAudio).toHaveBeenCalledWith("job-1");
+    // silence was written as the (declined) copy left the mixdown to render
+    expect(writeAudioChunk).toHaveBeenCalled();
+  });
+
+  it("retries once with a temp copy of the blob when the file on disk changed", async () => {
+    prepareAudioCopy.mockRejectedValueOnce(new Error("SOURCE_CHANGED: /m/a.mp4: size changed")).mockResolvedValueOnce({});
+    expect(await backendWithJob().smartRender.audio!.begin(audioPlan(), () => file("a.mp4"))).toBeNull();
+    expect(prepareAudioCopy).toHaveBeenCalledTimes(2);
+    expect(prepareAudioCopy.mock.calls[1][1].segments[0]).toMatchObject({ sourcePath: "/tmp/staged-1.bin" });
+    expect(prepareAudioCopy.mock.calls[1][1].segments[0]).not.toHaveProperty("sourceMtimeMs");
+  });
+
+  it("writes no mixdown at all when every sample is copied", async () => {
+    const backend = backendWithJob();
+    await backend.smartRender.audio!.begin(audioPlan(), () => file("a.mp4"));
+    await backend.smartRender.audio!.skip(384000);
+    await backend.closeAudio();
+    expect(writeAudioChunk).not.toHaveBeenCalled();
+  });
+
+  it("keeps later chunks at their positions in the WAV when a copied chunk is not mixed", async () => {
+    const backend = backendWithJob();
+    const plan = audioPlan({
+      codec: "pcm",
+      segments: [
+        { kind: "copy", start: 0, end: 720000, mediaId: "m1", sourceStart: 0 },
+        { kind: "encode", start: 720000, end: 744000 },
+      ],
+      totalSamples: 744000,
+    });
+    expect(await backend.smartRender.audio!.begin(plan, () => file("a.mp4"))).toBeNull();
+    await backend.smartRender.audio!.skip(720000);
+    const state = backend as unknown as { audioDataOffset: number; audioFramesWritten: number };
+    // 44-byte header, then 720000 stereo 16-bit frames left unwritten
+    expect(state.audioDataOffset).toBe(44 + 720000 * 4);
+    expect(state.audioFramesWritten).toBe(720000);
   });
 });

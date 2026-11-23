@@ -25,9 +25,36 @@ import {
   ArrowUpRight,
 } from "@/icons/lucide-compat";
 import { getTransitionBridge } from "../../../bridges/transition-bridge";
+import { TRANSITION_CARDS } from "../../../bridges/transition-cards";
 import type { Transition, Clip, TransitionEdge } from "@openreel/core";
 import type { TransitionType } from "@openreel/core";
 import { toast } from "../../../stores/notification-store";
+import { MorphCutControls } from "./MorphCutControls";
+import { encodeLumaBase64, isMaskTransition } from "@openreel/core/video/transition-masks";
+
+const LUMA_MAP_WIDTH = 64;
+const LUMA_MAP_HEIGHT = 36;
+
+/** Downsamples an image file to a small luma map the gradient wipe stores on the transition. */
+async function readLumaImage(file: File): Promise<{ lumaData: string; lumaWidth: number; lumaHeight: number }> {
+  const bitmap = await createImageBitmap(file);
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = LUMA_MAP_WIDTH;
+    canvas.height = LUMA_MAP_HEIGHT;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) throw new Error("Canvas is not available");
+    ctx.drawImage(bitmap, 0, 0, LUMA_MAP_WIDTH, LUMA_MAP_HEIGHT);
+    const rgba = ctx.getImageData(0, 0, LUMA_MAP_WIDTH, LUMA_MAP_HEIGHT).data;
+    const luma = new Uint8Array(LUMA_MAP_WIDTH * LUMA_MAP_HEIGHT);
+    for (let i = 0; i < luma.length; i += 1) {
+      luma[i] = Math.round(0.2126 * rgba[i * 4]! + 0.7152 * rgba[i * 4 + 1]! + 0.0722 * rgba[i * 4 + 2]!);
+    }
+    return { lumaData: encodeLumaBase64(luma), lumaWidth: LUMA_MAP_WIDTH, lumaHeight: LUMA_MAP_HEIGHT };
+  } finally {
+    bitmap.close();
+  }
+}
 
 const EASING_CURVES: Record<string, { label: string; path: string }> = {
   linear: { label: "Linear", path: "M10 70 L190 10" },
@@ -91,6 +118,27 @@ const DirectionSelector: React.FC<{
     </div>
   );
 };
+
+const CORNERS = [
+  { value: "topLeft", glyph: "↖", label: "Top left" },
+  { value: "topRight", glyph: "↗", label: "Top right" },
+  { value: "bottomLeft", glyph: "↙", label: "Bottom left" },
+  { value: "bottomRight", glyph: "↘", label: "Bottom right" },
+] as const;
+
+/** Picks the corner a transition starts from (inset, page peel). */
+const CornerSelector: React.FC<{ value: string; onChange: (corner: string) => void }> = ({ value, onChange }) => (
+  <div className="space-y-1">
+    <span className="text-fg-2 font-normal text-[10px]">Corner</span>
+    <div className="workspace-transition-directions" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
+      {CORNERS.map((corner) => (
+        <Button variant="outline" size="icon-sm" key={corner.value} onClick={() => onChange(corner.value)} type="button" aria-pressed={value === corner.value} aria-label={corner.label} title={corner.label}>
+          {corner.glyph}
+        </Button>
+      ))}
+    </div>
+  </div>
+);
 
 const Toggle: React.FC<{
   label: string;
@@ -156,10 +204,10 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
   const bridge = getTransitionBridge();
   const alignmentId = useId();
   const [applyingAll, setApplyingAll] = useState(false);
-  const transitionTypes = useMemo(
-    () => bridge.getAvailableTransitionTypes(),
-    [bridge],
-  );
+  const [presetNaming, setPresetNaming] = useState(false);
+  const [presetName, setPresetName] = useState("");
+  // Morph Cut needs a cut between two clips: a clip's own fade in / out has no second shot to match.
+  const transitionTypes = edge ? TRANSITION_CARDS.filter((card) => card.type !== "morphCut") : TRANSITION_CARDS;
 
   // Local state for creating new transitions
   const [selectedType, setSelectedType] = useState<TransitionType>(
@@ -208,6 +256,8 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
           ? { alignment: params.alignment }
           : {}),
         ...(typeof params.curve === "string" ? { curve: params.curve } : {}),
+        ...(typeof params.startPct === "number" ? { startPct: params.startPct } : {}),
+        ...(typeof params.endPct === "number" ? { endPct: params.endPct } : {}),
         ...(typeof params.audioFade === "boolean"
           ? { audioFade: params.audioFade }
           : {}),
@@ -224,6 +274,8 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
       params.audioFade,
       params.alignment,
       params.curve,
+      params.startPct,
+      params.endPct,
       transition,
       onTransitionUpdate,
     ],
@@ -345,6 +397,52 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
           max={100}
           unit="%"
         />
+      </div>
+    );
+    const renderBorderControls = () => (
+      <>
+        <TransitionSlider
+          label="Border width"
+          value={(params.borderWidth as number) ?? 0}
+          onChange={(value) => handleParamChange("borderWidth", Math.round(value))}
+          min={0}
+          max={50}
+          unit="px"
+        />
+        <label className="workspace-transition-toggle">
+          <span>Border colour</span>
+          <input
+            type="color"
+            aria-label="Border colour"
+            value={typeof params.borderColor === "string" && /^#[0-9a-f]{6}$/i.test(params.borderColor) ? params.borderColor : "#ffffff"}
+            onChange={(event) => handleParamChange("borderColor", event.target.value)}
+          />
+        </label>
+      </>
+    );
+    const renderTilesControl = (label: string) => (
+      <TransitionSlider
+        label={label}
+        value={(params.tiles as number) ?? 8}
+        onChange={(value) => handleParamChange("tiles", Math.round(value))}
+        min={2}
+        max={32}
+        step={1}
+      />
+    );
+    const renderSeedControl = () => (
+      <div className="workspace-transition-seed">
+        <TransitionSlider
+          label="Seed"
+          value={(params.seed as number) ?? 1}
+          onChange={(value) => handleParamChange("seed", Math.round(value))}
+          min={0}
+          max={999}
+          step={1}
+        />
+        <Button variant="secondary" type="button" onClick={() => handleParamChange("seed", Math.floor(Math.random() * 1000))}>
+          New pattern
+        </Button>
       </div>
     );
     switch (selectedType) {
@@ -697,6 +795,231 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
           </>
         );
 
+      case "irisRound":
+      case "irisBox":
+      case "irisCross":
+      case "irisDiamond":
+        return renderCenterControls();
+
+      case "bandWipe":
+        return (
+          <>
+            <DirectionSelector
+              value={(params.orientation as string) || "horizontal"}
+              onChange={(orientation) => handleParamChange("orientation", orientation)}
+              options={["horizontal", "vertical"]}
+            />
+            <TransitionSlider
+              label="Bands"
+              value={(params.bands as number) || 5}
+              onChange={(v) => handleParamChange("bands", Math.round(v))}
+              min={2}
+              max={32}
+              step={1}
+            />
+          </>
+        );
+
+      case "barnDoor":
+        return (
+          <DirectionSelector
+            value={(params.orientation as string) || "horizontal"}
+            onChange={(orientation) => handleParamChange("orientation", orientation)}
+            options={["horizontal", "vertical"]}
+          />
+        );
+
+      case "clockWipe":
+        return (
+          <>
+            <TransitionSlider
+              label="Start Angle"
+              value={(params.startAngle as number) ?? 0}
+              onChange={(value) => handleParamChange("startAngle", value)}
+              min={-180}
+              max={180}
+              step={1}
+              unit="°"
+            />
+            <Toggle
+              label="Clockwise"
+              value={(params.clockwise as boolean) ?? true}
+              onChange={(value) => handleParamChange("clockwise", value)}
+            />
+            {renderCenterControls()}
+          </>
+        );
+
+      case "gradientWipe": {
+        const hasImage = typeof params.lumaData === "string";
+        return (
+          <>
+            <Select
+              value={hasImage ? "custom" : ((params.gradient as string) ?? "linear")}
+              onValueChange={(value) => {
+                if (value === "custom") return;
+                if (!canEdit()) return;
+                const { lumaData: _d, lumaWidth: _w, lumaHeight: _h, ...rest } = params;
+                const next = { ...rest, gradient: value };
+                setParams(next);
+                if (transition) onTransitionUpdate?.(transition.id, { params: next });
+              }}
+            >
+              <SelectTrigger aria-label="Gradient" icon={<span aria-hidden="true">▾</span>}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {["linear", "radial", "diagonal", "checker", "noise", "spiral"].map((value) => (
+                  <SelectItem key={value} value={value}>{value[0]!.toUpperCase() + value.slice(1)}</SelectItem>
+                ))}
+                {hasImage && <SelectItem value="custom">Custom image</SelectItem>}
+              </SelectContent>
+            </Select>
+            <label className="workspace-transition-toggle">
+              <span>{hasImage ? "Replace gradient image" : "Gradient image"}</span>
+              <input
+                type="file"
+                accept="image/*"
+                aria-label="Gradient image"
+                onChange={async (event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (!file || !canEdit()) return;
+                  try {
+                    const luma = await readLumaImage(file);
+                    handleParamChange("lumaData", luma.lumaData);
+                    handleParamChange("lumaWidth", luma.lumaWidth);
+                    handleParamChange("lumaHeight", luma.lumaHeight);
+                  } catch (error) {
+                    toast.error("Gradient image", error instanceof Error ? error.message : "Could not read that image");
+                  }
+                }}
+              />
+            </label>
+          </>
+        );
+      }
+
+      case "cubeSpin":
+      case "flipOver":
+        return (
+          <>
+            <DirectionSelector
+              value={(params.direction as string) || "left"}
+              onChange={(direction) => handleParamChange("direction", direction)}
+              options={["left", "right", "up", "down"]}
+            />
+            {renderBorderControls()}
+          </>
+        );
+
+      case "split":
+        return (
+          <>
+            <DirectionSelector
+              value={(params.orientation as string) || "horizontal"}
+              onChange={(orientation) => handleParamChange("orientation", orientation)}
+              options={["horizontal", "vertical"]}
+            />
+            <Toggle label="Reverse" value={(params.reverse as boolean) ?? false} onChange={(value) => handleParamChange("reverse", value)} />
+            {renderBorderControls()}
+          </>
+        );
+
+      case "crossZoom":
+        return (
+          <>
+            <TransitionSlider
+              label="Intensity"
+              value={((params.intensity as number) ?? 1) * 100}
+              onChange={(value) => handleParamChange("intensity", value / 100)}
+              min={0}
+              max={300}
+              step={5}
+              unit="%"
+            />
+            {renderCenterControls()}
+          </>
+        );
+
+      case "pagePeel":
+        return (
+          <>
+            <CornerSelector value={(params.corner as string) || "bottomRight"} onChange={(corner) => handleParamChange("corner", corner)} />
+            <TransitionSlider
+              label="Fold shadow"
+              value={((params.shadow as number) ?? 0.55) * 100}
+              onChange={(value) => handleParamChange("shadow", value / 100)}
+              min={0}
+              max={100}
+              step={5}
+              unit="%"
+            />
+          </>
+        );
+
+      case "inset":
+        return <CornerSelector value={(params.corner as string) || "topLeft"} onChange={(corner) => handleParamChange("corner", corner)} />;
+
+      case "checkerboard":
+        return renderTilesControl("Squares across");
+
+      case "checkerWipe":
+        return (
+          <>
+            <DirectionSelector
+              value={(params.direction as string) || "left"}
+              onChange={(direction) => handleParamChange("direction", direction)}
+              options={["left", "right", "up", "down"]}
+            />
+            {renderTilesControl("Squares across")}
+          </>
+        );
+
+      case "wedgeWipe":
+        return (
+          <>
+            <TransitionSlider
+              label="Start Angle"
+              value={(params.startAngle as number) ?? 0}
+              onChange={(value) => handleParamChange("startAngle", value)}
+              min={-180}
+              max={180}
+              step={1}
+              unit="°"
+            />
+            {renderCenterControls()}
+          </>
+        );
+
+      case "randomBlocks":
+        return (
+          <>
+            {renderTilesControl("Blocks across")}
+            {renderSeedControl()}
+          </>
+        );
+
+      case "randomWipe":
+        return (
+          <>
+            <DirectionSelector
+              value={(params.direction as string) || "left"}
+              onChange={(direction) => handleParamChange("direction", direction)}
+              options={["left", "right", "up", "down"]}
+            />
+            {renderTilesControl("Strips")}
+            {renderSeedControl()}
+          </>
+        );
+
+      case "morphCut":
+        return <MorphCutControls transitionId={transition?.id} params={params} onChange={handleParamChange} />;
+
+      case "filmDissolve":
+      case "additiveDissolve":
+        return null;
+
       case "crossfade":
       default:
         return null;
@@ -721,6 +1044,25 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
       : alignment === "end"
         ? clipA.duration
         : (validation.maxDuration ?? 5);
+  const savePreset = async (scope: "project" | "library" = "project") => {
+    if (scope === "library") {
+      const { getGlobalTransitionPresets } = await import("../../../services/global-transition-presets");
+      const outcome = await getGlobalTransitionPresets().save(presetName, { type: selectedType, duration, params });
+      if (outcome.ok) {
+        toast.success("Transition preset", outcome.message);
+        setPresetNaming(false);
+      } else toast.error("Transition preset", outcome.error);
+      return;
+    }
+    const { saveTransitionPreset } = await import("../../../services/transition-presets");
+    const outcome = await saveTransitionPreset(presetName, { type: selectedType, duration, params });
+    if (outcome.ok) {
+      toast.success("Transition preset", outcome.message);
+      setPresetNaming(false);
+    } else {
+      toast.error("Transition preset", outcome.error);
+    }
+  };
   const applyToAllCuts = async () => {
     if (applyingAll || !canEdit()) return;
     const store = useProjectStore.getState();
@@ -925,6 +1267,61 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
           </div>
           </div>
         </div>
+        <div className="workspace-transition-property">
+          <span>Start / end</span>
+          <div className="grid grid-cols-2 gap-2">
+            <TransitionSlider
+              label="Start"
+              value={(params.startPct as number) ?? 0}
+              onChange={(value) => handleParamChange("startPct", Math.min(value, (params.endPct as number) ?? 100))}
+              min={0}
+              max={100}
+              unit="%"
+            />
+            <TransitionSlider
+              label="End"
+              value={(params.endPct as number) ?? 100}
+              onChange={(value) => handleParamChange("endPct", Math.max(value, (params.startPct as number) ?? 0))}
+              min={0}
+              max={100}
+              unit="%"
+            />
+          </div>
+        </div>
+        {isMaskTransition(selectedType) && (
+          <div className="workspace-transition-parameters" data-testid="transition-mask-controls">
+            <TransitionSlider
+              label="Feather"
+              value={((params.feather as number) ?? 0) * 100}
+              onChange={(value) => handleParamChange("feather", value / 100)}
+              min={0}
+              max={100}
+              unit="%"
+            />
+            <TransitionSlider
+              label="Border width"
+              value={(params.borderWidth as number) ?? 0}
+              onChange={(value) => handleParamChange("borderWidth", Math.round(value))}
+              min={0}
+              max={50}
+              unit="px"
+            />
+            <label className="workspace-transition-toggle">
+              <span>Border colour</span>
+              <input
+                type="color"
+                aria-label="Border colour"
+                value={typeof params.borderColor === "string" && /^#[0-9a-f]{6}$/i.test(params.borderColor) ? params.borderColor : "#ffffff"}
+                onChange={(event) => handleParamChange("borderColor", event.target.value)}
+              />
+            </label>
+            <Toggle
+              label="Reverse"
+              value={(params.reverse as boolean) ?? false}
+              onChange={(value) => handleParamChange("reverse", value)}
+            />
+          </div>
+        )}
         <Toggle
           label={edge ? "Fade clip audio" : "Also blend audio (crossfade)"}
           value={(params.audioFade as boolean) ?? false}
@@ -944,6 +1341,40 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
           <p className="text-[11px] text-red-400" role="alert">
             {validation.error}
           </p>
+        )}
+      </div>
+      <div className="workspace-transition-presets" data-testid="transition-preset-row">
+        {presetNaming ? (
+          <>
+            <Input
+              autoFocus
+              aria-label="Preset name"
+              value={presetName}
+              placeholder="Preset name"
+              onChange={(event) => setPresetName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") void savePreset();
+                if (event.key === "Escape") setPresetNaming(false);
+              }}
+            />
+            <Button variant="secondary" onClick={() => void savePreset()} title="Keep the preset in this project">Save</Button>
+            <Button variant="secondary" onClick={() => void savePreset("library")} title="Keep the preset for every project in this app">Save to library</Button>
+          </>
+        ) : (
+          <>
+            <Button variant="secondary" onClick={() => { setPresetName(""); setPresetNaming(true); }}>Save as preset…</Button>
+            <Button
+              variant="secondary"
+              onClick={async () => {
+                const { setDefaultTransition } = await import("../../../services/transition-presets");
+                const outcome = await setDefaultTransition({ type: selectedType, duration, params, label: name });
+                if (outcome.ok) toast.success("Default transition", outcome.message);
+                else toast.error("Default transition", outcome.error);
+              }}
+            >
+              Set as default
+            </Button>
+          </>
         )}
       </div>
       <div className="workspace-transition-actions">

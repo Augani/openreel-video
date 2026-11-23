@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("electron", () => ({ app: {} }));
 
-import { buildJsFlags, computeMaxOldSpaceMb, parseFallbackLaunches } from "./switches";
+import { AUDIO_SERVICE_LAUNCH_ON_STARTUP, buildEnableFeatures, buildJsFlags, computeMaxOldSpaceMb, parseFallbackLaunches } from "./switches";
 
 const GB = 1024 ** 3;
 
@@ -29,5 +29,18 @@ describe("buildJsFlags", () => {
     expect(buildJsFlags(24 * GB)).toBe(`--max-old-space-size=${Math.floor(24 * 1024 * 0.3)}`);
     expect(buildJsFlags(4 * GB, "  --min-semi-space-size=16 ")).toBe("--max-old-space-size=4096 --min-semi-space-size=16");
     expect(buildJsFlags(4 * GB, "   ")).toBe("--max-old-space-size=4096");
+  });
+});
+
+describe("buildEnableFeatures", () => {
+  it("always starts the audio service with the app (cold-start warm-up) and adds the VA-API pair only on aggressive Linux", () => {
+    expect(buildEnableFeatures("darwin")).toEqual([AUDIO_SERVICE_LAUNCH_ON_STARTUP]);
+    expect(buildEnableFeatures("win32", true)).toEqual([AUDIO_SERVICE_LAUNCH_ON_STARTUP]);
+    expect(buildEnableFeatures("linux")).toEqual([AUDIO_SERVICE_LAUNCH_ON_STARTUP]);
+    expect(buildEnableFeatures("linux", true)).toEqual([
+      AUDIO_SERVICE_LAUNCH_ON_STARTUP,
+      "VaapiVideoDecoder",
+      "VaapiVideoEncoder",
+    ]);
   });
 });

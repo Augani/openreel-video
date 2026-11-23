@@ -15,6 +15,7 @@ interface VadSessionLike {
 }
 
 interface VadRuntimeLike {
+  env?: { wasm: { wasmPaths?: unknown; numThreads?: number } };
   Tensor: new (
     type: "float32" | "int64",
     data: Float32Array | BigInt64Array,
@@ -35,6 +36,16 @@ interface SileroVadOptions {
   onProgress?: (completed: number, total: number) => void;
 }
 
+let sileroWasmPaths: string | undefined;
+
+/**
+ * Host hook: the directory URL (ending in "/") that serves the onnxruntime-web WASM runtime. The web app builds against the
+ * "extern wasm" onnxruntime-web entry, which bundles no .wasm of its own, so this must be set before the first analysis.
+ */
+export function setSileroWasmPaths(paths: string | undefined): void {
+  sileroWasmPaths = paths;
+}
+
 let defaultSessionPromise: Promise<{
   runtime: VadRuntimeLike;
   session: VadSessionLike;
@@ -48,6 +59,11 @@ async function loadDefaultSession(
       // @ts-expect-error onnxruntime-web 1.21 ships types but omits them from its
       // package exports map; Vite still resolves and bundles the ESM entry.
       const runtime = (await import("onnxruntime-web")) as unknown as VadRuntimeLike;
+      if (runtime.env) {
+        if (sileroWasmPaths) runtime.env.wasm.wasmPaths = sileroWasmPaths;
+        // 512-sample frames through a ~2 MB graph, one after another: threads only add start-up cost and a pthread worker per core.
+        runtime.env.wasm.numThreads = 1;
+      }
       const session = await runtime.InferenceSession.create(model, {
         executionProviders: ["wasm"],
       });

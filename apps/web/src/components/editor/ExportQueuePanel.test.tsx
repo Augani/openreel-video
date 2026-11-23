@@ -24,4 +24,19 @@ describe("smartRenderDetail", () => {
       "Smart render: 66% copied (a.mp4: effects +1 more)",
     );
   });
+
+  it("adds how many seconds of audio were copied from the sources when the report has them", () => {
+    expect(
+      smartRenderDetail({ copiedPercent: 100, summary: "Smart render: 100% copied", copiedSeconds: 8, encodedSeconds: 0, audioCopiedSeconds: 8, audioEncodedSeconds: 0, audioMode: "whole" }),
+    ).toBe("Smart render: 100% copied (8.0 s copied, 0.0 s re-encoded); audio 8.0 s copied, 0.0 s encoded");
+  });
+
+  it("says how many seconds were copied and re-encoded when the report has them", () => {
+    expect(smartRenderDetail({ copiedPercent: 83, summary: "Smart render: 83% copied", copiedSeconds: 99.6, encodedSeconds: 20.4 })).toBe(
+      "Smart render: 83% copied (99.6 s copied, 20.4 s re-encoded)",
+    );
+    expect(smartRenderDetail({ copiedPercent: 83, summary: "Smart render: 83% copied", copiedSeconds: 99.6, encodedSeconds: 20.4, reasons: ["a.mp4: effects"] })).toBe(
+      "Smart render: 83% copied (99.6 s copied, 20.4 s re-encoded) (a.mp4: effects)",
+    );
+  });
 });

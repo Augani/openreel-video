@@ -7,6 +7,8 @@ import { cancelProxyJob, queueProxies } from "./proxy-ingest";
 import { useDesktopIngestStore } from "./desktop-ingest";
 import { useProjectStore } from "../stores/project-store";
 import { getBeatSyncBridge } from "../bridges/beat-sync-bridge";
+import { renderCacheService } from "./render-cache-service";
+import { watchNativePluginRenderTasks } from "./native-plugin-tasks";
 
 /**
  * Mirrors the existing job systems into the unified task registry. Nothing here runs work: the
@@ -157,6 +159,50 @@ function syncBeats(): void {
   );
 }
 
+/** Render In to Out / Render Effects In to Out (the render cache). The cache owns the job; this row mirrors and cancels it. */
+function syncRenderCache(): void {
+  const snapshot = renderCacheService.getSnapshot();
+  const progress = snapshot.progress;
+  const summary = snapshot.lastSummary;
+  if (snapshot.phase === "rendering") {
+    backgroundTasks.syncSource("render-cache", [
+      {
+        task: {
+          id: "render:cache",
+          kind: "render",
+          source: "render-cache",
+          title: "Render previews",
+          detail: progress ? `${progress.done} of ${progress.total} frames` : undefined,
+          status: "running",
+          progress: progress && progress.total > 0 ? progress.done / progress.total : null,
+        },
+        controls: { cancel: () => renderCacheService.cancelRender() },
+      },
+    ]);
+    return;
+  }
+  backgroundTasks.syncSource(
+    "render-cache",
+    summary && summary.totalFrames > 0
+      ? [
+          {
+            task: {
+              id: "render:cache",
+              kind: "render",
+              source: "render-cache",
+              title: "Render previews",
+              detail: summary.status === "completed" ? `${summary.framesRendered} frames rendered` : undefined,
+              status: summary.status === "completed" ? "completed" : summary.status === "canceled" ? "cancelled" : "failed",
+              progress: summary.status === "completed" ? 1 : null,
+              error: summary.status === "failed" ? summary.message : undefined,
+              finishedAt: Date.now(),
+            },
+          },
+        ]
+      : [],
+  );
+}
+
 let started: (() => void) | null = null;
 
 /** Idempotent; returns a disposer (HMR / tests). */
@@ -167,12 +213,15 @@ export function startBackgroundTaskSources(): () => void {
   syncProxies();
   syncBeats();
   syncCopies();
+  syncRenderCache();
   const offs = [
     useExportQueueStore.subscribe((s, p) => { if (s.queue !== p.queue) syncExportQueue(); }),
     useUIStore.subscribe((s, p) => { if (s.exportState !== p.exportState) syncDirectExport(); }),
     previewProxyCache.store.subscribe(syncProxies),
     useDesktopIngestStore.subscribe((s, p) => { if (s.jobs !== p.jobs) syncProxies(); if (s.copying !== p.copying) syncCopies(); }),
     getBeatSyncBridge().subscribe(syncBeats),
+    renderCacheService.subscribe(syncRenderCache),
+    watchNativePluginRenderTasks(),
   ];
   // Desktop watch folders: loaded on demand so the entry chunk does not carry it.
   let stopWatchTasks: (() => void) | null = null;

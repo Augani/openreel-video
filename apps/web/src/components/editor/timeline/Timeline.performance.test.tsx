@@ -207,6 +207,9 @@ describe("timeline playback rendering", () => {
         { button: 0, clientX: 0, clientY: 20 });
       fireEvent.mouseMove(window, { clientX: 10, clientY: 20 });
       fireEvent.mouseMove(window, { clientX: 50, clientY: 20 });
+      // The activating move's commit waits one extra frame (see ClipComponent: no two timeline renders in one frame).
+      flushFrame();
+      expect(starts()).toEqual([0, 3, 7]);
       flushFrame();
       expect(starts()).toEqual([1, 4, 7]);
 

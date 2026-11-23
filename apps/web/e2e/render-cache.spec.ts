@@ -28,7 +28,9 @@ interface RenderCacheHook {
   getTelemetry(): { entries: Array<{ at: number; time: number; source: "cache" | "live" }>; cacheFrames: number; liveFrames: number };
   resetTelemetry(): void;
   instance: {
+    flushIndex(): Promise<void>;
     getSnapshot(): {
+      restored: { restored: number; droppedStale: number; droppedMissing: number; orphansDeleted: number } | null;
       phase: string;
       frameCount: number;
       bytes: number;
@@ -38,6 +40,12 @@ interface RenderCacheHook {
     };
     hasFrameAt(time: number): boolean;
   };
+  renderEffectsInToOut(): Promise<{ status: string; framesRendered: number; totalFrames: number; elapsedMs: number; codec: string } | null>;
+  dispose(): void;
+  ensureStarted(): unknown;
+  whenReady(): Promise<void>;
+  storageKind: string | null;
+  isPersistent: boolean;
   renderInToOut(): Promise<{ status: string; framesRendered: number; totalFrames: number; elapsedMs: number; codec: string } | null>;
   takePlaybackFrame(time: number): Promise<ImageBitmap | undefined>;
 }
@@ -213,6 +221,50 @@ test.describe("Render In to Out (render cache)", () => {
     expect((await readState(page)).historyLength, "rendering is not an edit").toBe(historyBefore);
   });
 
+  test("Optical Flow shows red in the status bar, renders in to out and then plays green from the cache", async ({ page }) => {
+    await splitIntoThree(page);
+    const [a] = clipsOf(await readState(page), "Main");
+    // 25% speed + Optical Flow on the first 2 s scene (its 8 s of timeline is cut down to the marked range below).
+    await page.evaluate(async (id) => {
+      const e = (window as unknown as { __openreelE2E: { project: { getState(): Record<string, any> }; speed: { editClipSpeed(p: string, c: string, ch: Record<string, unknown>, a: boolean): Promise<boolean> } } }).__openreelE2E;
+      const pid = e.project.getState().project.id as string;
+      await e.speed.editClipSpeed(pid, id, { speed: 0.25 }, true);
+      await e.speed.editClipSpeed(pid, id, { timeInterpolation: "opticalFlow" }, true);
+    }, a.id);
+    await settle(page, 400);
+    await expect
+      .poll(async () => (await levels(page))[0]?.level, { timeout: 5000 }, )
+      .toBe("heavy");
+    await markRange(page, 0, 1);
+    await press(page, "Enter");
+    await waitRendered(page, 30);
+    const snap = await snapshot(page);
+    expect(snap.cachedRuns).toEqual([{ start: 0, end: 29 }]);
+    expect(snap.lastSummary?.status).toBe("completed");
+    await expect
+      .poll(async () => (await levels(page)).find((s) => s.start === 0)?.level, { timeout: 5000 })
+      .toBe("cached");
+    // Frames of the render are the interpolated ones: consecutive cached frames inside one source pair differ.
+    const frames = await page.evaluate(async () => {
+      const e = (window as unknown as { __openreelE2E: { renderCache: { takePlaybackFrame(t: number): Promise<ImageBitmap | undefined> } } }).__openreelE2E;
+      const sums: number[] = [];
+      for (const k of [1, 2, 3]) {
+        const bmp = await e.renderCache.takePlaybackFrame(k / 30);
+        if (!bmp) return null;
+        const c = new OffscreenCanvas(bmp.width, bmp.height);
+        const g = c.getContext("2d", { willReadFrequently: true })!;
+        g.drawImage(bmp, 0, 0);
+        const d = g.getImageData(0, 0, bmp.width, bmp.height).data;
+        let sum = 0;
+        for (let i = 0; i < d.length; i += 13) sum = (sum * 31 + d[i]) % 1000003;
+        sums.push(sum);
+      }
+      return sums;
+    });
+    expect(frames, "cached frames exist").not.toBeNull();
+    expect(new Set(frames).size, "cached frames 1..3 are three different interpolated frames").toBe(3);
+  });
+
   test("cancel stops a running render, keeps finished frames and leaves no progress UI", async ({ page }) => {
     const [clip] = clipsOf(await readState(page), "Main");
     await HEAVY_STACK(page, clip.id);
@@ -369,6 +421,60 @@ test.describe("Render In to Out (render cache)", () => {
     await expect.poll(async () => (await levels(page)).map((s) => s.level)).toEqual(["heavy"]);
     expect(await rc(page, (cache) => cache.instance.hasFrameAt(0.5))).toBe(false);
     expect(await rc(page, async (cache) => (await cache.takePlaybackFrame(0.5)) === undefined)).toBe(true);
+  });
+});
+
+test.describe("Render Effects In to Out and persistent render files", () => {
+  test.beforeEach(async ({ page }) => {
+    if (SOFTWARE_GPU) test.setTimeout(SOFTWARE_TIMEOUT_MS);
+    await openEditor(page);
+    await useHd(page);
+  });
+
+  test("Render Effects In to Out renders only the stretches with effects and skips plain media", async ({ page }) => {
+    await splitIntoThree(page);
+    const [a, b] = clipsOf(await readState(page), "Main");
+    // A: heavy stack, B: plain media, C: plain media. Only A (0-2 s) needs a render.
+    await HEAVY_STACK(page, a.id);
+    expect(b.effects).toBe(0);
+    await page.getByRole("menuitem", { name: "Sequence" }).or(page.getByRole("button", { name: "Sequence", exact: true })).first().click();
+    await page.getByRole("menuitem", { name: /Render Effects In to Out/ }).click();
+    await waitRendered(page, 60);
+    const snap = await snapshot(page);
+    expect(snap.frameCount, "only the effects clip was rendered, not the whole 6 s sequence").toBe(60);
+    expect(snap.cachedRuns).toEqual([{ start: 0, end: 59 }]);
+    await expect.poll(async () => (await levels(page)).map((s) => [s.level, s.start, s.end])).toEqual([["cached", 0, 2]]);
+  });
+
+  test("render files persist: a re-initialised cache restores the range from storage and plays it from the cache", async ({ page }) => {
+    const [clip] = clipsOf(await readState(page), "Main");
+    await HEAVY_STACK(page, clip.id);
+    await markRange(page, 0, 1);
+    await rc(page, (cache) => {
+      void cache.renderInToOut();
+    });
+    await waitRendered(page, 30);
+    const kind = await rc(page, (cache) => cache.storageKind);
+    expect(["opfs", "indexeddb"]).toContain(kind);
+    expect(await rc(page, (cache) => cache.isPersistent)).toBe(true);
+    await rc(page, (cache) => cache.instance.flushIndex());
+
+    // What an app restart does to the cache layer: drop the in-memory index and codec, open the storage again.
+    await rc(page, async (cache) => {
+      cache.dispose();
+      cache.ensureStarted();
+      await cache.whenReady();
+    });
+    const restored = await snapshot(page);
+    expect(restored.restored).toMatchObject({ restored: 30, droppedStale: 0, droppedMissing: 0 });
+    expect(restored.frameCount).toBe(30);
+    expect(restored.cachedRuns).toEqual([{ start: 0, end: 29 }]);
+    await expect.poll(async () => (await levels(page)).map((s) => s.level)).toEqual(["cached", "heavy"]);
+
+    await rc(page, (c) => c.resetTelemetry());
+    const measure = await measurePlayback(page, 0, 900);
+    expect(measure.live, "no frame was composited live").toBe(0);
+    expect(measure.cache).toBeGreaterThan(10);
   });
 });
 

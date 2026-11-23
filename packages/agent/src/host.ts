@@ -4,6 +4,8 @@ import type { AudioIssueReport, RepairSuggestion } from "@openreel/core/audio/re
 import type { SequenceEditResult } from "@openreel/core/timeline/sequences";
 import type { GraphicTemplate } from "@openreel/core/graphic-templates/types";
 import type { LutLibraryEntry, SavedLook } from "@openreel/core/color/looks";
+import type { TransitionType } from "@openreel/core/types/effects";
+import type { TransitionPreset } from "@openreel/core/video/transition-presets";
 import type { TimelineToolPlan } from "@openreel/core/editing/timeline-tool-edit";
 import type { CapabilityManifest } from "@openreel/core/capabilities/manifest";
 import type {
@@ -532,9 +534,17 @@ export interface AudioRepairBridge {
   analyze(clipId: string): Promise<{ report: AudioIssueReport; suggestions: RepairSuggestion[] }>;
 }
 
+/** The decoded source audio of a clip (source time), for the spectral analysis tools. Live host only. */
+export interface SpectralSourceBridge {
+  /** Mono mix of the clip's media (all of it, not just the trimmed part) at its decoded sample rate. */
+  getSource(clipId: string): Promise<{ mono: Float32Array; sampleRate: number; duration: number }>;
+}
+
 /** The Source monitor: per-media In/Out marks and the loaded clip. Live host only. */
 export interface SourceMonitorBridge {
   open(mediaId: string, time?: number): void;
+  /** The loaded clip and its Source playhead (seconds), if any. */
+  getState?(): { mediaId: string | null; position: number };
   getMarks(mediaId: string): { in?: number; out?: number };
   setMarks(mediaId: string, marks: { in?: number | null; out?: number | null }): void;
 }
@@ -545,12 +555,19 @@ export interface TargetingState {
   readonly targetedTrackIds: readonly string[];
   /** Which track each Source monitor component is patched to. */
   readonly sourcePatch: { readonly video?: string; readonly audio?: string };
+  /** Multichannel source patch: the track patched to each audio channel group beyond A1 (0-based channel index). */
+  readonly channelPatches?: Readonly<Record<number, string>>;
+  /** Audio channel groups whose patch indicator is switched off (0-based). */
+  readonly disabledChannels?: readonly number[];
 }
 
 export interface TargetingBridge {
   getState(): TargetingState;
   setTrackTargeted(trackId: string, targeted: boolean): void;
   setSourcePatch(kind: "video" | "audio", trackId: string | null): void;
+  /** Patches audio channel group `channel` (0 = A1) to a track, or clears it. */
+  setChannelPatch?(channel: number, trackId: string | null): void;
+  setChannelEnabled?(channel: number, enabled: boolean): void;
 }
 
 /**
@@ -582,6 +599,15 @@ export interface GraphicTemplateLibrary {
  * per project) so they are reusable across projects. Live host only; headless
  * hosts keep a library for the session.
  */
+/** The app-wide transition preset library; live host only (headless hosts have no per-user storage). */
+export interface TransitionLibraryBridge {
+  list(): Promise<readonly TransitionPreset[]>;
+  save(name: string, source: { type: TransitionType; duration: number; params: Record<string, unknown> }): Promise<{ ok: true; id: string } | { ok: false; error: string }>;
+  remove(id: string): Promise<{ ok: true } | { ok: false; error: string }>;
+  exportJson(): Promise<string>;
+  importJson(text: string): Promise<{ ok: true; added: number; skipped: number } | { ok: false; error: string }>;
+}
+
 export interface ColorLibraryBridge {
   listLooks(): Promise<readonly SavedLook[]>;
   saveLook(look: SavedLook): Promise<void>;
@@ -656,6 +682,8 @@ export interface EditingHost {
   stems?: StemExportBridge;
   /** Dialogue issue detection for the repair tools; live host only. */
   audioRepair?: AudioRepairBridge;
+  /** Decoded clip source for finding tones and clicks to heal; live host only. */
+  spectralSource?: SpectralSourceBridge;
   /**
    * Build and commit a trim/insert/lift/extract plan as exactly one undo step.
    * Hosts that own derived caches (the live editor) implement it so those stay
@@ -680,6 +708,8 @@ export interface EditingHost {
   graphicTemplates?: GraphicTemplateLibrary;
   /** Per-user LUT library and saved looks; live host only (headless hosts keep them for the session). */
   colorLibrary?: ColorLibraryBridge;
+  /** App-wide transition presets; live host only. */
+  transitionLibrary?: TransitionLibraryBridge;
   /** Select a media item in the library (what Match Frame does in the UI); live host only. */
   selectLibraryMedia?(mediaId: string): void;
   /** Throws when no project is open (guard for mutating tools). */
@@ -849,7 +879,7 @@ export interface RenderCacheStatus {
  * leave it undefined and the render-cache tools fail clearly.
  */
 export interface RenderCacheBridge {
-  renderInToOut(options?: { rangeStart?: number; rangeEnd?: number }): Promise<RenderCacheRunResult>;
+  renderInToOut(options?: { rangeStart?: number; rangeEnd?: number; effectsOnly?: boolean }): Promise<RenderCacheRunResult>;
   deleteRenderFiles(): Promise<{ removedFrames: number }>;
   getStatus(): RenderCacheStatus;
 }
@@ -883,6 +913,9 @@ export interface ExportQueueJobInfo {
     readonly copiedFrames?: number;
     readonly totalFrames?: number;
     readonly copiedRuns?: number;
+    /** Seconds of the audio track copied from the sources vs rendered and encoded (desktop native path). */
+    readonly audioCopiedSeconds?: number;
+    readonly audioEncodedSeconds?: number;
     readonly reasons?: readonly string[];
   };
   readonly error?: string;
@@ -977,7 +1010,7 @@ export interface DesktopIngestBridge {
   /** Re-queue every failed native proxy job (and rebuild failed items that have no job left). */
   retryFailed(): Promise<{ retried: number }>;
   copyToProject(mediaIds: readonly string[] | undefined): Promise<{
-    copied: Array<{ mediaId: string; name: string; path: string; sha256: string }>;
+    copied: Array<{ mediaId: string; name: string; path: string; /** SHA-256 of the copy; empty when another algorithm verified it. */ sha256: string; /** Verification algorithm and digest (sha256, md5 or xxh64). */ algorithm?: string; checksum?: string }>;
     skipped: Array<{ name: string; reason: string }>;
   }>;
   /** Search `folder` (recursively) for offline media ("full") or missing proxies ("proxy"); match by name + duration + frame rate. */

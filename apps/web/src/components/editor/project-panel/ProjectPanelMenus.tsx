@@ -27,6 +27,7 @@ import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
 import { useProjectPanelStore } from "../../../stores/project-panel-store";
 import { useSourceMonitorStore } from "../../../stores/source-monitor-store";
+import { openSourceChannelsFor, selectedAudioMediaIds } from "../../../services/audio-channels";
 import {
   makeSubclipFromSource,
   moveToBin,
@@ -173,6 +174,11 @@ export const MediaOrganizeItems: React.FC<{ item: MediaItem; kind: MenuKind }> =
           Interpret Footage…
         </Item>
       )}
+      {(item.type === "video" || item.type === "image") && (
+        <Item kind={kind} data-testid="menu-vr-properties" onSelect={() => openDialog({ kind: "vr-properties", mediaId: item.id })}>
+          VR Properties…
+        </Item>
+      )}
       {item.raw && (
         <Item kind={kind} data-testid="menu-raw-settings" onSelect={() => openDialog({ kind: "raw-settings", mediaId: item.id })}>
           RAW Source Settings…
@@ -208,6 +214,7 @@ export const MediaItemContextMenu: React.FC<{
     <ContextMenuContent className="w-[230px] [&_[role=menuitem]]:text-xs" data-testid="media-context-menu">
       <ContextMenuItem onSelect={onOpenInSource}>Open in Source monitor</ContextMenuItem>
       <ContextMenuItem onSelect={onAddToTimeline}>Add to timeline</ContextMenuItem>
+      {item.type !== "image" && <ContextMenuItem data-testid="media-audio-channels" onSelect={() => { openSourceChannelsFor(selectedAudioMediaIds().includes(item.id) ? selectedAudioMediaIds() : [item.id]); }}>Audio channels…</ContextMenuItem>}
       <MediaOrganizeItems item={item} kind="context" />
       <ContextMenuSeparator />
       <ContextMenuItem onSelect={onDelete}>Delete</ContextMenuItem>

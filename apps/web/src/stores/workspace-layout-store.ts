@@ -75,7 +75,7 @@ export const BUILT_IN_WORKSPACES: readonly Workspace[] = [
 const clamp = (value: number, min: number, max: number): number => Math.min(Math.max(value, min), Math.max(min, max));
 const finite = (value: unknown, fallback: number): number => (typeof value === "number" && Number.isFinite(value) ? value : fallback);
 
-const SECTIONS: ReadonlySet<string> = new Set(["media", "audio", "text", "effects", "transitions", "graphics", "ai", "recipes", "markers", "comments", "versions", "templates", "settings"]);
+const SECTIONS: ReadonlySet<string> = new Set(["media", "audio", "text", "effects", "transitions", "graphics", "ai", "recipes", "markers", "browser", "metadata", "comments", "versions", "templates", "settings"]);
 
 /** Clamp a stored or imported layout into the ranges the dock supports. */
 export function sanitizeLayout(input: Partial<Record<keyof DockLayout, unknown>> | null | undefined): DockLayout {

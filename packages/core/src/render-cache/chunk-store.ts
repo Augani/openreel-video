@@ -6,6 +6,8 @@ export interface ChunkStore {
   clear(): Promise<void>;
   /** Delete every entry whose key fails `keep` (startup sweep of dead sessions). */
   purge?(keep: (key: string) => boolean): Promise<number>;
+  /** Every stored entry with its byte length (restart verification and orphan sweep). */
+  list?(): Promise<Array<{ key: string; bytes: number }>>;
   /** Total stored bytes if the backend can tell cheaply (used by tests and diagnostics). */
   size?(): Promise<number>;
 }
@@ -44,6 +46,10 @@ export class MemoryChunkStore implements ChunkStore {
     let total = 0;
     for (const data of this.map.values()) total += data.byteLength;
     return total;
+  }
+
+  async list(): Promise<Array<{ key: string; bytes: number }>> {
+    return Array.from(this.map, ([key, data]) => ({ key, bytes: data.byteLength }));
   }
 
   get keys(): string[] {
@@ -139,6 +145,16 @@ export class IndexedDbChunkStore implements ChunkStore {
     }
     await transactionDone(tx);
     return removed;
+  }
+
+  async list(): Promise<Array<{ key: string; bytes: number }>> {
+    const db = await this.open();
+    const tx = db.transaction(STORE, "readonly");
+    const store = tx.objectStore(STORE);
+    const [keys, values] = await Promise.all([request(store.getAllKeys()), request(store.getAll())]);
+    return (keys as IDBValidKey[]).flatMap((key, i) =>
+      typeof key === "string" ? [{ key, bytes: (values[i] as ArrayBuffer).byteLength }] : [],
+    );
   }
 
   async size(): Promise<number> {

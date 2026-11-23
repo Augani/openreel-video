@@ -15,12 +15,12 @@
  * premultiplied because the renderer's canvas is a premultiplied context.
  */
 import type { MotionShaderDef, MotionShaderParamDef } from "../motion/shaders/types";
-import {
-  PRO_EFFECT_TYPES,
-  type ProEffectType,
-} from "./pro-effects";
+import type { ProEffectType } from "./pro-effects";
 import { PRELUDE } from "./pro-effect-prelude";
 import { EXTRA_GLSL, EXTRA_UNIFORMS } from "./pro-effect-shaders-extra";
+import type { VrProEffectType } from "./vr-effect-specs";
+import type { VrImageEffectType } from "./vr-image-effect-specs";
+import { getVrRuntime, isVrEffectType, onVrRuntime, VrRuntimeNotLoadedError, type VrRuntime } from "./vr-runtime-loader";
 
 
 const MOSAIC = `${PRELUDE}
@@ -511,7 +511,10 @@ void main() {
 }
 `;
 
-const GLSL: Readonly<Record<ProEffectType, string>> = {
+/** The pro effects with a shader in this module; the nine VR effects get theirs from the lazy VR runtime. */
+type BuiltinProEffectType = Exclude<ProEffectType, VrProEffectType | VrImageEffectType>;
+
+const GLSL: Readonly<Record<BuiltinProEffectType, string>> = {
   mosaic: MOSAIC,
   posterize: POSTERIZE,
   mirror: MIRROR,
@@ -535,7 +538,7 @@ const GLSL: Readonly<Record<ProEffectType, string>> = {
 };
 
 /** Uniform names (without the `u_` prefix) each shader consumes. */
-const UNIFORMS: Readonly<Record<ProEffectType, readonly string[]>> = {
+const UNIFORMS: Readonly<Record<BuiltinProEffectType, readonly string[]>> = {
   mosaic: ["size"],
   posterize: ["steps"],
   mirror: ["horizontal", "vertical", "center"],
@@ -558,8 +561,8 @@ const UNIFORMS: Readonly<Record<ProEffectType, readonly string[]>> = {
   ...EXTRA_UNIFORMS,
 };
 
-function buildDef(type: ProEffectType): MotionShaderDef {
-  const params: MotionShaderParamDef[] = UNIFORMS[type].map((name) => ({
+function buildDef(type: ProEffectType, glsl: string, uniforms: readonly string[]): MotionShaderDef {
+  const params: MotionShaderParamDef[] = uniforms.map((name) => ({
     name,
     label: name,
     type: "number",
@@ -572,18 +575,35 @@ function buildDef(type: ProEffectType): MotionShaderDef {
     id: `pro-effect-${type}`,
     name: type,
     category: "effect",
-    glsl: GLSL[type],
+    glsl,
     params,
     origin: "builtin",
   };
 }
 
-export const PRO_EFFECT_SHADER_DEFS: Readonly<
-  Record<ProEffectType, MotionShaderDef>
-> = Object.fromEntries(
-  PRO_EFFECT_TYPES.map((type) => [type, buildDef(type)]),
-) as Record<ProEffectType, MotionShaderDef>;
+const defs: Partial<Record<ProEffectType, MotionShaderDef>> = Object.fromEntries(
+  (Object.keys(GLSL) as BuiltinProEffectType[]).map((type) => [type, buildDef(type, GLSL[type], UNIFORMS[type])]),
+);
+
+/**
+ * The shader def of every pro effect. The nine VR effects are added when the lazy VR runtime registers (their GLSL is
+ * not part of the startup code): `PRO_EFFECT_SHADER_DEFS[vrType]` is undefined until then, and `getProEffectShaderDef`
+ * throws `VrRuntimeNotLoadedError`. The video effects engine awaits the runtime before it renders a VR effect.
+ */
+export const PRO_EFFECT_SHADER_DEFS = defs as Record<ProEffectType, MotionShaderDef>;
+
+function addVrDefs(rt: VrRuntime): void {
+  for (const type of Object.keys(rt.glsl)) {
+    defs[type as ProEffectType] = buildDef(type as ProEffectType, rt.glsl[type], rt.uniforms[type] ?? []);
+  }
+}
+onVrRuntime(addVrDefs);
 
 export function getProEffectShaderDef(type: ProEffectType): MotionShaderDef {
-  return PRO_EFFECT_SHADER_DEFS[type];
+  const def = defs[type];
+  if (!def) {
+    if (isVrEffectType(type) && !getVrRuntime()) throw new VrRuntimeNotLoadedError(type);
+    throw new Error(`No shader for pro effect "${type}"`);
+  }
+  return def;
 }

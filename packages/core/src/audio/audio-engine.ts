@@ -20,8 +20,8 @@ import {
   getPanFromAudioEffects,
   splitProfileAwareNoiseReductionEffects,
 } from "./audio-effect-routing";
+import { resolveClipAudioEffects } from "./clip-audio-effects";
 import {
-  resolveClipAudioEffects,
   resolveClipPanAutomation,
   resolveClipPitchCorrection,
   resolveClipVolumeAutomation,
@@ -32,12 +32,22 @@ import { shouldPreservePitch, timeStretchChannels } from "./time-stretch";
 import { getSharedStretchCache } from "./stretch-cache";
 import { getSharedSpectralRepairCache } from "./spectral/spectral-repair-cache";
 import { SPECTRAL_REPAIR_EFFECT_TYPE, getSpectralRepairRegions, type SpectralRegion } from "./spectral/spectral-regions";
+import { ENHANCE_SPEECH_EFFECT_TYPE, getEnhanceSpeechBalance, getEnhanceSpeechMix } from "./enhance/enhance-effect";
+import { REDUCE_REVERB_EFFECT_TYPE, getReduceReverbParams, hasReduceReverb } from "./reverb/reverb-effect";
+import { getSharedReduceReverbCache } from "./reverb/reverb-cache";
+import type { ReduceReverbParams } from "./reverb/reverb-params";
+import { getSharedEnhanceSpeechCache } from "./enhance/enhance-cache";
+import { NATIVE_PLUGIN_EFFECT_TYPE, hasNativePlugins, nativePluginSteps } from "./native-plugin/native-plugin-effect";
+import { getNativePluginBackend, getSharedNativePluginCache } from "./native-plugin/native-plugin-cache";
+import { MASTER_RACK_TARGET, activePluginRackTargets, applyRackStemsToTimeline, isSunkTrack, rackStemTrackId, projectHasPluginRacks, timelineHasClipPreviewBypass } from "./native-plugin/native-plugin-rack";
+import { resolveRackStems, stemmedTargets, type RackStemResult } from "./native-plugin/rack-stems";
+import { audioRangeFingerprint } from "./mixdown-cache";
 import { hasAudioRouting, getAudioBuses } from "./audio-routing";
 import { AudioRoutingGraph, buildOfflineTrackChain } from "./audio-routing-graph";
 import { planTimelineDelayCompensation, rackLatencySamples } from "./effect-latency";
 import { scheduleClipFadeEnvelope } from "./clip-fade-envelope";
 import { getTrackTransitionAudioFades } from "./transition-audio-fades";
-import { channelMapNeedsWideSource, mapAudioBuffer, resolveClipChannelMap, type ClipChannelMap } from "./channel-map";
+import { channelMapNeedsWideSource, mapAudioBuffer, resolveClipChannelMap, wideDecodeChannels, type ClipChannelMap } from "./channel-map";
 import { createSurroundPanner, fallbackDecodeChannels, isSurroundLayout, mixChannelCount, resolveSurroundPan } from "./surround";
 import {
   createRackBus,
@@ -324,13 +334,19 @@ export class AudioEngine {
     mixes: Map<string, Promise<AudioBuffer>>,
     preview: boolean,
   ): Promise<RenderedAudio> {
+    // Hosted plugins on tracks and buses: their dry stems are rendered (whole timeline), run through the plugin helper once
+    // (cached, shared with the live preview) and substituted for the signal they replace.
+    const rackStems = projectHasPluginRacks(project.timeline) ? await this.resolvePluginRackStems(project, { preview }, ancestors, mixes) : new Map<string, RackStemResult>();
+    const stemmed = stemmedTargets(rackStems);
+    if (stemmed.size > 0) project = { ...project, timeline: applyRackStemsToTimeline(project.timeline, stemmed) };
     const { mediaLibrary, settings } = project;
     const sampleRate = settings.sampleRate || this.config.sampleRate;
     const surround = isSurroundLayout(settings);
     const channels = mixChannelCount(settings, this.config.channels);
     // Audio Channels: a clip mapped to 5.1 or to a source channel beyond L/R needs the file's own channels,
     // not the stereo fold-down the ffmpeg decode would otherwise give a stereo sequence.
-    this.setDecodeSurround(surround || this.projectNeedsWideSources(project));
+    const widest = this.widestMappedSource(project);
+    this.setDecodeSurround(surround || widest > 0, Math.max(6, wideDecodeChannels(widest)));
     const safeDuration = Math.max(duration, 0.001);
     const frameCount = audioFrameCount(safeDuration, sampleRate);
     // Plugin delay compensation: every path is aligned to the slowest, so the
@@ -357,7 +373,10 @@ export class AudioEngine {
     // Repair effects live in an AudioWorklet module that must be loaded into this context first.
     if (projectUsesRepairEffects(project, surround)) await ensureRepairWorklet(offlineContext);
     const mixBuses = this.buildOfflineRackBuses(offlineContext, project, { start: startTime, duration }, pdc.trackDelay, surround);
+    const sunkTracks = new Set(project.timeline.tracks.filter(isSunkTrack).map((t) => t.id));
     for (const trackInfo of audioTracks) {
+      // A stemmed track plays its processed stem (below); tracks parked on the rack-stem sink are replaced by a bus's stem.
+      if (stemmed.has(trackInfo.trackId) || sunkTracks.has(trackInfo.trackId)) continue;
       if (this.isTrackMuted(trackInfo, hasSoloTracks)) continue;
       this.offlineBuses.set(offlineContext, { current: mixBuses.trackInput(trackInfo.trackId) });
 
@@ -373,8 +392,9 @@ export class AudioEngine {
           let mixed = mixes.get(key);
           if (!mixed) {
             // The master rack belongs to the outer mix only; keeping it here would apply it twice.
-            const { masterAudioRack: _outerMaster, audioBuses: _outerBuses, ...outerTimeline } = project.timeline;
+            const { masterAudioRack: _outerMaster, masterPluginRack: _outerMasterPlugins, audioBuses: _outerBuses, ...outerTimeline } = project.timeline;
             void _outerMaster;
+            void _outerMasterPlugins;
             void _outerBuses;
             // The nest brings its own buses (its sequence's mixer), never the parent's.
             const nestedProject: Project = { ...project, timeline: { ...outerTimeline,
@@ -399,6 +419,13 @@ export class AudioEngine {
           preview || ancestors.size > 0,
         );
       }
+    }
+    for (const [targetId, stem] of rackStems) {
+      if (!stem.buffer || stem.allBypassed) continue;
+      const trackId = project.timeline.tracks.some((t) => t.id === targetId) ? targetId : rackStemTrackId(targetId);
+      if (sunkTracks.has(trackId)) continue;
+      this.offlineBuses.set(offlineContext, { current: mixBuses.trackInput(trackId) });
+      await this.renderBufferToContext(offlineContext, stem.buffer, this.rackStemClipInfo(targetId, startTime, duration), startTime, startTime);
     }
     const rendered = await offlineContext.startRendering();
     const renderedBuffer = latencyFrames > 0 ? this.copyAudioRange(rendered, latencyFrames, frameCount) : rendered;
@@ -575,17 +602,28 @@ export class AudioEngine {
   /** True while decoding for a 5.1 sequence: sources keep their own channels (up to 6) instead of being folded to stereo. */
   private decodeSurround = false;
 
-  private projectNeedsWideSources(project: Project): boolean {
+  /** Most channels a wide decode keeps: six, or the widest source a mapped clip reads (multichannel source patching). */
+  private decodeChannelCap = 6;
+
+  /** The widest source (in channels) read by a clip whose channel map needs the file's own channels; 0 when none does. */
+  private widestMappedSource(project: Project): number {
     const mediaById = new Map(project.mediaLibrary.items.map((item) => [item.id, item] as const));
-    return project.timeline.tracks.some((track) =>
-      track.clips.some((clip) => channelMapNeedsWideSource(resolveClipChannelMap(clip, mediaById.get(clip.mediaId)))),
-    );
+    let widest = 0;
+    for (const track of project.timeline.tracks) {
+      for (const clip of track.clips) {
+        const media = mediaById.get(clip.mediaId);
+        const channels = media?.metadata.channels;
+        if (channelMapNeedsWideSource(resolveClipChannelMap(clip, media), channels)) widest = Math.max(widest, channels ?? 2);
+      }
+    }
+    return widest;
   }
 
-  private setDecodeSurround(surround: boolean): void {
-    if (this.decodeSurround === surround) return;
+  private setDecodeSurround(surround: boolean, cap = 6): void {
+    if (this.decodeSurround === surround && this.decodeChannelCap === cap) return;
     // Cached buffers were decoded for the other layout.
     this.decodeSurround = surround;
+    this.decodeChannelCap = cap;
     this.mediaBuffers.clear();
     this.mediaBufferBytes = 0;
   }
@@ -658,7 +696,7 @@ export class AudioEngine {
 
     try {
       const { extractAudioWav } = await import("../media/extract-audio");
-      const channels = fallbackDecodeChannels(this.decodeSurround ? "5.1" : "stereo", mediaItem.metadata.channels);
+      const channels = fallbackDecodeChannels(this.decodeSurround ? "5.1" : "stereo", mediaItem.metadata.channels, this.decodeChannelCap);
       const wavBlob = channels === undefined
         ? await extractAudioWav(mediaItem.blob, audioTrackIndex)
         : await extractAudioWav(mediaItem.blob, audioTrackIndex, { channels });
@@ -681,7 +719,7 @@ export class AudioEngine {
   ): Promise<void> {
     if (this.noAudioMedia.has(this.getAudioSourceKey(mediaItem, clipInfo.audioTrackIndex ?? 0))) return;
     // Spectral repair processes the whole decoded source (the same samples the preview plays), so such clips skip the streaming decode.
-    if (getSpectralRepairRegions(clipInfo.effects).length === 0 && this.shouldUseSegmentedAudioDecoding(mediaItem, preferSegments)) {
+    if (getSpectralRepairRegions(clipInfo.effects).length === 0 && getEnhanceSpeechMix(clipInfo.effects) === 0 && !hasReduceReverb(clipInfo.effects) && !hasNativePlugins(clipInfo.effects) && this.shouldUseSegmentedAudioDecoding(mediaItem, preferSegments)) {
       const renderedSegment = await this.renderClipToContextFromSegments(
         context,
         mediaItem,
@@ -713,6 +751,15 @@ export class AudioEngine {
     if (!clipInfo.compoundClipId) {
       const regions = getSpectralRepairRegions(clipInfo.effects);
       if (regions.length > 0) audioBuffer = await this.repairSpectrally(audioBuffer, regions);
+      // Reduce Reverb runs on the repaired whole source, the same cached job the preview plays; Enhance Speech then runs on its result
+      // (the order is fixed: spectral repair, Reduce Reverb, Enhance Speech, hosted plugins, the live chain).
+      const reverbParams = getReduceReverbParams(clipInfo.effects);
+      if (reverbParams) audioBuffer = await this.reduceReverb(audioBuffer, reverbParams);
+      // Enhance Speech runs on the (repaired, dereverberated) whole source through the cache the live preview shares.
+      const enhanceMix = getEnhanceSpeechMix(clipInfo.effects);
+      if (enhanceMix > 0) audioBuffer = await this.enhanceSpeech(audioBuffer, enhanceMix, getEnhanceSpeechBalance(clipInfo.effects));
+      // Hosted plugins run last on the whole source, through the cache the live preview shares.
+      if (hasNativePlugins(clipInfo.effects)) audioBuffer = await this.renderNativePlugins(audioBuffer, clipInfo.effects);
     }
     // Audio Channels: every later stage (reverse, stretch, effects, panner) sees the clip's channels, not the file's.
     audioBuffer = mapAudioBuffer(context, audioBuffer, clipInfo.channelMap);
@@ -801,7 +848,7 @@ export class AudioEngine {
   }> {
     const enabledEffects = clipInfo.effects.filter(
       (effect) =>
-        effect.enabled && effect.type !== "pan" && effect.type !== "fadeIn" && effect.type !== "fadeOut" && effect.type !== SPECTRAL_REPAIR_EFFECT_TYPE,
+        effect.enabled && effect.type !== "pan" && effect.type !== "fadeIn" && effect.type !== "fadeOut" && effect.type !== SPECTRAL_REPAIR_EFFECT_TYPE && effect.type !== ENHANCE_SPEECH_EFFECT_TYPE && effect.type !== REDUCE_REVERB_EFFECT_TYPE && effect.type !== NATIVE_PLUGIN_EFFECT_TYPE,
     );
 
     if (
@@ -875,6 +922,115 @@ export class AudioEngine {
     const channels: Float32Array[] = [];
     for (let c = 0; c < buffer.numberOfChannels; c += 1) channels.push(buffer.getChannelData(c));
     return this.buildStretchBuffer(applySpectralRegions(channels, buffer.sampleRate, regions), buffer.sampleRate);
+  }
+
+  /**
+   * The source buffer enhanced by the speech model at `mix` percent: the cached, off-thread job the preview shares.
+   * An export never silently drops the effect: a user-cancelled job is retried, and a failure (for example the model
+   * files cannot be loaded) fails the render with the reason.
+   */
+  private async enhanceSpeech(buffer: AudioBuffer, mix: number, balance = 100): Promise<AudioBuffer> {
+    const cache = getSharedEnhanceSpeechCache((channels, sampleRate) => this.buildStretchBuffer(channels, sampleRate));
+    let result = await cache.request({ buffer, mix, balance });
+    if (!result && cache.status(buffer).state !== "failed") result = await cache.request({ buffer, mix, balance });
+    if (!result) throw new Error(`Enhance Speech could not run: ${cache.status(buffer).error ?? "the job was cancelled"}`);
+    return result;
+  }
+
+  /** The source with late reverb removed: the cached, off-thread job the preview shares; fails the render like Enhance Speech rather than dropping the effect. */
+  private async reduceReverb(buffer: AudioBuffer, params: ReduceReverbParams): Promise<AudioBuffer> {
+    const cache = getSharedReduceReverbCache((channels, sampleRate) => this.buildStretchBuffer(channels, sampleRate));
+    let result = await cache.request({ buffer, params });
+    if (!result && cache.status(buffer, params).state !== "failed") result = await cache.request({ buffer, params });
+    if (!result) throw new Error(`Reduce Reverb could not run: ${cache.status(buffer, params).error ?? "the job was cancelled"}`);
+    return result;
+  }
+
+  /** What the last mixdown (or stem resolution) found out about hosted plugins on tracks and buses: bypassed effect ids with the reason, per target. */
+  private rackPluginReport = new Map<string, ReadonlyMap<string, string>>();
+
+  /** Bumped whenever a resolution bypassed a plugin (see RackStemDeps.bypassEvents). */
+  private rackBypassEvents = 0;
+
+  /** Plugins on tracks / buses that were bypassed in the last render (not installed, blocked, no host), per track or bus id. */
+  getPluginRackReport(): ReadonlyMap<string, ReadonlyMap<string, string>> {
+    return this.rackPluginReport;
+  }
+
+  private rackStemClipInfo(targetId: string, startTime: number, duration: number): AudioClipRenderInfo {
+    return {
+      clipId: `rack-stem:${targetId}`,
+      mediaId: "",
+      sourceTime: startTime,
+      clipOffset: 0,
+      timelineStartTime: startTime,
+      duration,
+      clipDuration: duration,
+      volume: 1,
+      volumeAutomation: [],
+      pan: 0,
+      effects: [],
+      speed: 1,
+    };
+  }
+
+  /**
+   * The processed stem of every track and bus that carries hosted plugins: its dry mixdown over the whole timeline run
+   * through the plugin chain (latency compensated, automation from the rack's keyframes). Cached by the exact input, so the
+   * live preview and every export window share one render. A plugin that cannot run is bypassed and reported through
+   * {@link getPluginRackReport}; one that fails while rendering rejects.
+   */
+  async resolvePluginRackStems(
+    project: Project,
+    options: { preview?: boolean } = {},
+    ancestors: Set<string> = new Set(),
+    mixes: Map<string, Promise<AudioBuffer>> = new Map(),
+  ): Promise<Map<string, RackStemResult>> {
+    this.ensureInitialized();
+    // A preview render only differs from an export render when a clip effect is set to "hear dry": otherwise they share one cached stem.
+    const wantsPreview = options.preview === true;
+    const preview = wantsPreview && timelineHasClipPreviewBypass(project.timeline);
+    const results = await resolveRackStems(project, {
+      renderStem: async (stemProject, seconds) => (await this.renderAudioWithHistory(stemProject, 0, seconds, ancestors, mixes, preview)).buffer,
+      runChain: async (buffer, steps, label) => {
+        try {
+          const outcome = await getSharedNativePluginCache((channels, sampleRate) => this.buildStretchBuffer(channels, sampleRate)).request(buffer, steps, { label });
+          return { buffer: outcome.buffer, bypassed: outcome.bypassed };
+        } catch (error) {
+          throw new Error(`A hosted audio plugin could not run: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      },
+      fingerprint: (stemProject, seconds) => audioRangeFingerprint(stemProject, 0, seconds),
+      hasHost: getNativePluginBackend() !== undefined,
+      audibility: this.getEffectiveTrackAudibility(project.timeline.tracks),
+      preview: wantsPreview,
+      renderPreview: preview,
+      surround: isSurroundLayout(project.settings),
+      bypassEvents: () => this.rackBypassEvents,
+    });
+    // Nested resolutions (the stem of a bus resolves the racks upstream of it first) report too: merge per target.
+    const report = new Map(this.rackPluginReport);
+    // With a master stem playing, the tracks' and buses' own results came from the nested resolution (their entries stay).
+    const masterPlays = stemmedTargets(results).has(MASTER_RACK_TARGET);
+    for (const target of activePluginRackTargets(project.timeline)) if (!masterPlays || target.kind === "master") report.delete(target.id);
+    for (const [id, result] of results) if (result.bypassed.size > 0) report.set(id, result.bypassed);
+    if ([...results.values()].some((result) => result.bypassed.size > 0)) this.rackBypassEvents += 1;
+    this.rackPluginReport = report;
+    return results;
+  }
+
+  /**
+   * The source buffer rendered through the clip's hosted plugins (latency compensated, automation applied): the cached,
+   * off-thread job the preview shares. A plugin that is not installed, blocked or has no host is bypassed (reported through
+   * the cache); a plugin that fails while rendering fails the export with the reason, never a silently different mix.
+   */
+  private async renderNativePlugins(buffer: AudioBuffer, effects: readonly Effect[]): Promise<AudioBuffer> {
+    const cache = getSharedNativePluginCache((channels, sampleRate) => this.buildStretchBuffer(channels, sampleRate));
+    try {
+      return (await cache.request(buffer, nativePluginSteps(effects))).buffer;
+    } catch (error) {
+      throw new Error(`A hosted audio plugin could not run: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   private buildStretchBuffer(channels: Float32Array[], sampleRate: number): AudioBuffer {

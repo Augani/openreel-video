@@ -194,11 +194,16 @@ export async function extractAudioWavViaNative(file: File | Blob, streamIndex?: 
   return readBackBlob(bridge, outPath, "audio/wav");
 }
 
-export async function probeAudioStreamCountViaNative(file: File | Blob): Promise<number> {
+/** The audio streams the desktop's ffmpeg probe finds, with each stream's channel count. */
+export async function probeAudioStreamsViaNative(file: File | Blob): Promise<{ audioStreamCount: number; channels: number[] }> {
   const bridge = getBridge();
   if (!bridge) throw new Error("native media bridge unavailable");
   const { streams } = await withInputCopy(bridge, file, (srcPath) =>
     bridge.media.probeAudioStreams({ srcPath }),
   );
-  return streams.length;
+  return { audioStreamCount: streams.length, channels: streams.map((stream) => stream.channels) };
+}
+
+export async function probeAudioStreamCountViaNative(file: File | Blob): Promise<number> {
+  return (await probeAudioStreamsViaNative(file)).audioStreamCount;
 }

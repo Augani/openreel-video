@@ -149,7 +149,7 @@ describe("RealtimeAudioGraph routing", () => {
   const track = (extra: Record<string, unknown> = {}) =>
     ({ id: "track-1", type: "audio", name: "T", clips: [], transitions: [], locked: false, hidden: false, muted: false, solo: false, ...extra }) as never;
   const priv = (graph: unknown) =>
-    graph as { masterGain: unknown; routing: { getBusInput(id: string): unknown } };
+    graph as { masterPre: unknown; routing: { getBusInput(id: string): unknown } };
   type MockNode = { connect: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> };
 
   it("plays unrouted tracks into the master exactly as before", () => {
@@ -157,7 +157,7 @@ describe("RealtimeAudioGraph routing", () => {
     graph.scheduleClip(clip());
     const out = graph.getTrackOutputGain("track-1") as unknown as MockNode;
     expect(out.connect).toHaveBeenCalledTimes(1);
-    expect(out.connect).toHaveBeenCalledWith(priv(graph).masterGain);
+    expect(out.connect).toHaveBeenCalledWith(priv(graph).masterPre);
     graph.dispose();
   });
 
@@ -170,10 +170,10 @@ describe("RealtimeAudioGraph routing", () => {
     expect(out.disconnect).toHaveBeenCalled();
     expect(out.connect).toHaveBeenLastCalledWith(priv(graph).routing.getBusInput("dlg"));
     const fader = graph.getBusOutputGain("dlg") as unknown as MockNode;
-    expect(fader.connect).toHaveBeenCalledWith(priv(graph).masterGain);
+    expect(fader.connect).toHaveBeenCalledWith(priv(graph).masterPre);
 
     graph.setRouting({ tracks: [track()] });
-    expect(out.connect).toHaveBeenLastCalledWith(priv(graph).masterGain);
+    expect(out.connect).toHaveBeenLastCalledWith(priv(graph).masterPre);
     expect(graph.getBusOutputGain("dlg")).toBeUndefined();
     graph.dispose();
   });

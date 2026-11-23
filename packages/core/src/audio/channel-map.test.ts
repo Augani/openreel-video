@@ -104,5 +104,9 @@ describe("wide source decoding", () => {
     expect(channelMapNeedsWideSource(mono(2))).toBe(true);
     expect(channelMapNeedsWideSource(stereo(4, 5))).toBe(true);
     expect(channelMapNeedsWideSource({ format: "5.1", sources: [0, 1, 2, 3, 4, 5] })).toBe(true);
+    // Any map over a source wider than stereo needs its own channels: the stereo fold-down mixes them all into L / R.
+    expect(channelMapNeedsWideSource(mono(0), 8)).toBe(true);
+    expect(channelMapNeedsWideSource(mono(0), 2)).toBe(false);
+    expect(channelMapNeedsWideSource(undefined, 8)).toBe(false);
   });
 });

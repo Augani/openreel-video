@@ -10,11 +10,8 @@ import { Route, Trash2, Plus, Eye, EyeOff } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
 import { useEngineStore } from "../../../stores/engine-store";
-import {
-  getGSAPEngine,
-  generateDefaultControlPoints,
-  type GSAPMotionPathPoint,
-} from "@openreel/core";
+import { generateDefaultControlPoints, type GSAPMotionPathPoint } from "@openreel/core";
+import { getGSAPEngine } from "@openreel/core/animation/gsap-engine";
 
 interface MotionPathSectionProps {
   clipId: string;

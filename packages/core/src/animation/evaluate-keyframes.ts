@@ -1,5 +1,6 @@
 import type { Keyframe } from "../types/timeline";
 import { keyframeEngine } from "../video/keyframe-engine";
+import { samplePositionPath } from "./spatial-path";
 
 export function evaluateKeyframesAt(
   keyframes: readonly Keyframe[] | undefined,
@@ -25,6 +26,12 @@ export function evaluateKeyframesAt(
     if (typeof result.value === "number" && Number.isFinite(result.value)) {
       values.set(property, result.value);
     }
+  }
+
+  const route = samplePositionPath(keyframes, localTime, (t, key) => keyframeEngine.easeSegment(t, key));
+  if (route && Number.isFinite(route.x) && Number.isFinite(route.y)) {
+    values.set("position.x", route.x);
+    values.set("position.y", route.y);
   }
 
   return values;

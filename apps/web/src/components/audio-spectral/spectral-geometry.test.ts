@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   bandFromPixels,
+  brushRadiiFromPixels,
+  movePoints,
+  moveRect,
+  pixelsToPoints,
+  pointToPixel,
+  polygonArea,
+  resizeRect,
+  thinPath,
   colourTable,
   formatHz,
   freqToY,
@@ -85,5 +93,52 @@ describe("spectral viewport geometry", () => {
       const luma = (i: number) => table[i * 3] + table[i * 3 + 1] + table[i * 3 + 2];
       expect(luma(255)).toBeGreaterThan(luma(0));
     }
+  });
+});
+
+describe("lasso, brush and region editing geometry", () => {
+  it("round-trips a drawn path through (time, Hz) points, clamped to the source", () => {
+    const path = [{ x: 0, y: 0 }, { x: 200, y: 100 }, { x: 400, y: 200 }];
+    const points = pixelsToPoints(view, path, 5, 24000);
+    expect(points[0].t).toBeCloseTo(2, 9);
+    expect(points[2].t).toBe(5); // clamped to the 5 s source
+    for (const [i, p] of points.entries()) {
+      const back = pointToPixel(view, p);
+      if (p.t < 5) expect(back.x).toBeCloseTo(path[i].x, 6);
+      expect(back.y).toBeCloseTo(path[i].y, 4);
+    }
+  });
+
+  it("thins a path and measures a polygon's area", () => {
+    const dense = Array.from({ length: 101 }, (_, i) => ({ x: i * 0.5, y: 0 }));
+    const thin = thinPath(dense, 5);
+    expect(thin.length).toBeLessThan(15);
+    expect(thin[thin.length - 1]).toBe(dense[dense.length - 1]);
+    expect(polygonArea([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 5 }, { x: 0, y: 5 }])).toBe(50);
+    expect(polygonArea([{ x: 0, y: 0 }, { x: 10, y: 0 }])).toBe(0);
+  });
+
+  it("turns a brush radius in pixels into seconds and octaves", () => {
+    const { brushSeconds, brushOctaves } = brushRadiiFromPixels(view, 10);
+    expect(brushSeconds).toBeCloseTo(0.1, 9); // 4 s over 400 px
+    expect(brushOctaves).toBeCloseTo((10 * Math.log2(800)) / 200, 9);
+  });
+
+  it("moves and resizes a rectangle without crossing edges or leaving the source", () => {
+    const rect = { startTime: 1, endTime: 2, lowHz: 500, highHz: 1000 };
+    expect(moveRect(rect, 0.5, 1, 10, 24000)).toEqual({ startTime: 1.5, endTime: 2.5, lowHz: 1000, highHz: 2000 });
+    expect(moveRect(rect, -5, 0, 10, 24000).startTime).toBe(0);
+    expect(moveRect(rect, 50, 0, 10, 24000).endTime).toBe(10);
+    expect(moveRect(rect, 0, 10, 10, 24000).highHz).toBe(24000);
+    expect(resizeRect(rect, "e", 3, 0, 10, 24000)).toMatchObject({ startTime: 1, endTime: 3 });
+    expect(resizeRect(rect, "w", 5, 0, 10, 24000).startTime).toBeLessThan(2);
+    expect(resizeRect(rect, "ne", 2.5, 2000, 10, 24000)).toEqual({ startTime: 1, endTime: 2.5, lowHz: 500, highHz: 2000 });
+    expect(resizeRect(rect, "s", 0, 5000, 10, 24000).lowHz).toBeLessThan(1000);
+  });
+
+  it("moves lasso points together", () => {
+    const moved = movePoints([{ t: 1, hz: 400 }, { t: 2, hz: 800 }], 0.5, 1, 10, 24000);
+    expect(moved).toEqual([{ t: 1.5, hz: 800 }, { t: 2.5, hz: 1600 }]);
+    expect(movePoints([{ t: 9.9, hz: 20000 }], 5, 2, 10, 24000)).toEqual([{ t: 10, hz: 24000 }]);
   });
 });

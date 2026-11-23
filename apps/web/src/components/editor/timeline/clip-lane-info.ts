@@ -43,6 +43,19 @@ export function sameLaneInfo(a: ClipLaneInfo, b: ClipLaneInfo): boolean {
   );
 }
 
+/** Previous-neighbour index of a lane, built once per `track.clips` array (a sort of the whole lane). */
+const previousClipIndex = new WeakMap<readonly Clip[], Map<string, Clip | undefined>>();
+function previousClipsOf(trackClips: readonly Clip[]): Map<string, Clip | undefined> {
+  let index = previousClipIndex.get(trackClips);
+  if (!index) {
+    const sorted = [...trackClips].sort((a, b) => a.startTime - b.startTime || a.id.localeCompare(b.id));
+    index = new Map();
+    sorted.forEach((clip, i) => index!.set(clip.id, i > 0 ? sorted[i - 1] : undefined));
+    previousClipIndex.set(trackClips, index);
+  }
+  return index;
+}
+
 /** Info for every clip of `clips` (a lane's clips, usually the visible ones). */
 export function computeLaneInfos(
   clips: readonly Clip[],
@@ -51,11 +64,7 @@ export function computeLaneInfos(
 ): Map<string, ClipLaneInfo> {
   const result = new Map<string, ClipLaneInfo>();
   const trackBadge = getTrackBadge(allTracks, track.id);
-  const sorted = [...track.clips].sort(
-    (a, b) => a.startTime - b.startTime || a.id.localeCompare(b.id),
-  );
-  const prevOf = new Map<string, Clip | undefined>();
-  sorted.forEach((clip, index) => prevOf.set(clip.id, index > 0 ? sorted[index - 1] : undefined));
+  const prevOf = previousClipsOf(track.clips);
 
   for (const clip of clips) {
     const mediaType = mediaTypeOf(clip);

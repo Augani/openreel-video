@@ -229,6 +229,21 @@ export interface SmartRenderReport {
   copiedPercent: number;
   /** Number of stream-copied runs. */
   copiedRuns: number;
+  /** Seconds of the export that were stream-copied / re-encoded (frames over the export frame rate). */
+  copiedSeconds?: number;
+  encodedSeconds?: number;
+  /** The audio track: copied from the sources (AAC packets, PCM spans) or rendered and encoded. Native engine only. */
+  audio?: {
+    /** "whole": one copy is the audio of the export; "spans": copies between rendered spans; "none": all rendered. */
+    mode: "whole" | "spans" | "none";
+    codec: "aac" | "pcm";
+    copiedSeconds: number;
+    encodedSeconds: number;
+    /** Why the audio was rendered (or only partly copied). */
+    reasons: string[];
+    /** "Audio: 100% copied" */
+    summary: string;
+  };
   /** Human-readable reasons nothing (or less) could be copied. */
   reasons: string[];
   /** "Smart render: 62% copied" */

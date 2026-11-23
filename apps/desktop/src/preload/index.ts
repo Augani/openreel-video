@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { CHANNELS } from "../shared/channels";
+import { AUDIO_WARM_ARGUMENT } from "../shared/audio-warm";
+import { installAudioWarmFrame } from "./audio-warm-frame";
 import type { McpBridgeRequest } from "../shared/mcp";
 
 contextBridge.exposeInMainWorld("openreel", {
@@ -33,6 +35,15 @@ contextBridge.exposeInMainWorld("openreel", {
     brotliDecompress: (data: Uint8Array) => ipcRenderer.invoke(CHANNELS.fontsBrotliDecompress, { data }),
   },
   probeHardware: () => ipcRenderer.invoke(CHANNELS.probeHardware, undefined),
+  /** Files the OS opened with the app (projects, caption files): what arrived before the page loaded, and what arrives later. */
+  openFiles: {
+    take: () => ipcRenderer.invoke(CHANNELS.openFilesTake, undefined),
+    onOpen: (cb: (items: Array<{ kind: "project" | "captions"; path: string }>) => void) => {
+      const handler = (_event: unknown, items: Array<{ kind: "project" | "captions"; path: string }>) => cb(items);
+      ipcRenderer.on(CHANNELS.openFilesEvent, handler);
+      return () => ipcRenderer.removeListener(CHANNELS.openFilesEvent, handler);
+    },
+  },
   onMenuAction: (cb: (id: string) => void) => {
     const handler = (_event: unknown, id: string) => cb(id);
     ipcRenderer.on("openreel:menu:action", handler);
@@ -82,6 +93,7 @@ contextBridge.exposeInMainWorld("openreel", {
     stat: (paths: string[]) => ipcRenderer.invoke(CHANNELS.ingestStat, { paths }),
     readProxy: (path: string) => ipcRenderer.invoke(CHANNELS.ingestReadProxy, { path }),
     copyToProject: (args: unknown) => ipcRenderer.invoke(CHANNELS.ingestCopyToProject, args),
+    enqueueCopies: (args: unknown) => ipcRenderer.invoke(CHANNELS.ingestCopyEnqueue, args),
     onCopyProgress: (cb: (event: { requestId: string; progress: number }) => void) => {
       const handler = (_event: unknown, payload: { requestId: string; progress: number }) => cb(payload);
       ipcRenderer.on(CHANNELS.ingestCopyProgress, handler);
@@ -89,6 +101,27 @@ contextBridge.exposeInMainWorld("openreel", {
     },
     pickFolder: (args?: unknown) => ipcRenderer.invoke(CHANNELS.ingestPickFolder, args ?? {}),
     scanFolder: (args: unknown) => ipcRenderer.invoke(CHANNELS.ingestScanFolder, args),
+  },
+  projectManager: {
+    estimate: (args: unknown) => ipcRenderer.invoke(CHANNELS.projectManagerEstimate, args),
+    start: (args: unknown) => ipcRenderer.invoke(CHANNELS.projectManagerStart, args),
+    cancel: (jobId: string) => ipcRenderer.invoke(CHANNELS.projectManagerCancel, { jobId }),
+    onEvent: (cb: (event: unknown) => void) => {
+      const handler = (_event: unknown, payload: unknown) => cb(payload);
+      ipcRenderer.on(CHANNELS.projectManagerEvent, handler);
+      return () => ipcRenderer.removeListener(CHANNELS.projectManagerEvent, handler);
+    },
+  },
+  mediaBrowser: {
+    places: () => ipcRenderer.invoke(CHANNELS.mediaBrowserPlaces, undefined),
+    list: (args: unknown) => ipcRenderer.invoke(CHANNELS.mediaBrowserList, args),
+    thumbnail: (args: unknown) => ipcRenderer.invoke(CHANNELS.mediaBrowserThumbnail, args),
+    filmstrip: (args: unknown) => ipcRenderer.invoke(CHANNELS.mediaBrowserFilmstrip, args),
+    preview: (args: unknown) => ipcRenderer.invoke(CHANNELS.mediaBrowserPreview, args),
+    prepareImport: (args: unknown) => ipcRenderer.invoke(CHANNELS.mediaBrowserPrepareImport, args),
+    probeClip: (args: unknown) => ipcRenderer.invoke(CHANNELS.mediaBrowserProbeClip, args),
+    readXmp: (path: string) => ipcRenderer.invoke(CHANNELS.mediaBrowserReadXmp, { path }),
+    writeSidecar: (args: unknown) => ipcRenderer.invoke(CHANNELS.mediaBrowserWriteSidecar, args),
   },
   plugins: {
     list: () => ipcRenderer.invoke(CHANNELS.pluginsList),
@@ -128,6 +161,10 @@ contextBridge.exposeInMainWorld("openreel", {
     encodeDolbyAudio: (args: unknown) => ipcRenderer.invoke(CHANNELS.exportEncodeDolbyAudio, args),
     cancel: (jobId: string) => ipcRenderer.invoke(CHANNELS.exportCancel, { jobId }),
     probeSource: (path: string) => ipcRenderer.invoke(CHANNELS.exportProbeSource, { path }),
+    probeGopTypes: (path: string, startTime: number, frames: number) =>
+      ipcRenderer.invoke(CHANNELS.exportProbeGopTypes, { path, startTime, frames }),
+    probeAudioSource: (path: string) => ipcRenderer.invoke(CHANNELS.exportProbeAudioSource, { path }),
+    prepareAudioCopy: (jobId: string, plan: unknown) => ipcRenderer.invoke(CHANNELS.exportPrepareAudioCopy, { jobId, plan }),
     copyRun: (jobId: string, run: unknown) =>
       ipcRenderer.invoke(CHANNELS.exportCopyRun, { jobId, ...(run as object) }),
     // Absolute path of a File that came from disk (a picked or dropped file); "" for in-memory blobs.
@@ -211,6 +248,50 @@ contextBridge.exposeInMainWorld("openreel", {
     // version/platform and forwards to the cloud crash collector.
     report: (payload: { message: string; stack?: string; type?: string; context?: unknown }) =>
       ipcRenderer.send(CHANNELS.crashReport, payload),
+  },
+  plughost: {
+    scan: (force?: boolean) => ipcRenderer.invoke(CHANNELS.plughostScan, force === undefined ? undefined : { force }),
+    unblock: (id: string) => ipcRenderer.invoke(CHANNELS.plughostUnblock, { id }),
+    render: (args: unknown) => ipcRenderer.invoke(CHANNELS.plughostRender, args),
+    cancel: (jobId: string) => ipcRenderer.invoke(CHANNELS.plughostCancel, { jobId }),
+    describe: (pluginId: string, state?: string) => ipcRenderer.invoke(CHANNELS.plughostDescribe, { pluginId, state }),
+    openUi: (args: unknown) => ipcRenderer.invoke(CHANNELS.plughostUiOpen, args),
+    closeUi: (sessionId: string) => ipcRenderer.invoke(CHANNELS.plughostUiClose, { sessionId }),
+    liveOpen: (args: unknown) => ipcRenderer.invoke(CHANNELS.plughostLiveOpen, args),
+    liveSet: (sessionId: string, effectId: string, values?: Record<string, number>, automation?: Record<string, Array<readonly [number, number]>>) => ipcRenderer.invoke(CHANNELS.plughostLiveSet, { sessionId, effectId, ...(values ? { values } : {}), ...(automation ? { automation } : {}) }),
+    liveClose: (sessionId: string) => ipcRenderer.invoke(CHANNELS.plughostLiveClose, { sessionId }),
+    liveStats: (sessionId: string) => ipcRenderer.invoke(CHANNELS.plughostLiveStats, { sessionId }),
+    onProgress: (cb: (event: { jobId: string; fraction: number }) => void) => {
+      const handler = (_event: unknown, payload: { jobId: string; fraction: number }) => cb(payload);
+      ipcRenderer.on(CHANNELS.plughostProgress, handler);
+      return () => ipcRenderer.removeListener(CHANNELS.plughostProgress, handler);
+    },
+    onScanProgress: (cb: (event: { done: number; total: number }) => void) => {
+      const handler = (_event: unknown, payload: { done: number; total: number }) => cb(payload);
+      ipcRenderer.on(CHANNELS.plughostScanProgress, handler);
+      return () => ipcRenderer.removeListener(CHANNELS.plughostScanProgress, handler);
+    },
+    onUiEvent: (cb: (event: unknown) => void) => {
+      const handler = (_event: unknown, payload: unknown) => cb(payload);
+      ipcRenderer.on(CHANNELS.plughostUiEvent, handler);
+      return () => ipcRenderer.removeListener(CHANNELS.plughostUiEvent, handler);
+    },
+  },
+  renderCache: {
+    getSettings: () => ipcRenderer.invoke(CHANNELS.renderCacheGetSettings, undefined),
+    pickScratch: () => ipcRenderer.invoke(CHANNELS.renderCachePickScratch, undefined),
+    resetScratch: () => ipcRenderer.invoke(CHANNELS.renderCacheResetScratch, undefined),
+    setCap: (capBytes: number) => ipcRenderer.invoke(CHANNELS.renderCacheSetCap, { capBytes }),
+    open: (project: string) => ipcRenderer.invoke(CHANNELS.renderCacheOpen, { project }),
+    put: (project: string, key: string, data: ArrayBuffer) =>
+      ipcRenderer.invoke(CHANNELS.renderCachePut, { project, key, data: new Uint8Array(data) }),
+    get: (project: string, key: string) => ipcRenderer.invoke(CHANNELS.renderCacheGet, { project, key }),
+    delete: (project: string, keys: string[]) => ipcRenderer.invoke(CHANNELS.renderCacheDelete, { project, keys }),
+    list: (project: string) => ipcRenderer.invoke(CHANNELS.renderCacheList, { project }),
+    clearProject: (project: string) => ipcRenderer.invoke(CHANNELS.renderCacheClearProject, { project }),
+    clearAll: () => ipcRenderer.invoke(CHANNELS.renderCacheClearAll, undefined),
+    usage: () => ipcRenderer.invoke(CHANNELS.renderCacheUsage, undefined),
+    stat: (paths: string[]) => ipcRenderer.invoke(CHANNELS.renderCacheStat, { paths }),
   },
   watchFolders: {
     list: () => ipcRenderer.invoke(CHANNELS.watchFoldersList, undefined),
@@ -310,4 +391,14 @@ contextBridge.exposeInMainWorld("openreel", {
       return () => ipcRenderer.removeListener(CHANNELS.lifecycleFlush, listener);
     },
   },
+});
+
+// Editor windows only (see createWindow): warm the audio service in a throw-away frame process.
+installAudioWarmFrame(document as never, process.argv, AUDIO_WARM_ARGUMENT);
+
+// A live plugin insert's MessagePort comes from the main process with the insert's session id. contextBridge cannot carry ports,
+// so it is handed to the page with window.postMessage (the documented route); the page transfers it into its AudioWorklet.
+ipcRenderer.on(CHANNELS.plughostLivePort, (event, payload: { sessionId?: unknown }) => {
+  if (typeof payload?.sessionId !== "string") return;
+  window.postMessage({ type: "openreel:plughost-live-port", sessionId: payload.sessionId }, "*", [...event.ports]);
 });

@@ -3,7 +3,9 @@ import { RealtimeAudioGraph, type AudioClipSchedule } from "./realtime-audio-gra
 import type { MasterTimelineClock } from "../playback/master-timeline-clock";
 import type { SpectralBackend } from "./spectral/spectral-worker-client";
 import { applySpectralRegions } from "./spectral/spectral-dsp";
-import { createSpectralRepairEffect, type SpectralRegion } from "./spectral/spectral-regions";
+import { createSpectralRepairEffect, sanitizeSpectralRegions, type SpectralRegion } from "./spectral/spectral-regions";
+import { computeMagicWand } from "./spectral/spectral-wand";
+import { trackHarmonics } from "./spectral/spectral-harmonic";
 
 function fixture() {
   const nodes: Array<{ disconnect: ReturnType<typeof vi.fn> }> = [];
@@ -146,6 +148,47 @@ describe("spectral repair in the realtime graph", () => {
     graph.scheduleClip(schedule("c3", { audioBuffer, endTime: 2, effects }));
     expect(sources[4].buffer).toBe(repaired);
     expect(repair).toHaveBeenCalledTimes(1);
+    graph.dispose();
+  });
+
+  it("swaps in a lasso / heal repair that is sample-identical to the export's DSP output", async () => {
+    const { graph, sources } = fixture();
+    const { backend, jobs } = manualBackend();
+    graph.setSpectralBackend(backend);
+    (graph as unknown as { isPlaying: boolean }).isPlaying = true;
+    const audioBuffer = tone(2);
+    const regions = sanitizeSpectralRegions([{ id: "l", mode: "heal", shape: "lasso", points: [{ t: 0.05, hz: 300 }, { t: 1.95, hz: 300 }, { t: 1.95, hz: 800 }, { t: 0.05, hz: 800 }] }]);
+    graph.scheduleClip(schedule("c", { audioBuffer, endTime: 2, effects: [createSpectralRepairEffect("sr", regions)] }));
+    jobs[0]();
+    await flush();
+    const repaired = sources[sources.length - 1].buffer!;
+    expect(repaired).not.toBe(audioBuffer);
+    expect(Array.from(repaired.getChannelData(0))).toEqual(Array.from(applySpectralRegions([audioBuffer.getChannelData(0)], SR, regions)[0]));
+    expect(peakOf(repaired)).toBeLessThan(peakOf(audioBuffer) * 0.3);
+    graph.dispose();
+  });
+
+  it("swaps in a wand / harmonic / single-channel repair that is sample-identical to the export's DSP output", async () => {
+    const { graph, sources } = fixture();
+    const { backend, jobs } = manualBackend();
+    graph.setSpectralBackend(backend);
+    (graph as unknown as { isPlaying: boolean }).isPlaying = true;
+    const audioBuffer = tone(2);
+    const data = audioBuffer.getChannelData(0);
+    const wand = computeMagicWand(data, SR, { t: 1, hz: 500 }, { toleranceDb: 6 });
+    const track = trackHarmonics(data, SR, { t: 1, hz: 500 }, { harmonics: 2 });
+    if (!wand.ok || !track.ok) throw new Error("analysis failed");
+    const regions = sanitizeSpectralRegions([
+      { id: "w", mode: "remove", shape: "wand", wand: wand.wand, channel: "left" },
+      { id: "h", mode: "remove", shape: "harmonic", points: track.points, harmonic: { harmonics: 2, maxHz: 20000, bandCents: 50 } },
+    ]);
+    graph.scheduleClip(schedule("c", { audioBuffer, endTime: 2, effects: [createSpectralRepairEffect("sr", regions)] }));
+    jobs[0]();
+    await flush();
+    const repaired = sources[sources.length - 1].buffer!;
+    expect(repaired).not.toBe(audioBuffer);
+    expect(Array.from(repaired.getChannelData(0))).toEqual(Array.from(applySpectralRegions([data], SR, regions)[0]));
+    expect(peakOf(repaired)).toBeLessThan(peakOf(audioBuffer) * 0.2);
     graph.dispose();
   });
 

@@ -25,7 +25,7 @@ function buildHuffman(lengths: ArrayLike<number>): Huffman {
   return { counts, symbols };
 }
 
-export function inflateRaw(input: Uint8Array, expectedSize = 0): Uint8Array {
+export function inflateRaw(input: Uint8Array, expectedSize = 0, maxOutput = Infinity): Uint8Array {
   let out = new Uint8Array(expectedSize > 0 ? expectedSize : input.length * 4);
   let outPos = 0;
   let pos = 0;
@@ -59,6 +59,7 @@ export function inflateRaw(input: Uint8Array, expectedSize = 0): Uint8Array {
     throw new Error("Invalid Huffman code.");
   };
   const ensure = (extra: number): void => {
+    if (outPos + extra > maxOutput) throw new Error("Deflate output exceeds the allowed size.");
     if (outPos + extra <= out.length) return;
     const grown = new Uint8Array(Math.max(out.length * 2, outPos + extra));
     grown.set(out);

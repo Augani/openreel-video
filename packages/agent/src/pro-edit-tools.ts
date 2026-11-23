@@ -31,6 +31,7 @@ import { planTrackSelect } from "@openreel/core/editing/track-select";
 import { planCloseGapBeforeClip, planRemoveGaps, planRippleDelete } from "@openreel/core/editing/ripple-delete";
 import { findGapAt, planDeleteGap, planEditPointTrim } from "@openreel/core/editing/edit-point";
 import { resolveSourceTracks } from "@openreel/core/editing/track-targeting";
+import { resolveSourceChannelGroups } from "@openreel/core/audio/source-channels";
 import { computeScopeStats } from "@openreel/core/video/scope-stats";
 import {
   PRO_EFFECT_SPECS,
@@ -46,6 +47,9 @@ import {
 } from "@openreel/core/video/hsl-secondary";
 import { PRO_EFFECT_DEFAULTS } from "@openreel/core/video/pro-effects";
 import type { Action } from "@openreel/core/types/actions";
+import { findReverseMatches } from "@openreel/core/editing/reverse-match-frame";
+import { resolveClipMarkers } from "@openreel/core/editing/clip-markers";
+import type { Marker } from "@openreel/core/types/timeline";
 import { upsertMaskKeyframe } from "@openreel/core/video/mask-path";
 import { MASK_COMBINE_MODES } from "@openreel/core/video/mask-engine";
 import type { BezierPath, BezierPoint, Mask, MaskCombineMode } from "@openreel/core/video/mask-engine";
@@ -118,6 +122,19 @@ function findClip(project: Project, clipId: unknown): { clip: Clip; track: Track
   return null;
 }
 
+function clipMarkerTarget(args: Record<string, unknown>): { clipId: string } | { mediaId: string } | string {
+  const hasClip = typeof args.clipId === "string";
+  const hasMedia = typeof args.mediaId === "string";
+  if (hasClip === hasMedia) return "Give exactly one of clipId (clip marker) or mediaId (master-clip marker).";
+  return hasClip ? { clipId: args.clipId as string } : { mediaId: args.mediaId as string };
+}
+
+function currentClipMarkers(project: Project, target: { clipId: string } | { mediaId: string }): readonly Marker[] | null {
+  if ("clipId" in target) return findClip(project, target.clipId)?.clip.markers ?? (findClip(project, target.clipId) ? [] : null);
+  const media = project.mediaLibrary.items.find((i) => i.id === target.mediaId);
+  return media ? media.markers ?? [] : null;
+}
+
 function edgeOf(args: Record<string, unknown>, fallback: "left" | "right"): "left" | "right" {
   const edge = args.edge;
   if (edge === undefined) return fallback;
@@ -135,7 +152,7 @@ function linkedIds(args: Record<string, unknown>): string[] {
 }
 
 /** Plan and commit one edit as a single undo step. */
-async function commitPlan(
+export async function commitPlan(
   host: EditingHost,
   build: TimelinePlanBuilder,
 ): Promise<{ ok: true; plan: TimelineToolPlan } | { ok: false; error: ToolResult }> {
@@ -181,7 +198,7 @@ function guarded(
   };
 }
 
-const round = (value: number, places = 4): number => {
+export const round = (value: number, places = 4): number => {
   const f = 10 ** places;
   return Math.round(value * f) / f;
 };
@@ -532,7 +549,7 @@ function sourceEditTool(mode: "insert" | "overwrite"): RegisteredTool {
     domain: "clip",
     title: insert ? "Insert from source" : "Overwrite from source",
     description:
-      `Premiere-style ${insert ? "Insert (ripples later content)" : "Overwrite (replaces what it covers)"} from the Source monitor using three-point editing. The source range is the media's In/Out marks (set_source_in_out; or pass sourceIn/sourceOut; unmarked = whole media). Placement: at \`at\` (default 0), or at the sequence In when sequenceIn/sequenceOut are given: source In-only fits the range (Out derived), source Out-only back-times, source In+Out with only sequenceOut ends at it; with all four marks the source range wins at sequenceIn. component: both (default) | video (muted) | audio. One undo step. Returns the rule applied.`,
+      `Premiere-style ${insert ? "Insert (ripples later content)" : "Overwrite (replaces what it covers)"} from the Source monitor using three-point editing. The source range is the media's In/Out marks (set_source_in_out; or pass sourceIn/sourceOut; unmarked = whole media). Placement: at \`at\` (default 0), or at the sequence In when sequenceIn/sequenceOut are given: source In-only fits the range (Out derived), source Out-only back-times, source In+Out with only sequenceOut ends at it; with all four marks the source range wins at sequenceIn. component: both (default) | video (muted) | audio. A multichannel file places its picture plus one audio clip per enabled channel group (set_source_channel_layout / set_source_channel_patch). One undo step. Returns the rule applied.`,
     inputSchema: obj(
       {
         mediaId: str,
@@ -565,6 +582,18 @@ function sourceEditTool(mode: "insert" | "overwrite"): RegisteredTool {
       const sourceOut = finite(args.sourceOut) ? args.sourceOut : marks.out;
       const hasAt = finite(args.at) || finite(args.atFrame);
       const playhead = hasAt ? readTime(args, "at", project, "at") : 0;
+      if (media.type !== "image" && resolveSourceChannelGroups(media).length > 1) {
+        const { sourceEditMultichannel } = await import("./audio-channel-impl");
+        return sourceEditMultichannel(mode, host, media, {
+          component,
+          trackId: typeof args.trackId === "string" ? args.trackId : undefined,
+          sourceIn,
+          sourceOut,
+          playhead,
+          sequenceIn: finite(args.sequenceIn) ? args.sequenceIn : undefined,
+          sequenceOut: finite(args.sequenceOut) ? args.sequenceOut : undefined,
+        });
+      }
       const wantsAudio = media.type === "audio" || component === "audio";
       let track: Track | null;
       let audioTrackId: string | undefined;
@@ -1174,6 +1203,142 @@ export const PRO_EDIT_TOOLS: RegisteredTool[] = [
         sourceTimecode: timecode(sourceTime, mediaFps),
         sourceFrame: Math.round(sourceTime * mediaFps),
       });
+    }),
+  },
+
+  {
+    name: "reverse_match_frame",
+    domain: "read",
+    title: "Reverse match frame",
+    description:
+      "Reverse Match Frame: find where a source frame is used in the active sequence. Give mediaId and sourceTime (seconds) or sourceTimeFrame; both default to the clip and playhead loaded in the Source monitor. Returns every instance, topmost track first (clipId, timelineTime, whether it sits inside a nested sequence), honouring speed, reverse and nests. Does not move the playhead or edit anything; use the first instance's timelineTime with the editor's seek.",
+    inputSchema: obj({ mediaId: str, sourceTime: num, sourceTimeFrame: num }, []),
+    readOnly: true,
+    destructive: false,
+    expensive: false,
+    handler: guarded((args, host) => {
+      const project = host.getProject();
+      const loaded = host.sourceMonitor?.getState?.();
+      const mediaId = typeof args.mediaId === "string" ? args.mediaId : loaded?.mediaId;
+      if (!mediaId) return fail("mediaId is required (nothing is loaded in the Source monitor).", "INVALID_PARAMS");
+      const media = project.mediaLibrary.items.find((item) => item.id === mediaId);
+      if (!media) return fail("Media not found", "NOT_FOUND");
+      const mediaFps = media.metadata.frameRate || frameRateOf(project);
+      const hasTime = finite(args.sourceTime) || finite(args.sourceTimeFrame);
+      let sourceTime: number;
+      if (hasTime) {
+        sourceTime = finite(args.sourceTimeFrame) ? args.sourceTimeFrame / mediaFps : (args.sourceTime as number);
+      } else if (loaded && loaded.mediaId === mediaId) sourceTime = loaded.position;
+      else return fail("sourceTime (or sourceTimeFrame) is required.", "INVALID_PARAMS");
+      const matches = findReverseMatches(project, mediaId, sourceTime, 1 / mediaFps);
+      if (!matches.length) return fail(`This frame of ${media.name} is not in the sequence.`, "NOT_FOUND");
+      return ok(`${matches.length} instance${matches.length === 1 ? "" : "s"} of ${media.name}`, {
+        mediaId,
+        sourceTime: round(sourceTime),
+        instances: matches.map((m) => ({
+          clipId: m.clipId,
+          trackId: m.trackId,
+          timelineTime: round(m.time),
+          nestedSequenceIds: m.nestPath,
+        })),
+      });
+    }),
+  },
+  {
+    name: "list_clip_markers",
+    domain: "read",
+    title: "List clip markers",
+    description:
+      "List clip markers (on one timeline clip) or master-clip markers (on a media item, shown on every instance). Marker time is SOURCE-media seconds. For a clipId the result also gives each visible marker's timelineTime, including the media's master markers.",
+    inputSchema: obj({ clipId: str, mediaId: str }, []),
+    readOnly: true,
+    destructive: false,
+    expensive: false,
+    handler: guarded((args, host) => {
+      const project = host.getProject();
+      const target = clipMarkerTarget(args);
+      if (typeof target === "string") return fail(target, "INVALID_PARAMS");
+      if ("clipId" in target) {
+        const found = findClip(project, target.clipId);
+        if (!found) return fail("Clip not found", "NOT_FOUND");
+        const media = project.mediaLibrary.items.find((i) => i.id === found.clip.mediaId);
+        const resolved = resolveClipMarkers(found.clip, media);
+        return ok(`${resolved.length} marker${resolved.length === 1 ? "" : "s"} on the clip`, {
+          markers: resolved.map((r) => ({ ...r.marker, scope: r.scope, timelineTime: round(r.timelineTime) })),
+        });
+      }
+      const media = project.mediaLibrary.items.find((i) => i.id === target.mediaId);
+      if (!media) return fail("Media not found", "NOT_FOUND");
+      return ok(`${media.markers?.length ?? 0} master-clip markers`, { markers: media.markers ?? [] });
+    }),
+  },
+  {
+    name: "add_clip_marker",
+    domain: "marker",
+    title: "Add clip marker",
+    description:
+      "Add a clip marker (clipId: one timeline clip) or a master-clip marker (mediaId: shown on every timeline instance of the media). `time` (or timeFrame) is SOURCE-media seconds, so it stays on the same frame through trims and speed changes. Optional label, color, comment, duration (range marker). One undo step.",
+    inputSchema: obj(
+      { clipId: str, mediaId: str, time: num, timeFrame: num, label: str, color: str, comment: str, duration: num },
+      [],
+    ),
+    readOnly: false,
+    destructive: false,
+    expensive: false,
+    handler: guarded(async (args, host) => {
+      host.requireOpenProject();
+      const project = host.getProject();
+      const target = clipMarkerTarget(args);
+      if (typeof target === "string") return fail(target, "INVALID_PARAMS");
+      const current = currentClipMarkers(project, target);
+      if (!current) return fail("Clip or media not found", "NOT_FOUND");
+      const mediaId = "mediaId" in target ? target.mediaId : findClip(project, target.clipId)!.clip.mediaId;
+      const fps = project.mediaLibrary.items.find((i) => i.id === mediaId)?.metadata.frameRate || frameRateOf(project);
+      const time = finite(args.timeFrame) ? args.timeFrame / fps : args.time;
+      if (!finite(time) || time < 0) return fail("time (source seconds) or timeFrame is required.", "INVALID_PARAMS");
+      const marker: Marker = {
+        id: `marker-${genId()}`,
+        time,
+        label: typeof args.label === "string" && args.label ? args.label : `Marker ${current.length + 1}`,
+        color: typeof args.color === "string" && args.color ? args.color : "#3b82f6",
+        ...(typeof args.comment === "string" && args.comment ? { comment: args.comment } : {}),
+        ...(finite(args.duration) && args.duration > 0 ? { duration: args.duration } : {}),
+      };
+      const result = await host.applyAction({
+        type: "clipmarker/set",
+        id: genId(),
+        timestamp: Date.now(),
+        params: { ...target, markers: [...current, marker] },
+      });
+      if (!result.success) return fail(result.error?.message ?? "add_clip_marker failed", result.error?.code ?? "ACTION_FAILED");
+      return ok(`Added ${"mediaId" in target ? "master-clip" : "clip"} marker "${marker.label}" at source ${round(time)}s`, { markerId: marker.id });
+    }),
+  },
+  {
+    name: "remove_clip_marker",
+    domain: "marker",
+    title: "Remove clip marker",
+    description: "Remove a clip marker (clipId) or master-clip marker (mediaId) by markerId. One undo step.",
+    inputSchema: obj({ clipId: str, mediaId: str, markerId: str }, ["markerId"]),
+    readOnly: false,
+    destructive: false,
+    expensive: false,
+    handler: guarded(async (args, host) => {
+      host.requireOpenProject();
+      const project = host.getProject();
+      const target = clipMarkerTarget(args);
+      if (typeof target === "string") return fail(target, "INVALID_PARAMS");
+      const current = currentClipMarkers(project, target);
+      if (!current) return fail("Clip or media not found", "NOT_FOUND");
+      if (!current.some((m) => m.id === args.markerId)) return fail("Marker not found", "NOT_FOUND");
+      const result = await host.applyAction({
+        type: "clipmarker/set",
+        id: genId(),
+        timestamp: Date.now(),
+        params: { ...target, markers: current.filter((m) => m.id !== args.markerId) },
+      });
+      if (!result.success) return fail(result.error?.message ?? "remove_clip_marker failed", result.error?.code ?? "ACTION_FAILED");
+      return ok("Removed the marker");
     }),
   },
 

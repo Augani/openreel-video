@@ -3,13 +3,15 @@ import {
   KeyframesSection,
   ClipTransitionSection,
   MotionPresetsPanel,
-  MotionPathSection,
   EmphasisAnimationSection,
   TextAnimationSection,
 } from "../";
 import { InspectorSection } from "../shell/InspectorSection";
 import { TextScrollSection } from "../TextScrollSection";
 import { SavedStylesSection } from "../SavedStylesSection";
+
+// gsap (~280 KB) is only needed once a clip's Motion Path section is shown.
+const MotionPathSection = React.lazy(() => import("../MotionPathSection").then((module) => ({ default: module.MotionPathSection })));
 
 interface AnimateTabProps {
   clipId: string;
@@ -65,7 +67,9 @@ export const AnimateTab: React.FC<AnimateTabProps> = ({
           sectionId="motion-path"
           defaultOpen={false}
         >
-          <MotionPathSection clipId={clipId} />
+          <React.Suspense fallback={null}>
+            <MotionPathSection clipId={clipId} />
+          </React.Suspense>
         </InspectorSection>
       )}
       {(clipType === "video" ||

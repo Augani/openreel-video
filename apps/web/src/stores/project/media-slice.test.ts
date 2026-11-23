@@ -187,7 +187,7 @@ describe("Media slice asynchronous imports", () => {
     const initial = createEmptyProject("Reconnect");
     const proxy = { storage: "path", path: "/p/x_half_proxy.mov", status: "ready" } as unknown as MediaItem["proxy"];
     const copiedFrom = { path: "/orig/a.wav", sha256: "ab", copiedAt: 1 };
-    initial.mediaLibrary.items.push({ ...originalMedia(), isPlaceholder: true, binId: "bin-1", label: "rose", comment: "keep", proxy, copiedFrom });
+    initial.mediaLibrary.items.push({ ...originalMedia(), isPlaceholder: true, binId: "bin-1", label: "rose", comment: "keep", proxy, copiedFrom, keywords: ["night", "drive"], reel: "A007", logComment: "good take", xmpSource: "sidecar" });
     const store = createMediaStore(initial);
     const result = await store.getState().replaceMediaAsset("existing-media", new File(["x"], "relinked.wav"), undefined, { restorePlaceholder: true, sourcePath: "/found/relinked.wav" });
     expect(result.success).toBe(true);
@@ -198,6 +198,10 @@ describe("Media slice asynchronous imports", () => {
       comment: "keep",
       proxy,
       copiedFrom,
+      keywords: ["night", "drive"],
+      reel: "A007",
+      logComment: "good take",
+      xmpSource: "sidecar",
       sourceFile: { path: "/found/relinked.wav" },
     });
   });

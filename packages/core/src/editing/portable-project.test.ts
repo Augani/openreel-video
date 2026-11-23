@@ -8,6 +8,24 @@ function project(): Project {
   return { id: "project-1", name: "Shared edit", createdAt: 1, modifiedAt: 1, settings: { width: 640, height: 360, frameRate: 24, sampleRate: 48000, channels: 2 }, mediaLibrary: { items: [{ id: "media-1", name: "sample.mp4", type: "video", blob: new Blob(["sample"]), fileHandle: null, thumbnailUrl: null, waveformData: null, sourceFile: { name: "sample.mp4", size: 6, lastModified: 1 }, metadata: { duration: 4, width: 640, height: 360, frameRate: 24, sampleRate: 48000, channels: 2, fileSize: 6, codec: "avc" } }] }, timeline: { tracks: [{ id: "track-1", type: "video", name: "Video", locked: false, hidden: false, muted: false, solo: false, transitions: [], clips: [{ id: "clip-1", trackId: "track-1", mediaId: "media-1", startTime: 0, duration: 4, inPoint: 0, outPoint: 4, effects: [], audioEffects: [], keyframes: [], volume: 1, transform: { position: { x: 0, y: 0 }, scale: { x: 1, y: 1 }, anchor: { x: 0.5, y: 0.5 }, opacity: 1, rotation: 0 } }] }], subtitles: [], markers: [], duration: 4 } };
 }
 describe("portable edit boundary", () => {
+  it("round-trips Reduce Reverb and the Enhance Speech Speech / Background balance in a clip's audio effects, and rejects out-of-range values", () => {
+    const before = project();
+    before.timeline.tracks[0].clips[0] = {
+      ...before.timeline.tracks[0].clips[0],
+      audioEffects: [
+        { id: "es", type: "enhanceSpeech", enabled: true, params: { mix: 80, balance: 35 } },
+        { id: "rr", type: "reduceReverb", enabled: true, params: { amount: 60, sensitivity: 50 } },
+        { id: "old", type: "enhanceSpeech", enabled: true, params: { mix: 100 } },
+      ],
+    };
+    const doc = createPortableEdit(before);
+    const parsed = parsePortableEdit(JSON.stringify(doc));
+    expect(materializePortableEdit(parsed, before).project.timeline.tracks[0].clips[0].audioEffects).toEqual(before.timeline.tracks[0].clips[0].audioEffects);
+    for (const [type, params] of [["reduceReverb", { amount: 101, sensitivity: 50 }], ["reduceReverb", { amount: 10, sensitivity: -1 }], ["enhanceSpeech", { mix: 100, balance: 120 }]] as const) {
+      (doc.project.timeline.tracks[0].clips[0] as { audioEffects: unknown }).audioEffects = [{ id: "x", type, enabled: true, params }];
+      expect(() => parsePortableEdit(JSON.stringify(doc)), `${type} ${JSON.stringify(params)}`).toThrow();
+    }
+  });
   it("keeps range marker duration, comment and kind, and rejects a bad marker", () => {
     const before = project();
     const marker = { id: "m1", time: 1, label: "Scene", color: "#fff", duration: 2, comment: "note", kind: "chapter" as const };
@@ -29,6 +47,16 @@ describe("portable edit boundary", () => {
     expect(() => parsePortableEdit(JSON.stringify({ ...doc, version: 3 }))).toThrow();
     doc.project.timeline.tracks[0].clips[0] = { ...doc.project.timeline.tracks[0].clips[0], speed: 0 };
     expect(() => parsePortableEdit(JSON.stringify(doc))).toThrow(/playback speed/);
+  });
+  it("keeps a clip's Time Interpolation mode and quality, and rejects an unknown mode", () => {
+    const before = project();
+    before.timeline.tracks[0].clips[0] = { ...before.timeline.tracks[0].clips[0], speed: 0.25, duration: 16, timeInterpolation: "opticalFlow", interpolationQuality: "high" };
+    const doc = createPortableEdit(before);
+    const clip = materializePortableEdit(parsePortableEdit(JSON.stringify(doc)), before).project.timeline.tracks[0].clips[0];
+    expect(clip.timeInterpolation).toBe("opticalFlow");
+    expect(clip.interpolationQuality).toBe("high");
+    doc.project.timeline.tracks[0].clips[0] = { ...doc.project.timeline.tracks[0].clips[0], timeInterpolation: "magic" } as never;
+    expect(() => parsePortableEdit(JSON.stringify(doc))).toThrow();
   });
   it("roundtrips retained fragment clocks, eased negative keys and automation through version 4", () => {
     const before = project(), clip = before.timeline.tracks[0].clips[0];
@@ -229,6 +257,22 @@ describe("spectral repair in the portable edit boundary", () => {
     expect(materializePortableEdit(parsed, before).project.timeline.tracks[0].clips[0].audioEffects[0]).toEqual(before.timeline.tracks[0].clips[0].audioEffects[0]);
     const bad = JSON.parse(JSON.stringify(doc));
     bad.project.timeline.tracks[0].clips[0].audioEffects[0].params.regions[0].mode = "explode";
+    expect(() => parsePortableEdit(JSON.stringify(bad))).toThrow();
+  });
+
+  it("round-trips version 2 regions (lasso, brush, heal) and rejects malformed shapes", () => {
+    const before = project();
+    const clip = before.timeline.tracks[0].clips[0];
+    const regions = [
+      { id: "l", mode: "heal", shape: "lasso", points: [{ t: 1, hz: 500 }, { t: 2, hz: 900 }, { t: 1.5, hz: 2000 }], startTime: 1, endTime: 2, lowHz: 500, highHz: 2000, gainDb: -120, enabled: true, feather: 2 },
+      { id: "b", mode: "remove", shape: "brush", points: [{ t: 1, hz: 700 }], brushSeconds: 0.05, brushOctaves: 0.2, startTime: 0.95, endTime: 1.05, lowHz: 610, highHz: 800, gainDb: -120, enabled: false },
+    ];
+    before.timeline.tracks[0].clips[0] = { ...clip, audioEffects: [{ id: "fx", type: "spectralRepair", enabled: true, params: { version: 2, regions } }] };
+    const doc = createPortableEdit(before);
+    const parsed = parsePortableEdit(JSON.stringify(doc));
+    expect(materializePortableEdit(parsed, before).project.timeline.tracks[0].clips[0].audioEffects[0]).toEqual(before.timeline.tracks[0].clips[0].audioEffects[0]);
+    const bad = JSON.parse(JSON.stringify(doc));
+    bad.project.timeline.tracks[0].clips[0].audioEffects[0].params.regions[0].shape = "blob";
     expect(() => parsePortableEdit(JSON.stringify(bad))).toThrow();
   });
 });

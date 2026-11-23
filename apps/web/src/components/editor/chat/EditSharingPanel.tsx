@@ -11,9 +11,11 @@ import { runExclusive } from "../../../services/agent/host-singleton";
 
 const control = "h-auto rounded-md border border-border bg-bg-2 px-2 py-1.5 text-[11px] font-normal leading-4 text-fg-2 hover:bg-hover focus-visible:outline focus-visible:outline-accent disabled:opacity-40";
 function downloadJSON(text: string, name: string): void {
-  const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+  // The URL implementation that made the object URL also revokes it: the timer can fire after the page (or a test) swapped the global.
+  const urls = URL;
+  const url = urls.createObjectURL(new Blob([text], { type: "application/json" }));
   const a = document.createElement("a"); a.href = url; a.download = name; a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setTimeout(() => urls.revokeObjectURL?.(url), 1000);
 }
 
 export function EditSharingPanel({ disabled }: { disabled: boolean }) {

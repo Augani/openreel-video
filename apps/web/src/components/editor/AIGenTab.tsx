@@ -17,10 +17,11 @@ import { cn } from "@openreel/ui";
 import { AutoCaptionPanel } from "./inspector/AutoCaptionPanel";
 import { TextToSpeechPanel } from "./inspector/TextToSpeechPanel";
 import { FilterPresetsPanel } from "./inspector/FilterPresetsPanel";
-import { MusicLibraryPanel } from "./inspector/MusicLibraryPanel";
 import { TemplatesBrowserPanel } from "./inspector/TemplatesBrowserPanel";
 import { useTtsAudioStore } from "../../stores/tts-store";
 import { toast } from "../../stores/notification-store";
+
+const MusicLibraryPanel = lazy(() => import("./inspector/MusicLibraryPanel").then((module) => ({ default: module.MusicLibraryPanel })));
 
 const MultiCameraPanel = lazy(() => import("./inspector/MultiCameraPanel"));
 
@@ -127,7 +128,11 @@ export const AIGenTab: React.FC = () => {
       case "filters":
         return <FilterPresetsPanel />;
       case "music":
-        return <MusicLibraryPanel />;
+        return (
+          <Suspense fallback={null}>
+            <MusicLibraryPanel />
+          </Suspense>
+        );
       case "multicam":
         return (
           <Suspense fallback={null}>

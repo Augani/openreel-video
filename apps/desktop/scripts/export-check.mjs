@@ -15,6 +15,7 @@
  *   smart-hevc    the same with an HEVC source (output must be tagged hvc1)
  *   smart-prores  ProRes HQ source into a ProRes export: copy runs right up to an off-GOP edit
  *   smart-decline a 10-bit source: smart render declines, names the format, export is a full re-encode
+ *   smart-multichannel  a 4-channel source added with Add to timeline (picture + one mono clip per channel), two channels deleted, smart export: the mixdown carries exactly the kept channels
  *   smart-timing  the same on a long timeline, with/without smart render (opt-in, not in the default set)
  *
  * The sidecar binary lives at apps/desktop/resources/bin/<platform>-<arch>/ffmpeg
@@ -53,10 +54,11 @@ async function runSmartChecks() {
   const scenarios = [];
   if (only.has("smart")) {
     scenarios.push({ name: "aligned-cuts", seconds: 12, width: 640, height: 360, cuts: [120, 240] });
-    scenarios.push({ name: "off-gop-cuts", seconds: 12, width: 640, height: 360, cuts: [135, 255] });
+    scenarios.push({ name: "off-gop-cuts", seconds: 12, width: 640, height: 360, cuts: [135, 255], extraSplits: [47, 301] });
   }
   if (only.has("smart-hevc")) {
     scenarios.push({ name: "hevc-aligned-cuts", seconds: 12, width: 640, height: 360, cuts: [120, 240], codec: "hevc" });
+    scenarios.push({ name: "hevc-off-gop-cuts", seconds: 12, width: 640, height: 360, cuts: [135, 255], extraSplits: [47, 301], codec: "hevc" });
   }
   if (only.has("smart-prores")) {
     // ProRes source copy: every frame is a cut point, so the copy runs right up to the (non-GOP-aligned) edit.
@@ -66,12 +68,27 @@ async function runSmartChecks() {
     // 10-bit source: smart render declines, names the format, and the export is a normal full re-encode.
     scenarios.push({ name: "decline-10bit-hevc", seconds: 6, width: 640, height: 360, cuts: [60, 120], codec: "hevc10", runFull: false, expectDecline: /10-bit/ });
   }
+  if (only.has("smart-4k")) {
+    // 2-minute 3840x2160 H.264 (testsrc2): three razor cuts that change nothing and one section with an effect.
+    // The effect covers ~20 s in the middle; export time with and without smart render is the headline number.
+    const seconds = Number(flag("--seconds", "120"));
+    const mid = Math.round((seconds * 30000) / 1001 / 2 / 30) * 30;
+    const split = (fraction) => Math.round((seconds * 30000) / 1001 * fraction) + 7; // deliberately off the key frames
+    scenarios.push({ name: `4k-${seconds}s`, seconds, width: 3840, height: 2160, cuts: [mid + 7, mid + 607], extraSplits: [split(0.15), split(0.3), split(0.85)], runFull: !argv.includes("--no-full") });
+  }
   if (only.has("smart-timing")) {
     const minutes = Number(flag("--minutes", "10"));
     const seconds = minutes * 60;
     // Light edit in the middle: a ~20 s section gets Vignette (everything else is an untouched run of the source).
     const mid = Math.round((seconds * 30000) / 1001 / 2 / 30) * 30;
     scenarios.push({ name: `timing-${minutes}min`, seconds, width: 1280, height: 720, cuts: [mid, mid + 600], runFull: !argv.includes("--no-full") });
+  }
+  if (only.has("smart-multichannel")) {
+    const { smartMultichannelScenario } = await import("./lib/smart-multichannel-check.mjs");
+    const entry = await smartMultichannelScenario(pw, { root, ffmpeg: FFMPEG, ffprobe: FFPROBE, workDir: smartWork }).catch((error) => ({ scenario: "multichannel", problems: [`crashed: ${error?.stack ?? error}`] }));
+    if (entry.problems.length) smartFailed = true;
+    results.push(entry);
+    console.error(`[desktop-smart] ${JSON.stringify(entry)}`);
   }
   for (const scenario of scenarios) {
     const entry = await smartScenario(pw, { root, ffmpeg: FFMPEG, ffprobe: FFPROBE, workDir: smartWork, ...scenario }).catch((error) => ({ scenario: scenario.name, problems: [`crashed: ${error?.stack ?? error}`] }));
@@ -83,7 +100,7 @@ async function runSmartChecks() {
   return { failed: smartFailed, results };
 }
 
-const smartWanted = ["smart", "smart-timing", "smart-hevc", "smart-prores", "smart-decline"].some((c) => only.has(c));
+const smartWanted = ["smart", "smart-4k", "smart-timing", "smart-hevc", "smart-prores", "smart-decline", "smart-multichannel"].some((c) => only.has(c));
 if (smartWanted && !["webcodecs", "native", "smallest"].some((c) => only.has(c))) {
   const { failed, results } = await runSmartChecks();
   console.log(JSON.stringify({ ok: !failed, results }, null, 2));

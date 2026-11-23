@@ -320,7 +320,10 @@ export type MediaColumnId =
   | "scene"
   | "shot"
   | "take"
-  | "goodTake";
+  | "goodTake"
+  | "keywords"
+  | "logComment"
+  | "reel";
 
 export interface MediaColumnDef {
   readonly id: MediaColumnId;
@@ -350,10 +353,13 @@ export const MEDIA_COLUMNS: readonly MediaColumnDef[] = [
   { id: "shot", title: "Shot", width: 64, numeric: false, optional: true },
   { id: "take", title: "Take", width: 64, numeric: false, optional: true },
   { id: "goodTake", title: "Good", width: 56, numeric: false, optional: true },
+  { id: "keywords", title: "Keywords", width: 160, numeric: false, optional: true },
+  { id: "logComment", title: "Log comment", width: 180, numeric: false, optional: true },
+  { id: "reel", title: "Reel", width: 84, numeric: false, optional: true },
 ];
 
 /** Columns whose cell is free text the user edits in place (one `media/organize` undo step each). */
-export const EDITABLE_TEXT_COLUMNS = ["comment", "description", "scene", "shot", "take"] as const;
+export const EDITABLE_TEXT_COLUMNS = ["comment", "description", "scene", "shot", "take", "keywords", "logComment", "reel"] as const;
 export type EditableTextColumn = (typeof EDITABLE_TEXT_COLUMNS)[number];
 export function isEditableTextColumn(value: unknown): value is EditableTextColumn {
   return (EDITABLE_TEXT_COLUMNS as readonly unknown[]).includes(value);
@@ -426,6 +432,12 @@ export function mediaColumnSortValue(
       return (item.take ?? "").toLowerCase();
     case "goodTake":
       return item.goodTake ? 1 : 0;
+    case "keywords":
+      return (item.keywords ?? []).join(", ").toLowerCase();
+    case "logComment":
+      return (item.logComment ?? "").toLowerCase();
+    case "reel":
+      return (item.reel ?? "").toLowerCase();
   }
 }
 
@@ -509,6 +521,12 @@ export function mediaColumnText(
       return item.take ?? "";
     case "goodTake":
       return item.goodTake ? "Good take" : "";
+    case "keywords":
+      return (item.keywords ?? []).join(", ");
+    case "logComment":
+      return item.logComment ?? "";
+    case "reel":
+      return item.reel ?? "";
   }
 }
 
@@ -517,6 +535,10 @@ const FIELD_ALIASES: ReadonlyMap<string, MediaColumnId> = new Map<string, MediaC
   ["good", "goodTake"],
   ["log", "description"],
   ["notes", "comment"],
+  ["keyword", "keywords"],
+  ["tag", "keywords"],
+  ["tags", "keywords"],
+  ["tape", "reel"],
 ]);
 
 export type SortDirection = "asc" | "desc";

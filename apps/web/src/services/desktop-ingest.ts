@@ -4,9 +4,12 @@ import {
   createProxyRef,
   getMediaEngine,
   isIntermediateProxyCodec,
+  compileProxyPattern,
+  matchProxiesByPattern,
   matchRelinkCandidates,
   relinkTargetFor,
-  resolveDesktopProxyProfile,
+  resolveBatchProfile,
+  resolveDesktopChecksum,
   validateProxy,
   type DesktopIngestConfig,
   type DesktopProxyProfile,
@@ -55,16 +58,22 @@ export interface DesktopRelinkReport {
   ambiguous: Array<{ name: string; candidates: string[] }>;
   notFound: string[];
   failed: Array<{ name: string; reason: string }>;
+  /** Proxy attach: files with the right name but the wrong duration or frame rate (never attached). */
+  mismatched: Array<{ name: string; file: string; reasons: string[] }>;
+  /** The name pattern used, when the user gave one. */
+  pattern?: string;
 }
 
 export interface DesktopCopyReport {
-  copied: Array<{ mediaId: string; name: string; path: string; sha256: string }>;
+  copied: Array<{ mediaId: string; name: string; path: string; sha256: string; algorithm: string; checksum: string }>;
   skipped: Array<{ name: string; reason: string }>;
 }
 
 interface DesktopIngestState {
   /** Native proxy jobs by media id (queued, running, failed). Finished jobs are linked and dropped. */
   jobs: Record<string, OpenReelProxyJob>;
+  /** Background copy jobs by media id (queued, running, failed). A verified copy is linked into the project and dropped. */
+  copyJobs: Record<string, OpenReelProxyJob>;
   files: Record<string, DesktopFileState>;
   /** Copy-to-project progress by media id. */
   copying: Record<string, number>;
@@ -76,6 +85,7 @@ interface DesktopIngestState {
 
 export const useDesktopIngestStore = create<DesktopIngestState>(() => ({
   jobs: {},
+  copyJobs: {},
   files: {},
   copying: {},
   lastRelink: null,
@@ -135,8 +145,14 @@ export async function updateDesktopIngestConfig(patch: Partial<DesktopIngestConf
   }
   return ok;
 }
-export const setDesktopProxyProfile = (profile: DesktopProxyProfile): Promise<boolean> =>
-  updateDesktopIngestConfig({ proxyProfile: profile }, "Set proxy format");
+/** Save a proxy profile with the project; `presetId` remembers which preset it was taken from. */
+export const setDesktopProxyProfile = (profile: DesktopProxyProfile, presetId?: string): Promise<boolean> =>
+  updateDesktopIngestConfig({ proxyProfile: profile, proxyPresetId: presetId }, "Set proxy format");
+
+/** System folder picker for a preset's custom destination; null when cancelled. */
+export async function pickPresetFolder(): Promise<string | null> {
+  return (await bridge()?.pickFolder({ title: "Choose where these proxies are written" })) ?? null;
+}
 
 /** Choose the Proxies (or Media) folder with the system picker. */
 export async function chooseIngestFolder(kind: "proxy" | "media"): Promise<boolean> {
@@ -189,10 +205,11 @@ export function nativeProxySource(item: MediaItem): string | null {
  * Queue native proxy builds for the given media. Items with no known path on disk (recordings,
  * generated media) are reported back as `legacy` so the caller can use the in-app encoder instead.
  */
-export function queueDesktopProxies(mediaIds: readonly string[], force = false): DesktopQueueResult & { legacy: string[] } {
+export function queueDesktopProxies(mediaIds: readonly string[], force = false, batchProfile?: DesktopProxyProfile | null): DesktopQueueResult & { legacy: string[] } {
   const result: DesktopQueueResult & { legacy: string[] } = { queued: [], skipped: [], legacy: [] };
   const items = project().mediaLibrary.items;
-  const profile = resolveDesktopProxyProfile(project());
+  // One batch can use a preset other than the project's (Create Proxies > this batch only).
+  const profile = resolveBatchProfile(project(), batchProfile);
   const batch: Array<{ mediaId: string; name: string; srcPath: string; profile: DesktopProxyProfile }> = [];
   for (const id of mediaIds) {
     const item = items.find((candidate) => candidate.id === id);
@@ -254,11 +271,89 @@ export function cancelDesktopJob(mediaId: string): void {
   void bridge()?.cancelProxyJobs([job.id]);
 }
 
+/** Cancel a queued or running background copy (the partial file is removed; the original was never touched). */
+export function cancelDesktopCopy(mediaId: string): void {
+  const job = useDesktopIngestStore.getState().copyJobs[mediaId];
+  if (!job) return;
+  patchState((s) => ({ copyJobs: Object.fromEntries(Object.entries(s.copyJobs).filter(([id]) => id !== mediaId)) }));
+  void bridge()?.cancelProxyJobs([job.id]);
+}
+
+/** Media a copy job can be made for: a file on disk that is not already a project copy. */
+export function nativeCopySource(item: MediaItem): string | null {
+  return !item.isPlaceholder && !item.isPending && !item.copiedFrom && item.sourceFile?.path ? item.sourceFile.path : null;
+}
+
+export interface DesktopCopyQueueResult {
+  queued: string[];
+  skipped: Array<{ name: string; reason: string }>;
+}
+
+/**
+ * Queue verified copies into the project's Media folder as background jobs (one at a time, cancellable,
+ * resumed after a restart). With `thenProxies` each copy is followed by a proxy built from it with the
+ * given (or the project's) preset. The project is pointed at the copies as they finish.
+ */
+export async function queueDesktopCopies(mediaIds: readonly string[], options: { thenProxies?: boolean; proxyProfile?: DesktopProxyProfile | null } = {}): Promise<DesktopCopyQueueResult> {
+  const api = bridge();
+  const out: DesktopCopyQueueResult = { queued: [], skipped: [] };
+  if (!api) return out;
+  const items = project().mediaLibrary.items;
+  const batch: Array<{ mediaId: string; name: string; srcPath: string }> = [];
+  for (const id of mediaIds) {
+    const item = items.find((candidate) => candidate.id === id);
+    if (!item) continue;
+    if (item.isPlaceholder || item.isPending) out.skipped.push({ name: item.name, reason: "The media is offline." });
+    else if (item.copiedFrom) out.skipped.push({ name: item.name, reason: "Already copied to the project." });
+    else if (useDesktopIngestStore.getState().copyJobs[id]) out.skipped.push({ name: item.name, reason: "Already queued." });
+    else if (!nativeCopySource(item)) out.skipped.push({ name: item.name, reason: "It was not imported from a file on disk." });
+    else batch.push({ mediaId: id, name: item.name, srcPath: item.sourceFile!.path! });
+  }
+  if (!batch.length) return out;
+  if (!useDesktopIngestStore.getState().folders?.projectSaved) await refreshFolders();
+  const proxyProfile = options.thenProxies ? resolveBatchProfile(project(), options.proxyProfile) : null;
+  const previewTwin = proxyProfile ? isIntermediateProxyCodec(proxyProfile.codec) && !(await rendererDecodesProres()) : false;
+  const projectId = project().id;
+  patchState((s) => ({
+    lastCopy: Object.keys(s.copyJobs).length ? s.lastCopy : null,
+    copyJobs: {
+      ...s.copyJobs,
+      ...Object.fromEntries(batch.map((entry) => [entry.mediaId, { id: `${projectId}:copy:${entry.mediaId}`, kind: "copy", projectKey: projectId, mediaId: entry.mediaId, srcPath: entry.srcPath, outDir: "", fileName: "", profile: proxyProfile ?? DEFAULT_COPY_PROFILE, previewTwin: false, status: "queued", progress: 0, attempts: 0 } satisfies OpenReelProxyJob])),
+    },
+  }));
+  try {
+    const jobs = await api.enqueueCopies({
+      ...ingestProject(),
+      items: batch,
+      algorithm: resolveDesktopChecksum(project()),
+      ...(proxyProfile ? { thenProxies: { profile: proxyProfile, previewTwin } } : {}),
+    });
+    out.queued = batch.map((entry) => entry.mediaId);
+    patchState((s) => ({ copyJobs: { ...s.copyJobs, ...Object.fromEntries(jobs.map((job) => [job.mediaId, job])) } }));
+    if (proxyProfile) {
+      // The follow-up proxies are queued in the main process when each copy is verified; show them as waiting now.
+      patchState((s) => ({
+        jobs: { ...s.jobs, ...Object.fromEntries(batch.filter((entry) => !s.jobs[entry.mediaId]).map((entry) => [entry.mediaId, { id: `${projectId}:${entry.mediaId}`, projectKey: projectId, mediaId: entry.mediaId, srcPath: entry.srcPath, outDir: "", fileName: "", profile: proxyProfile, previewTwin: false, status: "queued", progress: 0, attempts: 0 } satisfies OpenReelProxyJob])) },
+      }));
+    }
+  } catch (error) {
+    patchState((s) => ({ copyJobs: Object.fromEntries(Object.entries(s.copyJobs).filter(([id]) => !batch.some((entry) => entry.mediaId === id))) }));
+    toast.error("Could not queue the copy", error instanceof Error ? error.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, "") : undefined);
+    out.skipped.push(...batch.map((entry) => ({ name: entry.name, reason: "Could not be queued." })));
+  }
+  return out;
+}
+
+const DEFAULT_COPY_PROFILE: DesktopProxyProfile = { codec: "h264", size: "half" };
+
 export async function retryFailedDesktopProxies(): Promise<number> {
   const api = bridge();
   if (!api) return 0;
   const retried = await api.retryFailedProxyJobs(project().id);
-  patchState((s) => ({ jobs: { ...s.jobs, ...Object.fromEntries(retried.map((job) => [job.mediaId, job])) } }));
+  patchState((s) => ({
+    jobs: { ...s.jobs, ...Object.fromEntries(retried.filter((job) => job.kind !== "copy").map((job) => [job.mediaId, job])) },
+    copyJobs: { ...s.copyJobs, ...Object.fromEntries(retried.filter((job) => job.kind === "copy").map((job) => [job.mediaId, job])) },
+  }));
   return retried.length;
 }
 
@@ -303,13 +398,61 @@ async function finalizeJob(job: OpenReelProxyJob): Promise<void> {
   if (live) await loadDesktopProxy(live);
 }
 
+/** A background copy finished and verified: point the project at the copy (one undo step) and tell the queue. */
+async function finalizeCopyJob(job: OpenReelProxyJob): Promise<void> {
+  const api = bridge();
+  const result = job.copyResult;
+  if (!api || !result || !isCurrentProject(job)) return;
+  const drop = (): void => {
+    patchState((s) => ({ copyJobs: Object.fromEntries(Object.entries(s.copyJobs).filter(([id]) => id !== job.mediaId)) }));
+    void api.ackProxyJobs([job.id]);
+  };
+  const item = project().mediaLibrary.items.find((candidate) => candidate.id === job.mediaId);
+  if (!item || item.isPlaceholder) {
+    // The media was removed while it was copying: the copy is of no use to this project (the file stays in the Media folder).
+    drop();
+    return;
+  }
+  const entry = { mediaId: item.id, name: item.name, path: result.destPath, sha256: result.checksum.algorithm === "sha256" ? result.checksum.value : "", algorithm: result.checksum.algorithm, checksum: result.checksum.value };
+  if (item.sourceFile?.path !== result.destPath) {
+    const patch = {
+      sourceFile: { ...item.sourceFile!, path: result.destPath, folder: parentFolderName(result.destPath) },
+      copiedFrom: { path: job.srcPath, sha256: entry.sha256, copiedAt: Date.now(), checksum: result.checksum },
+    };
+    if (!(await organize({ label: "Copy media to project", itemPatches: { [item.id]: patch } }))) {
+      patchState((s) => ({ lastCopy: { copied: s.lastCopy?.copied ?? [], skipped: [...(s.lastCopy?.skipped ?? []), { name: item.name, reason: "The project rejected the change." }] } }));
+      drop();
+      return;
+    }
+  }
+  patchState((s) => ({ lastCopy: { copied: [...(s.lastCopy?.copied ?? []), entry], skipped: s.lastCopy?.skipped ?? [] } }));
+  drop();
+  if (Object.keys(useDesktopIngestStore.getState().copyJobs).length === 0) {
+    const report = useDesktopIngestStore.getState().lastCopy;
+    if (report?.copied.length) toast.success("Media copied to the project", `${report.copied.length} file${report.copied.length === 1 ? "" : "s"} verified by ${describeChecksum(report.copied[0].algorithm)}. The originals were not touched.`);
+  }
+}
+
+export const describeChecksum = (algorithm: string): string => (algorithm === "xxh64" ? "xxHash64" : algorithm === "md5" ? "MD5" : "SHA-256");
+
 function onProxyEvent(event: { type: "update"; job: OpenReelProxyJob } | { type: "removed"; id: string; projectKey: string }): void {
   if (event.type === "removed") {
-    patchState((s) => ({ jobs: Object.fromEntries(Object.entries(s.jobs).filter(([, job]) => job.id !== event.id)) }));
+    patchState((s) => ({
+      jobs: Object.fromEntries(Object.entries(s.jobs).filter(([, job]) => job.id !== event.id)),
+      copyJobs: Object.fromEntries(Object.entries(s.copyJobs).filter(([, job]) => job.id !== event.id)),
+    }));
     return;
   }
   const job = event.job;
   if (!isCurrentProject(job)) return;
+  if (job.kind === "copy") {
+    if (job.status === "done") void finalizeCopyJob(job);
+    else {
+      patchState((s) => ({ copyJobs: { ...s.copyJobs, [job.mediaId]: job } }));
+      if (job.status === "failed") patchState((s) => ({ lastCopy: { copied: s.lastCopy?.copied ?? [], skipped: [...(s.lastCopy?.skipped ?? []).filter((entry) => entry.name !== (job.name ?? job.mediaId)), { name: job.name ?? job.mediaId, reason: job.error ?? "Copy failed." }] } }));
+    }
+    return;
+  }
   if (job.status === "done") void finalizeJob(job);
   else patchState((s) => ({ jobs: { ...s.jobs, [job.mediaId]: job } }));
 }
@@ -391,15 +534,15 @@ export async function copyMediaToProject(mediaIds: readonly string[]): Promise<D
         requests.set(requestId, id);
         patchState((s) => ({ copying: { ...s.copying, [id]: 0 } }));
         try {
-          const copy = await api.copyToProject({ ...ingestProject(), requestId, srcPath: src });
+          const copy = await api.copyToProject({ ...ingestProject(), requestId, srcPath: src, algorithm: resolveDesktopChecksum(project()) } as Parameters<typeof api.copyToProject>[0]);
           if (project().id !== origin.id) return report;
           if (copy.alreadyInPlace) report.skipped.push({ name: item.name, reason: "Already in the project's Media folder." });
           else {
             patches[id] = {
               sourceFile: { ...item.sourceFile!, path: copy.destPath, folder: parentFolderName(copy.destPath) },
-              copiedFrom: { path: src, sha256: copy.sha256, copiedAt: Date.now() },
+              copiedFrom: { path: src, sha256: copy.sha256, copiedAt: Date.now(), checksum: copy.checksum },
             };
-            report.copied.push({ mediaId: id, name: item.name, path: copy.destPath, sha256: copy.sha256 });
+            report.copied.push({ mediaId: id, name: item.name, path: copy.destPath, sha256: copy.sha256, algorithm: copy.checksum.algorithm, checksum: copy.checksum.value });
           }
         } catch (error) {
           report.skipped.push({ name: item.name, reason: error instanceof Error ? error.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, "") : "Copy failed." });
@@ -418,7 +561,7 @@ export async function copyMediaToProject(mediaIds: readonly string[]): Promise<D
     }
   }
   patchState({ lastCopy: report });
-  if (report.copied.length) toast.success("Media copied to the project", `${report.copied.length} file${report.copied.length === 1 ? "" : "s"} verified by checksum. The originals were not touched.`);
+  if (report.copied.length) toast.success("Media copied to the project", `${report.copied.length} file${report.copied.length === 1 ? "" : "s"} verified by ${describeChecksum(report.copied[0].algorithm)}. The originals were not touched.`);
   else if (report.skipped.length) toast.warning("Nothing copied", report.skipped[0].reason);
   return report;
 }
@@ -461,22 +604,37 @@ async function reconnectOne(item: MediaItem, path: string): Promise<{ ok: boolea
   }
 }
 
-/** Offline media that remember where they came from: reconnect the ones whose file is back. */
+/** The `Media` folder beside the open project file, for a project folder that was moved (Project Manager output). */
+function siblingMediaPath(item: MediaItem): string | null {
+  const file = currentProjectPath();
+  const recorded = item.sourceFile?.path;
+  if (!file || !recorded) return null;
+  const sep = file.includes("\\") && !file.includes("/") ? "\\" : "/";
+  const dir = file.slice(0, file.lastIndexOf(sep));
+  const name = recorded.split(/[\\/]/).pop();
+  return name ? `${dir}${sep}Media${sep}${name}` : null;
+}
+
+/** Offline media that remember where they came from: reconnect the ones whose file is back (or sits in the project's own Media folder). */
 export async function reconnectKnownPaths(): Promise<number> {
   const api = bridge();
   if (!api) return 0;
   const offline = project().mediaLibrary.items.filter((item) => item.isPlaceholder && item.sourceFile?.path);
   if (!offline.length) return 0;
-  const stat = await api.stat(offline.map((item) => item.sourceFile!.path!));
+  const alternates = new Map(offline.map((item) => [item.id, siblingMediaPath(item)]));
+  const stat = await api.stat([...offline.map((item) => item.sourceFile!.path!), ...[...alternates.values()].filter((p): p is string => Boolean(p))]);
   let linked = 0;
   for (const item of offline) {
-    if (!stat[item.sourceFile!.path!]?.exists) continue;
-    if ((await reconnectOne(item, item.sourceFile!.path!)).ok) linked++;
+    const recorded = item.sourceFile!.path!;
+    const alternate = alternates.get(item.id);
+    const found = stat[recorded]?.exists ? recorded : alternate && stat[alternate]?.exists ? alternate : null;
+    if (!found) continue;
+    if ((await reconnectOne(item, found)).ok) linked++;
   }
   return linked;
 }
 
-function describeScan(result: RelinkResult, byId: Map<string, MediaItem>) {
+function describeScan(result: Pick<RelinkResult, "ambiguous" | "unmatchedMediaIds">, byId: Map<string, MediaItem>) {
   return {
     ambiguous: result.ambiguous.map((entry) => ({ name: byId.get(entry.mediaId)?.name ?? entry.mediaId, candidates: entry.candidates.map((c) => c.path) })),
     notFound: result.unmatchedMediaIds.map((id) => byId.get(id)?.name ?? id),
@@ -484,7 +642,7 @@ function describeScan(result: RelinkResult, byId: Map<string, MediaItem>) {
 }
 
 /** Choose a folder, search it (recursively) for offline media / missing proxies and relink the matches by name + duration + frame rate. */
-export async function relinkFromFolder(kind: "full" | "proxy", presetFolder?: string): Promise<DesktopRelinkReport | null> {
+export async function relinkFromFolder(kind: "full" | "proxy", presetFolder?: string, options: { pattern?: string } = {}): Promise<DesktopRelinkReport | null> {
   const api = bridge();
   if (!api) return null;
   const origin = project();
@@ -499,11 +657,34 @@ export async function relinkFromFolder(kind: "full" | "proxy", presetFolder?: st
   }
   const folder = presetFolder ?? (await api.pickFolder({ title: kind === "full" ? "Search this folder for the offline media" : "Search this folder for the proxies" }));
   if (!folder) return null;
-  const scan = await api.scanFolder({ root: folder, names: targets.map((item) => item.sourceFile?.name ?? item.name), mode: kind === "full" ? "media" : "proxy" });
+  const pattern = kind === "proxy" && options.pattern?.trim() ? options.pattern.trim() : undefined;
+  let compiled: ReturnType<typeof compileProxyPattern> | null = null;
+  try {
+    compiled = pattern ? compileProxyPattern(pattern) : null;
+  } catch (error) {
+    toast.error("Check the proxy name pattern", error instanceof Error ? error.message : undefined);
+    return null;
+  }
+  const scan = await api.scanFolder({ root: folder, names: targets.map((item) => item.sourceFile?.name ?? item.name), mode: kind === "full" ? "media" : "proxy", ...(pattern ? { proxyPattern: pattern } : {}) });
   if (project().id !== origin.id) return null;
   const byId = new Map(targets.map((item) => [item.id, item]));
-  const match = matchRelinkCandidates(targets.map(relinkTargetFor), scan.candidates as RelinkCandidate[], { proxy: kind === "proxy" });
-  const report: DesktopRelinkReport = { kind, folder, scanned: scan.visited, truncated: scan.truncated, linked: [], failed: [], ...describeScan(match, byId) };
+  // Proxies are paired by name (and pattern), duration and frame rate; a file with the right name and the wrong duration
+  // or frame rate is reported as a mismatch instead of being attached.
+  const match: { matches: Array<{ mediaId: string; candidate: RelinkCandidate }>; ambiguous: Array<{ mediaId: string; candidates: RelinkCandidate[] }>; unmatchedMediaIds: string[] } & { mismatches?: ReturnType<typeof matchProxiesByPattern>["mismatches"] } =
+    kind === "proxy"
+      ? matchProxiesByPattern(targets.map(relinkTargetFor), scan.candidates as RelinkCandidate[], compiled)
+      : matchRelinkCandidates(targets.map(relinkTargetFor), scan.candidates as RelinkCandidate[], { proxy: false });
+  const report: DesktopRelinkReport = {
+    kind,
+    folder,
+    scanned: scan.visited,
+    truncated: scan.truncated,
+    linked: [],
+    failed: [],
+    mismatched: (match.mismatches ?? []).map((entry) => ({ name: byId.get(entry.mediaId)?.name ?? entry.mediaId, file: fileBaseName(entry.candidate.path), reasons: entry.reasons })),
+    ...(pattern ? { pattern } : {}),
+    ...describeScan(match, byId),
+  };
 
   if (kind === "full") {
     for (const found of match.matches) {
@@ -549,7 +730,7 @@ export async function relinkFromFolder(kind: "full" | "proxy", presetFolder?: st
     }
   }
   patchState({ lastRelink: report });
-  const summary = [`${report.linked.length} relinked`, report.ambiguous.length ? `${report.ambiguous.length} ambiguous` : "", report.notFound.length ? `${report.notFound.length} not found` : "", report.failed.length ? `${report.failed.length} failed` : ""].filter(Boolean).join(" · ");
+  const summary = [`${report.linked.length} ${kind === "proxy" ? "attached" : "relinked"}`, report.mismatched.length ? `${report.mismatched.length} mismatched` : "", report.ambiguous.length ? `${report.ambiguous.length} ambiguous` : "", report.notFound.length ? `${report.notFound.length} not found` : "", report.failed.length ? `${report.failed.length} failed` : ""].filter(Boolean).join(" · ");
   if (report.linked.length) toast.success(kind === "full" ? "Media relinked" : "Proxies relinked", summary);
   else toast.warning("Nothing relinked", `${summary}${scan.truncated ? " · search stopped at its limit" : ""}`);
   return report;
@@ -565,7 +746,7 @@ async function onProjectOpened(): Promise<void> {
   const { project: current, hasOpenProject } = useProjectStore.getState();
   if (!api || !hasOpenProject || currentProjectId === current.id) return;
   currentProjectId = current.id;
-  patchState({ jobs: {}, files: {}, copying: {}, lastRelink: null, lastCopy: null });
+  patchState({ jobs: {}, copyJobs: {}, files: {}, copying: {}, lastRelink: null, lastCopy: null });
   void refreshFolders();
   void api.setProxyConcurrency(current.mediaLibrary.desktopIngest?.concurrency ?? 1);
   try {
@@ -573,8 +754,13 @@ async function onProjectOpened(): Promise<void> {
     const jobs = await api.listProxyJobs(current.id);
     if (project().id !== current.id) return;
     const pending = jobs.filter((job) => job.status !== "done");
-    patchState({ jobs: Object.fromEntries(pending.map((job) => [job.mediaId, job])) });
-    for (const job of jobs.filter((entry) => entry.status === "done")) await finalizeJob(job);
+    patchState({
+      jobs: Object.fromEntries(pending.filter((job) => job.kind !== "copy").map((job) => [job.mediaId, job])),
+      copyJobs: Object.fromEntries(pending.filter((job) => job.kind === "copy").map((job) => [job.mediaId, job])),
+    });
+    // Copies first: the project must point at the copy before its proxy is linked.
+    for (const job of jobs.filter((entry) => entry.status === "done" && entry.kind === "copy")) await finalizeCopyJob(job);
+    for (const job of jobs.filter((entry) => entry.status === "done" && entry.kind !== "copy")) await finalizeJob(job);
   } catch {
     /* the queue is unavailable: nothing to restore */
   }

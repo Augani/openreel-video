@@ -112,6 +112,25 @@ afterEach(async () => {
 });
 
 describe("full export controls", () => {
+  it("offers Smart render when possible, on by default, and sends smartRender:false only when it is switched off", async () => {
+    window.localStorage.removeItem("openreel.export.smartRender");
+    const first = mount();
+    chooseTab("Custom Settings");
+    const toggle = screen.getByRole("switch", { name: "Smart render when possible" });
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Export Video" }));
+    expect(first.onExport.mock.calls[0][0]).not.toHaveProperty("smartRender", false);
+    cleanup();
+
+    const second = mount();
+    chooseTab("Custom Settings");
+    fireEvent.click(screen.getByRole("switch", { name: "Smart render when possible" }));
+    expect(screen.getByRole("switch", { name: "Smart render when possible" })).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(screen.getByRole("button", { name: "Export Video" }));
+    expect(second.onExport).toHaveBeenCalledWith(expect.objectContaining({ smartRender: false }), expect.anything());
+    window.localStorage.removeItem("openreel.export.smartRender");
+  });
+
   it("exports the complete custom video, audio and upscaling choices", async () => {
     const { onExport } = mount();
     chooseTab("Custom Settings");

@@ -1,4 +1,4 @@
-import { findLinkedPartners, type Project } from "@openreel/core";
+import { buildLinkIndex, findLinkedPartners, type Project } from "@openreel/core";
 import { getTimelineItemRanges } from "./timeline-item-actions";
 
 /** Timeline selection includes every separated stream; DSP resolution still
@@ -14,10 +14,12 @@ export function getLinkedTimelineSelection(
   // lives in core so J/L-cut offsets (which overlap a neighbour's partner)
   // keep resolving to the right clip.
   const tracks = project.timeline.tracks;
+  const byId = new Map(tracks.flatMap((track) => track.clips).map((c) => [c.id, c]));
+  const index = buildLinkIndex(tracks);
   for (const id of selected) {
-    const clip = tracks.flatMap((track) => track.clips).find((c) => c.id === id);
+    const clip = byId.get(id);
     if (!clip) continue;
-    for (const partner of findLinkedPartners(clip, tracks))
+    for (const partner of findLinkedPartners(clip, tracks, index))
       selected.add(partner.clip.id);
   }
   return [...selected];

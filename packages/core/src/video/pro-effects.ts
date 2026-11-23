@@ -31,6 +31,21 @@ import {
   isExtraProEffectType,
 } from "./pro-effects-extra";
 import {
+  VR_EFFECTS_WRITING_ALPHA,
+  VR_PRO_EFFECT_SPECS,
+  VR_PRO_EFFECT_TYPES,
+  isVrNeutral,
+  isVrProEffectType,
+} from "./vr-effect-specs";
+import {
+  VR_IMAGE_EFFECT_SPECS,
+  VR_IMAGE_EFFECT_TYPES,
+  VR_IMAGE_TIME_DRIVEN,
+  isVrImageEffectType,
+  isVrImageNeutral,
+} from "./vr-image-effect-specs";
+import { requireVrRuntime } from "./vr-runtime-loader";
+import {
   TEMPORAL_EFFECTS_WRITING_ALPHA,
   TEMPORAL_PRO_EFFECT_SPECS,
   TEMPORAL_PRO_EFFECT_TYPES,
@@ -63,6 +78,8 @@ export const PRO_EFFECT_TYPES = [
   ...BASE_PRO_EFFECT_TYPES,
   ...EXTRA_PRO_EFFECT_TYPES,
   ...TEMPORAL_PRO_EFFECT_TYPES,
+  ...VR_PRO_EFFECT_TYPES,
+  ...VR_IMAGE_EFFECT_TYPES,
 ] as const;
 
 export type ProEffectType = (typeof PRO_EFFECT_TYPES)[number];
@@ -80,6 +97,7 @@ export const PRO_EFFECTS_WRITING_ALPHA: readonly ProEffectType[] = [
   "skew",
   ...EXTRA_EFFECTS_WRITING_ALPHA,
   ...TEMPORAL_EFFECTS_WRITING_ALPHA,
+  ...VR_EFFECTS_WRITING_ALPHA,
 ];
 
 export type MirrorMode = "none" | "horizontal" | "vertical" | "quad";
@@ -92,7 +110,8 @@ export type ProEffectCategory =
   | "Keying"
   | "Distort"
   | "Generate"
-  | "Time";
+  | "Time"
+  | "Immersive Video";
 
 export interface ProEffectParamSpec {
   readonly key: string;
@@ -108,6 +127,10 @@ export interface ProEffectParamSpec {
   readonly options?: readonly { readonly value: string; readonly label: string }[];
   /** Numeric params that appear in the keyframes inspector. */
   readonly keyframable?: boolean;
+  /** Angle parameter with this period (degrees): keyframes interpolate along the shorter arc instead of the long way round. */
+  readonly wrap?: number;
+  /** A clearly non-neutral value `proEffectActingParams` uses for this parameter when the effect's defaults are neutral (tests, the effects sweep). */
+  readonly acting?: number | boolean | string;
 }
 
 export interface ProEffectSpec {
@@ -151,6 +174,8 @@ const toggle = (
 export const PRO_EFFECT_SPECS: Readonly<Record<ProEffectType, ProEffectSpec>> = {
   ...EXTRA_PRO_EFFECT_SPECS,
   ...TEMPORAL_PRO_EFFECT_SPECS,
+  ...VR_PRO_EFFECT_SPECS,
+  ...VR_IMAGE_EFFECT_SPECS,
   mosaic: {
     type: "mosaic",
     label: "Mosaic",
@@ -401,6 +426,41 @@ export const PRO_EFFECT_NEUTRAL_PARAMS: Readonly<
 > = paramsOf("neutral");
 
 /**
+ * Params that make an effect visibly act: the defaults, except where the defaults of an effect are neutral (VR Rotate
+ * Sphere is added at 0 / 0 / 0, as in Premiere), in which case every parameter takes a clearly non-neutral value
+ * (numbers a fraction of their range away from neutral, toggles flipped, selects the first other option). Used by the
+ * tests that ask whether an effect changes the picture; it reads only the parameter specs.
+ */
+export function proEffectActingParams(type: ProEffectType): Record<string, unknown> {
+  const defaults = { ...PRO_EFFECT_DEFAULTS[type] };
+  if (!isProEffectNeutral(type, defaults)) return defaults;
+  const out: Record<string, unknown> = {};
+  // A different fraction per numeric parameter, so that parameters cannot cancel each other (three angles of 180
+  // degrees compose to the identity).
+  const fractions = [0.1, 0.17, 0.23, 0.13];
+  let numberIndex = 0;
+  for (const p of PRO_EFFECT_SPECS[type].params) {
+    if (p.acting !== undefined) {
+      out[p.key] = p.acting;
+      if (p.kind === "number") numberIndex++;
+    } else if (p.kind === "number") {
+      const fraction = fractions[numberIndex++ % fractions.length];
+      const lo = p.min ?? -Infinity;
+      const hi = p.max ?? Infinity;
+      const neutral = p.neutral as number;
+      const span = Number.isFinite(hi - lo) ? hi - lo : 100;
+      const up = neutral + span * fraction;
+      out[p.key] = up <= hi ? up : neutral - span * fraction;
+    } else if (p.kind === "toggle") {
+      out[p.key] = !(p.neutral as boolean);
+    } else {
+      out[p.key] = (p.options ?? []).find((o) => o.value !== p.neutral)?.value ?? p.neutral;
+    }
+  }
+  return out;
+}
+
+/**
  * Params for a newly added effect. A pro effect stored with `{}` resolves to
  * its NEUTRAL values (a no-op), so every add path must seed the defaults;
  * explicit params win. Non-pro types are returned unchanged.
@@ -505,6 +565,8 @@ export function describeProEffectsForAgent(): string {
 
 export interface ProEffectKeyframeProperty {
   readonly id: string;
+  /** Angle period in degrees when keyframes interpolate along the shorter arc; absent for ordinary numbers. */
+  readonly wrap?: number;
   readonly type: ProEffectType;
   readonly key: string;
   readonly label: string;
@@ -527,6 +589,7 @@ export const PRO_EFFECT_KEYFRAME_PROPERTIES: readonly ProEffectKeyframeProperty[
       .filter((p) => p.kind === "number" && p.keyframable)
       .map((p) => ({
         id: proEffectKeyframePropertyId(type, p.key),
+        ...(p.wrap ? { wrap: p.wrap } : {}),
         type,
         key: p.key,
         label: `${PRO_EFFECT_SPECS[type].label}: ${p.label}`,
@@ -536,6 +599,12 @@ export const PRO_EFFECT_KEYFRAME_PROPERTIES: readonly ProEffectKeyframeProperty[
         step: p.step ?? 1,
       })),
   );
+
+/** Angle period (degrees) of a pro effect parameter whose keyframes take the shorter arc; undefined for ordinary parameters. */
+export function proEffectParamWrap(type: string, key: string): number | undefined {
+  if (!isProEffectType(type)) return undefined;
+  return PRO_EFFECT_SPECS[type].params.find((p) => p.key === key)?.wrap;
+}
 
 const KEYFRAME_PROPERTY_BY_ID: ReadonlyMap<string, ProEffectKeyframeProperty> =
   new Map(PRO_EFFECT_KEYFRAME_PROPERTIES.map((p) => [p.id, p]));
@@ -596,6 +665,8 @@ export function isProEffectNeutral(
   const p = resolveProEffectParams(type, rawParams);
   if (isExtraProEffectType(type)) return isExtraNeutral(type, p);
   if (isTemporalEffectType(type)) return isTemporalNeutral(type, p);
+  if (isVrProEffectType(type)) return isVrNeutral(type, p);
+  if (isVrImageEffectType(type)) return isVrImageNeutral(type, p);
   switch (type) {
     case "mosaic":
       return Math.floor(n(p, "size")) <= 1;
@@ -1405,6 +1476,14 @@ export function applyProEffect(
   }
   // Temporal effects choose frames rather than recolour one: the pixel pass is the identity.
   if (isTemporalEffectType(type)) return true;
+  if (isVrProEffectType(type)) {
+    requireVrRuntime(type).applyVrEffect(type, p, data, width, height);
+    return true;
+  }
+  if (isVrImageEffectType(type)) {
+    requireVrRuntime(type).applyVrImageEffect(type, p, data, width, height);
+    return true;
+  }
   switch (type) {
     case "mosaic":
       applyMosaic(data, width, height, n(p, "size"));
@@ -1541,6 +1620,8 @@ export function proEffectGpuUniforms(
   const p = resolveProEffectParams(type, rawParams);
   if (isExtraProEffectType(type)) return extraProEffectGpuUniforms(type, p);
   if (isTemporalEffectType(type)) return {};
+  if (isVrProEffectType(type)) return requireVrRuntime(type).vrEffectGpuUniforms(type, p);
+  if (isVrImageEffectType(type)) return requireVrRuntime(type).vrImageEffectGpuUniforms(type, p);
   switch (type) {
     case "mosaic":
       return { size: Math.floor(clamp(n(p, "size"), 1, 400)) };
@@ -1652,7 +1733,7 @@ export function proEffectGpuUniforms(
 /* Clip-local time                                                             */
 /* -------------------------------------------------------------------------- */
 
-const TIME_DRIVEN_PRO_EFFECTS: readonly string[] = ["vhs-glitch", ...EXTRA_TIME_DRIVEN];
+const TIME_DRIVEN_PRO_EFFECTS: readonly string[] = ["vhs-glitch", ...EXTRA_TIME_DRIVEN, ...VR_IMAGE_TIME_DRIVEN];
 
 /** True for effects whose output depends on playback time. */
 export function isTimeVaryingProEffect(effect: {

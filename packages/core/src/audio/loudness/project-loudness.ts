@@ -87,11 +87,13 @@ export function isolateClipForMeasurement(project: Project, clipId: string): Pro
   for (const track of project.timeline.tracks) {
     const clip = track.clips.find((c: Clip) => c.id === clipId);
     if (!clip) continue;
-    const { masterAudioRack: _master, audioBuses: _buses, ...timelineRest } = project.timeline;
+    const { masterAudioRack: _master, masterPluginRack: _masterPlugins, audioBuses: _buses, ...timelineRest } = project.timeline;
     void _master;
+    void _masterPlugins;
     void _buses;
-    const { audioRack: _rack, output: _output, sends: _sends, ...trackRest } = track;
+    const { audioRack: _rack, pluginRack: _plugins, output: _output, sends: _sends, ...trackRest } = track;
     void _rack;
+    void _plugins;
     void _output;
     void _sends;
     return {

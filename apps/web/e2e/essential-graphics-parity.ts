@@ -68,7 +68,9 @@ export async function previewExportParity(page: Page, templateName: string, time
         let prevExport: Uint8ClampedArray | null = null;
         let exportStable = 0;
         for (let i = 0; i < 40 && exportStable < 2; i++) {
-          const fresh = await engine.renderFrame(project, t as number, w, h);
+          // The export renders frame N at N / fps: the instant the preview samples for a playhead inside that frame.
+          const fps = project.settings.frameRate as number;
+          const fresh = await engine.renderFrame(project, Math.floor((t as number) * fps + 1e-6) / fps, w, h);
           exported = read(fresh.image);
           let same = prevExport !== null && prevExport.length === exported.length;
           for (let k = 0; same && k < exported.length; k++) if (exported[k] !== prevExport![k]) same = false;

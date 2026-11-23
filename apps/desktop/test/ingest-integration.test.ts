@@ -98,12 +98,50 @@ d("native proxy runner (real ffmpeg)", () => {
     for (let i = 0; i < 100 && nice === null; i++) {
       await new Promise((r) => setTimeout(r, 100));
       const { stdout } = await run("ps", ["-axo", "ni=,command="]);
-      const line = stdout.split("\n").find((l) => l.includes("n_half_proxy.mov.part"));
+      const line = stdout.split("\n").find((l) => /n_half_proxy\.mov\.[\w-]+\.part/.test(l));
       if (line) nice = Number(line.trim().split(/\s+/)[0]);
     }
     controller.abort();
     await pending;
     expect(nice).toBe(10);
+  }, 120_000);
+
+  it("a cancelled run winding down never deletes the file a newer run of the same proxy is writing", async () => {
+    const job = asJob(input("r", longClip, { fileName: "r_half_proxy.mov" }));
+    const oldRun = new AbortController();
+    const older = runProxyJob(job, () => undefined, oldRun.signal).catch(() => "cancelled");
+    await new Promise((r) => setTimeout(r, 800));
+    const newer = runProxyJob({ ...job }, () => undefined, new AbortController().signal);
+    await new Promise((r) => setTimeout(r, 400));
+    oldRun.abort();
+    expect(await older).toBe("cancelled");
+    await expect(newer).resolves.toMatchObject({ width: 1920, height: 1080 });
+    const left = await fs.readdir(path.join(work, "Proxies"));
+    expect(left.filter((f) => f.startsWith("r_half_proxy") && f.endsWith(".part"))).toEqual([]);
+  }, 180_000);
+
+  it("sweeps a crashed run's stale .part but leaves a young one alone", async () => {
+    const dir = path.join(work, "Proxies");
+    await fs.mkdir(dir, { recursive: true });
+    const stale = path.join(dir, "s_quarter_proxy.mp4.2147483646-1.part");
+    const young = path.join(dir, `s_quarter_proxy.mp4.${process.pid}-999999.part`);
+    await fs.writeFile(stale, "x");
+    await fs.writeFile(young, "x");
+    const old = new Date(Date.now() - 60 * 60_000);
+    await fs.utimes(stale, old, old);
+    await runProxyJob(asJob(input("s", clip4k, { fileName: "s_quarter_proxy.mp4", profile: { codec: "h264", size: "quarter" } })), () => undefined, new AbortController().signal);
+    expect(existsSync(stale)).toBe(false);
+    expect(existsSync(young)).toBe(true);
+    await fs.rm(young, { force: true });
+  }, 120_000);
+
+  it("sweeps a young .part whose owning process is gone (the app was killed mid-encode)", async () => {
+    const dir = path.join(work, "Proxies");
+    await fs.mkdir(dir, { recursive: true });
+    const orphan = path.join(dir, "g_quarter_proxy.mp4.2147483646-1.part");
+    await fs.writeFile(orphan, "x");
+    await runProxyJob(asJob(input("g", clip4k, { fileName: "g_quarter_proxy.mp4", profile: { codec: "h264", size: "quarter" } })), () => undefined, new AbortController().signal);
+    expect(existsSync(orphan)).toBe(false);
   }, 120_000);
 
   it("cancel kills ffmpeg and leaves no partial file", async () => {
@@ -150,6 +188,7 @@ d("queue + runner end to end (real ffmpeg)", () => {
     const second = new ProxyQueue({ store, run: (job, p, s) => runProxyJob(job, p, s, 1) });
     second.restore();
     await second.whenIdle();
+    expect(second.list().map((j) => [j.mediaId, j.status, j.error])).toEqual([["q1", "done", undefined], ["q2", "done", undefined]]);
     expect(second.list().map((j) => [j.mediaId, j.status])).toEqual([["q1", "done"], ["q2", "done"]]);
     expect(existsSync(path.join(outDir, "q1_half_proxy.mov"))).toBe(true);
     expect(existsSync(path.join(outDir, "q2_half_proxy.mov"))).toBe(true);

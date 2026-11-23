@@ -42,6 +42,15 @@ import { MAX_SEQUENCE_BYTES, packImageSequence, sequenceFrameRange, validateSequ
 import { declineSmartRender, formatSmartRenderSummary, planSmartRender, type SmartRenderPlan, type SmartRenderSourceInfo } from "./smart-render";
 import { scanSourceForSmartRender } from "./smart-render-scan";
 import {
+  declineSmartAudio,
+  formatSmartAudioSummary,
+  planSmartAudio,
+  skippableAudioChunks,
+  type SmartAudioPlan,
+  type SmartAudioSourceInfo,
+} from "./smart-render-audio";
+import type { SmartRenderMuxer } from "./encoder-backend";
+import {
   LoudnessNormalizer,
   measureRenderedLoudness,
   planNormalization,
@@ -64,6 +73,7 @@ import {
   wantsMonoTracks,
   type BroadcastDeliverySettings,
 } from "./broadcast";
+import { exportRenderTime, frameStartTime } from "../video/frame-time";
 import { isolateStem, planStems } from "./stem-export";
 import { resolveWebCodecsExportLimits } from "./webcodecs-limits";
 import { checkBrowserExportCapability, getVideoExportValidationError, getMissingExportMedia } from "./browser-capabilities";
@@ -357,6 +367,11 @@ export class ExportEngine {
       phase("smart-plan");
       const smartCopy = smartPlan?.eligible ? backend.smartRender : undefined;
       if (smartCopy) smartCopy.enable(smartPlan ?? undefined);
+      // Audio that is exactly an untouched source is copied instead of mixed and encoded (native smart render only).
+      let audioPlan: SmartAudioPlan | null = smartCopy?.audio
+        ? await this.planSmartAudioFor(project, fullSettings, smartCopy.audio, exportStart, exportDuration)
+        : null;
+      checkCancelled();
       this.videoEngine?.resetExportState();
       const hdrTarget = hdrExportTargetFor(project, fullSettings);
       if (this.videoEngine) {
@@ -369,6 +384,21 @@ export class ExportEngine {
       await backend.start(fullSettings, sourceProject, writableStream);
       phase("backend-start");
       checkCancelled();
+      if (audioPlan?.eligible && smartCopy?.audio) {
+        let declined: string | null;
+        try {
+          declined = await smartCopy.audio.begin(audioPlan, (mediaId) => project.mediaLibrary.items.find((item) => item.id === mediaId)?.blob ?? undefined);
+        } catch (error) {
+          if (abortController.signal.aborted) throw error;
+          declined = error instanceof Error ? error.message : String(error);
+        }
+        if (declined) audioPlan = declineSmartAudio(audioPlan, declined);
+        checkCancelled();
+        phase("audio-copy");
+      }
+      const audioSkip = audioPlan?.eligible && smartCopy?.audio
+        ? { chunks: skippableAudioChunks(audioPlan, exportDuration), skip: (frames: number) => smartCopy.audio!.skip(frames) }
+        : undefined;
 
       // Mixing and encoding the audio is independent of rendering frames, so it runs beside the
       // video loop instead of in front of it: a long timeline used to sit at 0% for the whole
@@ -378,7 +408,7 @@ export class ExportEngine {
       if (backend.audioBeforeVideo) {
         audioTask = (async () => {
           try {
-            await this.encodeTimelineAudioToBackend(project, backend, fullSettings.audioSettings, exportStart, exportDuration, abortController.signal, fullSettings.broadcast);
+            await this.encodeTimelineAudioToBackend(project, backend, fullSettings.audioSettings, exportStart, exportDuration, abortController.signal, fullSettings.broadcast, audioSkip);
           } finally {
             this.audioEngine?.clearCache();
           }
@@ -459,18 +489,20 @@ export class ExportEngine {
       for (let frame = segment.startFrame; frame < segment.endFrame; frame++) {
         checkCancelled();
 
-        const time = frame / fullSettings.frameRate;
+        const time = frameStartTime(frame, fullSettings.frameRate);
+        // The sequence frame on screen at this export instant (the project rate's frame, conformed to the export rate).
+        const renderTime = exportRenderTime(frame, fullSettings.frameRate, project.settings.frameRate, exportStart);
         const renderStart = performance.now();
         // A frame already in the preview render cache replaces a full re-render.
         const cachedImage = cachedFrames && !fullSettings.upscaling?.enabled && !hdrTarget
-          ? await cachedFrames.takeFrame(exportStart + time)
+          ? await cachedFrames.takeFrame(renderTime)
           : undefined;
         if (cachedImage) cachedFrameCount++;
         const rendered = cachedImage
           ? { image: cachedImage }
           : await this.waitForVideoOperation(this.videoEngine!.renderFrame(
               project,
-              exportStart + time,
+              renderTime,
               fullSettings.width,
               fullSettings.height,
               ...(fullSettings.burnInTimecode?.enabled ? [{ timecodeBurnIn: fullSettings.burnInTimecode }] : []),
@@ -543,7 +575,7 @@ export class ExportEngine {
         await audioTask;
       } else {
         try {
-          await this.encodeTimelineAudioToBackend(project, backend, fullSettings.audioSettings, exportStart, exportDuration, abortController.signal, fullSettings.broadcast);
+          await this.encodeTimelineAudioToBackend(project, backend, fullSettings.audioSettings, exportStart, exportDuration, abortController.signal, fullSettings.broadcast, audioSkip);
         } finally {
           this.audioEngine?.clearCache();
         }
@@ -604,8 +636,22 @@ export class ExportEngine {
             totalFrames,
             copiedPercent: totalFrames > 0 ? (copiedFramesDone / totalFrames) * 100 : 0,
             copiedRuns,
+            copiedSeconds: copiedFramesDone / fullSettings.frameRate,
+            encodedSeconds: (totalFrames - copiedFramesDone) / fullSettings.frameRate,
             reasons: [...smartPlan.reasons],
             summary: formatSmartRenderSummary(copiedFramesDone, totalFrames),
+            ...(audioPlan
+              ? {
+                  audio: {
+                    mode: audioPlan.eligible ? audioPlan.mode : "none" as const,
+                    codec: audioPlan.codec,
+                    copiedSeconds: audioPlan.eligible ? audioPlan.copiedSeconds : 0,
+                    encodedSeconds: audioPlan.eligible ? audioPlan.encodedSeconds : audioPlan.totalSamples / audioPlan.sampleRate,
+                    reasons: [...audioPlan.reasons],
+                    summary: formatSmartAudioSummary(audioPlan.eligible ? audioPlan.copiedSamples : 0, audioPlan.totalSamples),
+                  },
+                }
+              : {}),
           } } : {}),
         },
       };
@@ -683,6 +729,42 @@ export class ExportEngine {
       return planSmartRender({ project, settings, sources, exportStart, totalFrames, engine });
     } catch (error) {
       console.warn("[export] smart render planning failed; encoding everything", error);
+      return null;
+    }
+  }
+
+  /**
+   * Audio plan for a smart-render export: probe the sources that could stand in for the mix, then plan. Null when the planner
+   * has nothing to say (planning failed); a plan with `eligible: false` carries the reasons.
+   */
+  private async planSmartAudioFor(
+    project: Project,
+    settings: VideoExportSettings,
+    audio: NonNullable<SmartRenderMuxer["audio"]>,
+    exportStart: number,
+    exportDuration: number,
+  ): Promise<SmartAudioPlan | null> {
+    try {
+      const input = { project, settings, exportStart, exportDuration };
+      // Which sources the planner would look at: it asks for them only after its cheap project-wide checks pass.
+      const asked = new Set<string>();
+      const recorder = new Map<string, SmartAudioSourceInfo>();
+      const originalGet = recorder.get.bind(recorder);
+      recorder.get = (mediaId: string) => {
+        asked.add(mediaId);
+        return originalGet(mediaId);
+      };
+      planSmartAudio({ ...input, sources: recorder });
+      const sources = new Map<string, SmartAudioSourceInfo>();
+      for (const mediaId of asked) {
+        const blob = project.mediaLibrary.items.find((item) => item.id === mediaId)?.blob;
+        if (!blob) continue;
+        const info = await audio.probe(mediaId, blob);
+        if (info) sources.set(mediaId, info);
+      }
+      return planSmartAudio({ ...input, sources });
+    } catch (error) {
+      console.warn("[export] smart audio planning failed; the audio is rendered", error);
       return null;
     }
   }
@@ -1006,7 +1088,7 @@ export class ExportEngine {
       yield this.createProgress("preparing", 0, total, 0, 0);
       for (let i = 0; i < total; i++) {
         if (this.abortController.signal.aborted) throw this.createError("CANCELLED", "Export cancelled by user", "rendering");
-        const canvas = await this.renderFrameCanvas(project, (range.startFrame + i) / frameRate, width, height);
+        const canvas = await this.renderFrameCanvas(project, frameStartTime(range.startFrame + i, frameRate), width, height);
         const blob = await canvas.convertToBlob({ type: this.getImageMimeType(format), quality: (options.quality ?? 92) / 100 });
         const data = new Uint8Array(await blob.arrayBuffer());
         frames.push(data);
@@ -1071,7 +1153,7 @@ export class ExportEngine {
       yield this.createProgress("preparing", 0, total, 0, 0);
       for (let i = 0; i < total; i++) {
         if (this.abortController.signal.aborted) throw this.createError("CANCELLED", "Export cancelled by user", "rendering");
-        const canvas = await this.renderFrameCanvas(project, start + i / fps, width, height);
+        const canvas = await this.renderFrameCanvas(project, start + frameStartTime(i, fps), width, height);
         const image = canvas.getContext("2d")!.getImageData(0, 0, width, height);
         frames.push({ data: image.data });
         this.currentExport.framesRendered = i + 1;
@@ -1430,6 +1512,8 @@ export class ExportEngine {
     // in its finally), and must still see its own export's abort, never a later export's.
     signal: AbortSignal | undefined = this.abortController?.signal,
     broadcast?: BroadcastDeliverySettings,
+    /** Smart audio: chunks entirely inside copied spans are not mixed (the muxer copies those samples). */
+    audioSkip?: { chunks: ReadonlyArray<{ startSec: number; frames: number }>; skip(frames: number): Promise<void> },
   ): Promise<void> {
     const timelineDuration = rangeDuration;
     // Broadcast delivery: N mono tracks (stereo mix on 1-2, then stems or silence) instead of the stereo stream.
@@ -1496,6 +1580,11 @@ export class ExportEngine {
         chunkDuration,
         timelineDuration - startTime,
       );
+      const skipped = audioSkip?.chunks.find((chunk) => chunk.startSec === startTime);
+      if (skipped) {
+        await audioSkip!.skip(skipped.frames);
+        continue;
+      }
       const audioBuffer = await this.renderTimelineAudio(
         project,
         rangeStart + startTime,

@@ -602,6 +602,63 @@ describe("ExportEngine", () => {
       expect(mockRenderAudio).toHaveBeenCalledWith(expect.anything(), 2, 2);
     });
 
+    describe("export frame rate different from the sequence frame rate", () => {
+      async function renderTimes(projectFps: number, exportFps: number, duration: number, range?: { startTime: number; endTime: number }): Promise<number[]> {
+        const project = createMockProject({
+          settings: { width: 1920, height: 1080, frameRate: projectFps, sampleRate: 48000, channels: 2 },
+          timeline: createMockTimeline({
+            tracks: [createMockTrack({ clips: [createMockClip({ duration, outPoint: duration })] })],
+            duration,
+          }),
+        });
+        await exportEngine.initialize();
+        const generator = exportEngine.exportVideo(
+          project,
+          { ...DEFAULT_VIDEO_SETTINGS, width: 640, height: 360, frameRate: exportFps, ...(range ? { range } : {}) },
+          writableStream,
+        );
+        for (;;) {
+          const { done, value } = await generator.next();
+          if (done) {
+            expect(value).toMatchObject({ success: true });
+            break;
+          }
+        }
+        return mockRenderFrame.mock.calls.map((call) => call[1] as number);
+      }
+
+      it("a 24 fps sequence exported at 30 fps shows sequence frames: every render time is a whole 24 fps frame, one is repeated per four", async () => {
+        const times = await renderTimes(24, 30, 1);
+        expect(times).toHaveLength(30);
+        const frames = times.map((t) => Math.round(t * 24));
+        times.forEach((t, i) => expect(t).toBeCloseTo(frames[i] / 24, 9));
+        expect(frames.slice(0, 10)).toEqual([0, 0, 1, 2, 3, 4, 4, 5, 6, 7]);
+        expect(new Set(frames).size).toBe(24);
+      });
+
+      it("a 30 fps sequence exported at 24 fps skips sequence frames and still stamps frames at the export rate", async () => {
+        const times = await renderTimes(30, 24, 1);
+        expect(times.map((t) => Math.round(t * 30)).slice(0, 6)).toEqual([0, 1, 2, 3, 5, 6]);
+        expect(mockVideoSourceAdd).toHaveBeenNthCalledWith(2, expect.objectContaining({ init: { timestamp: 1 / 24, duration: 1 / 24 } }));
+      });
+
+      it("23.976 export of a 24 fps sequence never samples ahead of the frame on screen", async () => {
+        const times = await renderTimes(24, 24000 / 1001, 2);
+        times.forEach((t, i) => expect(t).toBeLessThanOrEqual(i / (24000 / 1001) + 1e-6));
+      });
+
+      it("quantises to sequence frames at the original timeline time when a range is exported", async () => {
+        const times = await renderTimes(24, 30, 6, { startTime: 2, endTime: 3 });
+        expect(times[0]).toBeCloseTo(2, 9);
+        expect(times[2]).toBeCloseTo(2 + 1 / 24, 9);
+      });
+
+      it("matching rates render the same instants as before (no quantising)", async () => {
+        const times = await renderTimes(30, 30, 1, { startTime: 0.01, endTime: 1 });
+        expect(times[0]).toBeCloseTo(0.01, 12);
+      });
+    });
+
     it("chunks selected-range audio without including sound before In or after Out", async () => {
       mockRenderAudio.mockImplementation(async (_project, _start, duration) => ({ buffer: { duration, length: duration * 48000 } }));
       expect(await drainVideoExport({ ...DEFAULT_VIDEO_SETTINGS, width: 640, height: 360, frameRate: 1, range: { startTime: 2, endTime: 34 } }, 35)).toMatchObject({ success: true });

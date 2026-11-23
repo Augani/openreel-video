@@ -83,6 +83,7 @@ describe("touch timeline editing", () => {
     fireEvent.pointerMove(window, { pointerId: 8, pointerType: "touch", clientX: 10, clientY: 20 });
     fireEvent.pointerMove(window, { pointerId: 8, pointerType: "touch", clientX: 100, clientY: 20 });
     flushFrame();
+    flushFrame();
     expect(props.onMoveClip).toHaveBeenCalledWith(clip.id, 2, undefined);
     await act(async () => { fireEvent.pointerUp(window, { pointerId: 8, pointerType: "touch" }); });
     const count = props.onMoveClip.mock.calls.length;

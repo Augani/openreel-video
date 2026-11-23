@@ -3,6 +3,7 @@ import type {
   DesktopProxyCodec,
   DesktopProxyProfile,
   DesktopProxySize,
+  IngestChecksumAlgorithm,
   MediaItem,
   Project,
 } from "../types/project";
@@ -16,28 +17,67 @@ import { proxyMatchKey, type ProxyDisplayState } from "./proxy-workflow";
 
 export const DESKTOP_PROXY_CODECS: readonly { id: DesktopProxyCodec; label: string; extension: "mov" | "mp4" }[] = [
   { id: "prores-proxy", label: "ProRes 422 Proxy (.mov)", extension: "mov" },
+  { id: "prores-lt", label: "ProRes 422 LT (.mov)", extension: "mov" },
+  { id: "prores-422", label: "ProRes 422 (.mov)", extension: "mov" },
   { id: "dnxhr-lb", label: "DNxHR LB (.mov)", extension: "mov" },
+  { id: "dnxhr-sq", label: "DNxHR SQ (.mov)", extension: "mov" },
   { id: "h264", label: "H.264 (.mp4)", extension: "mp4" },
 ];
 
 export const DESKTOP_PROXY_SIZES: readonly { id: DesktopProxySize; label: string }[] = [
+  { id: "full", label: "Full resolution" },
   { id: "half", label: "1/2 resolution" },
   { id: "quarter", label: "1/4 resolution" },
   { id: "720p", label: "720p" },
   { id: "1080p", label: "1080p" },
+  { id: "custom", label: "Custom width" },
 ];
+
+export const CUSTOM_PROXY_WIDTH_MIN = 16;
+export const CUSTOM_PROXY_WIDTH_MAX = 16384;
+
+export const INGEST_CHECKSUMS: readonly { id: IngestChecksumAlgorithm; label: string }[] = [
+  { id: "sha256", label: "SHA-256" },
+  { id: "md5", label: "MD5" },
+  { id: "xxh64", label: "xxHash64" },
+];
+export const isIngestChecksum = (value: unknown): value is IngestChecksumAlgorithm => value === "sha256" || value === "md5" || value === "xxh64";
 
 export const DEFAULT_DESKTOP_PROXY_PROFILE: DesktopProxyProfile = { codec: "h264", size: "half" };
 
-export const isDesktopProxyCodec = (value: unknown): value is DesktopProxyCodec => value === "prores-proxy" || value === "h264" || value === "dnxhr-lb";
+// Plain id lists (no labels), so code that only validates a profile does not carry the UI label tables with it.
+export const isDesktopProxyCodec = (value: unknown): value is DesktopProxyCodec =>
+  value === "prores-proxy" || value === "prores-lt" || value === "prores-422" || value === "h264" || value === "dnxhr-lb" || value === "dnxhr-sq";
 export const isDesktopProxySize = (value: unknown): value is DesktopProxySize =>
-  value === "half" || value === "quarter" || value === "720p" || value === "1080p";
+  value === "full" || value === "half" || value === "quarter" || value === "720p" || value === "1080p" || value === "custom";
 
 export function isDesktopProxyProfile(value: unknown): value is DesktopProxyProfile {
   if (!value || typeof value !== "object") return false;
   const profile = value as Partial<DesktopProxyProfile>;
-  return isDesktopProxyCodec(profile.codec) && isDesktopProxySize(profile.size);
+  if (!isDesktopProxyCodec(profile.codec) || !isDesktopProxySize(profile.size)) return false;
+  if (profile.size === "custom") {
+    const width = profile.customWidth;
+    if (typeof width !== "number" || !Number.isInteger(width) || width < CUSTOM_PROXY_WIDTH_MIN || width > CUSTOM_PROXY_WIDTH_MAX) return false;
+  } else if (profile.customWidth !== undefined) return false;
+  if (profile.audio !== undefined && profile.audio !== "keep" && profile.audio !== "strip") return false;
+  if (profile.burnIn !== undefined) {
+    const burn = profile.burnIn as unknown as Record<string, unknown> | null;
+    if (!burn || typeof burn !== "object") return false;
+    if (burn.clipName !== undefined && typeof burn.clipName !== "boolean") return false;
+    if (burn.timecode !== undefined && typeof burn.timecode !== "boolean") return false;
+  }
+  if (profile.destination !== undefined) {
+    const dest = profile.destination as unknown as Record<string, unknown> | null;
+    if (!dest || typeof dest !== "object") return false;
+    if (dest.mode !== "project" && dest.mode !== "media" && dest.mode !== "custom") return false;
+    if (dest.mode === "custom" && (typeof dest.folder !== "string" || !dest.folder.trim())) return false;
+    if (dest.mode !== "custom" && dest.folder !== undefined) return false;
+  }
+  return true;
 }
+
+/** Burn-in on: a viewing copy with the clip name and / or timecode in the picture. */
+export const profileHasBurnIn = (profile: DesktopProxyProfile): boolean => Boolean(profile.burnIn?.clipName || profile.burnIn?.timecode);
 
 /** Validates the persisted per-project config (every field optional). */
 export function isDesktopIngestConfig(value: unknown): value is DesktopIngestConfig {
@@ -48,6 +88,8 @@ export function isDesktopIngestConfig(value: unknown): value is DesktopIngestCon
   if (config.mediaFolder !== undefined && (typeof config.mediaFolder !== "string" || !config.mediaFolder.trim())) return false;
   if (config.concurrency !== undefined && config.concurrency !== 1 && config.concurrency !== 2) return false;
   if (config.proxiesWithCopy !== undefined && typeof config.proxiesWithCopy !== "boolean") return false;
+  if (config.checksum !== undefined && !isIngestChecksum(config.checksum)) return false;
+  if (config.proxyPresetId !== undefined && (typeof config.proxyPresetId !== "string" || !config.proxyPresetId || config.proxyPresetId.length > 80)) return false;
   return true;
 }
 
@@ -59,17 +101,31 @@ export const resolveDesktopConcurrency = (project: Pick<Project, "mediaLibrary">
 
 export const desktopProxyExtension = (codec: DesktopProxyCodec): "mov" | "mp4" => (codec === "h264" ? "mp4" : "mov");
 
+export const resolveDesktopChecksum = (project: Pick<Project, "mediaLibrary">): IngestChecksumAlgorithm =>
+  project.mediaLibrary.desktopIngest?.checksum ?? "sha256";
+
+function describeSize(profile: DesktopProxyProfile): string {
+  if (profile.size === "custom") return `${profile.customWidth ?? "?"} px wide`;
+  return DESKTOP_PROXY_SIZES.find((entry) => entry.id === profile.size)?.label ?? profile.size;
+}
+
 export function describeDesktopProxyProfile(profile: DesktopProxyProfile): string {
   const codec = DESKTOP_PROXY_CODECS.find((entry) => entry.id === profile.codec)?.label ?? profile.codec;
-  const size = DESKTOP_PROXY_SIZES.find((entry) => entry.id === profile.size)?.label ?? profile.size;
-  return `${codec} · ${size}`;
+  const extras = [profile.audio === "strip" ? "no audio" : "", profileHasBurnIn(profile) ? "burn-in" : ""].filter(Boolean);
+  return [codec, describeSize(profile), ...extras].join(" · ");
 }
 
 const even = (value: number): number => Math.max(2, Math.round(value / 2) * 2);
 
 /** Output frame size of a proxy: even dimensions, aspect preserved, a fixed height never upscales. */
-export function desktopProxyDimensions(srcWidth: number, srcHeight: number, size: DesktopProxySize): { width: number; height: number } {
+export function desktopProxyDimensions(srcWidth: number, srcHeight: number, size: DesktopProxySize, customWidth?: number): { width: number; height: number } {
   if (!(srcWidth > 0) || !(srcHeight > 0)) return { width: 0, height: 0 };
+  if (size === "custom") {
+    // A custom width never upscales; the height follows the aspect ratio.
+    const width = Math.min(srcWidth, customWidth && customWidth > 0 ? customWidth : srcWidth);
+    return { width: even(width), height: even((srcHeight * width) / srcWidth) };
+  }
+  if (size === "full") return { width: even(srcWidth), height: even(srcHeight) };
   if (size === "half") return { width: even(srcWidth / 2), height: even(srcHeight / 2) };
   if (size === "quarter") return { width: even(srcWidth / 4), height: even(srcHeight / 4) };
   const target = size === "720p" ? 720 : 1080;
@@ -91,8 +147,27 @@ function safeStem(name: string): string {
  */
 export function desktopProxyFileName(item: Pick<MediaItem, "id" | "name">, profile: DesktopProxyProfile): string {
   const shortId = item.id.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8) || "x";
-  return `${safeStem(item.name)}-${shortId}_${profile.size}_proxy.${desktopProxyExtension(profile.codec)}`;
+  return `${safeStem(item.name)}-${shortId}_${desktopProxyNameToken(profile)}_proxy.${desktopProxyExtension(profile.codec)}`;
 }
+
+/**
+ * The size part of a proxy file name, plus a short tag for what else makes two proxies of one clip differ
+ * (the ProRes / DNxHR flavour, burn-in, stripped audio) so presets never overwrite each other's files.
+ * ProRes Proxy and H.264 keep the names they always had (an `.mp4` never collides with a `.mov`).
+ */
+export function desktopProxyNameToken(profile: DesktopProxyProfile): string {
+  const size = profile.size === "custom" ? `w${profile.customWidth ?? 0}` : profile.size;
+  const tags = [
+    profile.codec === "prores-lt" ? "lt" : profile.codec === "prores-422" ? "422" : profile.codec === "dnxhr-sq" ? "sq" : profile.codec === "dnxhr-lb" ? "lb" : "",
+    profile.burnIn?.clipName ? "bn" : "",
+    profile.burnIn?.timecode ? "tc" : "",
+    profile.audio === "strip" ? "na" : "",
+  ].filter(Boolean);
+  return [size, ...tags].join("-");
+}
+
+/** Matches the size token of a proxy file name (see desktopProxyNameToken). */
+export const PROXY_NAME_TOKEN = "(?:half|quarter|720p|1080p|full|w\\d+)(?:-(?:lt|422|sq|lb|bn|tc|na))*";
 
 /** Name of the H.264 preview twin that rides along with a ProRes proxy. */
 export function desktopPreviewTwinName(proxyFileName: string): string {
@@ -173,7 +248,7 @@ const stemKey = (fileName: string): string => {
 /** Key two file names are compared by when relinking: lower-case stem (a proxy also drops `_proxy`-style suffixes). */
 export const relinkNameKey = (fileName: string, proxy = false): string =>
   proxy
-    ? proxyMatchKey(fileName.replace(/\.preview(\.[a-z0-9]+)$/i, "$1")).replace(/-[a-z0-9]{1,8}_(half|quarter|720p|1080p)$/, "")
+    ? proxyMatchKey(fileName.replace(/\.preview(\.[a-z0-9]+)$/i, "$1")).replace(new RegExp(`-[a-z0-9]{1,8}_${PROXY_NAME_TOKEN}$`), "")
     : stemKey(fileName);
 
 /** Why a candidate does or does not fit a target; `score` is null when it does not fit. */

@@ -1,3 +1,6 @@
+import { normalizeVrProperties } from "../vr/vr-properties";
+import { clonePlain } from "../editing/clone-plain";
+import { reuseUnchangedTracks } from "./stabilize-tracks";
 import { subclipRange } from "../media/bins";
 import { interpretationSpeed } from "../media/interpretation";
 import type {
@@ -162,6 +165,25 @@ export function snapshotProjectForInverse(project: Project): Project {
   };
 }
 
+/**
+ * Actions whose inverse reads only the affected clip's scalars or one-level copies of its effect /
+ * keyframe (see InverseActionGenerator) before the handler runs, and whose handlers replace rather
+ * than mutate those values. They need no deep copy of the project: a held effect slider or a trim
+ * drag used to structuredClone the whole project (every clip, keyframe and effect) per step.
+ */
+const READ_ONLY_INVERSE_ACTIONS: ReadonlySet<string> = new Set([
+  "clip/trim",
+  "clip/trimToPlayhead",
+  "effect/add",
+  "effect/remove",
+  "effect/update",
+  "effect/toggle",
+  "effect/reorder",
+  "keyframe/add",
+  "keyframe/remove",
+  "keyframe/update",
+]);
+
 export class ActionExecutor {
   private validator: ActionValidator;
   private history: ActionHistory;
@@ -215,19 +237,19 @@ export class ActionExecutor {
       try {
         const plan = prepareClipSplit(project, action.params.clipId as string, action.params.time as number, action.id);
         validateTimelineToolEdits(project, plan.edits);
-        action = { ...action, params: { ...action.params, splitEdits: structuredClone(plan.edits), rightClipId: plan.rightClipId } };
+        action = { ...action, params: { ...action.params, splitEdits: clonePlain(plan.edits), rightClipId: plan.rightClipId } };
       } catch (error) {
         return { success: false, error: { code: "INVALID_PARAMS", message: error instanceof Error ? error.message : "The clip could not be split." } };
       }
     }
-    if (action.type === "timeline/toolEdit") action = { ...action, params: { ...action.params, edits: structuredClone(action.params.edits) } };
+    if (action.type === "timeline/toolEdit") action = { ...action, params: { ...action.params, edits: clonePlain(action.params.edits) } };
     // Own the forward particle configuration as well as its inverse.
     if (action.type === "particle/setAll") action = { ...action, params: { ...action.params, effects: structuredClone(action.params.effects) } };
     // Add inverses capture only the new entity ID, resolved before history push.
     // Transform inverses capture only the affected transform synchronously.
     // A held slider must not serialize every clip, waveform or media item.
     // clip/move (one per frame during a drag) reads only the clip's old start/track: no project copy.
-    const projectSnapshot = action.type === "clip/move" ? project : action.type === "project/updateSettings" ? {
+    const projectSnapshot = action.type === "clip/move" || action.type === "clip/moveBatch" || action.type === "clip/removeBatch" || action.type === "clip/addBatch" || READ_ONLY_INVERSE_ACTIONS.has(action.type) ? project : action.type === "project/updateSettings" ? {
       ...project,
       // Settings history owns only the five scalar settings. Large waveforms,
       // media handles and unrelated editing data never need JSON traversal.
@@ -451,8 +473,14 @@ export class ActionExecutor {
     const previousCounter = this.idCounter;
     this.idScope = (action as Action).id ?? null;
     this.idCounter = 0;
+    const timelineBefore = project.timeline;
+    const tracksBefore = timelineBefore.tracks;
     try {
       await this.applyActionScoped(action, project);
+      // Hand back the previous object for every track / clip the handler rebuilt unchanged.
+      if (project.timeline === timelineBefore) {
+        (project.timeline as MutableTimeline).tracks = reuseUnchangedTracks(tracksBefore, project.timeline.tracks) as MutableTimeline["tracks"];
+      }
     } finally {
       this.idScope = previousScope;
       this.idCounter = previousCounter;
@@ -558,6 +586,12 @@ export class ActionExecutor {
           ...project.settings,
           ...action.params,
         };
+        if ("vr" in action.params) {
+          // Sequence VR properties are stored normalised; "none" (or absent) is a flat sequence with no key at all.
+          const vr = action.params.vr ? normalizeVrProperties(action.params.vr) : undefined;
+          if (vr && vr.projection !== "none") (project as any).settings.vr = vr;
+          else delete (project as any).settings.vr;
+        }
         (project as any).modifiedAt = Date.now();
         break;
 
@@ -1104,12 +1138,59 @@ export class ActionExecutor {
         break;
       }
 
+      case "clip/addBatch": {
+        const { clips } = action.params as { clips: ReadonlyArray<{ clipId: string; trackId: string; startTime: number; sourceClip: Clip }> };
+        const incoming = new Map<string, MutableClip[]>();
+        for (const entry of clips) {
+          const added = { ...clonePlain(entry.sourceClip), id: entry.clipId, trackId: entry.trackId, startTime: entry.startTime } as MutableClip;
+          const list = incoming.get(entry.trackId);
+          if (list) list.push(added);
+          else incoming.set(entry.trackId, [added]);
+        }
+        // Only the rows that receive a clip are rebuilt, so every other row keeps its identity.
+        timeline.tracks = timeline.tracks.map((track: MutableTrack) => {
+          const added = incoming.get(track.id);
+          return added ? { ...track, clips: [...track.clips, ...added] } : track;
+        });
+        if (clips.length > 0) this.lastAddedIds.set("clip", clips[clips.length - 1].clipId);
+        break;
+      }
+
       case "clip/remove": {
         const params = action.params as { clipId: string };
         timeline.tracks = timeline.tracks.map((track: MutableTrack) => ({
           ...track,
           clips: track.clips.filter((c: MutableClip) => c.id !== params.clipId),
         }));
+        break;
+      }
+
+      case "clip/removeBatch": {
+        const doomed = new Set((action.params as { clipIds: readonly string[] }).clipIds);
+        timeline.tracks = timeline.tracks.map((track: MutableTrack) =>
+          track.clips.some((c: MutableClip) => doomed.has(c.id))
+            ? { ...track, clips: track.clips.filter((c: MutableClip) => !doomed.has(c.id)) }
+            : track,
+        );
+        break;
+      }
+
+      case "clip/restoreBatch": {
+        const entries = (action.params as { entries: ReadonlyArray<{ clip: Clip; index: number }> }).entries;
+        const byTrack = new Map<string, Array<{ clip: Clip; index: number }>>();
+        for (const entry of entries) {
+          const list = byTrack.get(entry.clip.trackId);
+          if (list) list.push(entry);
+          else byTrack.set(entry.clip.trackId, [entry]);
+        }
+        timeline.tracks = timeline.tracks.map((track: MutableTrack) => {
+          const restored = byTrack.get(track.id);
+          if (!restored) return track;
+          // Ascending original indices: each insert lands where the clip was before the batch removed it.
+          const clips = [...track.clips];
+          for (const { clip, index } of [...restored].sort((a, b) => a.index - b.index)) clips.splice(Math.min(index, clips.length), 0, clip as MutableClip);
+          return { ...track, clips };
+        });
         break;
       }
 
@@ -1156,6 +1237,42 @@ export class ActionExecutor {
             };
           });
         }
+        break;
+      }
+
+      case "clip/moveBatch": {
+        const params = action.params as {
+          moves: ReadonlyArray<{ clipId: string; startTime: number; trackId?: string }>;
+        };
+        const byId = new Map(params.moves.map((move) => [move.clipId, move] as const));
+        const incoming = new Map<string, MutableClip[]>();
+        const rebuilt = timeline.tracks.map((track: MutableTrack) => {
+          let touched = false;
+          const clips: MutableClip[] = [];
+          for (const clip of track.clips) {
+            const move = byId.get(clip.id);
+            if (!move) {
+              clips.push(clip);
+              continue;
+            }
+            touched = true;
+            const targetTrackId = move.trackId || clip.trackId;
+            const moved = { ...clip, startTime: move.startTime, trackId: targetTrackId };
+            if (targetTrackId === track.id) clips.push(moved);
+            else {
+              const list = incoming.get(targetTrackId);
+              if (list) list.push(moved);
+              else incoming.set(targetTrackId, [moved]);
+            }
+          }
+          return { track, clips, touched };
+        });
+        // Tracks that lose or receive no clip keep their identity so memoised lanes do not re-render.
+        timeline.tracks = rebuilt.map(({ track, clips, touched }) => {
+          const added = incoming.get(track.id);
+          if (!touched && !added) return track;
+          return { ...track, clips: added ? [...clips, ...added] : clips };
+        });
         break;
       }
 
@@ -1543,6 +1660,20 @@ export class ActionExecutor {
     // A compound instance has a normal timeline clip as its editable shell.
     // Keep the persisted instance timing in lockstep so inspector state,
     // autosave and export never observe stale coordinates after an edit/undo.
+    if (action.type === "clip/moveBatch" && project.nestedInstances?.length) {
+      const moved = new Map<string, MutableClip>();
+      for (const track of timeline.tracks) for (const clip of track.clips) moved.set(clip.id, clip);
+      const moves = (action.params as { moves: ReadonlyArray<{ clipId: string }> }).moves;
+      const touched = new Set(moves.map((move) => move.clipId));
+      (project as Project & { nestedInstances: typeof project.nestedInstances }).nestedInstances = project.nestedInstances.map(
+        (item) => {
+          const updatedClip = touched.has(item.id) ? moved.get(item.id) : undefined;
+          return updatedClip
+            ? { ...item, trackId: updatedClip.trackId, startTime: updatedClip.startTime, duration: updatedClip.duration, inPoint: updatedClip.inPoint, outPoint: updatedClip.outPoint, transform: updatedClip.transform, volume: updatedClip.volume }
+            : item;
+        },
+      );
+    }
     if (
       action.type === "clip/move" ||
       action.type === "clip/trim" ||
@@ -1874,6 +2005,7 @@ export class ActionExecutor {
           clipBId: string;
           transitionType: TransitionType;
           duration: number;
+          params?: Record<string, unknown>;
         };
         const clipA = this.findClip(timeline, params.clipAId);
         if (clipA) {
@@ -1887,7 +2019,7 @@ export class ActionExecutor {
               clipBId: params.clipBId,
               type: params.transitionType,
               duration: params.duration,
-              params: {},
+              params: params.params ? structuredClone(params.params) : {},
             };
             track.transitions = [...(track.transitions || []), newTransition];
             this.lastAddedIds.set("transition", newTransition.id);

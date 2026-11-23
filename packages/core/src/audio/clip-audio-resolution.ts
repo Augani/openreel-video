@@ -2,7 +2,6 @@ import { resolveClipChannelMap, type ChannelPreset, type ClipChannelMap } from "
 import type {
   AutomationPoint,
   Clip,
-  Effect,
   Timeline,
   Track,
 } from "../types/timeline";
@@ -53,22 +52,6 @@ export const getLinkedAudioClips = (
   }
 
   return linkedClips;
-};
-
-export const resolveClipAudioEffects = (
-  clip: Clip,
-  timeline: TimelineWithTracks,
-): Effect[] => {
-  const directEffects = clip.audioEffects ?? [];
-  if (directEffects.length > 0) {
-    return directEffects;
-  }
-
-  const linkedClip = getLinkedAudioClips(clip, timeline).find(
-    (entry) => (entry.clip.audioEffects ?? []).length > 0,
-  );
-
-  return linkedClip?.clip.audioEffects ?? [];
 };
 
 /** The clip's stored volume lane (or its linked clip's), without live ducking. */

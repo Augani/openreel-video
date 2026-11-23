@@ -32,6 +32,54 @@ Profiling switches (all print to stderr / the JSON): `OPENREEL_PERF_PROFILE_SELE
 `--root <checkout>` benchmarks another already-built checkout with this checkout's harness, which
 is how a before/after comparison is run (interleave A and B runs: the machine is rarely idle).
 
+## Heavy-project playback benchmark (`perf:playback`, opt-in)
+
+`perf-harness.mjs` measures one clip at a time; `perf:playback` measures the editing situation that hurts: a **heavy
+project** driven through the BUILT app. It is opt-in, never part of `perf:budget`, has no gates and changes no budget.
+
+```bash
+VITE_OPENREEL_E2E=1 pnpm --filter @openreel/desktop build      # the e2e hooks build the project through the store
+pnpm --filter @openreel/desktop perf:playback                  # table on stdout, --out file.json for the numbers
+pnpm --filter @openreel/desktop perf:playback -- --play-seconds 30 --scrubs 20 --runs 3 --out run.json
+pnpm --filter @openreel/desktop perf:playback -- --only playback --profile   # + renderer CPU profile (top self functions)
+pnpm --filter @openreel/desktop perf:playback -- --root <other checkout>      # A/B against another built checkout
+```
+
+| Part | What it is |
+|---|---|
+| media (ffmpeg, generated once into `--media-dir`, default `$TMPDIR/orperf-playback-media`, deleted afterwards unless `--keep-media`) | 4K H.264 30 and 60 fps, 4K HEVC 30 and 60 fps (VideoToolbox when present), 1080p ProRes 422 (`prores_ks`, skipped when the encoder is missing), a stereo bed; noisy test pattern so decoders do real work |
+| timeline | V1 three 12 s cuts (H.264 30, HEVC 30, H.264 60) with crossfade + wipe transitions, blur / glow / grade / 17^3 LUT; V2 4K HEVC 60 PiP; V3 4K H.264 60 PiP with LUT; V4 ProRes PiP; 3 titles; **10 audio tracks** |
+| `playback` | 30 s (`--play-seconds`) at `Full` and `1/2` playback resolution. Dropped frames come from the editor's own paint log (no canvas read-back), plus frame-gap p50/p95/max, rAF stalls, watchdog stalls, **CPU time per process type** (Browser = main, Tab = renderer, GPU, Utility) and the ffmpeg sidecar (`ps`), JS heap and RSS |
+| `scrub` | click-seek latency p50/p95 (pointerdown to the exact frame visible) and first pixel change, CPU per seek |
+| `interact` | ctrl+wheel zoom, scroll and a 120 px clip drag on the 20-track timeline: rAF p95/max, frames over 50 ms, CPU |
+| `open` | the saved `.oreel` opened through the real Open flow into a fresh app: time to all clips and to the first lit frame |
+| `memory` | idle RSS and JS heap after the passes |
+
+The script waits for preview-proxy / ingest ffmpeg work to go quiet before measuring (`settleMs`, `settleSidecarCpuMs`:
+that is the import-time price of the project). Every run records the 1-minute load average; **wall-clock rows are only
+judged when the load is below 4** (`wallClockJudged` in the JSON). Above that the table still prints them but flags them
+and the CPU-time rows are the numbers to compare (CPU time moves far less with machine load than input-to-paint timings).
+
+### Round 24 results (heavy project, 30 s playback, machine load 9-14: CPU rows are the comparable ones)
+
+Same generated project, same machine, base = `5e165883f` build vs this branch. Wall-clock rows were NOT judged (load >= 4):
+dropped frames and latencies are informational, but they moved in the same direction as the CPU rows.
+
+| Metric | base full | after full | base 1/2 | after 1/2 |
+|---|---|---|---|---|
+| dropped frames % | 78.5 | 62.2 | 72.7 | 41.2 |
+| frame gap p95 ms | 427 | 135 | 251 | 71 |
+| rAF frames > 50 ms | 113 | 4 | 180 | 0 |
+| CPU ms per presented frame (all processes) | 497 | 319 | 287 | 162 |
+| scrub p50 / p95 ms (click to exact frame) | 612 / 681 | 305 / 349 | | |
+
+Where it went (renderer main thread, 15 s of playback, `--profile`): the CPU 17^3 LUT (`applyLutToData`, closures per
+pixel) was 7.4 s, white balance 0.5 s, `createImageBitmap` of the effects canvas 2.5 s, GC 1.5 s, `texImage2D` 0.9 s.
+Fixed so far: the LUT and white-balance kernels (bit-identical output, unit-tested against the previous code), layers
+shown small decode small, decoders open in parallel and ahead of a cut. Open: the 1.1-1.5 s frame gap at the first
+transition frame (timeline 11.5 s, the first transition render), the per-layer bitmap round trips
+(`createImageBitmap` / GC) and the CPU grading itself (a GPU LUT path would remove the rest of `applyLutToData`).
+
 ## Budget check
 
 `scripts/perf-budget.mjs` runs the harness `--runs` times (default 3), takes the **median across
@@ -560,3 +608,266 @@ sources, 4K H.264/HEVC plus 1080p, one of them layered over another) and macOS `
 RSS caveat: on macOS most of a renderer's RSS during playback is "reclaimable" pages (freed decoded frames the kernel
 has not taken back yet). `footprint` reports them separately and the soak spec records both, `peakTotal` (RSS, what
 the budget row uses) and `peakInUse` (dirty minus reclaimable).
+
+## Cold start round 3 (perf/cold-start-r3)
+
+Starting point: base `190d0da0a` (1.0 release content, r1 and r2 included), `cold.median.editorInteractiveFromSpawnMs`
+about 1,090 ms at load 4-8.
+
+### Where the time goes now
+
+`cold` clicks the instant the welcome screen shows, but Playwright's click only lands once the renderer main thread
+has finished the warm-up, so spawn -> editor interactive is about **warm-up done + 160-200 ms** (`openreel:warm-done`,
+new mark; `warmDoneMs` in the harness output). Renderer marks, ms after navigation start, median of 7 launches:
+
+| mark | ms |
+|---|---|
+| `welcome-visible` | 180 |
+| `warm-start` (idle callback) | 209 |
+| `warm-editor` / `engine:modules` (editor chunk graph, 55 requests, loaded) | 394 |
+| `engine:start` (after `getPlaybackController()`) | 461 |
+| `warm-done` (video init, effects bridge) | 520 |
+
+`engine:start - engine:modules` is the playback controller's `new AudioContext()`. The V8 CPU profile (`OPENREEL_PERF_TRACE_EXTRA`)
+puts a 52-89 ms **blocked** (13-20 ms CPU) main-thread task there on every cold run, the largest single block left on the
+path. The editor-enter task (click -> canvas + ruler) is one 115-125 ms task: about 60 ms React render (64 commits, the
+Preview component renders 24 times), 42 ms layout (the first layout is forced inside the timeline's
+`useLayoutEffect` that sets `scrollLeft`) and a major GC.
+
+### What r2 left on the table
+
+r2 warmed the audio stack with `navigator.mediaDevices.enumerateDevices()` (async, ctor 150 -> 46-70 ms). Findings this round:
+
+- `enumerateDevices()` also starts the **video capture service** (a 150-200 ms `device_monitor_mac` task in its own
+  process) and costs the editor chunk graph about 25 ms (`modules` 369 ms without it, 391 ms with it).
+- What makes the first `new AudioContext()` fast is *another* AudioContext having been built by some other renderer
+  first (output stream parameters of the default device are then cached browser-side), not a device-list walk. Bare
+  Electron, main renderer's first AudioContext, ms:
+
+| setup | first `new AudioContext()` |
+|---|---|
+| nothing | 165-220 |
+| `new AudioContext({sinkId: {type: "none"}})` | 163-175 (no gain; `setSinkId("")` afterwards works) |
+| `enumerateDevices()` in a helper window | 155-170 |
+| another window's AudioContext, 800 ms earlier | **3.8-7** |
+| a cross-scheme hidden iframe's AudioContext (own renderer process), 900 ms earlier | **3.7-4.4** |
+| a `WebContentsView` that is never attached to a window, 800 ms earlier | **6-6.5** (main-process cost of creating it: 1 ms; a hidden `BrowserWindow` costs about 60 ms) |
+
+In the real app the helper has far less lead time (its process boots while the main renderer boots), so a warm-up frame
+alone still left the editor's constructor at 60-66 ms: the audio **service** process was only started at about 307 ms.
+
+### What shipped
+
+1. **A throw-away frame process pays the first-use cost.** The preload inserts a hidden, sandboxed `<iframe>` of the
+   new `openreel-warm://` scheme at `DOMContentLoaded` (about 90 ms in); the main process serves one tiny page that
+   only runs `new AudioContext()`. A different scheme is a different site, so Chromium gives it its own renderer
+   process (the harness does not see it as a window: it is a frame, not a page, which a hidden `WebContentsView`
+   would be: Playwright's `firstWindow()` returned it and broke every e2e). Only windows created by `createWindow`
+   pass `--openreel-audio-warm` (`additionalArguments`), so linked-composition windows do not pay for it. The frame
+   is removed 1.5 s after it loaded.
+2. **`--enable-features=AudioServiceLaunchOnStartup`** (`gpu/switches.ts`, merged into the single `enable-features`
+   list) starts the audio service with the app, so the frame's constructor is not waiting for the service to boot.
+   Neither half works alone (A/B below).
+3. `warmAudioDevices` / `enumerateDevices()` (r2) is removed.
+4. New marks `openreel:engine:modules`, `warm-start`, `warm-editor`, `warm-done`; `warmDoneMs` in the harness `cold` rows.
+
+First-AudioContext block (ctor = `engine:start - engine:modules`) and warm-up end, medians of 10 interleaved launches
+(load 5-6), ms after navigation start:
+
+| variant | ctor | `modules` | `warm-done` |
+|---|---|---|---|
+| r2 (enumerate) | 65-72 | 390 | 511-516 |
+| nothing | 158 | 368 | 580 |
+| audio service on startup only | 120 | 369 | 543 |
+| warm frame only (inserted at DOMContentLoaded) | 65 | 374-376 | 492-496 |
+| warm frame + enumerate | 63 | 403 | 522 |
+| **warm frame + service on startup (shipped)** | **25-27** | 368-373 | **454-460** |
+
+### Interleaved A/B on the real `cold` scenario (A = `190d0da0a`, B = this branch)
+
+8 alternating pairs x 2 launches per harness invocation, so 16 runs per side; load average per pair
+5.6 4.9 4.1 7.0 7.5 8.3 6.8 6.0 (the machine runs other agents' work; nothing here is an idle-machine number).
+
+| metric (median, ms) | A | B | B - A |
+|---|---|---|---|
+| `editorInteractiveFromSpawnMs` | 1088 | 994 | **-94** |
+| `editorInteractiveFromSpawnMs` p25 / p75 / max | 1072 / 1112 / 1334 | 982 / 1007 / 1071 | |
+| `clickToEditorInteractiveMs` | 346 | 295 | -51 (bimodal, not reproduced: see below) |
+| `editorMountedMs` | 897 | 827 | -70 |
+| `welcomeVisibleMs`, `windowShownMs` | 540, 534 | 536, 531 | -4, -3 (no first-paint cost) |
+| `clickToEditorInPageMs` | 146 | 141 | -5 |
+| `coldAfter3sDwell.editorInteractiveFromSpawnMs` | 3910 | 3898 | -12 (a user who waits has the editor warm either way) |
+
+Independent re-run (verify-launch3, 8 interleaved pairs x 2 launches, load 4.5-10): `editorInteractiveFromSpawnMs` median 1080 -> 1004
+(-76; p25/p75 1060/1091 -> 992/1012; 7 of 8 pair medians negative, the positive pair is a single 1318 ms B outlier). `clickToEditorInteractiveMs`
+is bimodal (about 230 when the click lands after the warm-up, 360-420 when it lands during it) and its median is decided by the mix: it
+read 248 -> 301 there (mean 305 -> 307), so the -51 above is not a reliable effect; the spawn-to-interactive number is the one to trust.
+
+The gain is for a click that lands while the warm-up is still running (the budgeted `cold` case); a human-speed click
+sees the same editor. `perf-budgets.json`: `cold.median.editorInteractiveFromSpawnMs` 1200 -> 1100.
+Chromium-trace A/B (`perf-ab.mjs`, 8 pairs, load 4.8-8.4), medians: `traceCold.editorInteractiveFromSpawnMs` 1120 -> 1028
+(pairDiff -70), `clickToEditorInteractiveMs` 364 -> 308 (-47); renderer main-thread CPU does not move (`totalCpuMs` 423.7 ->
+427.5, `startupCpuMs` 91.7 -> 93.1, `totalCompileCpuMs` 97.4 -> 96.6): the constructor's wait was blocked time, not CPU. All
+Electron processes together burn about 100 ms more CPU in `traceCold` (`procCpuTotalMs` 2433 -> 2518, pairDiff +103): the audio
+service starts at launch and the frame process runs its page. `traceDwell` rows are unchanged (enter -2.8 ms CPU).
+
+`pnpm perf:budget -- --runs 3` on the final tree (load 5.0): all 17 CPU/memory budgets met; the wall budgets were not
+judged (load > 2.5) but `cold.median.editorInteractiveFromSpawnMs` read 1027 / 1010 / 1032 against the new 1100.
+
+### Limits
+
+- macOS only was measured. On Windows the audio service is already out of process but its start and device
+  discovery cost was not measured; on Linux (PulseAudio/PipeWire) nothing was measured. The frame and the feature
+  are harmless where they do not help.
+- One more renderer process lives for about 1.5-3 s at start-up, and the audio service process now exists from
+  launch even when the editor is never opened.
+- The frame's response carries `COEP`/`CORP` headers because the app page is cross-origin isolated (a cross-origin
+  frame under `require-corp` has to opt in). Not tested without them; a failure only loses the warm-up, the editor
+  builds its own AudioContext as before.
+
+### Tried and rejected this round (all measured)
+
+- **Pre-building the master clock's AudioContext when the warm-up starts** (in the idle callback, right after the editor
+  chunk fetch is issued): the constructor blocked 252 ms at that point (the audio service was not up yet) and delayed the
+  chunk graph; `editorInteractiveFromSpawnMs` +81 (pairDiff, load 18-25, noisy but the block is in the trace).
+- **Mounting the media library, inspector and action rail after the first paint** (`useAfterFirstPaint`, desktop only):
+  `enterCpuMs` -0.7 / +5 (traceCold / traceDwell). The React profile explains it: those panels are about 10 ms of 125;
+  the editor DOM is only about 700 nodes, the cost is cold-JS execution, the forced first layout and 64 commits.
+- **`v8CacheOptions: "bypassHeatCheckAndEagerCompile"`**: repeat-launch `enterCpuMs` 133 -> 128, 128 -> 129. Lazy function
+  compilation is not what the enter task spends.
+- **Deferring `warmEncoderProbe` (4 s) and the renderer's WebCodecs hardware probe (2.5 s)**: totalCpuMs -3.7, no wall
+  change (6 pairs).
+- **`fs.readFile` + `new Response(buffer)` for built assets in the `app://` handler**: warm-done 525 -> 516 (10 launches,
+  within noise). A bare Electron micro-benchmark of the handler (56 chunk-sized fetches) completes in 35 ms with the
+  current `net.fetch` re-wrap, 17-21 ms from memory; the 55-request burst takes 130-190 ms in the real app because the
+  browser UI thread and the GPU process are busy with the first frame, not because of the handler.
+- **Starting `loadEditorModule()` from `main.tsx` instead of the idle callback**: the chunk graph then finished at the
+  same absolute time (about 400 ms) with a later welcome mark (+20); it is contention, not request latency.
+- **Prefetching the effects-bridge chunk next to the editor chunk**: warm-done 519 -> 517.
+- **`sinkId: {type: "none"}` for the first context**: constructor unchanged (163-175 ms).
+- **Hidden helper `BrowserWindow` / `WebContentsView` created by the main process**: the best bare-Electron numbers
+  (constructor 4-6 ms) but Playwright lists every WebContents as a window, so `app.firstWindow()` (about 17 test files and
+  the harness) returned the helper. A same-process frame of another scheme gives the same warm-up without a window.
+
+## Render cache: heavy stack, live vs rendered
+
+`--only renderCache` (needs a `VITE_OPENREEL_E2E=1` build for the effect and cache hooks): a 1080p30 clip with two
+glows, a Gaussian blur, a 17^3 LUT and a grade. It plays 10 s live, runs Render In to Out over the first 12 s (frames go to
+the scratch-disk folder under the throw-away profile), then plays the same 10 s again. Two measures per pass:
+
+* `paintLog`: the editor's own log of frames painted to the Program canvas (`renderCache.getTelemetry()`), each tagged
+  `cache` or `live`; dropped = 30 fps ideal minus distinct frames painted. This adds no per-frame cost and is the result.
+* `canvasHashing`: the older pass that reads the Program canvas back every rAF. On a 1080p canvas the read-back costs more
+  than cached playback itself (rAF gaps of hundreds of ms), so it under-reports the cached path badly; it is kept for
+  comparison only (`canvasHashingNote` in the JSON).
+
+Measured on an Apple Silicon Mac (12 cores) with a load average of 14 to 17 from other jobs (so absolute numbers are
+pessimistic; the harness records `load`):
+
+| pass | frames painted / expected | dropped | source of frames | CPU % of a core |
+|---|---|---|---|---|
+| live compositing | 17 / 311 | 294 (94.5 %), 1.6 fps | 17 live | 119 |
+| after Render In to Out | 301 / 301 | 0 (0 %), 30 fps | 301 cache, 0 live | 91 |
+
+Rendering 360 frames took 211 s (0.59 s per frame, the same cost as the live path), 11.5 MB on disk (about 32 KB per
+frame). The Electron e2e (`pnpm --filter @openreel/desktop test:render-cache-e2e`, 2 clips of a 720p ProRes source at a
+1080p sequence, load 10 to 12) measured: live 80 of 92 dropped, from cache in the same session 0 of 90, and from cache
+after quitting and relaunching the app, reopening the project 0 of 90, with 0 live frames. Render of 120 frames: 29 s.
+
+
+## Clip drag frames (w22)
+
+`dragClip120px` used to report two frames of 50 to 58 ms. A trace (`OPENREEL_PERF_TRACE_DRAG=1`, raw events with
+`OPENREEL_PERF_TRACE_DRAG_RAW=<file>`; CPU profile with `OPENREEL_PERF_PROFILE_DRAG=1` and `OPENREEL_PERF_PROFILE_DRAG_RAW=<file>`,
+resolve names with a `vite build --sourcemap`) showed store commits and an inspector mount stacked into single frames:
+
+* **Drop.** The queued live move and the drop's own move to the same time were two store commits, each re-rendering the timeline
+  (about 25 ms at 400 clips), in one mouseup task. A lone clip now skips the queued move, and skips the drop's move when the store
+  already has the clip there. Companions and batches keep the queued move.
+* **Activation.** The activating mousemove rendered the drag state and the first live move committed in the same frame's rAF; the
+  first move now lands a frame later. Selecting the dragged clip also mounted the whole inspector (every tab panel) in a task right
+  after; the inspector holds its selection while a clip drag is active (`timeline/clip-drag-activity.ts`, catches up 160 ms after the
+  drop) and tab panels mount on first visit.
+
+Measured at load 4 to 13 (3 runs each): before 2/58.3, 1/58.7, 0/50 (`framesOver50ms` / `rafMaxMs`); after 0/42.6, 0/33.3, 0/33.3.
+
+## Everyday-editing snappiness (perf/snappy-r20)
+
+Wall-clock timings have never been judged (machine load 5-26), so this round measures what does
+not move with load: **React component renders** (counted from fibers via a DevTools-hook shim,
+`apps/web/src/test/render-hook.ts`) and **process CPU ms** (`process.cpuUsage`), on the real
+`<Timeline/>` + `<InspectorPanel/>` in jsdom with a 320-clip, 8-track, 4K-media project that has
+effects and keyframes (`apps/web/src/perf/timeline-fixture.ts`).
+
+```bash
+cd apps/web
+PERF_PROFILE=1 PERF_RUNS=7 PERF_PROFILE_OUT=run.json npx vitest run src/perf/interactions.test.tsx   # table of medians
+PERF_TOP=40 ...   # list the top re-rendering components per interaction
+npx vitest run src/perf                                                         # regression pins (also part of `pnpm test:run`)
+```
+
+jsdom CPU is a proxy (dev React, jsdom DOM), the render counts are exact. Median of 7 runs, load average
+about 6-7 (1 min) during both sides; `base` = integration/1.1 7db61eb27, `cur` = this branch.
+
+| interaction | CPU ms base | CPU ms cur | CPU | commits base/cur | renders base | renders cur | renders |
+|---|---|---|---|---|---|---|---|
+| clipSelect | 63.7 | 63.7 | +0% | 7/7 | 1166 | 1166 | +0% |
+| clipSelectBurst | 447.1 | 428.1 | -4% | 71/71 | 12057 | 12057 | +0% |
+| dragClip | 423.1 | 263.2 | -38% | 30/30 | 19786 | 11026 | -44% |
+| trim | 554.8 | 132 | -76% | 20/20 | 31666 | 3116 | -90% |
+| rippleDelete | 36.1 | 24.2 | -33% | 2/2 | 1203 | 613 | -49% |
+| scrub | 6 | 5 | -17% | 59/59 | 59 | 59 | +0% |
+| play10s | 35.8 | 19.3 | -46% | 300/300 | 300 | 300 | +0% |
+| zoom | 866.5 | 682.7 | -21% | 13/13 | 28737 | 16311 | -43% |
+| inspectorTabs | 131.1 | 121.8 | -7% | 11/11 | 3065 | 3065 | +0% |
+| effectSlider | 1115.8 | 431 | -61% | 42/42 | 75978 | 15582 | -79% |
+| undoRedoBurst | 594.5 | 127.6 | -79% | 24/24 | 38280 | 3468 | -91% |
+| import20 | 35.9 | 10.4 | -71% | 2/2 | 3175 | 265 | -92% |
+
+Interactions of the brief not in the table: *panel switch* (Radix tab remount, no change here) and a real
+*import of 20 files* (decode work, not React; `import20` only measures the library update reaching the timeline).
+Seven interactions improve by >= 30% in render count (drag, trim, ripple delete, zoom, effect slider, undo/redo,
+import), six by >= 30% CPU in jsdom (drag, trim, ripple, slider, undo/redo, import). Selecting a clip and the inspector
+tabs are unchanged (their cost is the inspector mounting).
+
+### What was fixed
+
+- **`TransitionHandle`**: `TrackLane` re-resolves its handles on every project change, so the
+  `React.memo` never hit and every visible cut rebuilt a Radix dropdown (about 15 components each, 50+ cuts per
+  commit). It now compares by field, and the dropdown only mounts once the pointer/focus reaches the badge
+  (or a right click / Shift+F10 / press with no hover). This is most of the render count of the editing rows above.
+- **`TrackHeader`** subscribed to the whole `project`, so all headers re-rendered on every edit. The cross-track data
+  it needs (badge, bus, solo state, gaps, group candidates) is now a `useShallow` selector of primitives.
+  `Timeline.handleTrackDrop` reads tracks from a ref so its identity is stable.
+- **Action executor** (`packages/core/src/actions/stabilize-tracks.ts`): handlers rebuild every track with
+  `{...track, clips: track.clips.map(...)}`, so every track got a new identity per edit and no memo downstream could
+  hold. After each applied action (also undo/redo) unchanged tracks/clips are handed back as their previous objects.
+- **`snapshotProjectForInverse`** (a `structuredClone` of the project) is skipped for `effect/*`, `keyframe/*`,
+  `clip/trim` and `clip/trimToPlayhead`, whose inverses only read the affected clip's scalars (a held effect slider or
+  trim drag copied the whole project per step).
+- **`buildLinkIndex`** was rebuilt for every visible clip on every commit (`findLinkedPartners(clip, tracks)` without an
+  index, from `computeLaneInfos`); a lane's index is now cached per `track.clips` array and validated element by element.
+
+### Regression pins
+
+`apps/web/src/perf/timeline-render-counts.test.tsx` fails on the old code and passes now: selecting a clip renders
+<= 2 clips and no transition handles; a playhead move renders only `Playhead`; an effect slider step / trim step renders
+<= 2 clips and <= 1 header; undo/redo, and a 20-item import, render 0-4 clips and no headers/handles; untouched tracks
+and clips keep their identity. `packages/core/src/actions/stabilize-tracks.test.ts` covers the identity reuse.
+
+### Real app (Electron) counters
+
+`perf-harness.mjs` now records, next to the existing timings, CDP `Performance.getMetrics` deltas (informational, not budgeted):
+`bench.selectClipCpu` (per click) and `bench.dragClip120px.cpu`: `mainThreadTaskMs`, `scriptMs`, `layoutMs`,
+`styleRecalcMs`, `layoutCount`, `styleRecalcCount`, `nodesAdded`, `jsHeapDeltaKB`. Interleaved base/cur, 5 runs each,
+`--only bench` on the 400-clip project (no inspector open), median:
+
+| metric | base | cur |
+|---|---|---|
+| drag 120 px, main-thread task ms | 790 | 668 (-15%) |
+| drag 120 px, script ms | 369 | 274 (-26%) |
+| drag 120 px, layouts / style recalcs | 14 / 223 | 14 / 217 |
+| select clip, task ms per click | 99.7 | 102 (unchanged) |
+
+Wall-clock budgets were not judged (load 6-12 > 2.5); the CPU/memory budgets of `perf:budget` all passed
+(`totalChunksCompiled` 54 / 58, `totalCompileCpuMs` 100.1 / 110, `startupCpuMs` 102.6 / 200, `totalCpuMs` 436.9 / 540).

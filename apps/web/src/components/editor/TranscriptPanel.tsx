@@ -47,6 +47,7 @@ import {
   updateSpeakerProfile,
 } from "../../services/transcript-commands";
 import { diarizeCaptions } from "../../services/diarization";
+import { captionMetadataNotes } from "../../services/export-metadata";
 import { CaptionTranslateSection } from "./CaptionTranslateSection";
 import { formatFrameTimecode } from "../../utils/frame-timecode";
 
@@ -193,9 +194,12 @@ const POSITION_AUTO = "auto";
 
 function SpeakerRow({
   profile,
+  others,
   onRename,
 }: {
   profile: SpeakerProfile;
+  /** Names of the other speakers this one can be merged into. */
+  others: readonly string[];
   onRename: (from: string, to: string) => void;
 }) {
   const report = (outcome: { success: boolean; message?: string }) => {
@@ -231,6 +235,25 @@ function SpeakerRow({
         <option value="center">Centre</option>
         <option value="bottom">Bottom</option>
       </select>
+      {others.length > 0 && (
+        <select
+          aria-label={`Merge ${profile.name} into another speaker`}
+          title="Merge this speaker into another (one undo step)"
+          value=""
+          onChange={(e) => {
+            const into = e.currentTarget.value;
+            if (into) onRename(profile.name, into);
+          }}
+          className="h-6 rounded border border-border bg-bg-2 px-1 text-[10px] text-fg-2"
+        >
+          <option value="">Merge into...</option>
+          {others.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+      )}
     </li>
   );
 }
@@ -312,8 +335,10 @@ export function TranscriptPanel() {
   const [pauseMin, setPauseMin] = useState("0.8");
   const [exportFormat, setExportFormat] = useState<CaptionExportFormat>("vtt");
   const [programmeStart, setProgrammeStart] = useState<string>("0");
+  const [exportSpeakers, setExportSpeakers] = useState(true);
   const [exportNotes, setExportNotes] = useState<CaptionFormatIssue[]>([]);
   const [language, setLanguage] = useState("");
+  const [ccChannel, setCcChannel] = useState<"1" | "2" | "3" | "4">("1");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const fillers = useMemo(
@@ -474,6 +499,8 @@ export function TranscriptPanel() {
       ...(lang ? { language: lang, captionTrackId: lang } : {}),
       ...(rate ? { frameRate: rate } : {}),
       offsetSeconds: Number(programmeStart),
+      ccChannel: Number(ccChannel) as 1 | 2 | 3 | 4,
+      fileName: file.name,
     });
     if (outcome.success) {
       if (lang) setTrackId(lang);
@@ -488,16 +515,17 @@ export function TranscriptPanel() {
     }
   };
 
-  const broadcast = exportFormat === "scc" || exportFormat === "stl";
+  const broadcast = exportFormat === "scc" || exportFormat === "mcc" || exportFormat === "stl";
 
-  const exportFile = () => {
+  const exportFile = async () => {
     const info = CAPTION_FORMAT_INFO[exportFormat];
     const rate = broadcastFrameRate(exportFormat, frameRate);
-    const file = exportCaptionBytes(exportFormat, {
+    const file = await exportCaptionBytes(exportFormat, {
       ...(tracks.length > 1 ? { captionTrackId: activeTrack } : {}),
-      includeSpeakers: true,
+      includeSpeakers: exportSpeakers,
       ...(rate ? { frameRate: rate } : {}),
       ...(broadcast ? { offsetSeconds: Number(programmeStart) } : {}),
+      ...(exportFormat === "vtt" ? { metadataNote: captionMetadataNotes(useProjectStore.getState().project) } : {}),
     });
     setExportNotes(file.issues);
     const blob = new Blob([file.bytes.slice().buffer as ArrayBuffer], { type: `${file.mimeType}${info.binary ? "" : ";charset=utf-8"}` });
@@ -758,7 +786,7 @@ export function TranscriptPanel() {
         >
           {!words.length && (
             <p className="py-6 text-center text-[11px] text-fg-3">
-              No transcript yet. Import SRT, WebVTT, SCC, EBU-STL or a word-timed transcript JSON below.
+              No transcript yet. Import SRT, WebVTT, SCC, MCC, EBU-STL, TTML or a word-timed transcript JSON below.
             </p>
           )}
           {sentences.map((sentence, i) => {
@@ -827,7 +855,12 @@ export function TranscriptPanel() {
             {speakersOpen && (
               <ul id="transcript-speaker-list" className="m-0 mt-1 max-h-24 list-none space-y-1 overflow-y-auto p-0 pr-1">
                 {profiles.map((profile) => (
-                  <SpeakerRow key={profile.name} profile={profile} onRename={onRename} />
+                  <SpeakerRow
+                    key={profile.name}
+                    profile={profile}
+                    others={profiles.filter((p) => p.name !== profile.name).map((p) => p.name)}
+                    onRename={onRename}
+                  />
                 ))}
               </ul>
             )}
@@ -884,7 +917,7 @@ export function TranscriptPanel() {
           <input
             ref={fileRef}
             type="file"
-            accept=".srt,.vtt,.sbv,.ttml,.dfxp,.xml,.json,.txt,.scc,.stl"
+            accept=".srt,.vtt,.sbv,.ttml,.dfxp,.itt,.xml,.json,.txt,.scc,.mcc,.stl"
             data-testid="transcript-import-input"
             className="hidden"
             onChange={(e) => {
@@ -893,6 +926,18 @@ export function TranscriptPanel() {
               if (file) void importFile(file);
             }}
           />
+          <Select value={ccChannel} onValueChange={(v) => setCcChannel(v as "1" | "2" | "3" | "4")}>
+            <SelectTrigger aria-label="CEA-608 caption channel for SCC and MCC import" title="Which CEA-608 caption channel an SCC or MCC import reads" className="h-7 w-[58px] shrink-0 text-[11px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(["1", "2", "3", "4"] as const).map((c) => (
+                <SelectItem key={c} value={c}>
+                  CC{c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button type="button" variant="ghost" className={toolbarButton} onClick={() => fileRef.current?.click()}>
             Import
           </Button>
@@ -933,11 +978,22 @@ export function TranscriptPanel() {
             className={toolbarButton}
             aria-label="Export captions"
             disabled={!subtitles.length}
-            onClick={exportFile}
+            onClick={() => void exportFile()}
           >
             Export
           </Button>
         </div>
+        {speakers.length > 0 && (
+          <label className="flex items-center gap-1.5 text-[10px] text-fg-3" title="SRT: a 'Name: ' prefix. WebVTT: <v Name> voice tags. TTML: speaker agents.">
+            <input
+              type="checkbox"
+              checked={exportSpeakers}
+              onChange={(e) => setExportSpeakers(e.currentTarget.checked)}
+              aria-label="Include speaker names in exported captions"
+            />
+            Include speaker names in the export
+          </label>
+        )}
         {exportNotes.length > 0 && (
           <ul
             className="m-0 max-h-24 list-none space-y-0.5 overflow-y-auto p-0 text-[10px] leading-snug"

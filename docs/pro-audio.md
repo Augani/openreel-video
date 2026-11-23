@@ -63,8 +63,17 @@ whole timeline and are the same length. Live ducking is frozen against the full
 timeline before a stem isolates its clips, so the Music stem is ducked even
 though the dialogue clip is not in it.
 
-Stems do not include the master rack (limiter, loudness normalisation); they
-are the pre-master parts of the mix.
+Stems do not include the master rack (limiter, loudness normalisation) or
+hosted plugins on the master; they are the pre-master parts of the mix.
+
+## Master bus order
+
+Tracks and buses sum, then hosted master plugins (Audio Unit / VST3, see
+[audio-plugin-hosting.md](audio-plugin-hosting.md)), then the master fader, the
+built-in master rack and, for an export with a loudness target, loudness
+normalisation and the true-peak limiter. This is Premiere's order (master track
+effects, then the export-time normalisation): the target is measured on the mix
+after the plugins and the ceiling holds whatever a plugin does.
 
 ## 5.1 surround
 

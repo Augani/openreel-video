@@ -1,6 +1,7 @@
 import type { VideoExportSettings } from "./types";
 import type { Project } from "../types/project";
 import type { SmartRenderEngine, SmartRenderPlan } from "./smart-render";
+import type { SmartAudioPlan, SmartAudioSourceInfo } from "./smart-render-audio";
 
 /** Stream-copy capability: a backend that can splice source packets between re-encoded runs. */
 export interface SmartRenderMuxer {
@@ -27,6 +28,21 @@ export interface SmartRenderMuxer {
    * key frame) to output time `outputStart`. Returns the number of frames copied.
    */
   copyRun(source: Blob, sourceStart: number, sourceEnd: number, outputStart: number): Promise<number>;
+  /**
+   * Native muxer only: audio that is copied from the sources instead of being rendered and encoded (AAC packets of a
+   * single untouched source, or untouched PCM spans). Absent on muxers that always take the rendered mixdown.
+   */
+  readonly audio?: {
+    /** Describe the first audio stream of a source file for the planner, or null when it cannot be copied. */
+    probe(mediaId: string, blob: Blob): Promise<SmartAudioSourceInfo | null>;
+    /**
+     * After start(): hand over the plan. The muxer builds and proves the copies; resolves to null when they are accepted,
+     * else why the audio has to be rendered and encoded instead.
+     */
+    begin(plan: SmartAudioPlan, blobFor: (mediaId: string) => Blob | undefined): Promise<string | null>;
+    /** The mixdown leaves out `frames` samples the copies cover (they are not rendered). */
+    skip(frames: number): Promise<void>;
+  };
 }
 
 export interface EncoderBackend {

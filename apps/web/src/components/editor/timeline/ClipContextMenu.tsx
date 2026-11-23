@@ -29,7 +29,8 @@ import {
   FolderSearch,
   Tag,
 } from "@/icons/lucide-compat";
-import { findLinkedPartners, type Clip, type Track } from "@openreel/core";
+import { findLinkedPartners, effectiveTimeInterpolation, isTimeInterpolation, TIME_INTERPOLATION_LABELS, TIME_INTERPOLATION_MODES, type Clip, type Track } from "@openreel/core";
+import { setClipsTimeInterpolation, timeInterpolationTargets } from "../../../services/time-interpolation-edit";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { useUIStore } from "../../../stores/ui-store";
@@ -48,6 +49,7 @@ import { makeSubclipFromClip, revealClipInProject, runOrganize, setClipLabel } f
 import { LabelPickerItems } from "../project-panel/ProjectPanelMenus";
 import { AUDIO_TYPES, AUDIO_TYPE_LABELS, resolveClipLabel } from "@openreel/core";
 import { clearEssentialSound, tagAudioType } from "../../../services/essential-sound";
+import { runEnhanceSpeechCommand } from "../../../services/enhance-speech";
 import { nestSelectedClips, openNestClip } from "../../../services/sequence-commands";
 
 /** Clip ids a label change applies to: the selected timeline clips when this one is among them. */
@@ -290,6 +292,34 @@ export function ClipContextMenu({
         <ContextMenuItem disabled={editingDisabled || !hasCopiedEffects} onSelect={() => void handlePasteEffects()}><Sparkles size={14} aria-hidden />{isAudio ? "Paste Audio Effects" : "Paste Effects"}</ContextMenuItem>
       </>}
       {(isAudio || isVideoWithAudio) && (
+        <ContextMenuItem
+          data-testid="clip-enhance-speech"
+          disabled={editingDisabled}
+          onSelect={() => {
+            if (!canAct(true)) return;
+            const targets = clipLabelTargets(clip.id);
+            onClose?.();
+            void runEnhanceSpeechCommand(targets);
+          }}
+        >
+          <Volume2 size={14} aria-hidden />Enhance Speech
+        </ContextMenuItem>
+      )}
+      {(isAudio || isVideoWithAudio) && (
+        <ContextMenuItem
+          data-testid="clip-reduce-reverb"
+          disabled={editingDisabled}
+          onSelect={() => {
+            if (!canAct(true)) return;
+            const targets = clipLabelTargets(clip.id);
+            onClose?.();
+            void import("../../../services/reduce-reverb").then((module) => module.runReduceReverbCommand(targets));
+          }}
+        >
+          <Volume2 size={14} aria-hidden />Reduce Reverb
+        </ContextMenuItem>
+      )}
+      {(isAudio || isVideoWithAudio) && (
         <ContextMenuSub>
           <ContextMenuSubTrigger data-testid="clip-audio-type-menu" disabled={editingDisabled}><Volume2 size={14} aria-hidden />Set Audio Type</ContextMenuSubTrigger>
           <ContextMenuSubContent className="[&_[role=menuitem]]:text-xs">
@@ -324,6 +354,17 @@ export function ClipContextMenu({
         </ContextMenuSub>
       )}
       {isVideoWithAudio && <ContextMenuItem disabled={editingDisabled} onSelect={() => void handleSeparateAudio()}><Music size={14} aria-hidden />Separate Audio</ContextMenuItem>}
+      {isVideo && mediaItem?.type === "video" && <ContextMenuSub>
+        <ContextMenuSubTrigger data-testid="clip-time-interpolation-menu" disabled={editingDisabled}><Sparkles size={14} aria-hidden />Time Interpolation</ContextMenuSubTrigger>
+        <ContextMenuSubContent className="[&_[role=menuitemradio]]:text-xs">
+          <ContextMenuRadioGroup value={effectiveTimeInterpolation(clip)} onValueChange={(value) => {
+            if (isTimeInterpolation(value) && canAct(true)) void setClipsTimeInterpolation(timeInterpolationTargets(clip.id), value);
+            onClose?.();
+          }}>
+            {TIME_INTERPOLATION_MODES.map((mode) => <ContextMenuRadioItem key={mode} value={mode} disabled={editingDisabled}>{TIME_INTERPOLATION_LABELS[mode]}</ContextMenuRadioItem>)}
+          </ContextMenuRadioGroup>
+        </ContextMenuSubContent>
+      </ContextMenuSub>}
       {isVideo && mediaItem?.type === "video" && <ContextMenuItem disabled={editingDisabled || isReversedClip(clip)} onSelect={handleSceneDetection}><Film size={14} aria-hidden />Detect Scene Edits…</ContextMenuItem>}
       <ContextMenuSeparator />
       <ContextMenuItem disabled={editingDisabled} onSelect={() => void handleRippleDelete()}><Trash2 size={14} aria-hidden />Ripple Delete</ContextMenuItem>

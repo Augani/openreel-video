@@ -136,3 +136,103 @@ describe("ColorGradingEngine CPU transforms", () => {
   });
 
 });
+
+/** The pre-optimisation per-pixel implementation (closures per pixel), kept as the numerical reference. */
+function referenceApplyLut(data: Uint8ClampedArray, lut: LUTData): void {
+  const lutSize = lut.size;
+  const hasFloat = lut.floatData !== undefined && lut.floatData.length === lutSize * lutSize * lutSize * 3;
+  const lutData: ArrayLike<number> = hasFloat ? (lut.floatData as Float32Array) : lut.data;
+  const lutScale = hasFloat ? 1 : 1 / 255;
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i] / 255;
+    const g = data[i + 1] / 255;
+    const b = data[i + 2] / 255;
+    const rIdx = r * (lutSize - 1);
+    const gIdx = g * (lutSize - 1);
+    const bIdx = b * (lutSize - 1);
+    const r0 = Math.floor(rIdx);
+    const g0 = Math.floor(gIdx);
+    const b0 = Math.floor(bIdx);
+    const r1 = Math.min(r0 + 1, lutSize - 1);
+    const g1 = Math.min(g0 + 1, lutSize - 1);
+    const b1 = Math.min(b0 + 1, lutSize - 1);
+    const rFrac = rIdx - r0;
+    const gFrac = gIdx - g0;
+    const bFrac = bIdx - b0;
+    const get = (ri: number, gi: number, bi: number, channel: number): number =>
+      lutData[(bi * lutSize * lutSize + gi * lutSize + ri) * 3 + channel] * lutScale;
+    const interpolate = (channel: number): number => {
+      const c00 = get(r0, g0, b0, channel) * (1 - rFrac) + get(r1, g0, b0, channel) * rFrac;
+      const c01 = get(r0, g0, b1, channel) * (1 - rFrac) + get(r1, g0, b1, channel) * rFrac;
+      const c10 = get(r0, g1, b0, channel) * (1 - rFrac) + get(r1, g1, b0, channel) * rFrac;
+      const c11 = get(r0, g1, b1, channel) * (1 - rFrac) + get(r1, g1, b1, channel) * rFrac;
+      const c0 = c00 * (1 - gFrac) + c10 * gFrac;
+      const c1 = c01 * (1 - gFrac) + c11 * gFrac;
+      return c0 * (1 - bFrac) + c1 * bFrac;
+    };
+    data[i] = Math.round((r * (1 - lut.intensity) + interpolate(0) * lut.intensity) * 255);
+    data[i + 1] = Math.round((g * (1 - lut.intensity) + interpolate(1) * lut.intensity) * 255);
+    data[i + 2] = Math.round((b * (1 - lut.intensity) + interpolate(2) * lut.intensity) * 255);
+  }
+}
+
+describe("ColorGradingEngine LUT fast path", () => {
+  const random = (seed: number) => () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const randomLut = (size: number, intensity: number, float: boolean, rnd: () => number): LUTData => {
+    const n = size ** 3 * 3;
+    const data = new Uint8Array(n);
+    for (let i = 0; i < n; i++) data[i] = Math.floor(rnd() * 256);
+    if (!float) return { data, size, intensity };
+    const floatData = new Float32Array(n);
+    for (let i = 0; i < n; i++) floatData[i] = rnd() * 1.2 - 0.1;
+    return { data, floatData, size, intensity };
+  };
+
+  it("is bit-identical to the per-pixel reference (byte and float LUTs, sizes, intensities, every channel value)", () => {
+    const rnd = random(7);
+    for (const size of [2, 3, 17, 33]) {
+      for (const intensity of [0, 0.37, 1]) {
+        for (const float of [false, true]) {
+          const lut = randomLut(size, intensity, float, rnd);
+          const pixels = 4096;
+          const input = new Uint8ClampedArray(pixels * 4);
+          for (let i = 0; i < input.length; i++) input[i] = i % 4 === 3 ? 255 : Math.floor(rnd() * 256);
+          // Every 8-bit value on every channel, so a table entry that differs anywhere is caught.
+          for (let v = 0; v < 256; v++) {
+            input[v * 4] = v;
+            input[(255 - v) * 4 + 1] = v;
+            input[((v * 7) % 256) * 4 + 2] = v;
+          }
+          const fast = new Uint8ClampedArray(input);
+          const reference = new Uint8ClampedArray(input);
+          internals().applyLutToData(fast, lut);
+          referenceApplyLut(reference, lut);
+          expect(Array.from(fast)).toEqual(Array.from(reference));
+        }
+      }
+    }
+  });
+
+  it("runs a 1080p frame through a 17^3 LUT several times faster than the closure version", () => {
+    const lut = randomLut(17, 0.8, false, random(3));
+    const px = 1920 * 1080;
+    const base = new Uint8ClampedArray(px * 4);
+    const rnd = random(11);
+    for (let i = 0; i < base.length; i++) base[i] = Math.floor(rnd() * 256);
+    const time = (fn: (d: Uint8ClampedArray) => void): number => {
+      let best = Infinity;
+      for (let run = 0; run < 3; run++) {
+        const d = new Uint8ClampedArray(base);
+        const t0 = performance.now();
+        fn(d);
+        best = Math.min(best, performance.now() - t0);
+      }
+      return best;
+    };
+    const engine = internals();
+    const fast = time((d) => engine.applyLutToData(d, lut));
+    const ref = time((d) => referenceApplyLut(d, lut));
+    console.info(`[lut bench] 1080p 17^3: fast ${fast.toFixed(1)} ms, reference ${ref.toFixed(1)} ms, ${(ref / fast).toFixed(1)}x`);
+    expect(fast).toBeLessThan(ref);
+  });
+});

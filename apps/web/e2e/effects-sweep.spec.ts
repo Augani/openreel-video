@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { W7_LABELS } from "./sweep-lib";
+import { W7_LABELS, makeAddedEffectNonNeutral } from "./sweep-lib";
 import {
   clickClip,
   clipsOf,
@@ -63,6 +63,7 @@ test(`every Effects-browser card visibly changes the program canvas and undo res
       await card.scrollIntoViewIfNeeded();
       await card.dblclick();
       await settle(page, 1200);
+      const extraSteps = await makeAddedEffectNonNeutral(page, clip.id);
       // Wait for the effect to be on the clip and the monitor to present it before capturing (a loaded machine lands both late).
       await expect.poll(async () => clipsOf(await readState(page), "Main")[0].effects, { timeout: 15_000 }).toBeGreaterThan(0).catch(() => undefined);
       await waitForPresentedPlayhead(page);
@@ -71,7 +72,7 @@ test(`every Effects-browser card visibly changes the program canvas and undo res
       await snapStable(page, "after");
       const changed = await diffSnaps(page, "before", "after");
 
-      await undo(page);
+      for (let i = 0; i <= extraSteps; i++) await undo(page);
       await settle(page, 600);
       await expect.poll(async () => clipsOf(await readState(page), "Main")[0].effects, { timeout: 15_000 }).toBe(0).catch(() => undefined);
       await waitForPresentedPlayhead(page);
@@ -79,9 +80,9 @@ test(`every Effects-browser card visibly changes the program canvas and undo res
       const residual = await diffSnaps(page, "before", "undone");
       const restored = clipsOf(await readState(page), "Main")[0].effects;
 
-      note = `frame@${frame}s effects=${applied} changed=${changed.changed}/${changed.total} undoResidual=${residual.changed} effectsAfterUndo=${restored} historyDelta=${after.historyLength - pre.historyLength}`;
+      note = `frame@${frame}s effects=${applied} changed=${changed.changed}/${changed.total} undoResidual=${residual.changed} effectsAfterUndo=${restored} historyDelta=${after.historyLength - pre.historyLength - extraSteps}${extraSteps ? " (+1 non-neutral parameter step)" : ""}`;
       // Looks like LUT presets apply as colour grading, not an effect entry, so assert on history instead.
-      const oneStep = after.historyLength - pre.historyLength === 1;
+      const oneStep = after.historyLength - pre.historyLength - extraSteps === 1;
       ok = oneStep && changed.changed > 0 && residual.changed === 0 && restored === 0;
       if (ok) break;
       if (restored !== 0) break; // an inexact undo in state is never a frame problem

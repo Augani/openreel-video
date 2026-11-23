@@ -1,6 +1,7 @@
 import type { CueSettings, Subtitle, SubtitleStyle } from "../types/timeline";
 import type { CaptionFormatIssue } from "./scc";
 import { DEFAULT_CAPTION_STYLE } from "./caption-layout";
+import { timecodeProblem, timecodeToFrames } from "./caption-timecode";
 
 /**
  * TTML / DFXP / IMSC1 import. A small tolerant XML tokenizer (no DOMParser, so
@@ -92,6 +93,10 @@ interface TimeContext {
   timeBase: "media" | "smpte" | "clock";
   frameRate: number;
   tickRate: number;
+  /** `ttp:dropMode="dropNTSC"` (smpte time base): HH:MM:SS:FF labels skip frames 0-1 each minute except every tenth. */
+  dropNtsc?: boolean;
+  /** Timecode base (frames per second label), e.g. 30 for 29.97. */
+  nominalRate?: number;
 }
 
 function parseTime(raw: string | undefined, ctx: TimeContext): number | undefined {
@@ -100,6 +105,22 @@ function parseTime(raw: string | undefined, ctx: TimeContext): number | undefine
   if (!v) return undefined;
   let m = /^(\d+):(\d{1,2}):(\d{1,2}(?:\.\d+)?)(?::(\d+)(?:\.(\d+))?)?$/.exec(v);
   if (m) {
+    if (m[4] && ctx.dropNtsc && ctx.timeBase === "smpte" && /^\d+$/.test(m[3])) {
+      const nominal = ctx.nominalRate ?? Math.round(ctx.frameRate);
+      const dropRate = { fps: ctx.frameRate, nominal, dropFrame: true };
+      const label = `${m[1]}:${m[2]}:${m[3]};${m[4].padStart(2, "0")}`;
+      const f = timecodeToFrames(label, dropRate);
+      if (f !== null) return f / ctx.frameRate;
+      // A dropped label (00:01:00:02 is fine, 00:01:00:00 is not) is invalid: report it instead of guessing.
+      if (timecodeProblem(label, dropRate)?.includes("dropped")) {
+        return NaN;
+      }
+    }
+    if (m[4] && ctx.timeBase === "smpte" && /^\d+$/.test(m[3])) {
+      // SMPTE labels count frames at the nominal base (30 for 29.97) and the clock runs at the effective rate.
+      const nominal = ctx.nominalRate ?? Math.round(ctx.frameRate);
+      return ((Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3])) * nominal + Number(m[4])) / ctx.frameRate;
+    }
     const frames = m[4] ? Number(m[4]) / ctx.frameRate : 0;
     return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) + frames;
   }
@@ -196,6 +217,8 @@ export function parseTtml(content: string, options: TtmlParseOptions = {}): Ttml
   const ctx: TimeContext = {
     timeBase: tt.attrs.timeBase === "smpte" ? "smpte" : tt.attrs.timeBase === "clock" ? "clock" : "media",
     frameRate: mult ? (rate * Number(mult[1])) / Number(mult[2]) : rate,
+    dropNtsc: /^dropNTSC$/i.test((tt.attrs.dropMode ?? "").trim()),
+    nominalRate: rate,
     tickRate: Number(tt.attrs.tickRate) || (tt.attrs.frameRate ? rate * (Number(tt.attrs.subFrameRate) || 1) : 1),
   };
   if (ctx.timeBase === "clock") issues.push({ severity: "warning", code: "ttml-clock", message: "Wall-clock time base: times are read as media times." });
@@ -268,7 +291,7 @@ export function parseTtml(content: string, options: TtmlParseOptions = {}): Ttml
     for (const [label, v] of [["begin", b], ["end", e], ["dur", d]] as const) {
       if (v !== undefined && Number.isNaN(v)) {
         unreadable = true;
-        errors.push({ line: node.line, message: `Unreadable ${label} time "${node.attrs[label]}".` });
+        errors.push({ line: node.line, message: `Unreadable ${label} time "${node.attrs[label]}"${/^\d+:\d\d:\d\d:\d+/.test(node.attrs[label] ?? "") && ctx.dropNtsc ? " (a dropped drop-frame label, or out of range)" : ""}.` });
       }
     }
     if (unreadable) return;

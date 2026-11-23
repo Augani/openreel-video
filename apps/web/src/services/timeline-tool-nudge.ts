@@ -1,6 +1,7 @@
 import {
   chooseNudgeEdge,
   planToolNudge,
+  planToolNudgeSelection,
   NUDGE_FRAMES,
   NUDGE_FRAMES_LARGE,
   type Clip,
@@ -65,11 +66,33 @@ export function nudgeSelectedToolEdit(
   const store = useProjectStore.getState();
   if (!store.hasOpenProject) return { success: false, message: "Open a project before editing." };
   const project = store.getFullProject();
-  const ids = useUIStore.getState().getSelectedClipIds();
-  const id = [...ids].reverse().find((candidate) =>
-    project.timeline.tracks.some((track) => track.clips.some((clip) => clip.id === candidate)),
-  );
-  if (!id) return { success: false, message: "Select a clip to nudge its edit." };
+  const onTimeline = new Set(project.timeline.tracks.flatMap((track) => track.clips.map((clip) => clip.id)));
+  const ids = useUIStore.getState().getSelectedClipIds().filter((candidate) => onTimeline.has(candidate));
+  if (ids.length === 0) return { success: false, message: "Select a clip to nudge its edit." };
+  const frames = direction * (large ? NUDGE_FRAMES_LARGE : NUDGE_FRAMES);
+  // More than one selected clip: every selected clip's edit moves, as ONE plan (one store commit, one undo step).
+  if (ids.length > 1) {
+    const linkedSelection = useEditorWorkspaceStore.getState().linkedSelection;
+    try {
+      const result = planToolNudgeSelection(project, {
+        mode,
+        itemIds: ids,
+        linkedIdsOf: (clipId) => getLinkedTimelineSelection(project, [clipId], linkedSelection),
+        playhead: useTimelineStore.getState().playheadPosition,
+        frames,
+      });
+      if (!result.plan.edits.length)
+        return { success: false, message: result.firstError ?? "None of the selected edits can move that way." };
+      const committed = commitNudgePlan(result.plan);
+      if (!committed.success) return { success: false, message: committed.error?.message ?? "The edit could not be applied." };
+      return result.skipped
+        ? { success: true, message: `Nudged ${result.nudged} edit${result.nudged === 1 ? "" : "s"}; ${result.skipped} could not move (${result.firstError}).` }
+        : { success: true };
+    } catch (error) {
+      return { success: false, message: error instanceof Error ? error.message : "The edit failed." };
+    }
+  }
+  const id = ids[0];
   const clip = project.timeline.tracks.flatMap((track) => track.clips).find((c: Clip) => c.id === id)!;
   try {
     const plan = planToolNudge(project, {
@@ -77,7 +100,7 @@ export function nudgeSelectedToolEdit(
       itemId: id,
       linkedIds: getLinkedTimelineSelection(project, [id], useEditorWorkspaceStore.getState().linkedSelection),
       edge: chooseNudgeEdge(clip, useTimelineStore.getState().playheadPosition),
-      frames: direction * (large ? NUDGE_FRAMES_LARGE : NUDGE_FRAMES),
+      frames,
     });
     if (!plan.edits.length) return { success: true };
     const result = commitNudgePlan(plan);

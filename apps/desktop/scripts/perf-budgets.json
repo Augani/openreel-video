@@ -24,8 +24,8 @@
       "note": "welcome screen visible 3 s, click New project -> program canvas + ruler (Playwright wall clock)"
     },
     "cold.median.editorInteractiveFromSpawnMs": {
-      "max": 1200,
-      "note": "process spawn -> editor interactive when clicking the instant the welcome screen shows. 48 idle-machine runs: median 1087, p25 1073, p75 1148 (see PERF.md, Cold start analysis); 1100 sat 1% above the median and flapped"
+      "max": 1100,
+      "note": "process spawn -> editor interactive when clicking the instant the welcome screen shows. 1200 until round 3 (idle median 1087, p25 1073, p75 1148 before rounds 1-3, see PERF.md, Cold start analysis). Round 3 (audio service warm-up, PERF.md): 16 interleaved runs at load 4-8, median 994, p75 1007, max 1071 against 1088 / 1112 / 1334 for the base in the same pairs; 1100 is about 10 % over the median. Not re-baselined on an idle machine"
     },
     "traceCold.median.startupCpuMs": {
       "max": 200,

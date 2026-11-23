@@ -105,6 +105,8 @@ function snapshot(partial: Partial<RenderCacheSnapshot> = {}): RenderCacheSnapsh
     codec: null,
     version: 0,
     lastSummary: null,
+    maxWidth: 1920,
+    restored: null,
     ...partial,
   };
 }

@@ -1,4 +1,5 @@
 import type { Subtitle } from "../types/timeline";
+import { resegmentCues, type ResegmentOptions } from "./caption-resegment";
 
 /**
  * Caption translation: turns one caption track into a new track in another language.
@@ -37,6 +38,11 @@ export interface TranslateCaptionTrackOptions {
   readonly signal?: AbortSignal;
   readonly onProgress?: (progress: CaptionTranslationProgress) => void;
   readonly idFactory?: (index: number) => string;
+  /**
+   * Keep reading speed sane: borrow following silence or split cues that became too long.
+   * Default on; pass `false` for strictly one translated cue per source cue.
+   */
+  readonly resegment?: ResegmentOptions | false;
 }
 
 export type CaptionTranslationResult =
@@ -129,7 +135,9 @@ export async function translateCaptionTrack(
       hidden: true,
     };
   });
-  return { ok: true, trackId, cues };
+  if (options.resegment === false) return { ok: true, trackId, cues };
+  const fitted = resegmentCues(cues, { pieceId: (cue, n) => `${cue.id}-p${n}`, ...(options.resegment ?? {}) });
+  return { ok: true, trackId, cues: fitted.cues };
 }
 
 function cancelled(): CaptionTranslationResult {

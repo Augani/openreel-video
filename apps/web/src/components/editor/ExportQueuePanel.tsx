@@ -91,10 +91,18 @@ function IconButton({
 /** "Smart render: 62% copied", plus why less was copied when a reason exists. */
 export function smartRenderDetail(report: ExportJob["smartRender"]): string {
   if (!report) return "";
+  const seconds =
+    report.copiedSeconds !== undefined && report.encodedSeconds !== undefined
+      ? ` (${report.copiedSeconds.toFixed(1)} s copied, ${report.encodedSeconds.toFixed(1)} s re-encoded)`
+      : "";
+  const audio =
+    report.audioCopiedSeconds !== undefined && report.audioEncodedSeconds !== undefined
+      ? `; audio ${report.audioCopiedSeconds.toFixed(1)} s copied, ${report.audioEncodedSeconds.toFixed(1)} s encoded`
+      : "";
   const reason = report.copiedPercent < 100 ? report.reasons?.[0] : undefined;
-  if (!reason) return report.summary;
+  if (!reason) return `${report.summary}${seconds}${audio}`;
   const more = (report.reasons?.length ?? 0) > 1 ? ` +${(report.reasons?.length ?? 1) - 1} more` : "";
-  return `${report.summary} (${reason}${more})`;
+  return `${report.summary}${seconds}${audio} (${reason}${more})`;
 }
 
 function JobRow({ job, queuedIndex, queuedCount }: { job: ExportJob; queuedIndex: number; queuedCount: number }) {

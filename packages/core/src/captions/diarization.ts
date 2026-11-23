@@ -358,12 +358,20 @@ export function mirrorSpeakersToTranslations(subtitles: readonly Subtitle[], sou
   if (!sources.length) return [...subtitles];
   return subtitles.map((cue) => {
     if (sourceIds.has(cue.id)) return cue;
-    const source = sources.find(
+    const exact = sources.find(
       (s) =>
         trackOf(s) !== trackOf(cue) &&
         Math.abs(s.startTime - cue.startTime) < TWIN_EPSILON &&
         Math.abs(s.endTime - cue.endTime) < TWIN_EPSILON,
     );
+    // A translated cue that was split or lengthened (reading speed) no longer has the exact
+    // range of its source; a cue with a language whose midpoint lies inside the source belongs to it.
+    const mid = (cue.startTime + cue.endTime) / 2;
+    const source =
+      exact ??
+      (cue.language
+        ? sources.find((s) => trackOf(s) !== trackOf(cue) && mid >= s.startTime && mid < s.endTime)
+        : undefined);
     if (!source || source.speaker === cue.speaker) return cue;
     const { speaker: _old, ...rest } = cue;
     return source.speaker ? { ...rest, speaker: source.speaker } : rest;

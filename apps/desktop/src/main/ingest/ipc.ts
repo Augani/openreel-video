@@ -5,6 +5,7 @@ import { z } from "zod";
 import { desktopProxyFileName } from "../../../../../packages/core/src/media/desktop-ingest";
 import { CHANNELS } from "../../shared/channels";
 import {
+  ingestCopyEnqueueArgsSchema,
   ingestCopyToProjectArgsSchema,
   ingestPickFolderArgsSchema,
   ingestProxyEnqueueArgsSchema,
@@ -19,10 +20,12 @@ import {
 import { handle } from "../ipc";
 import { withNativeDialog } from "../native-dialog-state";
 import { copyIntoFolder } from "./copy-ingest";
-import { isReadableProxyPath, resolveIngestFolders } from "./folders";
+import { copyJobFollowUpInput } from "./follow-up";
+import { isReadableProxyPath, proxyOutDir, resolveIngestFolders } from "./folders";
 import { probeMediaFile } from "./probe-media";
-import { ProxyQueue, type ProxyJob, type ProxyQueueStore } from "./proxy-queue";
+import { ProxyQueue, kindOfJob, type ProxyJob, type ProxyQueueStore } from "./proxy-queue";
 import { runProxyJob } from "./proxy-runner";
+import { runCopyJob } from "./copy-runner";
 import { scanFolderForMedia } from "./relink-scan";
 
 type IngestProject = z.infer<typeof ingestResolveFoldersArgsSchema>;
@@ -67,7 +70,13 @@ function getQueue(): ProxyQueue {
   const created: ProxyQueue = new ProxyQueue({
     store: createFileStore(),
     emit: (event) => broadcast(CHANNELS.ingestProxyEvent, event),
-    run: (job, onProgress, signal) => runProxyJob(job, onProgress, signal, created.getConcurrency()),
+    run: (job, onProgress, signal) => (kindOfJob(job) === "copy" ? runCopyJob(job, onProgress, signal) : runProxyJob(job, onProgress, signal, created.getConcurrency())),
+    // "Copy and create proxies": the proxy job is queued here, in the main process, so it survives a restart
+    // and runs even when the window that asked for it has been closed.
+    onDone: (job) => {
+      const next = copyJobFollowUpInput(job);
+      if (next) created.enqueue([next], { force: true });
+    },
   });
   queue = created;
   created.restore();
@@ -118,13 +127,33 @@ export function registerIngestIpc(): void {
       args.items.map((item) => ({
         projectKey: args.projectId,
         mediaId: item.mediaId,
+        name: item.name,
         srcPath: item.srcPath,
-        outDir: folders.proxyDir,
+        outDir: proxyOutDir(item.profile, folders.proxyDir, item.srcPath, folders.projectDir),
         fileName: desktopProxyFileName({ id: item.mediaId, name: item.name }, item.profile),
         profile: item.profile,
         previewTwin: item.previewTwin,
       })),
       { force: args.force },
+    );
+  });
+  handle(CHANNELS.ingestCopyEnqueue, ingestCopyEnqueueArgsSchema, (args) => {
+    const folders = foldersFor(args);
+    if (!folders.projectSaved) throw new Error("Save the project first so its Media folder has a home.");
+    const algorithm = args.algorithm ?? "sha256";
+    return getQueue().enqueue(
+      args.items.map((item) => ({
+        kind: "copy" as const,
+        projectKey: args.projectId,
+        mediaId: item.mediaId,
+        name: item.name,
+        srcPath: item.srcPath,
+        outDir: folders.mediaDir,
+        fileName: item.name,
+        profile: args.thenProxies?.profile ?? args.config?.proxyProfile ?? { codec: "h264" as const, size: "half" as const },
+        previewTwin: args.thenProxies?.previewTwin ?? false,
+        copy: { algorithm, ...(args.thenProxies ? { followUp: { profile: args.thenProxies.profile, previewTwin: args.thenProxies.previewTwin, proxyDir: folders.proxyDir } } : {}) },
+      })),
     );
   });
   handle(CHANNELS.ingestProxyList, ingestProxyListArgsSchema, ({ projectId }) => getQueue().list(projectId));
@@ -153,6 +182,7 @@ export function registerIngestIpc(): void {
       copyIntoFolder({
         srcPath: args.srcPath,
         destDir: folders.mediaDir,
+        algorithm: args.algorithm ?? args.config?.checksum,
         onProgress: (progress) => {
           if (!event.sender.isDestroyed()) event.sender.send(CHANNELS.ingestCopyProgress, { requestId: args.requestId, progress });
         },
@@ -170,6 +200,6 @@ export function registerIngestIpc(): void {
   });
 
   handle(CHANNELS.ingestScanFolder, ingestScanFolderArgsSchema, (args) =>
-    scanFolderForMedia({ root: args.root, names: args.names, mode: args.mode, probe: probeMediaFile }),
+    scanFolderForMedia({ root: args.root, names: args.names, mode: args.mode, proxyPattern: args.proxyPattern, probe: probeMediaFile }),
   );
 }

@@ -1,3 +1,4 @@
+import { ocioSettingsKey } from "../color/ocio/settings";
 import type { Project, MediaItem } from "../types/project";
 import type { Clip, Track, Transition, Effect } from "../types/timeline";
 import { mediaImageVersion } from "../raw/raw-media";
@@ -81,12 +82,38 @@ function clipPixelBody(clip: Clip): string {
   }
 }
 
-function mediaFingerprint(item: MediaItem | undefined): string {
+/**
+ * Process-independent identity of a media item's bytes, used for the persisted render-cache hashes (the
+ * default identity below is a per-process counter and cannot survive a restart). Size, type and the
+ * source file's path / mtime change whenever the file is replaced; an in-place overwrite that keeps
+ * size and mtime is not detectable without reading the file.
+ */
+function stableBlobIdentity(item: MediaItem, stamp: string | undefined): unknown {
+  const blob = item.blob as (Blob & { lastModified?: number }) | null | undefined;
+  // A natively decoded file is read from its path: the in-memory blob (a stub or absent) says nothing about its content.
+  const native = item.nativeSource
+    ? { path: item.nativeSource.path, codec: item.nativeSource.codec, w: item.nativeSource.width, h: item.nativeSource.height, fps: item.nativeSource.frameRate, rot: item.nativeSource.rotation }
+    : undefined;
+  return {
+    native,
+    // Size + mtime of the file on disk when the host can stat it (desktop); catches a file replaced at the same path.
+    stamp,
+    size: native ? undefined : blob?.size,
+    type: native ? undefined : blob?.type,
+    modified: native ? undefined : blob?.lastModified,
+    source: item.sourceFile
+      ? { name: item.sourceFile.name, size: item.sourceFile.size, lastModified: item.sourceFile.lastModified, path: item.sourceFile.path }
+      : undefined,
+    handle: item.fileHandle ? (item.fileHandle as { name?: string }).name ?? "handle" : undefined,
+  };
+}
+
+function mediaFingerprint(item: MediaItem | undefined, stable = false, stamp?: string): string {
   if (!item) return "missing";
   return stableStringify({
     type: item.type,
-    blob: identityOf(item.blob),
-    handle: identityOf(item.fileHandle),
+    blob: stable ? stableBlobIdentity(item, stamp) : identityOf(item.blob),
+    handle: stable ? undefined : identityOf(item.fileHandle),
     placeholder: item.isPlaceholder === true,
     duration: item.metadata?.duration,
     width: item.metadata?.width,
@@ -155,6 +182,13 @@ const NON_PIXEL_PROJECT_KEYS = new Set([
   "modifiedAt",
   "capabilities",
   "minimumReaderVersion",
+  // Sequence bookkeeping. The ACTIVE sequence's content is the top-level timeline (modeled below) and every other
+  // sequence reaches pixels only through the `compoundClips` projection of nested sequences (fingerprinted per nest
+  // clip), so listing sequences, the active id or the open tabs says nothing about a frame. They also appear or change
+  // shape on save and load (`ensureSequences`), which must not look like a pixel change after a restart.
+  "sequences",
+  "activeSequenceId",
+  "openSequenceIds",
 ]);
 const MODELED_PROJECT_KEYS = new Set([
   "settings",
@@ -176,6 +210,7 @@ const NON_PIXEL_TIMELINE_KEYS = new Set([
   "beatMarkers",
   "beatAnalysis",
   "masterAudioRack",
+  "masterPluginRack",
   // Submix buses never affect a rendered frame.
   "audioBuses",
   "tracks",
@@ -186,6 +221,8 @@ function globalFingerprint(project: Project): string {
   const projectRest: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(project)) {
     if (NON_PIXEL_PROJECT_KEYS.has(key) || MODELED_PROJECT_KEYS.has(key)) continue;
+    // An empty list or record means the same as an absent key (loading a saved project fills these in).
+    if (Array.isArray(value) ? value.length === 0 : value !== null && typeof value === "object" && Object.keys(value).length === 0) continue;
     projectRest[key] = value;
   }
   const timelineRest: Record<string, unknown> = {};
@@ -201,8 +238,10 @@ function globalFingerprint(project: Project): string {
     workingColorSpace: project.settings.workingColorSpace,
     graphicsWhiteNits: project.settings.graphicsWhiteNits,
     // ACES mode changes every pixel; absent (display-referred) keys are dropped so legacy caches stay valid.
-    colorManagement: project.settings.colorManagement === "aces" ? "aces" : undefined,
+    colorManagement: project.settings.colorManagement === "aces" || project.settings.colorManagement === "ocio" ? project.settings.colorManagement : undefined,
     acesOutput: project.settings.colorManagement === "aces" ? project.settings.acesOutput : undefined,
+    // OCIO mode: a hash of the config, the LUT files and the working / display / view / look choices.
+    ocio: project.settings.colorManagement === "ocio" && project.settings.ocio ? ocioSettingsKey(project.settings.ocio) : undefined,
     // Sequence PAR / field order; undefined (square, progressive) is dropped so legacy keys are unchanged.
     pixelAspectRatio: project.settings.pixelAspectRatio,
     fieldOrder: project.settings.fieldOrder,
@@ -217,7 +256,15 @@ function globalFingerprint(project: Project): string {
  * handlers mutate project objects in place, so only a snapshot taken at the
  * moment of the change can be diffed against the next one.
  */
-export function buildPixelModel(project: Project): PixelModel {
+export interface PixelModelOptions {
+  /** Use process-independent media identities (for hashes that outlive the session). */
+  stableMedia?: boolean;
+  /** media id -> "size:mtime" of the file on disk, folded into the stable media identity. */
+  mediaStamps?: ReadonlyMap<string, string>;
+}
+
+export function buildPixelModel(project: Project, options: PixelModelOptions = {}): PixelModel {
+  const stableMedia = options.stableMedia === true;
   const entities = new Map<string, PixelEntity>();
   const mediaById = new Map(project.mediaLibrary.items.map((item) => [item.id, item]));
   const compoundById = new Map((project.compoundClips ?? []).map((c) => [c.id, c]));
@@ -280,7 +327,7 @@ export function buildPixelModel(project: Project): PixelModel {
         : [
             clipPixelBody(clip),
             state,
-            mediaFingerprint(media),
+            mediaFingerprint(media, stableMedia, media ? options.mediaStamps?.get(media.id) : undefined),
             compoundId ? stableStringify(compoundById.get(compoundId) ?? null) : "",
             compoundId ? nestedMaskFingerprint(compoundId, new Set()) : "",
             maskFingerprint(clip.id),

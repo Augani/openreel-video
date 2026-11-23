@@ -16,8 +16,8 @@ import { useProjectPanelStore } from "./stores/project-panel-store";
 import { useMulticamStore } from "./stores/multicam-monitor-store";
 import * as multicamController from "./services/multicam-controller";
 import { nestSelectedClips, openSequence } from "./services/sequence-commands";
-import { getPlaybackEvents, getPlaybackStalls } from "./components/editor/preview/playback-watchdog";
-import { getMemoryGovernor, ProjectSerializer, RealtimeAudioGraph, effectLatencySamples, getAudioEffectsEngine, planTimelineDelayCompensation, ensureRepairWorklet, processChannels, analyzeAudioIssues, getRepairMeter, AudioRackBus, createRackEffect, getAudioEngine, getExportEngine, getRealtimeAudioGraph, getVideoEngine, measureLoudness } from "@openreel/core";
+import { getPlaybackEvents, getPlaybackStageTraces, getPlaybackStalls } from "./components/editor/preview/playback-watchdog";
+import { NATIVE_PLUGIN_BLOCK_FRAMES, applyRackStemsToTimeline, bakeNativePluginAutomation, getSharedRackStemCache, pluginRackSteps, setNativePluginBackend, nativePluginKeyframeProperty, nativePluginSteps, resolveClipAudioEffects, getMemoryGovernor, ProjectSerializer, RealtimeAudioGraph, effectLatencySamples, getAudioEffectsEngine, planTimelineDelayCompensation, ensureRepairWorklet, processChannels, analyzeAudioIssues, getRepairMeter, AudioRackBus, createRackEffect, getAudioEngine, getExportEngine, getRealtimeAudioGraph, getVideoEngine, measureLoudness } from "@openreel/core";
 import { useLoudnessStore } from "./stores/loudness-store";
 import { renderCacheService } from "./services/render-cache-service";
 import { useExportQueueStore } from "./stores/export-queue-store";
@@ -55,9 +55,21 @@ import {
   secondaryUniforms,
 } from "@openreel/core";
 import { MotionShaderRenderer } from "@openreel/core/motion/motion-shader-renderer";
+import * as timeInterpolationModule from "@openreel/core/video/time-interpolation/index";
+import * as timeInterpolationScenesModule from "@openreel/core/video/time-interpolation/synthetic-scenes";
+import * as morphCutAnalysisModule from "@openreel/core/video/morph-cut/analysis";
+import * as morphCutRenderModule from "@openreel/core/video/morph-cut/render";
+import * as morphCutRegistryModule from "@openreel/core/video/morph-cut/registry";
+import * as morphCutFacesModule from "@openreel/core/video/morph-cut/synthetic-faces";
+import * as morphCutAnalyseJobModule from "@openreel/core/video/morph-cut/analyse-job";
+import * as morphCutServiceModule from "./services/morph-cut-service";
 import * as proEffectsModule from "@openreel/core/video/pro-effects";
 import * as proEffectShadersModule from "@openreel/core/video/pro-effect-shaders";
 import * as proEffectsExtraModule from "@openreel/core/video/pro-effects-extra";
+import { useSourceVrViewStore, useVrViewStore } from "./stores/vr-view-store";
+import * as vrMathModule from "@openreel/core/vr/vr-math";
+import * as vrTestImagesModule from "@openreel/core/vr/vr-test-images";
+import { isVrRuntimeLoaded, loadVrRuntime } from "@openreel/core/video/vr-runtime-loader";
 import * as temporalEffectsModule from "@openreel/core/video/temporal-effects";
 import * as echoCompositorModule from "@openreel/core/video/echo-compositor";
 import * as motionShaderRendererModule from "@openreel/core/motion/motion-shader-renderer";
@@ -70,15 +82,22 @@ import * as hdrWorkingModule from "@openreel/core/color/hdr-working";
 import * as cameraLogModule from "@openreel/core/color/camera-log";
 import * as acesModule from "@openreel/core/color/aces";
 import * as acesOutputModule from "@openreel/core/color/aces-output";
+import * as ocioSettingsModule from "@openreel/core/color/ocio/settings";
+import * as ocioGpuEvalModule from "@openreel/core/video/ocio-gpu-eval";
 import * as inputTransformModule from "@openreel/core/color/input-transform";
 import * as hdrGpuModule from "@openreel/core/video/hdr-gpu";
 import * as colorOutputModule from "@openreel/core/export/color-output";
 import * as burnInModule from "@openreel/core/video/burn-in";
+import * as evaluateKeyframesModule from "@openreel/core/animation/evaluate-keyframes";
+import * as spatialPathModule from "@openreel/core/animation/spatial-path";
 import { PRO_EFFECT_SHADER_DEFS } from "@openreel/core/video/pro-effect-shaders";
 import { computeScopeStats } from "@openreel/core/video/scope-stats";
 import { useColorMonitorStore } from "./stores/color-monitor-store";
 import { usePluginManagerStore } from "./stores/plugin-manager-store";
 import { initPluginRegistry, installPluginFromFiles } from "./services/plugin-service";
+import * as nativePluginHost from "./services/native-plugin-host";
+import { findProjectMissingPlugins } from "./services/native-plugin-report";
+import { getPluginRackPreview, usePluginRackPreviewState } from "./services/plugin-rack-preview";
 import { analyzeBusLoudnessNow, previewStemPlan, renderProjectStems } from "./services/audio-stems";
 import * as graphicCommands from "./services/graphic-commands";
 import * as sequenceCommands from "./services/sequence-commands";
@@ -113,6 +132,29 @@ async function mountAiOnboardingSheet(): Promise<void> {
     host.remove();
   };
   root.render(createElement(sheet.default, { onClose: close }));
+}
+
+/**
+ * The VR effects runtime, the VR effect CPU references and the spherical metadata reader are lazy chunks in the
+ * product. The hook loads them before it installs, so the pixel-parity specs that drive them directly through
+ * `core.proEffects` / `core.proEffectShaders` find them ready, unless the page sets `window.__openreelLazyVr` (an init
+ * script) to test the product's own lazy path (vr-lazy.spec.ts).
+ */
+let preloadedVr: {
+  vrEffects: typeof import("@openreel/core/video/vr-effects");
+  vrImageEffects: typeof import("@openreel/core/video/vr-image-effects");
+  sphericalMetadata: typeof import("@openreel/core/export/spherical-metadata");
+} | null = null;
+
+export async function prepareE2EHook(): Promise<void> {
+  if ((window as unknown as { __openreelLazyVr?: boolean }).__openreelLazyVr) return;
+  const [vrEffects, vrImageEffects, sphericalMetadata] = await Promise.all([
+    import("@openreel/core/video/vr-effects"),
+    import("@openreel/core/video/vr-image-effects"),
+    import("@openreel/core/export/spherical-metadata"),
+    loadVrRuntime(),
+  ]);
+  preloadedVr = { vrEffects, vrImageEffects, sphericalMetadata };
 }
 
 export function installE2EHook(): void {
@@ -152,6 +194,7 @@ export function installE2EHook(): void {
     speed: { editClipSpeed },
     // Memory governor state for the 4K memory gate (apps/web/e2e/soak/memory-4k-layered.spec.ts).
     playbackStalls: () => [...getPlaybackStalls()],
+    playbackStageTraces: () => [...getPlaybackStageTraces()],
     playbackEvents: () => [...getPlaybackEvents()],
     memoryGovernor: () => ({ ...getMemoryGovernor().reading, policy: getMemoryGovernor().policy }),
     /** Opens a decoder of `bytes` in the governor, as the preview does per source; returns its release. */
@@ -163,6 +206,8 @@ export function installE2EHook(): void {
     },
     sequence: { nestSelectedClips, openSequence },
     audio: { RealtimeAudioGraph, effectLatencySamples, getAudioEffectsEngine, planTimelineDelayCompensation, AudioRackBus, createRackEffect, getAudioEngine, getRealtimeAudioGraph, getExportEngine, measureLoudness, ensureRepairWorklet, processChannels, analyzeAudioIssues, getRepairMeter },
+    nativePlugins: { host: nativePluginHost, findMissing: findProjectMissingPlugins, nativePluginKeyframeProperty, nativePluginSteps, resolveClipAudioEffects, bakeNativePluginAutomation, blockFrames: NATIVE_PLUGIN_BLOCK_FRAMES, setBackend: setNativePluginBackend, rack: { steps: pluginRackSteps, applyStems: applyRackStemsToTimeline, stemCache: getSharedRackStemCache(), preview: getPluginRackPreview(), previewState: usePluginRackPreviewState } },
+    liveInsertProbe: (options: unknown) => import("./e2e-live-insert").then((module) => module.liveInsertProbe(options as Parameters<typeof module.liveInsertProbe>[0])),
     loudness: useLoudnessStore,
     projectPanel: useProjectPanelStore,
     /** Proxy workflow: `cache.decodes[mediaId].source` says which file the preview decoder was given. */
@@ -173,6 +218,8 @@ export function installE2EHook(): void {
     projectFile: { openEditorProject, projectManager, lock: useProjectLockStore, retryProjectLock },
     renderCache: renderCacheService,
     exportQueue: useExportQueueStore,
+    vrView: useVrViewStore,
+    sourceVrView: useSourceVrViewStore,
     backgroundTasks,
     /** Changed-source guard: the full-content fingerprint the renderer sends to the desktop copy path. */
     sourceFingerprint: { fingerprintBlob, computeFingerprint, fingerprintMismatch },
@@ -222,9 +269,26 @@ export function installE2EHook(): void {
      * dev-server /@fs URLs) so the same specs run against a production bundle.
      */
     core: {
+      timeInterpolation: timeInterpolationModule,
+      timeInterpolationScenes: timeInterpolationScenesModule,
+      morphCutAnalysis: morphCutAnalysisModule,
+      morphCutRender: morphCutRenderModule,
+      morphCutRegistry: morphCutRegistryModule,
+      morphCutFaces: morphCutFacesModule,
+      morphCutJob: morphCutAnalyseJobModule,
+      morphCutService: morphCutServiceModule,
       proEffects: proEffectsModule,
       proEffectShaders: proEffectShadersModule,
       proEffectsExtra: proEffectsExtraModule,
+      vrMath: vrMathModule,
+      vrTestImages: vrTestImagesModule,
+      vrEffects: preloadedVr?.vrEffects,
+      vrImageEffects: preloadedVr?.vrImageEffects,
+      sphericalMetadata: preloadedVr?.sphericalMetadata,
+      /** The lazy VR effects runtime: whether it is loaded and how to load it. */
+      vrRuntime: { isLoaded: isVrRuntimeLoaded, load: loadVrRuntime },
+      // The monitor VR view renderer is a lazy chunk in the product; tests load it the same way.
+      loadVrView: () => import("@openreel/core/video/vr-view"),
       temporalEffects: temporalEffectsModule,
       echoCompositor: echoCompositorModule,
       motionShaderRenderer: motionShaderRendererModule,
@@ -237,10 +301,23 @@ export function installE2EHook(): void {
       cameraLog: cameraLogModule,
       aces: acesModule,
       acesOutput: acesOutputModule,
+      ocioSettings: ocioSettingsModule,
+      ocioGpuEval: ocioGpuEvalModule,
+      // The OCIO runtime is a lazy chunk in the product; tests load it the same way.
+      loadOcioRuntime: () => import("@openreel/core/color/ocio/runtime"),
       inputTransform: inputTransformModule,
+      // The transition engine and mask raster are lazy chunks in the product; the transitions spec loads them the same way.
+      loadTransitions: async () => ({
+        engine: await import("@openreel/core/video/transition-engine"),
+        masks: await import("@openreel/core/video/transition-masks"),
+        extra: await import("@openreel/core/video/transition-extra-render"),
+        plans: await import("@openreel/core/video/transition-plans"),
+      }),
       hdrGpu: hdrGpuModule,
       colorOutput: colorOutputModule,
       burnIn: burnInModule,
+      evaluateKeyframes: evaluateKeyframesModule,
+      spatialPath: spatialPathModule,
     },
     sequences: sequenceCommands,
     graphics: {

@@ -1,7 +1,8 @@
 import type { Action } from "@openreel/core/types/actions";
 import { isIngestPreset } from "@openreel/core/media/proxy-workflow";
-import { DESKTOP_PROXY_CODECS, DESKTOP_PROXY_SIZES, isDesktopIngestConfig } from "@openreel/core/media/desktop-ingest";
-import type { DesktopIngestConfig } from "@openreel/core/types/project";
+import { DESKTOP_PROXY_CODECS, DESKTOP_PROXY_SIZES, INGEST_CHECKSUMS, isDesktopIngestConfig } from "@openreel/core/media/desktop-ingest";
+import { normalizeProxyProfile } from "@openreel/core/media/ingest-presets";
+import type { DesktopIngestConfig, DesktopProxyProfile } from "@openreel/core/types/project";
 import type { EditingHost } from "./host";
 import type { RegisteredTool } from "./registry";
 import type { JSONSchema, ToolResult } from "./types";
@@ -36,7 +37,7 @@ export const PROXY_TOOLS: RegisteredTool[] = [
     domain: "media",
     title: "Create proxies",
     description:
-      "Queue background builds of low-resolution H.264 proxies for video media (Project panel > Proxies > Create proxies). mediaIds picks items (default: every video without a proxy); quality is low (up to 540p), medium (720p, default) or high (1080p); force rebuilds an existing proxy. Jobs run one at a time in the background with progress in the Project panel and survive a reload; each finished proxy is linked to its media as one undo step. Proxies only change what preview, scrub and playback decode: transforms, masks, effects and text are resolution independent, and exports ALWAYS read the full-resolution media. Returns queued ids and skipped items with reasons; poll list_proxies for status.",
+      "Queue background builds of low-resolution proxies for video media (Project panel > Proxies > Create proxies). In the browser they are H.264 and quality is low (up to 540p), medium (720p, default) or high (1080p); on the desktop app they are built natively with the project's proxy settings (codec, size, audio, burn-in and destination, see set_proxy_format) and quality is ignored. mediaIds picks items (default: every video without a proxy); force rebuilds an existing proxy. Jobs run one at a time in the background with progress in the Project panel and survive a reload; each finished proxy is linked to its media as one undo step. Proxies only change what preview, scrub and playback decode: transforms, masks, effects and text are resolution independent, and exports ALWAYS read the full-resolution media. Returns queued ids and skipped items with reasons; poll list_proxies for status.",
     inputSchema: obj({ mediaIds: strings, quality: { type: "string", enum: [...QUALITIES] }, force: bool }),
     readOnly: false,
     destructive: false,
@@ -151,7 +152,7 @@ export const PROXY_TOOLS: RegisteredTool[] = [
     domain: "media",
     title: "Set desktop proxy format",
     description:
-      "Desktop app only. Set the project's native proxy settings (Project panel > Proxies): codec prores-proxy (ProRes 422 Proxy .mov) or h264 (.mp4), size half | quarter | 720p | 1080p (a fixed height never upscales), jobs at once 1-2, the Proxies folder and Media folder (absolute, or relative to the project file's folder; default Proxies/ and Media/ beside the project), and proxiesWithCopy (also build proxies when the copy preset ingests media). Only the fields you pass change. One undo step. Affects proxies built from now on; use create_proxies with force to rebuild.",
+      "Desktop app only. Set the project's native proxy and ingest settings (Project panel > Proxies); only the fields you pass change, one undo step, and they affect proxies and copies made from now on (use create_proxies with force to rebuild). codec: prores-proxy (ProRes 422 Proxy), prores-lt (ProRes 422 LT), prores-422 (ProRes 422), h264, dnxhr-lb (DNxHR LB) or dnxhr-sq (DNxHR SQ); ProRes and DNxHR write .mov, H.264 .mp4. size: full | half | quarter | 720p | 1080p (a fixed height never upscales) or custom with customWidth (16-16384 px, never upscaled, aspect kept). audio: keep (default) or strip (a proxy with no audio). burnIn: {clipName, timecode} booleans that burn the clip name and the source timecode into the picture (a viewing copy, not for delivery). destination: {mode: project (the Proxies folder, default) | media (a Proxies folder next to each media file) | custom, folder (absolute, with custom)}. Frame rate is always kept. checksum: the algorithm that verifies copies, sha256 (default), md5 or xxh64 (xxHash64). concurrency: jobs at once 1-2. proxyFolder and mediaFolder: absolute, or relative to the project file's folder (default Proxies/ and Media/ beside the project). proxiesWithCopy: also build proxies when the copy preset ingests media. The profile is stored in the project, which stays portable (the app's named presets are copies).",
     inputSchema: obj({
       codec: { type: "string", enum: DESKTOP_PROXY_CODECS.map((entry) => entry.id) },
       size: { type: "string", enum: DESKTOP_PROXY_SIZES.map((entry) => entry.id) },
@@ -159,6 +160,11 @@ export const PROXY_TOOLS: RegisteredTool[] = [
       proxyFolder: str,
       mediaFolder: str,
       proxiesWithCopy: bool,
+      customWidth: { type: "number" },
+      audio: { type: "string", enum: ["keep", "strip"] },
+      burnIn: obj({ clipName: bool, timecode: bool }),
+      destination: obj({ mode: { type: "string", enum: ["project", "media", "custom"] }, folder: str }, ["mode"]),
+      checksum: { type: "string", enum: INGEST_CHECKSUMS.map((entry) => entry.id) },
     }),
     readOnly: false,
     destructive: false,
@@ -168,13 +174,39 @@ export const PROXY_TOOLS: RegisteredTool[] = [
       if (!host.proxies?.desktop) return fail("Native proxy settings are available on the desktop app only.", "UNSUPPORTED_HOST");
       const current = host.getProject().mediaLibrary.desktopIngest;
       const next: Record<string, unknown> = { ...current };
-      if (args.codec !== undefined || args.size !== undefined)
-        next.proxyProfile = { ...(current?.proxyProfile ?? { codec: "h264", size: "half" }), ...(args.codec !== undefined ? { codec: args.codec } : {}), ...(args.size !== undefined ? { size: args.size } : {}) };
+      const profileKeys = ["codec", "size", "customWidth", "audio", "burnIn", "destination"] as const;
+      if (profileKeys.some((key) => args[key] !== undefined)) {
+        const base = (current?.proxyProfile ?? { codec: "h264", size: "half" }) as DesktopProxyProfile;
+        const merged: Record<string, unknown> = { ...base };
+        if (args.codec !== undefined) merged.codec = args.codec;
+        if (args.size !== undefined) merged.size = args.size;
+        if (args.customWidth !== undefined) merged.customWidth = args.customWidth;
+        else if (args.size !== undefined && args.size !== "custom") delete merged.customWidth;
+        if (args.audio !== undefined) merged.audio = args.audio;
+        if (args.burnIn !== undefined) {
+          const burn = args.burnIn as Record<string, unknown>;
+          if (burn === null || typeof burn !== "object" || Array.isArray(burn)) return fail("burnIn must be an object like {clipName: true, timecode: true}.");
+          merged.burnIn = { ...(base.burnIn ?? {}), ...burn };
+        }
+        if (args.destination !== undefined) {
+          const dest = args.destination as Record<string, unknown>;
+          if (dest === null || typeof dest !== "object" || Array.isArray(dest)) return fail("destination must be an object like {mode: \"custom\", folder: \"/Volumes/Fast\"}.");
+          merged.destination = dest.mode === "custom" ? { mode: "custom", folder: dest.folder } : { mode: dest.mode };
+        }
+        // Not the app preset any more: the stored id would claim a profile this is not.
+        delete next.proxyPresetId;
+        next.proxyProfile = merged;
+      }
+      if (args.checksum !== undefined) next.checksum = args.checksum;
       if (args.concurrency !== undefined) next.concurrency = args.concurrency;
       if (args.proxyFolder !== undefined) next.proxyFolder = args.proxyFolder;
       if (args.mediaFolder !== undefined) next.mediaFolder = args.mediaFolder;
       if (args.proxiesWithCopy !== undefined) next.proxiesWithCopy = args.proxiesWithCopy;
-      if (!isDesktopIngestConfig(next)) return fail("Invalid settings: codec is prores-proxy or h264, size is half, quarter, 720p or 1080p, concurrency is 1 or 2, folders are non-empty paths.");
+      if (!isDesktopIngestConfig(next))
+        return fail(
+          `Invalid settings: codec is ${DESKTOP_PROXY_CODECS.map((entry) => entry.id).join(", ")}; size is ${DESKTOP_PROXY_SIZES.map((entry) => entry.id).join(", ")} (custom needs an integer customWidth of 16-16384); audio is keep or strip; burnIn is {clipName, timecode} booleans; destination mode is project, media or custom (custom needs a folder); checksum is ${INGEST_CHECKSUMS.map((entry) => entry.id).join(", ")}; concurrency is 1 or 2; folders are non-empty paths.`,
+        );
+      if (next.proxyProfile) next.proxyProfile = normalizeProxyProfile(next.proxyProfile as DesktopProxyProfile);
       const action: Action = {
         type: "media/organize",
         id: genId(),
@@ -207,7 +239,7 @@ export const PROXY_TOOLS: RegisteredTool[] = [
     domain: "media",
     title: "Copy media to project",
     description:
-      "Desktop app only. Copy media files into the project's Media folder and point the project at the copies. Every copy is verified by SHA-256 (the copy is re-read and compared) and the originals are never modified or deleted. mediaIds picks items (default: every online item not yet copied). The whole batch is ONE undo step for the reference change (undo re-points to the originals; the copied files stay on disk). The project must be saved first so its Media folder has a home.",
+      "Desktop app only. Copy media files into the project's Media folder and point the project at the copies. Every copy is re-read and verified by checksum (SHA-256 by default, MD5 or xxHash64 when set with set_proxy_format checksum; the digest and algorithm are returned and recorded on the media) and a corrupted copy is refused and no file is kept; the originals are never modified or deleted. mediaIds picks items (default: every online item not yet copied). The whole batch is ONE undo step for the reference change (undo re-points to the originals; the copied files stay on disk). The project must be saved first so its Media folder has a home.",
     inputSchema: obj({ mediaIds: strings }),
     readOnly: false,
     destructive: false,

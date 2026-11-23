@@ -3,7 +3,21 @@ import { AudioEngine } from "./audio-engine";
 import type { AudioClipRenderInfo } from "./types";
 import type { MediaItem } from "../types";
 import { applySpectralRegions } from "./spectral/spectral-dsp";
-import { createSpectralRepairEffect, type SpectralRegion } from "./spectral/spectral-regions";
+import { createSpectralRepairEffect, sanitizeSpectralRegions, type SpectralRegion } from "./spectral/spectral-regions";
+import { computeMagicWand } from "./spectral/spectral-wand";
+import { trackHarmonics } from "./spectral/spectral-harmonic";
+import { createEnhanceSpeechEffect } from "./enhance/enhance-effect";
+import { setEnhanceBackend } from "./enhance/enhance-worker-client";
+import { createReduceReverbEffect } from "./reverb/reverb-effect";
+import { createInlineReverbBackend, setReverbBackend } from "./reverb/reverb-worker-client";
+import { reduceReverbChannels } from "./reverb/reverb-engine";
+import { fftConvolve } from "./reverb/reverb-metrics";
+import { resample } from "./enhance/resample";
+import { readPcm16Wav, roomImpulseResponse } from "./enhance/enhance-test-signals";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { createNativePluginEffect } from "./native-plugin/native-plugin-effect";
+import { setNativePluginBackend } from "./native-plugin/native-plugin-cache";
 
 const SR = 8000;
 
@@ -187,6 +201,45 @@ describe("export render with a realistic offline graph", () => {
       expect(Math.abs(amp(played, 1500) / amp(source.getChannelData(0), 1500) - 1)).toBeLessThan(0.005);
     });
 
+    it("renders lasso / brush / heal regions with exactly the samples the DSP (and so the preview) produces", async () => {
+      const regions: SpectralRegion[] = sanitizeSpectralRegions([
+        { id: "l", mode: "heal", shape: "lasso", points: [{ t: 1, hz: 300 }, { t: 3, hz: 300 }, { t: 3, hz: 700 }, { t: 1, hz: 700 }] },
+        { id: "b", mode: "remove", shape: "brush", brushSeconds: 0.2, brushOctaves: 0.2, points: [{ t: 0.5, hz: 1500 }, { t: 3.5, hz: 1500 }] },
+        { id: "r", mode: "heal", startTime: 2, endTime: 3, lowHz: 100, highHz: 200, gainDb: -120, enabled: true },
+      ]);
+      const ctx = new RealisticOffline(2, 4 * SR, SR);
+      const engine = engineFor(null);
+      const source = two();
+      await engine.renderBufferToContext(ctx, source, info({ effects: [createSpectralRepairEffect("sr", regions)] }), 0);
+      const played = ctx.sources[0].buffer!.getChannelData(0);
+      const direct = applySpectralRegions([source.getChannelData(0)], SR, regions)[0];
+      expect(Array.from(played)).toEqual(Array.from(direct));
+      expect(amp(played, 500)).toBeLessThan(amp(source.getChannelData(0), 500) * 0.2);
+      expect(amp(played, 1500)).toBeLessThan(amp(source.getChannelData(0), 1500) * 0.1);
+    });
+
+    it("renders wand, harmonic and per-channel regions with exactly the samples the DSP (and so the preview) produces", async () => {
+      const source = makeBuffer(2, 4 * SR, (i) => 0.3 * Math.sin((2 * Math.PI * 500 * i) / SR) + 0.3 * Math.sin((2 * Math.PI * 1500 * i) / SR));
+      const left = source.getChannelData(0);
+      const wand = computeMagicWand(left, SR, { t: 2, hz: 500 }, { toleranceDb: 6 });
+      const track = trackHarmonics(left, SR, { t: 2, hz: 500 }, { harmonics: 3 });
+      if (!wand.ok || !track.ok) throw new Error("analysis failed");
+      const regions: SpectralRegion[] = sanitizeSpectralRegions([
+        { id: "w", mode: "remove", shape: "wand", wand: wand.wand, channel: "left" },
+        { id: "h", mode: "attenuate", gainDb: -30, shape: "harmonic", points: track.points, harmonic: { harmonics: 3, maxHz: 20000, bandCents: 50 }, channel: "right" },
+      ]);
+      const ctx = new RealisticOffline(2, 4 * SR, SR);
+      await engineFor(null).renderBufferToContext(ctx, source, info({ effects: [createSpectralRepairEffect("sr", regions)] }), 0);
+      const played = ctx.sources[0].buffer!;
+      const direct = applySpectralRegions([left, source.getChannelData(1)], SR, regions);
+      expect(Array.from(played.getChannelData(0))).toEqual(Array.from(direct[0]));
+      expect(Array.from(played.getChannelData(1))).toEqual(Array.from(direct[1]));
+      expect(amp(played.getChannelData(0), 500)).toBeLessThan(amp(left, 500) * 0.2);
+      expect(amp(played.getChannelData(1), 500)).toBeLessThan(amp(left, 500) * 0.1);
+      // The left edit did not touch the right channel's 500 Hz beyond the harmonic attenuation, and the harmonic edit did not touch the left's 1500 Hz.
+      expect(Math.abs(amp(played.getChannelData(0), 1500) / amp(left, 1500) - 1)).toBeLessThan(0.02);
+    });
+
     it("leaves a clip with a disabled or empty spectral effect on the original source", async () => {
       const ctx = new RealisticOffline(2, 4 * SR, SR);
       const engine = engineFor(null);
@@ -203,6 +256,201 @@ describe("export render with a realistic offline graph", () => {
       await engine.renderClipToContext(ctx, media, info({ effects: [createSpectralRepairEffect("sr", [region])] }), 0, true);
       expect(ctx.sources).toHaveLength(1);
       expect(amp(ctx.sources[0].buffer!.getChannelData(0), 500)).toBeLessThan(amp(decoded.getChannelData(0), 500) * 0.04);
+    });
+  });
+
+  describe("enhance speech", () => {
+    const voice = (seed: number) => makeBuffer(1, 4 * SR, (i) => 0.3 * Math.sin((2 * Math.PI * (200 + seed) * i) / SR));
+
+    it("renders the enhanced source (the cached job the preview shares), blended by Mix", async () => {
+      const calls: number[] = [];
+      setEnhanceBackend({ enhance: async (channels) => { calls.push(channels.length); return channels.map((c) => c.map((v) => v * 0.2)); } });
+      try {
+        const source = voice(1);
+        const ctx = new RealisticOffline(2, 4 * SR, SR);
+        await engineFor(null).renderBufferToContext(ctx, source, info({ effects: [createEnhanceSpeechEffect("es", 100)] }), 0);
+        const played = ctx.sources[0].buffer!.getChannelData(0);
+        expect(played[1000]).toBeCloseTo(source.getChannelData(0)[1000] * 0.2, 6);
+        const ctx2 = new RealisticOffline(2, 4 * SR, SR);
+        await engineFor(null).renderBufferToContext(ctx2, source, info({ effects: [createEnhanceSpeechEffect("es", 50)] }), 0);
+        expect(ctx2.sources[0].buffer!.getChannelData(0)[1000]).toBeCloseTo(source.getChannelData(0)[1000] * 0.6, 6);
+        expect(calls).toHaveLength(1);
+      } finally {
+        setEnhanceBackend(null);
+      }
+    });
+
+    it("leaves Mix 0 and disabled effects on the original source", async () => {
+      const enhance = vi.fn(async (channels: Float32Array[]) => channels);
+      setEnhanceBackend({ enhance });
+      try {
+        const source = voice(2);
+        for (const effect of [createEnhanceSpeechEffect("a", 0), { ...createEnhanceSpeechEffect("b", 100), enabled: false }]) {
+          const ctx = new RealisticOffline(2, 4 * SR, SR);
+          await engineFor(null).renderBufferToContext(ctx, source, info({ effects: [effect] }), 0);
+          expect(ctx.sources[0].buffer).toBe(source);
+        }
+        expect(enhance).not.toHaveBeenCalled();
+      } finally {
+        setEnhanceBackend(null);
+      }
+    });
+
+    it("fails the render with the reason rather than silently exporting un-enhanced audio", async () => {
+      setEnhanceBackend({ enhance: async () => { throw new Error("model files missing"); } });
+      try {
+        const ctx = new RealisticOffline(2, 4 * SR, SR);
+        await expect(engineFor(null).renderBufferToContext(ctx, voice(3), info({ effects: [createEnhanceSpeechEffect("es", 100)] }), 0)).rejects.toThrow(/Enhance Speech could not run: model files missing/);
+      } finally {
+        setEnhanceBackend(null);
+      }
+    });
+
+    it("decodes the whole source instead of streaming segments", async () => {
+      setEnhanceBackend({ enhance: async (channels) => channels.map((c) => c.map((v) => v * 0.1)) });
+      try {
+        const ctx = new RealisticOffline(2, 4 * SR, SR);
+        const decoded = voice(4);
+        const engine = engineFor(decoded, [makeBuffer(1, 2 * SR, () => 0.5), makeBuffer(1, 2 * SR, () => 0.5)]);
+        const media = { id: "m", metadata: { duration: 4 } } as unknown as MediaItem;
+        await engine.renderClipToContext(ctx, media, info({ effects: [createEnhanceSpeechEffect("es", 100)] }), 0, true);
+        expect(ctx.sources).toHaveLength(1);
+        expect(ctx.sources[0].buffer!.getChannelData(0)[500]).toBeCloseTo(decoded.getChannelData(0)[500] * 0.1, 6);
+      } finally {
+        setEnhanceBackend(null);
+      }
+    });
+  });
+
+  describe("enhance speech balance", () => {
+    const voice = (seed: number) => makeBuffer(1, 4 * SR, (i) => 0.3 * Math.sin((2 * Math.PI * (200 + seed) * i) / SR));
+
+    it("renders the remixed stems from the one cached enhancement, and the default balance exactly as before", async () => {
+      const calls: number[] = [];
+      setEnhanceBackend({ enhance: async (channels) => { calls.push(channels.length); return channels.map((c) => c.map((v) => v * 0.2)); } });
+      try {
+        const source = voice(11);
+        const render = async (effect: ReturnType<typeof createEnhanceSpeechEffect>) => {
+          const ctx = new RealisticOffline(2, 4 * SR, SR);
+          await engineFor(null).renderBufferToContext(ctx, source, info({ effects: [effect] }), 0);
+          return ctx.sources[0].buffer!.getChannelData(0);
+        };
+        const dry = source.getChannelData(0)[1000];
+        expect((await render(createEnhanceSpeechEffect("a", 100)))[1000]).toBeCloseTo(dry * 0.2, 6);
+        expect((await render(createEnhanceSpeechEffect("b", 100, 100)))[1000]).toBeCloseTo(dry * 0.2, 6);
+        expect((await render(createEnhanceSpeechEffect("c", 100, 0)))[1000]).toBeCloseTo(dry * 0.8, 6);
+        expect((await render(createEnhanceSpeechEffect("d", 100, 50)))[1000]).toBeCloseTo(dry, 6);
+        expect(calls).toHaveLength(1);
+      } finally {
+        setEnhanceBackend(null);
+      }
+    });
+  });
+
+  describe("reduce reverb", () => {
+    const wav = readPcm16Wav(readFileSync(fileURLToPath(new URL("./enhance/fixtures/speech-16k.wav", import.meta.url))));
+    const roomy = (): AudioBuffer => {
+      const dry = resample(wav.samples.subarray(0, wav.sampleRate * 4), wav.sampleRate, SR);
+      const wet = fftConvolve(dry, roomImpulseResponse(SR, 0.6, 0));
+      return makeBuffer(1, wet.length, (i) => wet[i]);
+    };
+
+    it("renders the cached job's samples (the very ones the preview plays), bit for bit", async () => {
+      setReverbBackend(createInlineReverbBackend());
+      try {
+        const source = roomy();
+        const ctx = new RealisticOffline(2, 4 * SR, SR);
+        await engineFor(null).renderBufferToContext(ctx, source, info({ effects: [createReduceReverbEffect("rr", 70, 40)] }), 0);
+        const played = ctx.sources[0].buffer!.getChannelData(0);
+        const reference = (await reduceReverbChannels([source.getChannelData(0)], SR, { amount: 70, sensitivity: 40 })).channels[0];
+        expect(played).toHaveLength(reference.length);
+        expect(Buffer.from(played.buffer, played.byteOffset, played.byteLength).equals(Buffer.from(reference.buffer, reference.byteOffset, reference.byteLength))).toBe(true);
+        expect(played).not.toEqual(source.getChannelData(0));
+      } finally {
+        setReverbBackend(null);
+      }
+    }, 60_000);
+
+    it("leaves Amount 0 and disabled effects on the original source", async () => {
+      const reduce = vi.fn(async () => ({ channels: [] as Float32Array[], rt60: 0, confidence: 0 }));
+      setReverbBackend({ reduce });
+      try {
+        const source = roomy();
+        for (const effect of [createReduceReverbEffect("a", 0), { ...createReduceReverbEffect("b", 60), enabled: false }]) {
+          const ctx = new RealisticOffline(2, 4 * SR, SR);
+          await engineFor(null).renderBufferToContext(ctx, source, info({ effects: [effect] }), 0);
+          expect(ctx.sources[0].buffer).toBe(source);
+        }
+        expect(reduce).not.toHaveBeenCalled();
+      } finally {
+        setReverbBackend(null);
+      }
+    });
+
+    it("fails the render with the reason rather than silently exporting the reverberant audio", async () => {
+      setReverbBackend({ reduce: async () => { throw new Error("worker missing"); } });
+      try {
+        const ctx = new RealisticOffline(2, 4 * SR, SR);
+        await expect(engineFor(null).renderBufferToContext(ctx, roomy(), info({ effects: [createReduceReverbEffect("rr", 60)] }), 0)).rejects.toThrow(/Reduce Reverb could not run: worker missing/);
+      } finally {
+        setReverbBackend(null);
+      }
+    });
+
+    it("runs before Enhance Speech (which then enhances its output) on the whole source, and decodes the whole source instead of streaming segments", async () => {
+      const seen: number[] = [];
+      setEnhanceBackend({ enhance: async (channels) => { seen.push(channels[0][2000]); return channels.map((c) => c.map((v) => v * 0.5)); } });
+      setReverbBackend({ reduce: async (channels) => ({ channels: channels.map((c) => c.map((v) => v * 0.1)), rt60: 0.5, confidence: 1 }) });
+      try {
+        const decoded = makeBuffer(1, 4 * SR, (i) => 0.3 * Math.sin((2 * Math.PI * 233 * i) / SR));
+        const ctx = new RealisticOffline(2, 4 * SR, SR);
+        const engine = engineFor(decoded, [makeBuffer(1, 2 * SR, () => 0.5), makeBuffer(1, 2 * SR, () => 0.5)]);
+        const media = { id: "m", metadata: { duration: 4 } } as unknown as MediaItem;
+        await engine.renderClipToContext(ctx, media, info({ effects: [createEnhanceSpeechEffect("es", 100), createReduceReverbEffect("rr", 60)] }), 0, true);
+        expect(ctx.sources).toHaveLength(1);
+        expect(seen[0]).toBeCloseTo(decoded.getChannelData(0)[2000] * 0.1, 6);
+        expect(ctx.sources[0].buffer!.getChannelData(0)[2000]).toBeCloseTo(decoded.getChannelData(0)[2000] * 0.05, 6);
+      } finally {
+        setEnhanceBackend(null);
+        setReverbBackend(null);
+      }
+    });
+  });
+
+  describe("hosted native plugins", () => {
+    const voice = (seed: number) => makeBuffer(1, 4 * SR, (i) => 0.3 * Math.sin((2 * Math.PI * (300 + seed) * i) / SR));
+    const plugin = { id: "au:aufx:dely:appl", format: "au" as const, name: "AUDelay", vendor: "Apple" };
+
+    it("renders the plugin's offline result with its automation (the cached job the preview shares) and differs from bypass", async () => {
+      const seen: Array<{ automation: unknown; state: unknown }> = [];
+      setNativePluginBackend({ render: async (request) => { seen.push({ automation: request.automation, state: request.state }); return { channels: request.channels.map((c) => c.map((v) => v * 0.2)), latencySamples: 0 }; } });
+      try {
+        const source = voice(11);
+        const effect = { ...createNativePluginEffect("p", plugin, { state: "QUJD" }), params: { ...createNativePluginEffect("p", plugin, { state: "QUJD" }).params, automation: { "0": [[0, 1], [1, 2]] } } };
+        const ctx = new RealisticOffline(2, 4 * SR, SR);
+        await engineFor(null).renderBufferToContext(ctx, source, info({ effects: [effect] }), 0);
+        expect(ctx.sources[0].buffer!.getChannelData(0)[1000]).toBeCloseTo(source.getChannelData(0)[1000] * 0.2, 6);
+        expect(seen).toEqual([{ automation: { "0": [[0, 1], [1, 2]] }, state: "QUJD" }]);
+        const bypassed = new RealisticOffline(2, 4 * SR, SR);
+        await engineFor(null).renderBufferToContext(bypassed, source, info({ effects: [{ ...effect, enabled: false }] }), 0);
+        expect(bypassed.sources[0].buffer).toBe(source);
+      } finally {
+        setNativePluginBackend(undefined);
+      }
+    });
+
+    it("bypasses a plugin the host cannot run, but fails the export when a plugin breaks while rendering", async () => {
+      const source = voice(12);
+      setNativePluginBackend(undefined);
+      const ctx = new RealisticOffline(2, 4 * SR, SR);
+      await engineFor(null).renderBufferToContext(ctx, source, info({ effects: [createNativePluginEffect("p", plugin)] }), 0);
+      expect(ctx.sources[0].buffer).toBe(source);
+      setNativePluginBackend({ render: async () => { throw new Error("helper crashed"); } });
+      try {
+        await expect(engineFor(null).renderBufferToContext(new RealisticOffline(2, 4 * SR, SR), voice(13), info({ effects: [createNativePluginEffect("p", plugin)] }), 0)).rejects.toThrow(/hosted audio plugin could not run: helper crashed/);
+      } finally {
+        setNativePluginBackend(undefined);
+      }
     });
   });
 });

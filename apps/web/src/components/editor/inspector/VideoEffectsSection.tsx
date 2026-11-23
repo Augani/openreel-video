@@ -19,6 +19,7 @@ import {
 } from "@/icons/lucide-compat";
 import { PropertySlider } from "./shell/PropertySlider";
 import { EffectAnimationControls } from "./EffectAnimationControls";
+import { useCornerPinOverlayStore } from "../../../stores/corner-pin-overlay-store";
 import { EffectPresetsPanel } from "./EffectPresetsPanel";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
@@ -280,6 +281,26 @@ const BurnInControls: React.FC<{
     </div>
   );
 };
+
+/** Turns the Corner Pin handles on the Program monitor on or off for one effect instance. */
+const CornerPinMonitorToggle: React.FC<{ clipId: string; effectId: string }> = ({ clipId, effectId }) => {
+  const active = useCornerPinOverlayStore((s) => s.clipId === clipId && s.effectId === effectId);
+  React.useEffect(() => () => { const s = useCornerPinOverlayStore.getState(); if (s.clipId === clipId && s.effectId === effectId) s.close(); }, [clipId, effectId]);
+  return (
+    <Button
+      type="button"
+      variant={active ? "default" : "outline"}
+      className="h-[26px] w-full text-[10px]"
+      aria-pressed={active}
+      onClick={() => (active ? useCornerPinOverlayStore.getState().close() : useCornerPinOverlayStore.getState().open(clipId, effectId))}
+    >
+      {active ? "Hide corner handles" : "Edit corners on the Program monitor"}
+    </Button>
+  );
+};
+
+// VR Projection's "Fill sequence" button loads with the first VR Projection effect that is inspected.
+const VrFillSequenceButton = React.lazy(() => import("./VrFillSequenceButton").then((m) => ({ default: m.VrFillSequenceButton })));
 
 /** Inspector controls for the pro effects library, generated from PRO_EFFECT_SPECS. */
 const ProEffectControls: React.FC<{
@@ -643,12 +664,20 @@ const EffectItem: React.FC<{
     }
     if (isProEffectType(effect.type)) {
       return (
+        <>
+        {effect.type === "corner-pin" && <CornerPinMonitorToggle clipId={clipId} effectId={effect.id} />}
+        {effect.type === "vr-projection" && (
+          <React.Suspense fallback={null}>
+            <VrFillSequenceButton clipId={clipId} effectId={effect.id} disabled={editingDisabled} onChange={(params) => onUpdate(effect.id, params)} />
+          </React.Suspense>
+        )}
         <ProEffectControls
           type={effect.type}
           params={effect.params}
           disabled={editingDisabled}
           onChange={(params) => onUpdate(effect.id, params)}
         />
+        </>
       );
     }
     switch (effect.type) {

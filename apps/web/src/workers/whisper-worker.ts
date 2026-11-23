@@ -7,7 +7,7 @@ import {
   isWhisperModelKey,
   type WhisperModelKey,
 } from "./whisper-models";
-import { pickOnnxThreads } from "./whisper-threads";
+import { ortWasmPathsFor, pickOnnxThreads } from "./whisper-threads";
 
 const MODEL_HOST = "https://media.openreel.video/models/";
 
@@ -16,6 +16,8 @@ env.allowRemoteModels = true;
 env.remoteHost = MODEL_HOST;
 env.remotePathTemplate = "{model}/resolve/{revision}/";
 env.useBrowserCache = true;
+// transformers.js defaults to fetching the onnxruntime WASM from a CDN; use the one set the app ships instead (works offline).
+if (env.backends.onnx.wasm) env.backends.onnx.wasm.wasmPaths = ortWasmPathsFor(self.location.href, import.meta.env.DEV);
 
 let threadsConfigured = false;
 /** Desktop-only multi-threaded ONNX wasm; the main thread tells us via `desktop`. */

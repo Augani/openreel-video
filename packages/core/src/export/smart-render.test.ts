@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Clip, MediaItem, Project, Track } from "../types";
-import { declineSmartRender, describePixelFormat, MIN_COPY_FRAMES, nativeProbeMismatch, planSmartRender, type SmartRenderSourceInfo } from "./smart-render";
+import { cleanTailFrames, declineSmartRender, describePixelFormat, extendCopyTails, MIN_COPY_FRAMES, nativeProbeMismatch, planSmartRender, type SmartRenderSourceInfo } from "./smart-render";
 import { parameterSetKey, parseAvcC, prependParameterSets } from "./avc-config";
 
 const FPS = 30;
@@ -456,7 +456,7 @@ describe("native engine (desktop ffmpeg)", () => {
       });
       expect(result.segments.filter((s) => s.kind === "encode")).toEqual([{ kind: "encode", startFrame: 180, endFrame: 240 }]);
       expect(result.segments.filter((s) => s.kind === "copy")).toEqual([
-        { kind: "copy", startFrame: 0, endFrame: 180, mediaId: "m1", sourceStart: 0, sourceEnd: 6 },
+        { kind: "copy", startFrame: 0, endFrame: 180, mediaId: "m1", sourceStart: 0, sourceEnd: 6, tailLimitFrame: 210 },
         { kind: "copy", startFrame: 240, endFrame: 600, mediaId: "m2", sourceStart: 8, sourceEnd: 20 },
       ]);
     });
@@ -624,5 +624,182 @@ describe("native ProRes source copy", () => {
     expect(nativeProbeMismatch({ codec: "prores", pixelFormat: "yuv422p10le", color: { matrix: "bt709" } }, "prores")).toBeNull();
     expect(nativeProbeMismatch({ codec: "prores", pixelFormat: "yuv444p12le", color: {} }, "prores")).toMatch(/not ProRes 4:2:2/);
     expect(nativeProbeMismatch({ codec: "prores", pixelFormat: "yuv422p10le", color: { transfer: "arib-std-b67" } }, "prores")).toMatch(/HDR \(HLG\)/);
+  });
+});
+
+describe("smart cut: copying into the partial GOP before an edit", () => {
+  const native = { format: "mp4", codec: "h264", width: 1280, height: 720, frameRate: FPS } as const;
+  const nativeSrc = (over: Partial<SmartRenderSourceInfo> = {}) => source({ profile: 100, level: 40, ...over });
+  const withEffect = () => {
+    const clips = [
+      clip({ id: "a", startTime: 0, duration: 7, mediaId: "m1" }),
+      clip({ id: "b", startTime: 7, duration: 3, mediaId: "m1", inPoint: 7, outPoint: 10, effects: [{ id: "e", type: "blur", params: {}, enabled: true }] as never }),
+      clip({ id: "c", startTime: 10, duration: 10, mediaId: "m1", inPoint: 10, outPoint: 20 }),
+    ];
+    return planSmartRender({ project: project(clips), settings: native, sources: new Map([["m1", nativeSrc()]]), exportStart: 0, totalFrames: 600, engine: "native" });
+  };
+
+  describe("cleanTailFrames", () => {
+    it("stops at the last anchor frame (I or P) before the limit, never on a B-frame", () => {
+      // display order I B B P B B P B B P
+      expect(cleanTailFrames("IBBPBBPBBP", 10)).toBe(10);
+      expect(cleanTailFrames("IBBPBBPBBP", 9)).toBe(7);
+      expect(cleanTailFrames("IBBPBBPBBP", 8)).toBe(7);
+      expect(cleanTailFrames("IBBPBBPBBP", 6)).toBe(4);
+      expect(cleanTailFrames("IBBPBBPBBP", 3)).toBe(1);
+      expect(cleanTailFrames("IBBPBBPBBP", 2)).toBe(1);
+    });
+    it("handles hierarchical B (a reference B is still a B) and P-only streams", () => {
+      expect(cleanTailFrames("IBBBPBBBP", 3)).toBe(1);
+      expect(cleanTailFrames("IPPPPP", 4)).toBe(4);
+    });
+    it("refuses a probe that does not start at a key frame, and an empty tail", () => {
+      expect(cleanTailFrames("PBBP", 4)).toBe(0);
+      expect(cleanTailFrames("", 4)).toBe(0);
+      expect(cleanTailFrames("IBB", 0)).toBe(0);
+    });
+  });
+
+  it("the native planner records how far each copy could run into the cut GOP, and never for the browser engine or all-intra", () => {
+    const result = withEffect();
+    const copies = result.segments.filter((s) => s.kind === "copy");
+    // key frames every 60 frames: the effect starts at frame 210 so the head copy stops at 180 with 30 frames of GOP left.
+    expect(copies[0]).toMatchObject({ startFrame: 0, endFrame: 180, tailLimitFrame: 210 });
+    expect(copies[1]).toMatchObject({ startFrame: 300 });
+    expect(copies[1]).not.toHaveProperty("tailLimitFrame");
+    const web = planSmartRender({ project: project([clip({ id: "a", startTime: 0, duration: 7 })]), settings: native, sources: new Map([["m1", source()]]), exportStart: 0, totalFrames: 210 });
+    expect(web.segments.every((s) => s.kind !== "copy" || s.tailLimitFrame === undefined)).toBe(true);
+  });
+
+  describe("extendCopyTails", () => {
+    it("moves the copy end and the encode start by the same frames and keeps every frame covered exactly once", () => {
+      const base = withEffect();
+      const extended = extendCopyTails(base, FPS, new Map([[0, 28]]));
+      expect(extended.segments[0]).toEqual({ kind: "copy", startFrame: 0, endFrame: 208, mediaId: "m1", sourceStart: 0, sourceEnd: 208 / FPS });
+      expect(extended.segments[1]).toEqual({ kind: "encode", startFrame: 208, endFrame: 300 });
+      expect(extended.copiedFrames).toBe(base.copiedFrames + 28);
+      expect(extended.copiedFrames + extended.reencodedFrames).toBe(600);
+      let cursor = 0;
+      for (const segment of extended.segments) {
+        expect(segment.startFrame).toBe(cursor);
+        cursor = segment.endFrame;
+      }
+      expect(cursor).toBe(600);
+    });
+    it("never takes more than the planner's limit", () => {
+      const extended = extendCopyTails(withEffect(), FPS, new Map([[0, 500]]));
+      expect(extended.segments[0]).toMatchObject({ endFrame: 210 });
+    });
+    it("does nothing without extensions", () => {
+      const base = withEffect();
+      expect(extendCopyTails(base, FPS, new Map())).toBe(base);
+      expect(extendCopyTails(base, FPS, new Map([[0, 0]]))).toBe(base);
+    });
+    it("NTSC frame rates keep the source time on the exact rational grid", () => {
+      const base = withEffect();
+      const extended = extendCopyTails(base, 29.97, new Map([[0, 30]]));
+      expect(extended.segments[0]).toMatchObject({ endFrame: 210 });
+      const seg = extended.segments[0];
+      if (seg.kind !== "copy") throw new Error("copy expected");
+      expect(seg.sourceEnd).toBeCloseTo(6 + 30 * (1001 / 30000), 9);
+    });
+  });
+});
+
+describe("razor cuts that change nothing", () => {
+  const native = { format: "mp4", codec: "h264", width: 1280, height: 720, frameRate: FPS } as const;
+  const plan2 = (clips: Clip[], total = 600) =>
+    planSmartRender({ project: project(clips), settings: native, sources: new Map([["m1", source({ profile: 100, level: 40 })]]), exportStart: 0, totalFrames: total, engine: "native" });
+
+  it("two clips playing one source back to back are a single copy, with no re-encode around the cut", () => {
+    const result = plan2([
+      clip({ id: "a", startTime: 0, duration: 7 }),
+      clip({ id: "b", startTime: 7, duration: 13, inPoint: 7, outPoint: 20 }),
+    ]);
+    expect(result.segments).toEqual([{ kind: "copy", startFrame: 0, endFrame: 600, mediaId: "m1", sourceStart: 0, sourceEnd: 20 }]);
+    expect(result.reencodedFrames).toBe(0);
+  });
+
+  it("many splits in a row still merge, and an edit between them is the only thing re-encoded", () => {
+    const result = plan2([
+      clip({ id: "a", startTime: 0, duration: 5 }),
+      clip({ id: "b", startTime: 5, duration: 2, inPoint: 5, outPoint: 7 }),
+      clip({ id: "c", startTime: 7, duration: 3, inPoint: 7, outPoint: 10, effects: [{ id: "e", type: "blur", params: {}, enabled: true }] as never }),
+      clip({ id: "d", startTime: 10, duration: 4, inPoint: 10, outPoint: 14 }),
+      clip({ id: "e", startTime: 14, duration: 6, inPoint: 14, outPoint: 20 }),
+    ]);
+    const copies = result.segments.filter((s) => s.kind === "copy");
+    expect(copies.map((c) => [c.startFrame, c.endFrame])).toEqual([[0, 180], [300, 600]]);
+    expect(result.segments.filter((s) => s.kind === "encode")).toEqual([{ kind: "encode", startFrame: 180, endFrame: 300 }]);
+  });
+
+  it("a ripple delete (the second clip plays from further on in the source) is not merged", () => {
+    const result = plan2([
+      clip({ id: "a", startTime: 0, duration: 7 }),
+      clip({ id: "b", startTime: 7, duration: 10, inPoint: 10, outPoint: 20 }),
+    ], 510);
+    const copies = result.segments.filter((s) => s.kind === "copy");
+    expect(copies).toHaveLength(2);
+    expect(result.reencodedFrames).toBeGreaterThan(0);
+  });
+
+  it("a split with a transition on it is not merged away", () => {
+    const p = project([
+      clip({ id: "a", startTime: 0, duration: 7 }),
+      clip({ id: "b", startTime: 7, duration: 13, inPoint: 7, outPoint: 20 }),
+    ]);
+    (p.timeline.tracks[0] as unknown as { transitions: unknown[] }).transitions = [{ id: "t", clipAId: "a", clipBId: "b", type: "fade", duration: 1 }];
+    const result = planSmartRender({ project: p, settings: native, sources: new Map([["m1", source({ profile: 100, level: 40 })]]), exportStart: 0, totalFrames: 600, engine: "native" });
+    expect(result.eligible).toBe(false);
+  });
+});
+
+describe("planSmartRender and Morph Cut", () => {
+  const native = { format: "mp4", codec: "h264", width: 1280, height: 720, frameRate: FPS } as const;
+  it("never stream-copies any frame of a Morph Cut span: the warped frames are rendered and re-encoded", () => {
+    const p = project([
+      clip({ id: "a", startTime: 0, duration: 7 }),
+      clip({ id: "b", startTime: 7, duration: 13, inPoint: 7, outPoint: 20 }),
+    ]);
+    (p.timeline.tracks[0] as unknown as { transitions: unknown[] }).transitions = [{ id: "mc", clipAId: "a", clipBId: "b", type: "morphCut", duration: 1, params: { quality: "medium" } }];
+    const result = planSmartRender({ project: p, settings: native, sources: new Map([["m1", source({ profile: 100, level: 40 })]]), exportStart: 0, totalFrames: 600, engine: "native" });
+    // the span is 6.5 s .. 7.5 s = frames 195..225 at 30 fps
+    const overlapsSpan = result.segments.filter((s) => s.kind === "copy" && s.startFrame < 225 && s.endFrame > 195);
+    expect(overlapsSpan).toEqual([]);
+    expect(result.segments.some((s) => s.kind === "encode" && s.startFrame <= 195 && s.endFrame >= 225)).toBe(true);
+    expect(result.eligible).toBe(false);
+  });
+});
+
+describe("planSmartRender and multichannel audio", () => {
+  // Smart render copies PICTURE only; every sound is rendered from the audio mixdown and encoded once in the final pass.
+  // So a clip's channel map, audio stream and patch slot cannot change which frames are copied, and the audio is never copied.
+  it("plans the same copy for a clip with a custom channel map, another audio stream and a patch slot as for a plain clip", () => {
+    const plain = plan(project([clip({ id: "c1", startTime: 0, duration: 20 })]));
+    const mapped = plan(project([
+      clip({ id: "c1", startTime: 0, duration: 20, channelMap: { format: "mono", sources: [2] }, audioTrackIndex: 1, metadata: { sourceChannelGroup: 2 } }),
+    ]));
+    expect(mapped.eligible).toBe(true);
+    expect(mapped.segments).toEqual(plain.segments);
+    expect(mapped.copiedFrames).toBe(plain.copiedFrames);
+  });
+
+  it("a picture clip with its sound on separate multichannel audio clips still copies the whole picture", () => {
+    const sound = (id: string, group: number) => clip({ id, startTime: 0, duration: 20, trackId: "a1", transform: { ...clip({ id: "x", startTime: 0, duration: 1 }).transform, opacity: 0 }, channelMap: { format: "mono", sources: [group] }, volume: 1, metadata: { sourceChannelGroup: group, separatedFromClipId: "c1" } });
+    const p = project([clip({ id: "c1", startTime: 0, duration: 20, volume: 0, metadata: { sourceMonitorComponent: "video" } })]);
+    const withSound = {
+      ...p,
+      timeline: { ...p.timeline, tracks: [...p.timeline.tracks, { id: "a1", type: "audio", name: "A1", clips: [sound("s0", 0), sound("s1", 1)], transitions: [], locked: false, hidden: false, muted: false, solo: false } as Track] },
+    } as Project;
+    const result = plan(withSound);
+    expect(result.eligible).toBe(true);
+    expect(result.copiedFrames).toBe(600);
+  });
+
+  it("an invisible clip that is NOT a sound clip (opacity keyframed on) still covers the picture", () => {
+    const p = project([clip({ id: "c1", startTime: 0, duration: 20 })]);
+    const overlay = clip({ id: "o1", startTime: 5, duration: 5, trackId: "v2", transform: { ...clip({ id: "x", startTime: 0, duration: 1 }).transform, opacity: 0 }, keyframes: [{ id: "k", time: 0, property: "opacity", value: 1, easing: "linear" } as never] });
+    const result = plan({ ...p, timeline: { ...p.timeline, tracks: [...p.timeline.tracks, { id: "v2", type: "video", name: "V2", clips: [overlay], transitions: [], locked: false, hidden: false, muted: false, solo: false } as Track] } } as Project);
+    expect(result.copiedFrames).toBeLessThan(600);
   });
 });

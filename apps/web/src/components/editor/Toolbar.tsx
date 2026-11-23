@@ -31,11 +31,13 @@ import { HistoryPanel } from "./inspector/HistoryPanel";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { CollaboratorAvatars } from "./CollaboratorAvatars";
 import { connectionOf, useCollabStore } from "../../services/collab/collab-store";
-import { SettingsDialog } from "./settings/SettingsDialog";
+import { useSettingsStore } from "../../stores/settings-store";
 import { toast } from "../../stores/notification-store";
 import { useAnalytics, AnalyticsEvents } from "../../hooks/useAnalytics";
 
 // Dialogs that only open on demand stay out of the editor chunk (bundle-budgets.json).
+// Settings (API keys, MCP, watch folders, render cache) is not a first-paint feature: its chunk loads the first time it opens.
+const SettingsDialog = lazy(() => import("./settings/SettingsDialog").then((m) => ({ default: m.SettingsDialog })));
 const AIConnectionDialog = lazy(() => import("./chat/AIConnectionDialog").then((m) => ({ default: m.AIConnectionDialog })));
 const CompressDialog = lazy(() => import("./CompressDialog").then((m) => ({ default: m.CompressDialog })));
 const CollaborationDialog = lazy(() => import("./CollaborationDialog").then((m) => ({ default: m.CollaborationDialog })));
@@ -69,6 +71,7 @@ export const Toolbar: React.FC = () => {
   const aiConnectionLatched = useLatch(aiConnectionOpen);
   const compressLatched = useLatch(isCompressOpen);
   const collabLatched = useLatch(collabOpen);
+  const settingsLatched = useLatch(useSettingsStore((state) => state.settingsOpen));
   const [isShareOpen, setIsShareOpen] = useState(false);
   const collabConnection = useCollabStore((state) => connectionOf(state.snapshot));
   const openCollabDialog = useCollabStore((state) => state.openDialog);
@@ -367,7 +370,11 @@ export const Toolbar: React.FC = () => {
         />
       </Suspense>
 
-      <SettingsDialog />
+      {settingsLatched && (
+        <Suspense fallback={null}>
+          <SettingsDialog />
+        </Suspense>
+      )}
       {collabLatched && (
         <Suspense fallback={null}>
           <CollaborationDialog />

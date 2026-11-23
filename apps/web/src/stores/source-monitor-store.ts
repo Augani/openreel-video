@@ -14,6 +14,26 @@ export interface SourceMarks {
 }
 
 export type MonitorTab = "program" | "source" | "multicam";
+
+/**
+ * A clip shown in the Source monitor before it is part of the project (the Media Browser's preview).
+ * It is read-only: nothing here can be edited into the timeline until it has been imported.
+ */
+export interface ExternalSourcePreview {
+  id: string;
+  name: string;
+  blob: Blob;
+  duration: number;
+  frameRate?: number;
+  width?: number;
+  height?: number;
+  type: "video" | "audio" | "image";
+  hasAudio: boolean;
+  /** Shown beside the name ("first 5 minutes only", "3 files joined"). */
+  note?: string;
+  /** The Import button of the preview banner. */
+  onImport?: () => void;
+}
 export type MonitorFocus = "program" | "source";
 
 const MARKS_KEY = "openreel-source-marks:";
@@ -46,6 +66,46 @@ function readMarks(projectId: string): Record<string, SourceMarks> {
   }
 }
 
+const HISTORY_KEY = "openreel-source-history:";
+
+interface PersistedHistory {
+  history: string[];
+  positions: Record<string, number>;
+}
+
+function readHistory(projectId: string): PersistedHistory {
+  const empty: PersistedHistory = { history: [], positions: {} };
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY + projectId);
+    if (!raw) return empty;
+    const parsed = JSON.parse(raw) as { history?: unknown; positions?: unknown } | null;
+    if (!parsed || typeof parsed !== "object") return empty;
+    const history = Array.isArray(parsed.history)
+      ? parsed.history.filter((id): id is string => typeof id === "string").slice(0, SOURCE_HISTORY_LIMIT)
+      : [];
+    const positions: Record<string, number> = {};
+    if (parsed.positions && typeof parsed.positions === "object") {
+      for (const [id, v] of Object.entries(parsed.positions as Record<string, unknown>)) {
+        if (typeof v === "number" && Number.isFinite(v) && v >= 0) positions[id] = v;
+      }
+    }
+    return { history, positions };
+  } catch {
+    return empty;
+  }
+}
+
+function writeHistory(projectId: string | null, history: readonly string[], positions: Record<string, number>) {
+  if (!projectId) return;
+  try {
+    const kept: Record<string, number> = {};
+    for (const id of history) if (positions[id] !== undefined) kept[id] = positions[id];
+    localStorage.setItem(HISTORY_KEY + projectId, JSON.stringify({ history, positions: kept }));
+  } catch {
+    /* storage unavailable: history lasts for this session only */
+  }
+}
+
 function writeMarks(projectId: string, marks: Record<string, SourceMarks>) {
   try {
     localStorage.setItem(MARKS_KEY + projectId, JSON.stringify(marks));
@@ -66,14 +126,18 @@ interface SourceMonitorState {
   /** Which monitor keyboard shortcuts act on. */
   focus: MonitorFocus;
   mediaId: string | null;
+  /** A not-yet-imported clip being previewed (the Media Browser); null for project media. */
+  externalPreview: ExternalSourcePreview | null;
   /** Source playhead, seconds into the media. */
   position: number;
   /** Shuttle rate: 0 stopped, negative reverse. */
   rate: number;
   projectId: string | null;
   marks: Record<string, SourceMarks>;
-  /** Recently loaded media ids, most recent first (this project, this session). */
+  /** Recently loaded media ids, most recent first (this project; kept across reloads). */
   history: string[];
+  /** Where each history clip's Source playhead was left, seconds. The loaded clip's live value is `position`. */
+  positions: Record<string, number>;
   /** Bumped on every open request so the view can re-focus/seek. */
   openNonce: number;
   /** Replace edit keeps the replaced clip's effects, keyframes and audio
@@ -83,6 +147,9 @@ interface SourceMonitorState {
   setTab: (tab: MonitorTab) => void;
   setFocus: (focus: MonitorFocus) => void;
   setReplaceKeepsAttributes: (keep: boolean) => void;
+  /** Preview a clip that is not in the project yet (read-only) and show the Source tab. */
+  openExternal: (preview: ExternalSourcePreview) => void;
+  closeExternal: () => void;
   /** Load a media item into the source monitor and show the Source tab. */
   open: (mediaId: string, projectId: string, time?: number) => void;
   setPosition: (seconds: number) => void;
@@ -96,17 +163,21 @@ interface SourceMonitorState {
   setMark: (mediaId: string, which: "in" | "out", seconds: number | null) => void;
   clearMarks: (mediaId: string) => void;
   getMarks: (mediaId: string) => SourceMarks;
+  /** The Source playhead a clip would reopen at: live for the loaded clip, else where it was left. */
+  getRememberedPosition: (mediaId: string) => number | undefined;
 }
 
 export const useSourceMonitorStore = create<SourceMonitorState>((set, get) => ({
   tab: "program",
   focus: "program",
   mediaId: null,
+  externalPreview: null,
   position: 0,
   rate: 0,
   projectId: null,
   marks: {},
   history: [],
+  positions: {},
   openNonce: 0,
   replaceKeepsAttributes: true,
 
@@ -115,20 +186,31 @@ export const useSourceMonitorStore = create<SourceMonitorState>((set, get) => ({
   setReplaceKeepsAttributes: (replaceKeepsAttributes) => set({ replaceKeepsAttributes }),
   bindProject: (projectId) => {
     if (get().projectId === projectId) return;
-    set({ projectId, marks: readMarks(projectId), mediaId: null, position: 0, rate: 0, history: [] });
+    const saved = readHistory(projectId);
+    set({ projectId, marks: readMarks(projectId), mediaId: null, externalPreview: null, position: 0, rate: 0, history: saved.history, positions: saved.positions });
   },
+  openExternal: (preview) =>
+    set((state) => ({ tab: "source", focus: "source", mediaId: preview.id, externalPreview: preview, position: 0, rate: 0, openNonce: state.openNonce + 1 })),
+  closeExternal: () => set((state) => (state.externalPreview ? { externalPreview: null, mediaId: null, position: 0, rate: 0 } : {})),
   open: (mediaId, projectId, time) => {
     const state = get();
     const sameProject = state.projectId === projectId;
+    // Leaving a project clip remembers where its playhead was; reopening it from history resumes there.
+    const positions = { ...(sameProject ? state.positions : readHistory(projectId).positions) };
+    if (sameProject && state.mediaId && !state.externalPreview) positions[state.mediaId] = state.position;
+    const history = pushSourceHistory(sameProject ? state.history : readHistory(projectId).history, mediaId);
+    writeHistory(projectId, history, positions);
     set({
       tab: "source",
       focus: "source",
       mediaId,
-      position: Math.max(0, time ?? (state.mediaId === mediaId && sameProject ? state.position : 0)),
+      externalPreview: null,
+      position: Math.max(0, time ?? (state.mediaId === mediaId && sameProject && !state.externalPreview ? state.position : positions[mediaId] ?? 0)),
       rate: 0,
       projectId,
       marks: sameProject ? state.marks : readMarks(projectId),
-      history: pushSourceHistory(sameProject ? state.history : [], mediaId),
+      history,
+      positions,
       openNonce: state.openNonce + 1,
     });
   },
@@ -137,7 +219,14 @@ export const useSourceMonitorStore = create<SourceMonitorState>((set, get) => ({
   shuttle: (direction) => set((s) => ({ rate: nextShuttleRate(s.rate, direction) })),
   stop: () => set({ rate: 0 }),
   togglePlay: () => set((s) => ({ rate: s.rate === 0 ? 1 : 0 })),
-  forgetHistory: (mediaId) => set((s) => ({ history: s.history.filter((id) => id !== mediaId) })),
+  forgetHistory: (mediaId) => {
+    const s = get();
+    const history = s.history.filter((id) => id !== mediaId);
+    const positions = { ...s.positions };
+    delete positions[mediaId];
+    set({ history, positions });
+    writeHistory(s.projectId, history, positions);
+  },
   setMark: (mediaId, which, seconds) => {
     const { marks, projectId } = get();
     const current = { ...(marks[mediaId] ?? {}) };
@@ -163,4 +252,18 @@ export const useSourceMonitorStore = create<SourceMonitorState>((set, get) => ({
     if (projectId) writeMarks(projectId, next);
   },
   getMarks: (mediaId) => get().marks[mediaId] ?? {},
+  getRememberedPosition: (mediaId) => {
+    const s = get();
+    if (s.mediaId === mediaId && !s.externalPreview) return s.position;
+    return s.positions[mediaId];
+  },
 }));
+
+// A reload keeps the loaded clip's playhead too, not just those of clips left earlier.
+if (typeof window !== "undefined") {
+  window.addEventListener("pagehide", () => {
+    const s = useSourceMonitorStore.getState();
+    if (!s.mediaId || s.externalPreview) return;
+    writeHistory(s.projectId, s.history, { ...s.positions, [s.mediaId]: s.position });
+  });
+}

@@ -5,6 +5,7 @@ import { useEditorWorkspaceStore } from "../../../stores/editor-workspace-store"
 import { useTimelineTouchGesture, listenTimelineGesture } from "./touch-gestures";
 import { TimelineTouchMoveHandle } from "./TimelineTouchMoveHandle";
 import { pinTimelineClip } from "./visible-clips";
+import { moveLinkedCaptions } from "../../../utils/linked-caption-edit";
 import React, { useRef, useState, useEffect, useCallback } from "react";
 import { flushSync } from "react-dom";
 import { ContextMenu, ContextMenuTrigger } from "@openreel/ui";
@@ -38,6 +39,7 @@ import { ClipGainLine } from "./ClipGainLine";
 import { GAIN_LINE_MIN_TRACK_HEIGHT } from "./clip-gain-geometry";
 import { openNestClip } from "../../../services/sequence-commands";
 import { SplitEditBadge } from "./SplitEditBadge";
+import { beginClipDragActivity, endClipDragActivity } from "./clip-drag-activity";
 import { RemoteClipSelection } from "./RemotePresence";
 import {
   AUDIO_TYPE_LABELS,
@@ -61,6 +63,15 @@ if (typeof window !== "undefined") {
   window.addEventListener("pointerup", up, true);
   window.addEventListener("pointercancel", up, true);
   window.addEventListener("blur", up);
+}
+
+/** Where the store has a clip right now (a drop compares it with the live position to skip a redundant move). */
+function findPlacedClip(project: { timeline: { tracks: ReadonlyArray<{ id: string; clips: ReadonlyArray<{ id: string; startTime: number }> }> } }, clipId: string): { trackId: string; startTime: number } | null {
+  for (const track of project.timeline.tracks) {
+    const found = track.clips.find((candidate) => candidate.id === clipId);
+    if (found) return { trackId: track.id, startTime: found.startTime };
+  }
+  return null;
 }
 
 interface ClipComponentProps {
@@ -176,6 +187,7 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
   // Snapshot of every additional selected clip at drag start. Multi-clip
   // drag applies the same time delta to each entry so they stay locked
   // together as the dragged clip moves.
+  const batchDragSnapshotRef = useRef<Array<{ clipId: string; startTime: number }> | null>(null);
   const multiDragSnapshotRef = useRef<
     Array<{ clipId: string; startTime: number; trackId: string }>
   >([]);
@@ -351,6 +363,12 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
       const companion = state.getClip(id);
       return companion ? [{ clipId: id, startTime: companion.startTime, trackId: companion.trackId }] : [];
     });
+    batchDragSnapshotRef.current = editable.length - 1 >= BATCH_DRAG_COMPANIONS
+      ? editable.flatMap((id) => {
+          const member = state.getClip(id);
+          return member ? [{ clipId: id, startTime: member.startTime }] : [];
+        })
+      : null;
     // Install gesture listeners before native input can deliver move/up in a burst.
     // Only gesture entry and activation flush; ordinary moves remain RAF-coalesced.
     flushSync(() => setIsPendingDrag(true));
@@ -419,6 +437,7 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
       transitionType: TransitionType,
       edge: "left" | "right",
       transitionParams?: Record<string, unknown>,
+      transitionDuration?: number,
     ) => {
       const projectState = useProjectStore.getState();
       const tracks = projectState.project.timeline.tracks;
@@ -452,14 +471,14 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
               clipA,
               clipB,
               transitionType,
-              useEditorWorkspaceStore.getState().transitionDuration,
+              transitionDuration ?? useEditorWorkspaceStore.getState().transitionDuration,
               defaultParams,
             )
           : bridge.createClipEdgeTransition(
               sortedClips[idx],
               edge === "left" ? "in" : "out",
               transitionType,
-              useEditorWorkspaceStore.getState().transitionDuration,
+              transitionDuration ?? useEditorWorkspaceStore.getState().transitionDuration,
               defaultParams,
             );
       if (result.success && result.transitionId) {
@@ -506,6 +525,7 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
       const transitionPayload = tryParse<{
         transitionType: TransitionType;
         transitionParams?: Record<string, unknown>;
+        transitionDuration?: number;
       }>(
         e.dataTransfer.getData(TRANSITION_DRAG_MIME) || null,
       );
@@ -547,6 +567,9 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
           transitionType,
           edge,
           transitionPayload?.transitionParams,
+          typeof transitionPayload?.transitionDuration === "number" && transitionPayload.transitionDuration > 0
+            ? transitionPayload.transitionDuration
+            : undefined,
         );
       }
     },
@@ -590,6 +613,7 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
         }
         // Select + enter drag in ONE synchronous render: selecting first and then flushing the
         // drag state rendered the timeline twice on the first move (a ~40 ms frame at 400 clips).
+        beginClipDragActivity();
         flushSync(() => {
           if (!useUIStore.getState().getSelectedClipIds().includes(clip.id)) onSelect(clip.id, false);
           setIsPendingDrag(false);
@@ -616,8 +640,10 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
 
   useEffect(() => {
     if (!isDragging) return;
+    beginClipDragActivity();
 
     let animationFrameId: number | null = null;
+    const dragBatchKey = `drag-${clip.id}-${Date.now()}`;
 
     const scrollLoop = () => {
       if (!timelineRef.current) {
@@ -654,7 +680,7 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
       commit?.();
     };
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleMouseMove = (e: MouseEvent, firstMove = false) => {
       dropModifiersRef.current = { altKey: e.altKey, metaKey: e.metaKey, ctrlKey: e.ctrlKey };
       mousePositionRef.current.x = e.clientX;
       mousePositionRef.current.y = e.clientY;
@@ -709,7 +735,19 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
       // reinstall this effect during the gesture.
       const baseStartTime = dragStartTimeRef.current;
       const companions = multiDragSnapshotRef.current;
+      const batchSnapshot = batchDragSnapshotRef.current;
       pendingCommitRef.current = () => {
+        if (batchSnapshot) {
+          // A big selection (select all, a marquee) is one batched move per frame: per-clip moves were O(clips)
+          // each, so a 1000-clip drag never finished. The snapshot is the whole editable selection taken from the
+          // store (linked partners included), so off-screen clips that are not mounted move with it.
+          const deltaTime = moveTime - baseStartTime;
+          dragCommitRef.current = moveSelectionBatch(
+            batchSnapshot.map((snap) => ({ clipId: snap.clipId, startTime: snap.clipId === clip.id ? moveTime : Math.max(0, snap.startTime + deltaTime) })),
+            dragBatchKey,
+          );
+          return;
+        }
         dragCommitRef.current = Promise.resolve(onMoveClip(clip.id, moveTime, undefined));
         // Move every companion clip in the multi-selection by the same delta.
         if (companions.length > 0) {
@@ -721,7 +759,11 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
         }
       };
       if (moveCommitRafRef.current === null) {
-        moveCommitRafRef.current = requestAnimationFrame(flushPendingCommit);
+        // The activating move has just rendered the drag state in this frame's input phase; committing the first
+        // move in the same frame's rAF stacked two timeline renders into one ~50 ms frame. It lands a frame later.
+        moveCommitRafRef.current = requestAnimationFrame(
+          firstMove ? () => { moveCommitRafRef.current = requestAnimationFrame(flushPendingCommit); } : flushPendingCommit,
+        );
       }
 
       onSnapIndicator(snapResult.snapped && snapResult.snapPoint ? snapResult.snapPoint.time : null);
@@ -742,11 +784,25 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
       }
       const pendingCommit = pendingCommitRef.current;
       pendingCommitRef.current = null;
-      pendingCommit?.();
 
       const { time, targetTrackId } = pendingDropRef.current;
-      dragCommitRef.current = Promise.resolve(onMoveClip(clip.id, time, targetTrackId ?? track.id));
-      await dragCommitRef.current;
+      // A lone clip's queued move is superseded by the drop's own move to the same time, and a second store commit
+      // re-renders the whole timeline (about 25 ms at 400 clips, a ~58 ms frame with the drop's). Companions and
+      // batches still need the queued move: it is the only one that moves them.
+      const lone = !batchDragSnapshotRef.current && multiDragSnapshotRef.current.length === 0;
+      if (!lone) pendingCommit?.();
+      // The batched path is queued off the gesture; the single-clip path must not yield here (a yield lets the
+      // drag's history group close before the final move lands).
+      if (batchDragSnapshotRef.current) await dragCommitRef.current;
+      // Nothing to apply when the last live move already put the clip at the drop: no pending move, same time,
+      // same track.
+      const dropTrackId = targetTrackId ?? track.id;
+      const placed = lone && !pendingCommit ? findPlacedClip(useProjectStore.getState().project, clip.id) : null;
+      const alreadyThere = placed !== null && placed.trackId === dropTrackId && Math.abs(placed.startTime - time) < 1e-9;
+      if (!alreadyThere) {
+        dragCommitRef.current = Promise.resolve(onMoveClip(clip.id, time, dropTrackId));
+        await dragCommitRef.current;
+      }
       // Resolve overlaps inside the drag's history group: one undo step.
       const origins = dragOriginsRef.current;
       dragOriginsRef.current = null;
@@ -780,6 +836,7 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
       setIsInvalidDrop(false);
       onSnapIndicator(null);
       multiDragSnapshotRef.current = [];
+      batchDragSnapshotRef.current = null;
     };
 
     const cancelDrag = () => {
@@ -796,14 +853,15 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
       setIsInvalidDrop(false);
       onSnapIndicator(null);
       multiDragSnapshotRef.current = [];
+      batchDragSnapshotRef.current = null;
       void closeDragGroup();
     };
     // A quick native drag may have only the movement that crossed the threshold.
     // Prime its final position before listening for the release.
     const activation = dragActivationEventRef.current;
     dragActivationEventRef.current = null;
-    if (activation) handleMouseMove(activation);
-    const stopListening = listenTimelineGesture(touchGesture.pointerId, handleMouseMove, handleMouseUp, cancelDrag);
+    if (activation) handleMouseMove(activation, true);
+    const stopListening = listenTimelineGesture(touchGesture.pointerId, (move) => handleMouseMove(move), handleMouseUp, cancelDrag);
 
     return () => {
       if (animationFrameId !== null) {
@@ -815,6 +873,7 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
       }
       pendingCommitRef.current = null;
       stopListening();
+      endClipDragActivity();
     };
   }, [
     isDragging,
@@ -1291,6 +1350,55 @@ function areClipPropsEqual(prev: ClipProps, next: ClipProps): boolean {
     return false;
   }
   return true;
+}
+
+/** Companions at or above this count move through one batched store action instead of one per clip. */
+const BATCH_DRAG_COMPANIONS = 8;
+
+let batchQueue: Promise<unknown> = Promise.resolve();
+/** Serialised, one-history-entry-per-drag batch move of a big selection (media clips; overlays follow singly). */
+function moveSelectionBatch(
+  moves: ReadonlyArray<{ clipId: string; startTime: number }>,
+  coalesceKey: string,
+): Promise<void> {
+  const run = batchQueue.then(async () => {
+    const store = useProjectStore.getState();
+    const mediaClips = new Map<string, Clip>();
+    for (const track of store.project.timeline.tracks) for (const c of track.clips) mediaClips.set(c.id, c);
+    const mediaMoves = moves.filter((move) => mediaClips.has(move.clipId));
+    const overlayMoves = moves.filter((move) => !mediaClips.has(move.clipId));
+    const captions = (store.project.textClips?.length ?? 0) > 0
+      ? mediaMoves.map((move) => ({ source: mediaClips.get(move.clipId)!, startTime: move.startTime }))
+      : [];
+    if (mediaMoves.length) {
+      const result = await store.moveClips([...mediaMoves], { coalesceKey });
+      if (result.success) {
+        // Captions follow their source clip, each caption once (the per-clip path does the same).
+        const moved = new Set<string>();
+        for (const { source, startTime } of captions) {
+          const now = useProjectStore.getState();
+          moveLinkedCaptions(
+            {
+              project: now.project,
+              getAllTextClips: () => now.getAllTextClips().filter((caption) => !moved.has(caption.id)),
+              updateOverlayClipTiming: (id, updates) => { moved.add(id); return now.updateOverlayClipTiming(id, updates); },
+              deleteTextClip: () => false,
+            },
+            source,
+            startTime,
+          );
+        }
+      }
+    }
+    for (const move of overlayMoves) {
+      // Text, shape, SVG and sticker clips keep their per-item timing update.
+      useProjectStore.getState().updateOverlayClipTiming(move.clipId, { startTime: move.startTime });
+    }
+  }).catch((error: unknown) => {
+    toast.error("Move failed", error instanceof Error ? error.message : "Please try again.");
+  });
+  batchQueue = run;
+  return run;
 }
 
 /** Move every clip that left its drag origin back to it. */

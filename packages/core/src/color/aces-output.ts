@@ -418,6 +418,15 @@ const scratch2 = [0, 0, 0];
  * `ODT.Academy.sRGB_100nits_dim` / `ODT.Academy.Rec709_100nits_dim`. Alpha is not touched.
  */
 export function acesToSdrDisplay(r: number, g: number, b: number, output: AcesSdrOutput, out: number[]): void {
+  acesToSdrLinear(r, g, b, out);
+  const encode = output === "srgb" ? srgbOetf : bt1886Oetf;
+  out[0] = encode(out[0]);
+  out[1] = encode(out[1]);
+  out[2] = encode(out[2]);
+}
+
+/** The ACES 1.3 SDR video output transform up to CIE XYZ (D65), 1.0 = 100 nit, before any display gamut clamp or encoding. */
+export function acesToSdrXyz(r: number, g: number, b: number, out: number[]): void {
   // RRT
   rrtSweeteners(r, g, b, scratch);
   const rr = splineForward(scratch[0], RRT_SPLINE);
@@ -454,14 +463,21 @@ export function acesToSdrDisplay(r: number, g: number, b: number, output: AcesSd
   X = X2;
   Y = Y2;
   Z = Z2;
+  out[0] = X;
+  out[1] = Y;
+  out[2] = Z;
+}
+
+/** The same up to the display encoding: linear Rec.709 / D65 light of the 100 nit SDR display, clamped to 0..1. */
+export function acesToSdrLinear(r: number, g: number, b: number, out: number[]): void {
+  acesToSdrXyz(r, g, b, out);
   const d = XYZ_TO_REC709;
-  const cr = Math.min(Math.max(d[0][0] * X + d[0][1] * Y + d[0][2] * Z, 0), 1);
-  const cg = Math.min(Math.max(d[1][0] * X + d[1][1] * Y + d[1][2] * Z, 0), 1);
-  const cb = Math.min(Math.max(d[2][0] * X + d[2][1] * Y + d[2][2] * Z, 0), 1);
-  const encode = output === "srgb" ? srgbOetf : bt1886Oetf;
-  out[0] = encode(cr);
-  out[1] = encode(cg);
-  out[2] = encode(cb);
+  const X = out[0];
+  const Y = out[1];
+  const Z = out[2];
+  out[0] = Math.min(Math.max(d[0][0] * X + d[0][1] * Y + d[0][2] * Z, 0), 1);
+  out[1] = Math.min(Math.max(d[1][0] * X + d[1][1] * Y + d[1][2] * Z, 0), 1);
+  out[2] = Math.min(Math.max(d[2][0] * X + d[2][1] * Y + d[2][2] * Z, 0), 1);
 }
 
 /**
@@ -469,7 +485,7 @@ export function acesToSdrDisplay(r: number, g: number, b: number, output: AcesSd
  * `outputTransform` of ACESlib.OutputTransforms.ctl with Y_MIN 0.0001, Y_MID 15, Y_MAX 1000, Rec.2020 display and
  * limiting primaries, stretched black.
  */
-export function acesToHdr1000Nits(r: number, g: number, b: number, out: number[]): void {
+export function acesToHdr1000Xyz(r: number, g: number, b: number, out: number[]): void {
   rrtSweeteners(r, g, b, scratch);
   const tr = splineForward(scratch[0], HDR_1000_SPLINE);
   const tg = splineForward(scratch[1], HDR_1000_SPLINE);
@@ -495,6 +511,16 @@ export function acesToHdr1000Nits(r: number, g: number, b: number, out: number[]
   const X2 = c[0][0] * Xl + c[0][1] * Yl + c[0][2] * Zl;
   const Y2 = c[1][0] * Xl + c[1][1] * Yl + c[1][2] * Zl;
   const Z2 = c[2][0] * Xl + c[2][1] * Yl + c[2][2] * Zl;
+  out[0] = X2;
+  out[1] = Y2;
+  out[2] = Z2;
+}
+
+export function acesToHdr1000Nits(r: number, g: number, b: number, out: number[]): void {
+  acesToHdr1000Xyz(r, g, b, out);
+  const X2 = out[0];
+  const Y2 = out[1];
+  const Z2 = out[2];
   const d = XYZ_TO_REC2020;
   out[0] = Math.min(Math.max(d[0][0] * X2 + d[0][1] * Y2 + d[0][2] * Z2, 0), HALF_MAX) * HDR_1000_Y_MAX;
   out[1] = Math.min(Math.max(d[1][0] * X2 + d[1][1] * Y2 + d[1][2] * Z2, 0), HALF_MAX) * HDR_1000_Y_MAX;

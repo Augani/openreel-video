@@ -16,7 +16,6 @@ import { isDesktopRuntime } from "./components/onboarding/shell/useOnboardingGat
 import { useRouter } from "./hooks/use-router";
 import { useCollabInvite } from "./hooks/useCollabInvite";
 import { useProjectRecovery } from "./hooks/useProjectRecovery";
-import { useKieAIPoller } from "./hooks/useKieAIPoller";
 import { SOCIAL_MEDIA_PRESETS, type SocialMediaCategory } from "@openreel/core";
 
 import { getLoadedEditor, loadEditorModule } from "./editor-loader";
@@ -24,6 +23,9 @@ import { keyboardShortcuts } from "./services/keyboard-shortcuts";
 import { createEditorProject } from "./services/project-creation";
 import { toast } from "./stores/notification-store";
 import { useSceneDetectionDialogStore } from "./stores/scene-detection-dialog-store";
+
+// Polls accepted KieAI generations; loads after first paint so the poller and the KieAI client are not in the startup chunk.
+const KieAIPollerHost = lazy(() => import("./hooks/KieAIPollerHost"));
 
 const LazyEditorInterface = lazy(() =>
   loadEditorModule().then((m) => ({ default: m.EditorInterface })),
@@ -96,7 +98,6 @@ function App() {
       mounted.current = false;
     };
   }, []);
-  useKieAIPoller();
   useCollabInvite();
   // Help > "Welcome & Setup" re-opens the welcome screen even when it is skipped on startup.
   const onboardingBandOpen = useOnboardingStore((state) => state.bandOpen === true);
@@ -276,6 +277,9 @@ function App() {
   return (
     <div className="h-screen h-[100dvh] w-screen bg-background text-text-primary overflow-hidden">
       <MobileBlocker />
+      <Suspense fallback={null}>
+        <KieAIPollerHost />
+      </Suspense>
       {isSharePage ? (
         <Suspense
           fallback={<LoadingSpinner message="Loading shared video..." />}

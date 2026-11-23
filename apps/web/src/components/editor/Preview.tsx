@@ -5,13 +5,14 @@ import { usePhoneEditor } from "../../hooks/usePhoneEditor";
 import { MobilePreviewTransport } from "./mobile/MobilePreviewTransport";
 import { Button as ShadcnButton, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuCheckboxItem, DropdownMenuSeparator, DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from "@openreel/ui";
 import { EmptyProjectStart } from "./EmptyProjectStart";
-import { ScopesPanel } from "./scopes/ScopesPanel";
 import { registerPreviewCanvas } from "./scopes/preview-canvas-registry";
 import { notifyPreviewDeviceLoss, registerProgramRenderer } from "./preview/device-loss";
 import { ProgramMonitorOverlays } from "./preview/ProgramMonitorOverlays";
+import { useVrViewStore } from "../../stores/vr-view-store";
 import { DynamicTrimTwoUp } from "./preview/DynamicTrimTwoUp";
 import { MotionTrackingOverlay } from "./preview/MotionTrackingOverlay";
 import { PlanarTrackOverlay } from "./preview/PlanarTrackOverlay";
+import { CornerPinOverlay } from "./preview/CornerPinOverlay";
 import { registerProgramFrameControl } from "./preview/program-frame-control";
 import React, {
   useRef,
@@ -32,6 +33,7 @@ import { hasShortcutFocus } from "../../services/keyboard-shortcuts";
 import { ExportProgressOverlay } from "./ExportProgressOverlay";
 import { useProjectFonts } from "../../hooks/useProjectFonts";
 import { formatFrameTimecode } from "../../utils/frame-timecode";
+import { decodeClipAudioBuffer } from "../../utils/decode-clip-audio";
 import {
   VolumeX,
 } from "@/icons/lucide-compat";
@@ -49,6 +51,7 @@ import { useThemeStore } from "../../stores/theme-store";
 import { getRenderBridge } from "../../bridges/render-bridge";
 import { renderCacheService } from "../../services/render-cache-service";
 import { getEffectsBridge } from "../../bridges/effects-bridge";
+import { getTransitionBridge } from "../../bridges/transition-bridge";
 import {
   RendererFactory,
   hasAnimatedVideoEffects,
@@ -59,8 +62,12 @@ import {
   getSpeedEngine,
   getMasterClock,
   getRealtimeAudioGraph,
-  fallbackDecodeChannels,
   getChannelLayout,
+  getEnhanceSpeechBalance,
+  getEnhanceSpeechMix,
+  getReduceReverbParams,
+  hasNativePlugins,
+  nativePluginSteps,
   initializeAudioEffectsEngine,
   getPreviewAudioEffects,
   splitProfileAwareNoiseReductionEffects,
@@ -100,8 +107,10 @@ import {
   createMediaImageBitmap,
   isDevelopedRaw,
   mediaImageVersion,
+  frameSampleTime,
 } from "@openreel/core";
 import { useEngineStore } from "../../stores/engine-store";
+import { getPluginRackPreview } from "../../services/plugin-rack-preview";
 import { CompoundAudioPreview, requiresComposedAudio } from "../../services/compound-audio-preview";
 import {
   type HandlePosition,
@@ -135,6 +144,7 @@ import {
   previewQualityScale,
   PREVIEW_QUALITY_OPTIONS,
 } from "./preview/index";
+import { preloadVrRuntimeForProject } from "@openreel/core/video/vr-runtime-loader";
 import { displayLayoutWidth, normalizeSequencePar, snapshotInDisplaySpace, withDisplaySpace } from "@openreel/core/video/sequence-par";
 import { snapCanvasPosition } from "./preview/canvas-snapping";
 import { textSelectionLayout } from "./preview/text-selection-layout";
@@ -143,8 +153,9 @@ import { PreviewTransformControls } from "./preview/PreviewTransformControls";
 import { TextInPlaceEditor } from "./preview/TextInPlaceEditor";
 import { MaskPenButton } from "./preview/MaskPenButton";
 import { ProxyToggleButton } from "./preview/ProxyToggleButton";
+
 import { useMaskPenStore } from "../../stores/mask-pen-store";
-import { playbackSinkSize } from "./preview/playback-sink-size";
+import { MIN_LAYER_DECODE_ZOOM, canDecodeBelowMonitorSize, playbackSinkSize } from "./preview/playback-sink-size";
 import { IntervalGate, NativeFrameGate, VideoFrameTokens } from "./preview/native-frame-gate";
 import { isColorBypassed } from "./preview/program-frame-control";
 import { DecoderRefusals, admitDecoder, decoderLimitActive, decoderLimitMessage, noticeAfterFailedProxy, precheckDecoder, requestProxyFallback, syncProxyOutcomes, type ProxyFallbackResult, type ProxyRequestLedger } from "./preview/decoder-refusals";
@@ -170,7 +181,10 @@ import {
   getVidstabEngine,
   frameConformFor,
   clipHasTemporalEffects,
+  clipHasTimeInterpolation,
   interpretedDisplaySize,
+  channelMapNeedsWideSource,
+  resolveClipChannelMap,
 } from "@openreel/core";
 import {
   ByteBudgetCache,
@@ -185,7 +199,8 @@ import {
 } from "@openreel/core";
 import { useMemoryPolicy } from "../../hooks/use-memory-policy";
 import { FrameDecodeTimeoutError, withDecodeDeadline } from "./preview/decode-deadline";
-import { recordPlaybackEvent, startFrameWatchdog } from "./preview/playback-watchdog";
+import { isLookaheadStale, planLookahead, PLAYBACK_LOOKAHEAD_S } from "./preview/playback-lookahead";
+import { recordPlaybackEvent, startFrameWatchdog, tracePlaybackLoopGap, tracePlaybackStage } from "./preview/playback-watchdog";
 import { sameProjectForPlayback, useStablePlaybackProject } from "./preview/playback-project";
 import type {
   GSAPMotionPathPoint,
@@ -193,8 +208,21 @@ import type {
   SegmentationResult,
 } from "@openreel/core";
 
+// Immersive video UI: loaded the first time the VR view is switched on or the VR Properties dialog is opened.
+const VrMonitorOverlay = React.lazy(() => import("./preview/VrMonitorOverlay").then((m) => ({ default: m.VrMonitorOverlay })));
+const VrPropertiesDialog = React.lazy(() => import("./VrPropertiesDialog").then((m) => ({ default: m.VrPropertiesDialog })));
+const SpatialPathOverlay = React.lazy(() => import("./preview/SpatialPathOverlay").then((m) => ({ default: m.SpatialPathOverlay })));
+const OcioDialog = React.lazy(() => import("./ocio/OcioDialog"));
+const ScopesPanel = React.lazy(() => import("./scopes/ScopesPanel").then((m) => ({ default: m.ScopesPanel })));
+
 /** Seek-anchor sampling window: this many sources nearest the playhead are decoded in the background. */
 const ANCHOR_SAMPLED_MEDIA = 2;
+/** A clip needed within this many seconds (its start, or the transition into it) gets its decoder opened ahead of time. */
+const PLAYBACK_DECODER_LOOKAHEAD_S = PLAYBACK_LOOKAHEAD_S;
+/** A transition is warmed only when its first frame is at least this far away, so the warm render never overlaps a real one. */
+const TRANSITION_WARM_MIN_LEAD_S = 0.4;
+/** At most this many look-ahead decoders are held open at once. */
+const PLAYBACK_DECODER_LOOKAHEAD_MAX = 2;
 /** Seconds of upcoming audio clips whose decoded buffers are kept resident and decoded ahead of time. */
 const AUDIO_PREFETCH_SECONDS = 15;
 
@@ -404,7 +432,10 @@ const drawBlurredBackdrop = (
 };
 
 /** True when the project is in ACES colour management: the Program monitor then shows the engine's ACES Output Transform render. */
-const isAcesProject = (): boolean => useProjectStore.getState().project.settings.colorManagement === "aces";
+const isAcesProject = (): boolean => {
+  const mode = useProjectStore.getState().project.settings.colorManagement;
+  return mode === "aces" || mode === "ocio";
+};
 
 const renderFrameWithGPU = async (
   renderer: Renderer,
@@ -925,47 +956,16 @@ export const Preview: React.FC = () => {
     failedAudioBufferRef.current.clear();
   }
 
-  const getAudioBufferCacheKey = (mediaId: string, audioTrackIndex?: number): string =>
-    `${mediaId}:${audioTrackIndex ?? 0}`;
+  const getAudioBufferCacheKey = (mediaId: string, audioTrackIndex?: number, wide = false): string =>
+    `${mediaId}:${audioTrackIndex ?? 0}${wide ? ":wide" : ""}`;
 
-  const loadAudioBuffer = async (
-    audioContext: AudioContext | BaseAudioContext,
-    blob: Blob,
-    audioTrackIndex: number = 0,
-    sourceChannels?: number,
-  ): Promise<{ buffer: AudioBuffer | null; failed: boolean }> => {
-    try {
-      const { extractAudioWav, decodeAudioBufferStreaming } = await import("@openreel/core/media");
-      // Stream the track out of the Blob; the ffmpeg route below copies the whole (4K: ~700 MB) file.
-      // A 5.1 sequence keeps 5.1 sources' channels (up to 6); stereo sequences decode stereo at most, as before.
-      const layout = getChannelLayout(useProjectStore.getState().project.settings);
-      const maxChannels = layout === "5.1" ? 6 : 2;
-      const streamed = await decodeAudioBufferStreaming(audioContext, blob, audioTrackIndex, maxChannels);
-      if (streamed.status === "ok") return { buffer: streamed.buffer, failed: false };
-      if (streamed.status === "none") return { buffer: null, failed: false };
-      // Sources the browser cannot stream: ffmpeg keeps the source's channels in a 5.1 sequence (not folded to stereo).
-      const fallbackChannels = fallbackDecodeChannels(layout, sourceChannels);
-      const wavBlob = fallbackChannels === undefined
-        ? await extractAudioWav(blob, audioTrackIndex)
-        : await extractAudioWav(blob, audioTrackIndex, { channels: fallbackChannels });
-      const arrayBuffer = await wavBlob.arrayBuffer();
-      return { buffer: await audioContext.decodeAudioData(arrayBuffer), failed: false };
-    } catch (error) {
-      if (error instanceof Error && error.name === "NoAudioStreamError") {
-        return { buffer: null, failed: false };
-      }
-    }
-
-    if (audioTrackIndex === 0) {
-      try {
-        const arrayBuffer = await blob.arrayBuffer();
-        return { buffer: await audioContext.decodeAudioData(arrayBuffer), failed: false };
-      } catch {
-        return { buffer: null, failed: true };
-      }
-    }
-    return { buffer: null, failed: true };
+  /** A clip whose channel map reads the file's own channels (multichannel sources) decodes every source channel, not the stereo fold-down. */
+  const clipDecodesWide = (clip: Clip): boolean => {
+    const media = getOriginalMediaItem(clip.mediaId);
+    return channelMapNeedsWideSource(resolveClipChannelMap(clip, media), media?.metadata?.channels);
   };
+
+  const loadAudioBuffer = decodeClipAudioBuffer;
 
   /** Cache lookup, then a single shared decode per key (predecode, lazy decode and the scheduler can all ask). */
   const decodeAudioBufferCached = async (
@@ -974,6 +974,7 @@ export const Preview: React.FC = () => {
     blob: Blob,
     audioTrackIndex: number,
     sourceChannels?: number,
+    wide = false,
   ): Promise<AudioBuffer | null> => {
     const hit = audioBufferCacheRef.current.get(cacheKey);
     if (hit) return hit;
@@ -982,7 +983,7 @@ export const Preview: React.FC = () => {
     if (inflight) return inflight;
     const task = (async (): Promise<AudioBuffer | null> => {
       try {
-        const { buffer: decoded, failed } = await loadAudioBuffer(audioContext, blob, audioTrackIndex, sourceChannels);
+        const { buffer: decoded, failed } = await loadAudioBuffer(audioContext, blob, audioTrackIndex, sourceChannels, wide);
         if (decoded) audioBufferCacheRef.current.set(cacheKey, decoded);
         else if (failed) failedAudioBufferRef.current.add(cacheKey);
         else noAudioBufferRef.current.add(cacheKey);
@@ -1023,6 +1024,15 @@ export const Preview: React.FC = () => {
       audioBuffer = spectral.buffer;
       if (spectral.key) baseCacheKey = `${baseCacheKey}:spectral:${spectral.key}`;
       const previewEffects = spectral.effects;
+      // Reduce Reverb and Enhance Speech stay in the list: the graph plays the original at once and swaps each processed source in when
+      // the shared job finishes (Reduce Reverb first, Enhance Speech on its result). Starting the first job here (non-blocking)
+      // means a warm-up or a pause-then-play has it under way early.
+      const enhanceMix = getEnhanceSpeechMix(previewEffects);
+      const reverbParams = getReduceReverbParams(previewEffects);
+      if (reverbParams) void getRealtimeAudioGraph().getReduceReverbCache().request({ buffer: audioBuffer, params: reverbParams });
+      else if (enhanceMix > 0) void getRealtimeAudioGraph().getEnhanceSpeechCache().request({ buffer: audioBuffer, mix: enhanceMix, balance: getEnhanceSpeechBalance(previewEffects) });
+      // Hosted plugins: same idea, started early on the decoded source (the graph waits for Reduce Reverb and Enhance Speech first when they are on).
+      if (enhanceMix === 0 && !reverbParams && hasNativePlugins(previewEffects)) void getRealtimeAudioGraph().getNativePluginCache().request(audioBuffer, nativePluginSteps(previewEffects)).catch(() => undefined);
       const { profileAwareNoiseEffects, realtimeEffects } =
         splitProfileAwareNoiseReductionEffects(previewEffects);
 
@@ -1103,6 +1113,11 @@ export const Preview: React.FC = () => {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [showCompositionGrid, setShowCompositionGrid] = useState(false);
   const [showSafeMargins, setShowSafeMargins] = useState(false);
+  // Immersive video: the sequence's VR Properties dialog and the monitor's VR view toggle (view only, never exported).
+  const [vrDialogOpen, setVrDialogOpen] = useState(false);
+  const vrViewOn = useVrViewStore((state) => state.enabled);
+  const setVrViewOn = useVrViewStore((state) => state.setEnabled);
+  const resetVrView = useVrViewStore((state) => state.reset);
   const [canvasSnappingEnabled, setCanvasSnappingEnabled] = useState(true);
 
   const ZOOM_OPTIONS = [
@@ -1328,6 +1343,11 @@ export const Preview: React.FC = () => {
   const storedProject = useProjectStore((state) => state.project);
   const trimPreviewProject = useEditPointStore((state) => state.dynamicTrim?.previewProject ?? null);
   const project = useStablePlaybackProject(trimPreviewProject ?? storedProject);
+  // A project that already holds a VR effect loads the VR effects runtime (a lazy chunk) before its first frame; the
+  // effects pass also awaits it, so this only hides the wait.
+  useEffect(() => {
+    preloadVrRuntimeForProject(project);
+  }, [project]);
   const fontRevision = useProjectFonts(project);
   const getOriginalMediaItem = useProjectStore((state) => state.getMediaItem);
   const proxySourceRevision = usePreviewProxyStore((state) => state.revision);
@@ -1518,6 +1538,7 @@ export const Preview: React.FC = () => {
     return discardPending;
   }, [project.id, finishCanvasGesture]);
   const updateSettings = useProjectStore((state) => state.updateSettings);
+  const [ocioDialogOpen, setOcioDialogOpen] = React.useState(false);
   const timelineTracks = project.timeline.tracks;
   const settings = project.settings;
   // Sequence pixel aspect: the monitor lays out and shows the frame in display space (stored width x PAR).
@@ -2229,6 +2250,9 @@ export const Preview: React.FC = () => {
 
       const speedEngine = getSpeedEngine();
       const scheduledClips: AudioClipSchedule[] = [];
+      // Tracks whose hosted plugins are rendered play their processed stem instead of their clips.
+      const rackPreview = getPluginRackPreview();
+      const stemmedTrackIds = rackPreview.stemmedTrackIds(project);
 
       for (const audioTrack of audioTracks) {
         audioGraph.createTrack({
@@ -2241,7 +2265,7 @@ export const Preview: React.FC = () => {
           effects: [],
         });
 
-        if (audioTrack.muted) {
+        if (audioTrack.muted || stemmedTrackIds.has(audioTrack.id)) {
           continue;
         }
 
@@ -2260,9 +2284,11 @@ export const Preview: React.FC = () => {
               continue;
             }
 
+            const wideDecode = clipDecodesWide(audioClip);
             const audioCacheKey = getAudioBufferCacheKey(
               audioClip.mediaId,
               audioClip.audioTrackIndex,
+              wideDecode,
             );
             pinnedAudioKeysRef.current.add(audioCacheKey);
             let audioBuffer: AudioBuffer | null | undefined;
@@ -2273,6 +2299,7 @@ export const Preview: React.FC = () => {
                 mediaItem.blob,
                 audioClip.audioTrackIndex ?? 0,
                 mediaItem.metadata?.channels,
+                wideDecode,
               );
             } catch (error) {
               console.warn(
@@ -2332,7 +2359,8 @@ export const Preview: React.FC = () => {
       }
 
       await compoundAudioPreview.prepareAt(project, timelinePosition);
-      scheduledClips.push(...compoundAudioPreview.schedulesAt(project, timelinePosition));
+      scheduledClips.push(...compoundAudioPreview.schedulesAt(project, timelinePosition).filter((schedule) => !stemmedTrackIds.has(schedule.trackId)));
+      scheduledClips.push(...rackPreview.schedulesAt(project, timelinePosition));
       if (scheduledClips.length > 0) {
         await audioGraph.resume();
         audioGraph.scheduleClips(scheduledClips);
@@ -2376,7 +2404,8 @@ export const Preview: React.FC = () => {
         if (!mediaClipHasAudio(clip) || requiresComposedAudio(clip)) {
           continue;
         }
-        const cacheKey = getAudioBufferCacheKey(clip.mediaId, clip.audioTrackIndex);
+        const wideDecode = clipDecodesWide(clip);
+        const cacheKey = getAudioBufferCacheKey(clip.mediaId, clip.audioTrackIndex, wideDecode);
         let audioBuffer: AudioBuffer | null | undefined =
           audioBufferCacheRef.current.get(cacheKey);
 
@@ -2400,6 +2429,7 @@ export const Preview: React.FC = () => {
               mediaItem.blob,
               clip.audioTrackIndex ?? 0,
               mediaItem.metadata?.channels,
+              wideDecode,
             );
           } catch {
             audioBuffer = null;
@@ -2489,8 +2519,11 @@ export const Preview: React.FC = () => {
       );
       const schedules: AudioClipSchedule[] = [];
       const pinned = new Set<string>();
+      const rackPreview = getPluginRackPreview();
+      const stemmedTrackIds = rackPreview.stemmedTrackIds(project);
 
       for (const track of tracksWithAudio) {
+        if (stemmedTrackIds.has(track.id)) continue;
         for (const clip of track.clips) {
           if (!mediaClipHasAudio(clip) || requiresComposedAudio(clip)) {
             continue;
@@ -2500,7 +2533,8 @@ export const Preview: React.FC = () => {
             continue;
           }
 
-          const audioCacheKey = getAudioBufferCacheKey(clip.mediaId, clip.audioTrackIndex);
+          const wideDecode = clipDecodesWide(clip);
+          const audioCacheKey = getAudioBufferCacheKey(clip.mediaId, clip.audioTrackIndex, wideDecode);
           pinned.add(audioCacheKey);
           const audioBuffer = audioBufferCacheRef.current.get(audioCacheKey);
           if (!audioBuffer) {
@@ -2514,6 +2548,7 @@ export const Preview: React.FC = () => {
                 mediaItem.blob,
                 clip.audioTrackIndex ?? 0,
                 mediaItem.metadata?.channels,
+                wideDecode,
               ).catch(() => {});
             }
             continue;
@@ -2535,6 +2570,7 @@ export const Preview: React.FC = () => {
             const processedCacheKey = `${getAudioBufferCacheKey(
               clip.mediaId,
               clip.audioTrackIndex,
+              wideDecode,
             )}:profile-denoise:${getAudioEffectSignature(profileAwareNoiseEffects)}`;
             const processedAudioBuffer =
               processedAudioBufferCacheRef.current.get(processedCacheKey);
@@ -2569,7 +2605,8 @@ export const Preview: React.FC = () => {
       }
 
       pinnedAudioKeysRef.current = pinned;
-      schedules.push(...compoundAudioPreview.schedulesAt(project, time));
+      schedules.push(...compoundAudioPreview.schedulesAt(project, time).filter((schedule) => !stemmedTrackIds.has(schedule.trackId)));
+      schedules.push(...rackPreview.schedulesAt(project, time));
       return schedules;
     },
     [
@@ -2864,7 +2901,10 @@ export const Preview: React.FC = () => {
 
   // Render a single frame using MediaBunny (for scrubbing/seeking)
   const renderFrameDirectly = useCallback(
-    async (time: number, request?: PreviewFrameRequest): Promise<boolean> => {
+    async (playheadTime: number, request?: PreviewFrameRequest): Promise<boolean> => {
+      // Composite at the instant the export renders for the frame under the playhead (transition progress,
+      // keyframes and effects included); the playhead itself stays the key for commit checks and the shown time.
+      const time = frameSampleTime(playheadTime, project.settings.frameRate);
       const canvas = canvasRef.current;
       if (!canvas) return false;
 
@@ -2885,7 +2925,7 @@ export const Preview: React.FC = () => {
         && (!request || (!request.signal.aborted && request.isCurrent()
           && useTimelineStore.getState().playbackState !== "playing"
           && (request.allowStale
-            || Math.abs(useTimelineStore.getState().playheadPosition - time) < 1e-7)));
+            || Math.abs(useTimelineStore.getState().playheadPosition - playheadTime) < 1e-7)));
       if (!canCommit()) return false;
 
       let missingVisualFrame = false;
@@ -2898,7 +2938,7 @@ export const Preview: React.FC = () => {
         !track.hidden &&
         track.clips.some(
           (clip) =>
-            (getCompoundClipId(clip) !== null || clipHasTemporalEffects(clip)) &&
+            (getCompoundClipId(clip) !== null || clipHasTemporalEffects(clip) || clipHasTimeInterpolation(clip)) &&
             time >= clip.startTime &&
             time < clip.startTime + clip.duration,
         ),
@@ -2909,7 +2949,7 @@ export const Preview: React.FC = () => {
           if (!canCommit()) { frame.image.close(); return false; }
           mainCtx.clearRect(0, 0, canvas.width, canvas.height);
           mainCtx.drawImage(frame.image, 0, 0, canvas.width, canvas.height);
-          if (!isPlaying) { presentedExact.markExact(time); setPresentedFrameTime(time); setPresentedFrameIsFallback(false); }
+          if (!isPlaying) { presentedExact.markExact(playheadTime); setPresentedFrameTime(playheadTime); setPresentedFrameIsFallback(false); }
           return true;
         }
         missingVisualFrame = true;
@@ -3469,7 +3509,7 @@ export const Preview: React.FC = () => {
         mainCtx.clearRect(0, 0, canvas.width, canvas.height);
         mainCtx.drawImage(frameCanvas, 0, 0);
         if (!isPlaying && !missingVisualFrame) cacheProjectPreview(project, actualEndTime, canvas);
-        if (!isPlaying) { presentedExact.markExact(time); setPresentedFrameTime(time); setPresentedFrameIsFallback(missingVisualFrame); }
+        if (!isPlaying) { presentedExact.markExact(playheadTime); setPresentedFrameTime(playheadTime); setPresentedFrameIsFallback(missingVisualFrame); }
         // The last-good fallback copy is a full-resolution GPU copy; mid-drag
         // frames are superseded within milliseconds, so only keep it once the
         // playhead settles.
@@ -3973,6 +4013,10 @@ export const Preview: React.FC = () => {
               }
               // Echo / Posterize Time need frames other than the one the element is playing.
               if (clipHasTemporalEffects(clip)) {
+                return { canUse: false, clips: [] };
+              }
+              // Frame Blending / Optical Flow make frames the element is not playing: the engine renders them.
+              if (clipHasTimeInterpolation(clip)) {
                 return { canUse: false, clips: [] };
               }
               if (
@@ -5596,6 +5640,7 @@ export const Preview: React.FC = () => {
           videoTrack.displayHeight,
           Math.max(monitor?.width ?? 0, monitor?.height ?? 0),
           Math.max(Math.abs(clipScale?.x ?? 1), Math.abs(clipScale?.y ?? 1)),
+          canDecodeBelowMonitorSize(clip) ? MIN_LAYER_DECODE_ZOOM : 1,
         );
         // Another 4K long-GOP decoder on top of the current ones would take the renderer past the memory
         // budget (soak: 0.85-1.1 GB each): fall back to the proxy path instead of opening it.
@@ -5645,6 +5690,158 @@ export const Preview: React.FC = () => {
           error,
         );
         return null;
+      }
+    };
+
+    type LayerResources = NonNullable<Awaited<ReturnType<typeof initClipResources>>>;
+
+    // Look-ahead decoders: a clip that starts within PLAYBACK_DECODER_LOOKAHEAD_S gets its decoder opened (container
+    // parse, canDecode, codec configuration: 100s of ms for 4K HEVC) while the current frames are still playing, so a
+    // cut does not stall the frame loop on a cold open. Held here, not in playbackResourcesRef: that map is pruned to
+    // the clips active at the playhead every frame.
+    const lookahead = new Map<string, { clipId: string; needAt: number; endTime: number; promise: Promise<LayerResources | null> }>();
+    const disposeLookahead = (entry: { promise: Promise<LayerResources | null> }) => {
+      void entry.promise.then((resources) => {
+        try {
+          resources?.input[Symbol.dispose]?.();
+        } catch {
+          // Already closed.
+        }
+      });
+    };
+    const takeOrOpenResources = async (
+      clip: (typeof timelineTracksRef.current)[0]["clips"][0],
+      trackIndex: number,
+    ): Promise<LayerResources | null> => {
+      const warmed = lookahead.get(clip.id);
+      if (warmed) {
+        lookahead.delete(clip.id);
+        const resources = await warmed.promise;
+        if (resources) return resources;
+      }
+      return initClipResources(clip, trackIndex);
+    };
+    /** Opens every listed clip's decoder at once (they used to open one after another, each waiting for the last). */
+    const openClipResources = async (
+      entries: ReadonlyArray<{ clip: (typeof timelineTracksRef.current)[0]["clips"][0]; trackIndex: number }>,
+    ) => {
+      const missing = entries.filter(({ clip }) => !playbackResourcesRef.current.has(clip.id));
+      if (missing.length === 0) return;
+      const opened = await Promise.all(missing.map(({ clip, trackIndex }) => takeOrOpenResources(clip, trackIndex)));
+      missing.forEach(({ clip }, i) => {
+        const resources = opened[i];
+        if (!resources) return;
+        if (!isActive || playbackResourcesRef.current.has(clip.id)) {
+          try {
+            resources.input[Symbol.dispose]?.();
+          } catch {
+            // Already closed.
+          }
+          return;
+        }
+        playbackResourcesRef.current.set(clip.id, resources);
+      });
+    };
+    const warmLayerInFlight = new Set<string>();
+    const keepLayersWarm = (
+      activeClips: ReadonlyArray<{ clip: Clip }>,
+      skip: ReadonlySet<string>,
+      playhead: number,
+    ) => {
+      for (const { clip } of activeClips) {
+        if (skip.has(clip.id) || warmLayerInFlight.has(clip.id) || !mediaClipHasVisual(clip)) continue;
+        const resources = playbackResourcesRef.current.get(clip.id);
+        if (!resources) continue;
+        const localTime = getSpeedEngine().getSourceTimeAtPlaybackTime(clip.id, playhead - clip.startTime);
+        const sourceTime = Math.max(clip.inPoint, Math.min(clip.outPoint, (clip.inPoint || 0) + localTime));
+        warmLayerInFlight.add(clip.id);
+        void withDecodeDeadline((resources.sink as { getCanvas: (time: number) => Promise<unknown> }).getCanvas(sourceTime))
+          .catch(() => undefined)
+          .finally(() => warmLayerInFlight.delete(clip.id));
+      }
+    };
+    const warmedTransitions = new Set<string>();
+    const warmUpcomingClips = (time: number) => {
+      for (const [clipId, entry] of lookahead) {
+        // Left behind by a seek or loop: release the decoder rather than hold it open.
+        if (isLookaheadStale(entry, time)) {
+          lookahead.delete(clipId);
+          disposeLookahead(entry);
+        }
+      }
+      const governor = getMemoryGovernor();
+      const tracks = timelineTracksRef.current;
+      const transitionBridge = getTransitionBridge();
+      const clipById = new Map(tracks.flatMap((t) => t.clips).map((c) => [c.id, c] as const));
+      // Most urgent first. A transition shows the incoming clip before its own start, so the need point is the
+      // transition's first frame, not the cut: opening on the cut leaves the decoder no head start at all.
+      const plan = planLookahead({
+        tracks,
+        transitionsByTrack: tracks.map((track) => ((globalThis as { __orLegacyLookahead?: boolean }).__orLegacyLookahead ? [] : transitionBridge.getTransitionsForTrack(track.id))),
+        time,
+        horizonS: (globalThis as { __orLegacyLookahead?: boolean }).__orLegacyLookahead ? 1.5 : PLAYBACK_DECODER_LOOKAHEAD_S,
+        transitionWindow: (transition, clipA) => {
+          const full = clipById.get(clipA.id);
+          return (full && transitionBridge.getTransitionWindow(transition as Parameters<typeof transitionBridge.getTransitionWindow>[0], full)) ?? { start: clipA.startTime + clipA.duration, end: clipA.startTime + clipA.duration };
+        },
+        isDecodable: (candidate) => {
+          const clip = clipById.get(candidate.id);
+          if (!clip || !mediaClipHasVisual(clip)) return false;
+          const media = getMediaItem(clip.mediaId);
+          return Boolean(media?.blob) && media?.type !== "image";
+        },
+      });
+      // Warm each upcoming transition once, early enough that it finishes well before its first frame renders
+      // (the warm render shares the engine canvas with real renders, so it never runs close to one).
+      for (const target of plan.transitions) {
+        if (warmedTransitions.has(target.transitionId) || target.needAt - time < TRANSITION_WARM_MIN_LEAD_S) continue;
+        const transition = transitionBridge.getTransition(target.transitionId);
+        if (!transition) continue;
+        warmedTransitions.add(target.transitionId);
+        const warmAt = performance.now();
+        void transitionBridge.warmUp(transition).then(() => tracePlaybackStage("lookahead:transition-warm", warmAt, time)).catch(() => undefined);
+      }
+      for (const target of plan.clips) {
+        if (lookahead.size >= PLAYBACK_DECODER_LOOKAHEAD_MAX) break;
+        const clip = tracks[target.trackIndex]?.clips.find((c) => c.id === target.clipId);
+        if (!clip || playbackResourcesRef.current.has(clip.id) || lookahead.has(clip.id)) continue;
+        // Never provoke a refusal (its fallback side effects) for a clip that is not on screen yet.
+        if (!precheckDecoder(decoderRefusalsRef.current, governor, clip.mediaId)) continue;
+        if (!governor.canOpenDecoder(estimateDecoderBytes(3840, 2160))) break;
+        const warmStartedAt = performance.now();
+        lookahead.set(clip.id, {
+          clipId: clip.id,
+          needAt: target.needAt,
+          endTime: clip.startTime + clip.duration,
+          promise: initClipResources(clip, target.trackIndex)
+            .then(async (resources) => {
+              // Prime: decoding the first frame configures the codec and warms the hardware decoder, which is the
+              // other half of a cold start. The sink reuses its pooled canvas, so nothing is kept.
+              try {
+                const primed = (await (resources?.sink as { getCanvas?: (time: number) => Promise<{ canvas?: HTMLCanvasElement | OffscreenCanvas } | null> } | undefined)?.getCanvas?.(
+                  clip.inPoint || 0,
+                )) ?? null;
+                // Pre-roll the clip's effect and colour pipeline on that first frame, the way it runs once the clip is
+                // on screen (shader compile, LUT texture upload, per-clip caches): the first real frame then pays none
+                // of it. The result is discarded. Clips the engine renderer composites (temporal effects) are left alone.
+                if (primed?.canvas && isActive && !clipHasTemporalEffects(clip) && clipNeedsFrameProcessing(clip.id, clip, 0)) {
+                  // Not awaited: the call snapshots the primed canvas synchronously, and a slow pre-roll must never hold
+                  // the decoder back from the frame loop that takes it over.
+                  void preparePreviewFrame(clip.id, primed.canvas, rendererRef.current?.type === "webgpu", false, { clip, time: clip.startTime })
+                    .then((prerolled) => {
+                      tracePlaybackStage("lookahead:effects-preroll", warmStartedAt, time);
+                      prerolled.cleanup();
+                    })
+                    .catch(() => undefined);
+                }
+              } catch {
+                // The first real frame request reports a decode problem.
+              }
+              tracePlaybackStage("lookahead:open+prime", warmStartedAt, time);
+              return resources;
+            })
+            .catch(() => null),
+        });
       }
     };
 
@@ -5712,14 +5909,7 @@ export const Preview: React.FC = () => {
         console.warn("[Preview] Image warmup failed:", error);
       });
 
-      for (const { clip, trackIndex } of initialClips) {
-        if (!playbackResourcesRef.current.has(clip.id)) {
-          const resources = await initClipResources(clip, trackIndex);
-          if (resources) {
-            playbackResourcesRef.current.set(clip.id, resources);
-          }
-        }
-      }
+      await openClipResources(initialClips);
 
       const hasTextOrShapeContent =
         activeTextClips.length > 0 ||
@@ -5812,6 +6002,8 @@ export const Preview: React.FC = () => {
       // What the frame in flight is waiting on and since when: the watchdog below names it if the frame never ends.
       let frameStartedAt = 0;
       let frameStage = "idle";
+      let previousFrameStartedAt = 0;
+      let previousFramePlayhead = 0;
       let lastCachedFrameIndex = -1;
 
       const processMultiTrackFrame = async () => {
@@ -5826,9 +6018,13 @@ export const Preview: React.FC = () => {
         }
         isProcessingFrame = true;
         frameStartedAt = performance.now();
-        frameStage = "start";
-
         const currentPlayhead = masterClock.currentTime;
+        if (previousFrameStartedAt > 0) {
+          tracePlaybackLoopGap(frameStage, frameStartedAt - previousFrameStartedAt, currentPlayhead - previousFramePlayhead, currentPlayhead);
+        }
+        previousFrameStartedAt = frameStartedAt;
+        previousFramePlayhead = currentPlayhead;
+        frameStage = "start";
 
         try {
           if (currentPlayhead >= actualEndTime) {
@@ -5975,7 +6171,7 @@ export const Preview: React.FC = () => {
 
           // Echo / Posterize Time pick other frames of the clip: the engine renderer (export's) decodes them.
           const hasActiveCompound = isAcesProject() || activeClips.some(
-            ({ clip }) => getCompoundClipId(clip) !== null || clipHasTemporalEffects(clip),
+            ({ clip }) => getCompoundClipId(clip) !== null || clipHasTemporalEffects(clip) || clipHasTimeInterpolation(clip),
           );
           // Anamorphic / interlaced footage is conformed by the engine renderer, never the raw video-element draw.
           const hasActiveConformClip = activeClips.some(({ clip }) => {
@@ -6007,14 +6203,10 @@ export const Preview: React.FC = () => {
           }
 
           frameStage = "open-decoders";
-          for (const { clip, trackIndex } of activeClips) {
-            if (!playbackResourcesRef.current.has(clip.id)) {
-              const resources = await initClipResources(clip, trackIndex);
-              if (resources) {
-                playbackResourcesRef.current.set(clip.id, resources);
-              }
-            }
-          }
+          const openAt = performance.now();
+          await openClipResources(activeClips);
+          tracePlaybackStage("frame:open-decoders", openAt, currentPlayhead);
+          warmUpcomingClips(currentPlayhead);
           frameStage = "transition-or-decode";
 
           // Active transition takes over the whole frame: decode both clips
@@ -6048,6 +6240,17 @@ export const Preview: React.FC = () => {
               return null;
             };
 
+            // A transition frame composites only the two transitioning clips, so the other layers' decoders are not asked
+            // for a frame for the whole transition. A sequential decoder (the desktop ProRes stream, a long-GOP decode)
+            // that is not read for a second falls out of its read-ahead window and restarts with a seek the moment the
+            // transition ends: a 0.5 s stall. Keep each such layer reading in step with the playhead, off the frame's
+            // critical path and one request at a time per layer.
+            keepLayersWarm(
+              activeClips,
+              new Set([transitionInfoMulti.clipA.id, transitionInfoMulti.clipB?.id].filter((id): id is string => Boolean(id))),
+              currentPlayhead,
+            );
+
             const aLookup = findClipById(transitionInfoMulti.clipA.id);
             const bLookup = transitionInfoMulti.clipB
               ? findClipById(transitionInfoMulti.clipB.id)
@@ -6055,20 +6258,9 @@ export const Preview: React.FC = () => {
 
             if (aLookup && (!transitionInfoMulti.clipB || bLookup)) {
               const lookups = bLookup ? [aLookup, bLookup] : [aLookup];
-              for (const lookup of lookups) {
-                if (!playbackResourcesRef.current.has(lookup.clip.id)) {
-                  const resources = await initClipResources(
-                    lookup.clip,
-                    lookup.trackIndex,
-                  );
-                  if (resources) {
-                    playbackResourcesRef.current.set(
-                      lookup.clip.id,
-                      resources,
-                    );
-                  }
-                }
-              }
+              const trOpenAt = performance.now();
+              await openClipResources(lookups.map((lookup) => ({ clip: lookup.clip, trackIndex: lookup.trackIndex })));
+              tracePlaybackStage("transition:open-decoders", trOpenAt, currentPlayhead);
 
               const decodeClipFrameForTransition = async (
                 clip: (typeof tracks)[0]["clips"][0],
@@ -6115,19 +6307,25 @@ export const Preview: React.FC = () => {
                 }
               };
 
+              frameStage = "transition-decode";
+              const trDecodeAt = performance.now();
               const [clipAFrame, clipBFrame] = await Promise.all([
                 decodeClipFrameForTransition(aLookup.clip),
                 bLookup
                   ? decodeClipFrameForTransition(bLookup.clip)
                   : Promise.resolve(null),
               ]);
+              tracePlaybackStage("transition:decode", trDecodeAt, currentPlayhead);
 
+              frameStage = "transition-effects";
+              const trPrepareAt = performance.now();
               const preparedA = clipAFrame ? await preparePreviewFrame(
                 aLookup.clip.id, clipAFrame, false, true, { clip: aLookup.clip, time: currentPlayhead },
               ) : null;
               const preparedB = clipBFrame && bLookup ? await preparePreviewFrame(
                 bLookup.clip.id, clipBFrame, false, true, { clip: bLookup.clip, time: currentPlayhead },
               ) : null;
+              tracePlaybackStage("transition:prepare-effects", trPrepareAt, currentPlayhead);
               const sampledA = preparedA?.frame ?? clipAFrame;
               const sampledB = preparedB?.frame ?? clipBFrame;
               const blank = transitionInfoMulti.clipB
@@ -6145,11 +6343,15 @@ export const Preview: React.FC = () => {
 
               if (outgoing && incoming) {
                 try {
+                  frameStage = "transition-render";
+                  const trRenderAt = performance.now();
                   const blended = await renderTransitionCanvas(
                     transitionInfoMulti,
                     outgoing,
                     incoming,
                   );
+                  tracePlaybackStage("transition:render", trRenderAt, currentPlayhead);
+                  frameStage = "transition-present";
 
                   fillPreviewBackground(
                     ctx,
@@ -6217,6 +6419,10 @@ export const Preview: React.FC = () => {
           presentCadence.presented(performance.now(), rateRef.current);
                   masterClock.reportVideoTime(currentPlayhead);
                   const nowTr = performance.now();
+                  // Transition frames are live frames like any other: without this entry the render-cache telemetry
+                  // (and the playback benchmark built on it) sees a hole as long as the transition.
+                  renderCacheService.logFrame(currentPlayhead, "live");
+                  renderCacheService.recordLiveFrameInterval(currentPlayhead, nowTr - lastFrameTimestamp);
                   if (
                     nowTr - lastPlayheadUpdateRef.current >=
                     editingFrameDuration
@@ -6390,6 +6596,7 @@ export const Preview: React.FC = () => {
                 );
 
                 try {
+                  const sinkAt = performance.now();
                   const frameResult = await withDecodeDeadline(
                     (
                       resources.sink as {
@@ -6404,7 +6611,9 @@ export const Preview: React.FC = () => {
 
                   if (!isActive) return null;
 
+                  tracePlaybackStage(`layer:sink-getCanvas:${getMediaItem(clip.mediaId)?.name ?? clip.id}`, sinkAt, currentPlayhead);
                   if (frameResult?.canvas) {
+                    const prepareAt = performance.now();
                     const preparedFrame = await preparePreviewFrame(
                       clip.id,
                       frameResult.canvas,
@@ -6412,6 +6621,7 @@ export const Preview: React.FC = () => {
                       false,
                       { clip, time: currentPlayhead },
                     );
+                    tracePlaybackStage("layer:prepare-effects", prepareAt, currentPlayhead);
 
                     const stabilizedTransform = applyStabilizationTransform(
                       clip,
@@ -6460,8 +6670,11 @@ export const Preview: React.FC = () => {
           }
 
           frameStage = "decode-frames";
+          const decodeFramesAt = performance.now();
           const videoFrameResults = await Promise.all(videoClipPromises);
+          tracePlaybackStage("frame:decode-frames", decodeFramesAt, currentPlayhead);
           frameStage = "composite";
+          const compositeAt = performance.now();
           const validVideoFrames = videoFrameResults.filter(
             (f): f is NonNullable<typeof f> => f !== null,
           );
@@ -6694,6 +6907,7 @@ export const Preview: React.FC = () => {
 
             mainCtx.drawImage(offscreenCanvasRef.current!, 0, 0);
           }
+          tracePlaybackStage("frame:composite", compositeAt, currentPlayhead);
 
           frameCount++;
           presentCadence.presented(performance.now(), rateRef.current);
@@ -6875,6 +7089,8 @@ export const Preview: React.FC = () => {
 
     return () => {
       isActive = false;
+      for (const entry of lookahead.values()) disposeLookahead(entry);
+      lookahead.clear();
       nativePlaybackActiveRef.current = false;
       const masterClock = getMasterClock();
       recordPlaybackEvent("effect-cleanup", masterClock.currentTime);
@@ -7031,6 +7247,13 @@ export const Preview: React.FC = () => {
     };
     window.addEventListener("openreel:preview-invalidate", handler);
     return () => window.removeEventListener("openreel:preview-invalidate", handler);
+  }, []);
+
+  // A Morph Cut finished analysing (or failed): its span now renders differently, so repaint the frame on screen.
+  useEffect(() => {
+    const repaint = () => setPreviewInvalidateCounter((c) => c + 1);
+    window.addEventListener("openreel:transition-render-changed", repaint);
+    return () => window.removeEventListener("openreel:transition-render-changed", repaint);
   }, []);
 
   useEffect(() => {
@@ -7198,6 +7421,9 @@ export const Preview: React.FC = () => {
       centerX,
       centerY,
       displayScale,
+      originX: canvasOffsetX + actualWidth / 2,
+      originY: canvasOffsetY + actualHeight / 2,
+      par: programPar,
     };
   }, [
     selectedClip,
@@ -8518,6 +8744,16 @@ export const Preview: React.FC = () => {
                 {`ACES · ${(settings.acesOutput ?? "srgb") === "rec709" ? "Rec.709" : "sRGB"}`}
               </span>
             )}
+            {settings.colorManagement === "ocio" && settings.ocio && (
+              <span
+                data-testid="ocio-badge"
+                role="status"
+                className="workspace-preview-choice text-xs"
+                title="OpenColorIO: footage enters through its OCIO colour space, compositing runs in the working space, and the monitor shows the config's display and view."
+              >
+                {`OCIO · ${settings.ocio.display} / ${settings.ocio.view}`}
+              </span>
+            )}
             {memoryPolicy.pressure !== "normal" && (
               <span
                 data-testid="memory-pressure-badge"
@@ -8540,17 +8776,30 @@ export const Preview: React.FC = () => {
               <DropdownMenuCheckboxItem checked={showCompositionGrid} onCheckedChange={setShowCompositionGrid}>Composition grid</DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem checked={canvasSnappingEnabled} onCheckedChange={(enabled) => { setCanvasSnappingEnabled(enabled); setCanvasSnapGuides({x:null,y:null}); }}>Canvas snapping</DropdownMenuCheckboxItem>
               <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem data-testid="vr-view-toggle" checked={vrViewOn && Boolean(settings.vr && settings.vr.projection !== "none")} disabled={!settings.vr || settings.vr.projection === "none"} onCheckedChange={setVrViewOn}>VR video view{!settings.vr || settings.vr.projection === "none" ? " (set VR Properties first)" : ""}</DropdownMenuCheckboxItem>
+              <DropdownMenuItem data-testid="vr-view-reset-menu" disabled={!settings.vr || settings.vr.projection === "none"} onSelect={resetVrView}>Reset VR view</DropdownMenuItem>
+              <DropdownMenuItem data-testid="sequence-vr-properties" onSelect={() => setVrDialogOpen(true)}>Sequence VR Properties…</DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuSub><DropdownMenuSubTrigger data-testid="color-management-trigger">Color management</DropdownMenuSubTrigger><DropdownMenuSubContent>
-                {([["display-referred", "Display-referred (default)"], ["aces", "ACES (ACEScct grading)"]] as const).map(([value, label]) => (
-                  <DropdownMenuCheckboxItem key={value} data-testid={`color-management-${value}`} checked={(settings.colorManagement ?? "display-referred") === value} onCheckedChange={() => { void updateSettings({ colorManagement: value === "aces" ? "aces" : undefined, ...(value === "aces" ? {} : { acesOutput: undefined }) }); }}>{label}</DropdownMenuCheckboxItem>
+                {([["display-referred", "Display-referred (default)"], ["aces", "ACES (ACEScct grading)"], ["ocio", "OpenColorIO config"]] as const).map(([value, label]) => (
+                  <DropdownMenuCheckboxItem key={value} data-testid={`color-management-${value}`} checked={(settings.colorManagement ?? "display-referred") === value} onCheckedChange={() => {
+                    if (value === "ocio") {
+                      // Without a stored config the dialog loads one; with one, switching back on is a single undoable step.
+                      if (settings.ocio) void updateSettings({ colorManagement: "ocio", acesOutput: undefined });
+                      else setOcioDialogOpen(true);
+                      return;
+                    }
+                    void updateSettings({ colorManagement: value === "aces" ? "aces" : undefined, ...(value === "aces" ? {} : { acesOutput: undefined }) });
+                  }}>{label}</DropdownMenuCheckboxItem>
                 ))}
+                <DropdownMenuItem data-testid="ocio-open-dialog" onSelect={() => setOcioDialogOpen(true)}>OpenColorIO configuration…</DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="text-[10px] font-normal text-fg-3">ACES output transform</DropdownMenuLabel>
                 {([["srgb", "sRGB (RRT + ODT)"], ["rec709", "Rec.709 (BT.1886)"]] as const).map(([value, label]) => (
                   <DropdownMenuCheckboxItem key={value} data-testid={`aces-output-${value}`} disabled={settings.colorManagement !== "aces"} checked={(settings.acesOutput ?? "srgb") === value} onCheckedChange={() => { void updateSettings({ acesOutput: value === "srgb" ? undefined : value }); }}>{label}</DropdownMenuCheckboxItem>
                 ))}
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel className="max-w-[260px] whitespace-normal text-[10px] font-normal leading-snug">ACES: footage enters through an input transform (Interpret footage picks it per footage item), compositing runs in ACEScg half float, grading in ACEScct, and the picture leaves through the ACES RRT and the output transform above. HDR10 and HLG exports use the Rec.2020 1000 nit transforms. The monitor, scopes and SDR exports show the output transform. Frames with adjustment layers or text behind subject still render display-referred.</DropdownMenuLabel>
+                <DropdownMenuLabel className="max-w-[260px] whitespace-normal text-[10px] font-normal leading-snug">OpenColorIO: a config you load (with its LUT files) decides how each clip is read, the working space, and the display, view and looks the monitor and exports show. Settings are stored in the project and are one undo step. ACES: footage enters through an input transform (Interpret footage picks it per footage item), compositing runs in ACEScg half float, grading in ACEScct, and the picture leaves through the ACES RRT and the output transform above. HDR10 and HLG exports use the Rec.2020 1000 nit transforms. The monitor, scopes and SDR exports show the output transform. Frames with adjustment layers or text behind subject still render display-referred.</DropdownMenuLabel>
               </DropdownMenuSubContent></DropdownMenuSub>
               <DropdownMenuSub><DropdownMenuSubTrigger>Working color space</DropdownMenuSubTrigger><DropdownMenuSubContent>
                 {([["rec709", "Rec.709 (default)"], ["rec2020", "Rec.2020"]] as const).map(([value, label]) => (
@@ -8559,7 +8808,7 @@ export const Preview: React.FC = () => {
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="max-w-[240px] whitespace-normal text-[10px] font-normal leading-snug">Rec.2020 switches to the HDR working mode: compositing and grading run in half-float scene-linear Rec.2020 (HDR highlights above SDR white are kept), the preview shows a tone-mapped SDR view, and exports are tagged BT.2020.</DropdownMenuLabel>
               </DropdownMenuSubContent></DropdownMenuSub>
-              <DropdownMenuSub><DropdownMenuSubTrigger disabled={(settings.workingColorSpace ?? "rec709") !== "rec2020" && settings.colorManagement !== "aces"}>HDR graphics white</DropdownMenuSubTrigger><DropdownMenuSubContent>
+              <DropdownMenuSub><DropdownMenuSubTrigger disabled={(settings.workingColorSpace ?? "rec709") !== "rec2020" && settings.colorManagement !== "aces" && settings.colorManagement !== "ocio"}>HDR graphics white</DropdownMenuSubTrigger><DropdownMenuSubContent>
                 {GRAPHICS_WHITE_OPTIONS.map(({ nits, label }) => (
                   <DropdownMenuCheckboxItem key={nits} checked={(settings.graphicsWhiteNits ?? DEFAULT_GRAPHICS_WHITE_NITS) === nits} onCheckedChange={() => { void updateSettings({ graphicsWhiteNits: nits === DEFAULT_GRAPHICS_WHITE_NITS ? undefined : nits }); }}>{label}</DropdownMenuCheckboxItem>
                 ))}
@@ -8638,6 +8887,11 @@ export const Preview: React.FC = () => {
       className="w-full h-full min-h-0 min-w-0 bg-stage-bg flex flex-col relative group overflow-hidden outline-none"
     >
       {!phone && previewHeader}
+      {ocioDialogOpen && (
+        <React.Suspense fallback={null}>
+          <OcioDialog onClose={() => setOcioDialogOpen(false)} />
+        </React.Suspense>
+      )}
 
       {/* Crop Mode View - Full Screen Overlay */}
       {shouldShowCropMode && (
@@ -8666,7 +8920,11 @@ export const Preview: React.FC = () => {
       >
         <div className="workspace-preview-meta"><span>{settings.width}×{settings.height} · {Math.round(previewFrameSize.width / programWidth * 100)}%</span><span>{previewLabelAt(previewLabelIndex, playheadPosition)}</span></div>
         <EmptyProjectStart />
-        <ScopesPanel />
+        {scopesVisible && (
+          <React.Suspense fallback={null}>
+            <ScopesPanel />
+          </React.Suspense>
+        )}
         <div
           ref={overlayRef}
           className={`workspace-preview-frame relative isolate bg-[var(--screen-bg)] overflow-visible transition-all duration-300 ${
@@ -8703,9 +8961,31 @@ export const Preview: React.FC = () => {
           />
 
           <ProgramMonitorOverlays />
+          {vrViewOn ? (
+            <React.Suspense fallback={null}>
+              <VrMonitorOverlay />
+            </React.Suspense>
+          ) : null}
+          {vrDialogOpen ? (
+            <React.Suspense fallback={null}>
+              <VrPropertiesDialog
+                title="Sequence VR Properties"
+                subtitle="Projection, frame layout and captured view of this sequence"
+                value={settings.vr}
+                onClose={() => setVrDialogOpen(false)}
+                onApply={(vr) => { void updateSettings({ vr: vr ?? undefined }); if (!vr) setVrViewOn(false); }}
+              />
+            </React.Suspense>
+          ) : null}
           <DynamicTrimTwoUp />
           <MotionTrackingOverlay clipId={(selectedClip || clipAtPlayhead)?.id ?? null} bounds={clipBounds} />
           <PlanarTrackOverlay clipId={(selectedClip || clipAtPlayhead)?.id ?? null} bounds={clipBounds} />
+          <CornerPinOverlay />
+          {(selectedClip || clipAtPlayhead)?.keyframes?.some((key) => key.property.startsWith("position")) && (
+            <React.Suspense fallback={null}>
+              <SpatialPathOverlay clipId={(selectedClip || clipAtPlayhead)?.id ?? null} bounds={clipBounds} disabled={isPlaying} />
+            </React.Suspense>
+          )}
 
           {decoderLimitHit && (
             <div role="status" aria-live="polite" data-testid="decoder-limit-notice" className="absolute left-1/2 top-3 z-30 w-max max-w-[min(92%,34rem)] -translate-x-1/2 rounded-md border border-border bg-bg-2 px-2.5 py-1.5 text-[11px] text-fg-2 shadow-sm">

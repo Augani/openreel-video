@@ -1,14 +1,13 @@
 import { useSyncExternalStore } from "react";
 import {
-  IndexedDbChunkStore,
-  MemoryChunkStore,
   PlaybackFrameStats,
   RenderCache,
   buildRenderStatusSegments,
   cacheFrameSize,
   createFrameCodec,
   planInvalidation,
-  type ChunkStore,
+  normalizeRanges,
+  intersectRanges,
   type ExportFrameSource,
   type Project,
   type RenderCacheSnapshot,
@@ -21,9 +20,31 @@ import { useTimelineStore } from "../stores/timeline-store";
 import { useUIStore } from "../stores/ui-store";
 import { toast } from "../stores/notification-store";
 import { isExportQueueRunning, registerExportFrameSourceProvider } from "./export-queue/export-queue-activity";
+import {
+  DeferredChunkStore,
+  backendKeyPrefix,
+  deleteAllOpfsRenderFiles,
+  desktopBridge,
+  dropLegacyIndexedDb,
+  openRenderCacheBackend,
+  projectKeyOf,
+  sweepStaleOpfsProjects,
+  type RenderCacheBackendKind,
+} from "./render-cache-backends";
+import {
+  RENDER_CACHE_PREFS_EVENT,
+  maxWidthFor,
+  readRenderCachePrefs,
+} from "./render-cache-prefs";
 
 const DEFAULT_BUDGET = 2 * 1024 * 1024 * 1024;
-const SESSION_KEY_PREFIX = "openreel-render-cache:";
+const LOCK_PREFIX = "openreel-render-cache:";
+const EPHEMERAL_BUDGET = 512 * 1024 * 1024;
+const MEDIA_ONLINE_TIMEOUT_MS = 20_000;
+
+function hasOfflineMedia(): boolean {
+  return useProjectStore.getState().project.mediaLibrary.items.some((item) => item.isPlaceholder === true);
+}
 
 export interface PlaybackFrameLogEntry {
   /** performance.now() when the frame was painted. */
@@ -43,24 +64,175 @@ const FRAME_LOG_LIMIT = 20000;
 
 class RenderCacheService {
   private cache: RenderCache | null = null;
+  private cacheKey = "";
   private started = false;
   private unsubscribeProject: (() => void) | null = null;
+  private unsubscribeCache: (() => void) | null = null;
+  private releaseLock: (() => void) | null = null;
+  private ready: Promise<void> = Promise.resolve();
+  private backendKind: RenderCacheBackendKind | null = null;
+  private persistentSession = false;
+  private readonly listeners = new Set<() => void>();
   readonly stats = new PlaybackFrameStats();
   private frameLog: PlaybackFrameLogEntry[] = [];
   private cacheFrames = 0;
   private liveFrames = 0;
   private enabled = true;
+  private lastProject: Project | null = null;
+  /** media id -> "size:mtime" of the file on disk (desktop), part of every persisted segment hash. */
+  private sourceStamps = new Map<string, string>();
 
-  /** Idempotent: creates the cache and starts following the project store. */
+  /**
+   * Stat the source files of the open project (desktop) so a file replaced at the same path changes the content
+   * hash. Frames of clips whose file changed since the last check are dropped.
+   */
+  async refreshSourceStamps(): Promise<void> {
+    const bridge = desktopBridge();
+    const cache = this.cache;
+    if (!bridge || !cache) return;
+    const project = useProjectStore.getState().getFullProject();
+    const items = project.mediaLibrary.items
+      .map((item) => ({ id: item.id, path: item.nativeSource?.path ?? item.sourceFile?.path }))
+      .filter((entry): entry is { id: string; path: string } => typeof entry.path === "string" && entry.path.length > 0);
+    if (items.length === 0) {
+      this.sourceStamps = new Map();
+      return;
+    }
+    let stats: Array<{ size: number; mtimeMs: number } | null>;
+    try {
+      stats = await bridge.stat(items.map((entry) => entry.path));
+    } catch {
+      return;
+    }
+    const next = new Map<string, string>();
+    items.forEach((entry, i) => next.set(entry.id, stats[i] ? `${stats[i]!.size}:${stats[i]!.mtimeMs}` : "missing"));
+    const changed = new Set<string>();
+    for (const [id, stamp] of next) {
+      const before = this.sourceStamps.get(id);
+      if (before !== undefined && before !== stamp) changed.add(id);
+    }
+    this.sourceStamps = next;
+    cache.refreshContentHashes();
+    if (changed.size > 0) {
+      const spans = project.timeline.tracks.flatMap((track) =>
+        track.clips.filter((clip) => changed.has(clip.mediaId)).map((clip) => ({ start: clip.startTime, end: clip.startTime + clip.duration })),
+      );
+      if (spans.length > 0) cache.invalidateRanges(normalizeRanges(spans));
+    }
+  }
+
+  /** Idempotent: creates the cache for the open project and keeps following the project store. */
   ensureStarted(): RenderCache {
-    if (this.cache && this.started) return this.cache;
-    const store: ChunkStore =
-      typeof indexedDB === "undefined" ? new MemoryChunkStore() : new IndexedDbChunkStore();
-    const sessionId = globalThis.crypto?.randomUUID?.() ?? `s${Date.now()}${Math.random().toString(36).slice(2)}`;
-    void this.sweepDeadSessions(store, sessionId);
+    const full = useProjectStore.getState().getFullProject();
+    const key = projectKeyOf(full.id);
+    if (!this.cache || this.cacheKey !== key) this.switchProject(full, key);
+    if (!this.started) {
+      this.started = true;
+      this.unsubscribeProject = useProjectStore.subscribe((state, previous) => {
+        if (state.project !== previous.project) this.follow();
+      });
+      window.addEventListener("openreel:preview-invalidate", this.onPreviewInvalidate);
+      window.addEventListener(RENDER_CACHE_PREFS_EVENT, this.onPrefsChanged);
+      window.addEventListener("pagehide", this.onPageHide);
+      dropLegacyIndexedDb();
+    }
+    return this.cache as RenderCache;
+  }
+
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  getSnapshot(): RenderCacheSnapshot {
+    return this.cache?.getSnapshot() ?? EMPTY_SNAPSHOT;
+  }
+
+  private notify(): void {
+    for (const listener of Array.from(this.listeners)) listener();
+  }
+
+  /** Where the current project's render files live ("desktop-disk", "opfs", ...), once known. */
+  get storageKind(): RenderCacheBackendKind | null {
+    return this.backendKind;
+  }
+
+  /** True when this tab owns the project's persistent render files (false in a second tab or without storage). */
+  get isPersistent(): boolean {
+    return this.persistentSession;
+  }
+
+  /** Resolves when the cache has opened its storage and restored what the last session left. */
+  whenReady(): Promise<void> {
+    return this.ready;
+  }
+
+  private follow(): void {
+    const full = useProjectStore.getState().getFullProject();
+    const key = projectKeyOf(full.id);
+    if (!this.cache || key !== this.cacheKey) {
+      this.switchProject(full, key);
+      return;
+    }
+    const previous = this.lastProject;
+    this.lastProject = full;
+    this.cache.setProject(full);
+    if (previous) this.invalidateStatsFor(previous, full);
+  }
+
+  /**
+   * Another tab holding the project's lock means this one must not share its files. A lock released a moment ago
+   * (a reload, a project switch in this tab) may not be free yet, so ask again for a few seconds before giving up.
+   */
+  private async acquireProjectLock(key: string): Promise<boolean> {
+    for (let attempt = 0; attempt < 30; attempt++) {
+      if (await this.tryProjectLock(key)) return true;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    return false;
+  }
+
+  private tryProjectLock(key: string): Promise<boolean> {
+    const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+    if (!locks?.request) return Promise.resolve(true);
+    return new Promise<boolean>((resolve) => {
+      void locks
+        .request(`${LOCK_PREFIX}${key}`, { ifAvailable: true }, (lock) => {
+          if (!lock) {
+            resolve(false);
+            return undefined;
+          }
+          resolve(true);
+          return new Promise<void>((release) => {
+            this.releaseLock = release;
+          });
+        })
+        .catch(() => resolve(true));
+    });
+  }
+
+  private switchProject(full: Project, key: string): void {
+    const previous = this.cache;
+    const releasePrevious = this.releaseLock;
+    this.releaseLock = null;
+    this.unsubscribeCache?.();
+    this.lastProject = full;
+    this.stats.clear();
+    const prefs = readRenderCachePrefs();
+    const backendReady = (async () => {
+      // The old project's index is written out before the new one opens, and only then is its lock freed.
+      if (previous) await previous.detach().catch(() => undefined);
+      releasePrevious?.();
+      const owner = await this.acquireProjectLock(key);
+      const backend = await openRenderCacheBackend(key, owner);
+      this.backendKind = backend.kind;
+      this.persistentSession = backend.persistent;
+      return backend;
+    })();
+    const deferred = new DeferredChunkStore(backendReady.then((backend) => backend.store));
     const cache = new RenderCache(
       {
-        store,
+        store: deferred,
         createCodec: (options) => createFrameCodec(options),
         renderFrame: async (project, time, width, height) => {
           const engine = useEngineStore.getState().videoEngine;
@@ -69,56 +241,98 @@ class RenderCacheService {
           return frame.image;
         },
       },
-      { maxBytes: DEFAULT_BUDGET, keyPrefix: `${SESSION_KEY_PREFIX}${sessionId}:` },
+      {
+        maxBytes: DEFAULT_BUDGET,
+        maxWidth: maxWidthFor(prefs.resolution),
+        keyPrefix: backendKeyPrefix(key),
+        persistence: { projectKey: key },
+        mediaStamps: () => this.sourceStamps,
+      },
     );
     this.cache = cache;
-    void this.applyQuotaBudget(cache);
-    const follow = () => {
-      const state = useProjectStore.getState();
-      const full = state.getFullProject();
-      const prevProject = this.lastProject;
-      this.lastProject = full;
-      cache.setProject(full);
-      if (prevProject) this.invalidateStatsFor(prevProject, full);
-    };
-    follow();
-    this.unsubscribeProject = useProjectStore.subscribe((state, previous) => {
-      if (state.project !== previous.project) follow();
-    });
-    window.addEventListener("openreel:preview-invalidate", this.onPreviewInvalidate);
-    this.started = true;
-    return cache;
+    this.cacheKey = key;
+    this.unsubscribeCache = cache.subscribe(() => this.notify());
+    this.ready = (async () => {
+      const backend = await backendReady;
+      await this.applyBudget(cache, backend.kind);
+      if (backend.persistent) {
+        // A reopened project's media comes back offline first. Checking the render files against that state would
+        // throw away every frame, so wait for the sources to reconnect (or give up and leave the files untouched).
+        if (await this.waitForMediaOnline(MEDIA_ONLINE_TIMEOUT_MS)) {
+          await this.restoreFromDisk(cache);
+        } else {
+          const stop = useProjectStore.subscribe(() => {
+            if (this.cache !== cache) return stop();
+            if (hasOfflineMedia() || cache.cachedFrameCount() > 0 || cache.isRendering()) return;
+            stop();
+            void this.restoreFromDisk(cache).then(() => cache.setProject(useProjectStore.getState().getFullProject()));
+          });
+        }
+        if (backend.kind === "opfs") void sweepStaleOpfsProjects(key);
+      }
+      // Anything edited while the files were being checked is diffed against the restored baseline.
+      if (this.cache === cache) cache.setProject(useProjectStore.getState().getFullProject());
+    })().catch(() => undefined);
+    this.notify();
   }
 
-  private lastProject: Project | null = null;
+  private async restoreFromDisk(cache: RenderCache): Promise<void> {
+    await this.refreshSourceStamps();
+    await cache.restore(useProjectStore.getState().getFullProject());
+  }
 
-  /**
-   * Render files do not survive a reload: the in-memory index that says which
-   * frames are valid is gone, so anything a previous session left behind could
-   * be stale. Each tab owns a Web Lock for its lifetime; entries of sessions
-   * whose lock is no longer held are removed, other open tabs are untouched.
-   */
-  private async sweepDeadSessions(store: ChunkStore, sessionId: string): Promise<void> {
+  /** Resolves true once no media item is an offline placeholder, false after `timeoutMs`. */
+  private waitForMediaOnline(timeoutMs: number): Promise<boolean> {
+    if (!hasOfflineMedia()) return Promise.resolve(true);
+    return new Promise<boolean>((resolve) => {
+      const timer = setTimeout(() => {
+        stop();
+        resolve(false);
+      }, timeoutMs);
+      const stop = useProjectStore.subscribe(() => {
+        if (hasOfflineMedia()) return;
+        clearTimeout(timer);
+        stop();
+        resolve(true);
+      });
+    });
+  }
+
+  private readonly onPageHide = (): void => {
+    void this.cache?.flushIndex();
+  };
+
+  private readonly onPrefsChanged = (): void => {
+    const cache = this.cache;
+    if (!cache) return;
+    const prefs = readRenderCachePrefs();
+    cache.setMaxWidth(maxWidthFor(prefs.resolution));
+    void this.applyBudget(cache, this.backendKind);
+  };
+
+  private async applyBudget(cache: RenderCache, kind: RenderCacheBackendKind | null): Promise<void> {
     try {
-      const locks = navigator.locks;
-      if (!locks?.request || !locks.query) {
-        await store.clear();
+      if (kind === "memory") {
+        cache.setBudget(EPHEMERAL_BUDGET);
         return;
       }
-      void locks.request(`${SESSION_KEY_PREFIX}${sessionId}`, () => new Promise<never>(() => undefined));
-      const state = await locks.query();
-      const live = new Set<string>([sessionId]);
-      for (const lock of state.held ?? []) {
-        if (lock.name?.startsWith(SESSION_KEY_PREFIX)) live.add(lock.name.slice(SESSION_KEY_PREFIX.length));
+      if (kind === "desktop-disk") {
+        const settings = await desktopBridge()?.getSettings();
+        if (settings) cache.setBudget(settings.capBytes);
+        return;
       }
-      await store.purge?.((key) => {
-        if (!key.startsWith(SESSION_KEY_PREFIX)) return false;
-        const owner = key.slice(SESSION_KEY_PREFIX.length).split(":")[0];
-        return live.has(owner);
-      });
+      const cap = readRenderCachePrefs().webCapBytes;
+      const estimate = await navigator.storage?.estimate?.();
+      const quota = estimate?.quota ? Math.max(256 * 1024 * 1024, Math.floor(estimate.quota * 0.6)) : cap;
+      cache.setBudget(Math.min(cap, quota));
     } catch {
-      /* a failed sweep only leaves unreachable bytes behind */
+      /* keep the current budget */
     }
+  }
+
+  /** Called when the scratch folder or the size cap changed in Settings. */
+  async refreshBudget(): Promise<void> {
+    if (this.cache) await this.applyBudget(this.cache, this.backendKind);
   }
 
   private invalidateStatsFor(prev: Project, next: Project): void {
@@ -132,21 +346,10 @@ class RenderCacheService {
   private readonly onPreviewInvalidate = (event: Event): void => {
     const detail = (event as CustomEvent<{ audioOnly?: boolean } | undefined>).detail;
     if (detail?.audioOnly) return;
-    // Engine-side pixel state (e.g. background removal) changed without a
-    // project edit: nothing finer than "everything" is knowable here.
+    // Engine-side pixel state (e.g. background removal) changed without a project edit:
+    // nothing finer than "everything" is knowable here.
     void this.deleteRenderFiles({ silent: true });
   };
-
-  private async applyQuotaBudget(cache: RenderCache): Promise<void> {
-    try {
-      const estimate = await navigator.storage?.estimate?.();
-      if (estimate?.quota) {
-        cache.setBudget(Math.max(256 * 1024 * 1024, Math.min(DEFAULT_BUDGET, Math.floor(estimate.quota * 0.4))));
-      }
-    } catch {
-      /* keep the default budget */
-    }
-  }
 
   get instance(): RenderCache {
     return this.ensureStarted();
@@ -170,12 +373,33 @@ class RenderCacheService {
   }
 
   async renderInToOut(override?: RenderTimeRange): Promise<RenderSummary | null> {
+    return this.runRender("all", override);
+  }
+
+  /**
+   * Render only the stretches that carry effects, transitions, grades, text or other layers that need compositing
+   * (the yellow and red parts of the render bar) inside the In/Out range, skipping plain media.
+   */
+  async renderEffectsInToOut(override?: RenderTimeRange): Promise<RenderSummary | null> {
+    return this.runRender("effects", override);
+  }
+
+  /** Ranges of the render bar that still need a render (yellow or red), as time ranges. */
+  effectRanges(within: RenderTimeRange): RenderTimeRange[] {
+    const project = useProjectStore.getState().getFullProject();
+    const segments = buildRenderStatusSegments(project, { cachedRuns: [], measuredMs: () => undefined });
+    const needing = segments.filter((s) => s.level === "light" || s.level === "heavy").map((s) => ({ start: s.start, end: s.end }));
+    return intersectRanges(normalizeRanges(needing), [within]);
+  }
+
+  private async runRender(mode: "all" | "effects", override?: RenderTimeRange): Promise<RenderSummary | null> {
     const cache = this.ensureStarted();
     if (useUIStore.getState().exportState.isExporting || isExportQueueRunning()) {
       toast.warning("Render unavailable", "Wait for the export to finish before rendering previews.");
       return null;
     }
     if (cache.isRendering()) return null;
+    await this.ready;
     const duration = useProjectStore.getState().project.timeline.duration;
     const range = override
       ? { start: Math.max(0, override.start), end: Math.min(duration, override.end) }
@@ -184,8 +408,14 @@ class RenderCacheService {
       toast.info("Nothing to render", "Add clips to the timeline first.");
       return null;
     }
+    await this.refreshSourceStamps();
     cache.setProject(useProjectStore.getState().getFullProject());
-    const summary = await cache.renderRange(range);
+    const ranges = mode === "effects" ? this.effectRanges(range) : [range];
+    if (ranges.length === 0) {
+      toast.info("Nothing to render", "No effects, transitions or layers need rendering in this range.");
+      return null;
+    }
+    const summary = await cache.renderRanges(ranges);
     if (summary.status === "completed") {
       toast.success(
         "Render complete",
@@ -237,10 +467,20 @@ class RenderCacheService {
     this.cache?.cancelRender();
   }
 
-  async deleteRenderFiles(options: { silent?: boolean } = {}): Promise<number> {
+  async deleteRenderFiles(options: { silent?: boolean; allProjects?: boolean } = {}): Promise<number> {
     const cache = this.ensureStarted();
+    await this.ready;
     const removed = await cache.deleteAll();
     this.stats.clear();
+    if (options.allProjects) {
+      try {
+        const bridge = desktopBridge();
+        if (bridge) await bridge.clearAll();
+        else await deleteAllOpfsRenderFiles();
+      } catch {
+        /* the current project's files are already gone */
+      }
+    }
     if (!options.silent) {
       toast.info("Render files deleted", removed > 0 ? `${removed} cached frames removed.` : "Nothing was cached.");
     }
@@ -274,7 +514,7 @@ class RenderCacheService {
     const cache = this.cache;
     if (!cache || !this.started || cache.cachedFrameCount() === 0 || settings.upscaling?.enabled) return null;
     const live = useProjectStore.getState().getFullProject();
-    const size = cacheFrameSize(live.settings.width, live.settings.height);
+    const size = cacheFrameSize(live.settings.width, live.settings.height, cache.frameWidthLimit);
     if (
       size.width !== settings.width ||
       size.height !== settings.height ||
@@ -334,9 +574,16 @@ class RenderCacheService {
   dispose(): void {
     this.unsubscribeProject?.();
     this.unsubscribeProject = null;
+    this.unsubscribeCache?.();
+    this.unsubscribeCache = null;
     window.removeEventListener("openreel:preview-invalidate", this.onPreviewInvalidate);
-    this.cache?.dispose();
+    window.removeEventListener(RENDER_CACHE_PREFS_EVENT, this.onPrefsChanged);
+    window.removeEventListener("pagehide", this.onPageHide);
+    void this.cache?.detach();
+    this.releaseLock?.();
+    this.releaseLock = null;
     this.cache = null;
+    this.cacheKey = "";
     this.started = false;
   }
 }
@@ -355,27 +602,22 @@ const EMPTY_SNAPSHOT: RenderCacheSnapshot = {
   codec: null,
   version: 0,
   lastSummary: null,
+  maxWidth: 1920,
+  restored: null,
 };
 
 /** Live snapshot of the render cache for React. */
 export function useRenderCacheSnapshot(): RenderCacheSnapshot {
   return useSyncExternalStore(
     (listener) => {
-      let unsubscribe: (() => void) | undefined;
       try {
-        unsubscribe = renderCacheService.ensureStarted().subscribe(listener);
+        renderCacheService.ensureStarted();
       } catch {
-        unsubscribe = undefined;
+        /* no project store yet: the snapshot stays empty */
       }
-      return () => unsubscribe?.();
+      return renderCacheService.subscribe(listener);
     },
-    () => {
-      try {
-        return renderCacheService.instance.getSnapshot();
-      } catch {
-        return EMPTY_SNAPSHOT;
-      }
-    },
+    () => renderCacheService.getSnapshot(),
     () => EMPTY_SNAPSHOT,
   );
 }

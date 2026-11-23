@@ -58,6 +58,7 @@ const bridge = {
   stat: vi.fn(async (paths: string[]) => Object.fromEntries(paths.map((p) => [p, { exists: p.startsWith("/p/") || p.startsWith("/found"), size: 10 }]))),
   readProxy: vi.fn(async () => new ArrayBuffer(8)),
   copyToProject: vi.fn(),
+  enqueueCopies: vi.fn(),
   onCopyProgress: vi.fn(() => () => undefined),
   pickFolder: vi.fn(async () => "/found"),
   scanFolder: vi.fn(),
@@ -66,7 +67,7 @@ const bridge = {
 beforeEach(() => {
   vi.clearAllMocks();
   (window as unknown as { openreel: unknown }).openreel = { platform: "desktop", fs: { readFileBytes: async () => new ArrayBuffer(4), revealInFolder: async () => undefined }, ingest: bridge };
-  useDesktopIngestStore.setState({ jobs: {}, files: {}, copying: {}, lastRelink: null, lastCopy: null, folders: null });
+  useDesktopIngestStore.setState({ jobs: {}, copyJobs: {}, files: {}, copying: {}, lastRelink: null, lastCopy: null, folders: null });
 });
 afterEach(() => {
   delete (window as unknown as { openreel?: unknown }).openreel;
@@ -168,7 +169,7 @@ describe("finished native jobs", () => {
 describe("copy to project", () => {
   it("points the project at the verified copies in one undo step and keeps a record of the original", async () => {
     loadItems([item("a"), item("b"), item("c", { copiedFrom: { path: "/x", sha256: "s", copiedAt: 1 } })]);
-    bridge.copyToProject.mockImplementation(async (args: { srcPath: string }) => ({ destPath: args.srcPath.replace("/cards/", "/p/Media/"), sha256: "abc", size: 1000, alreadyInPlace: false }));
+    bridge.copyToProject.mockImplementation(async (args: { srcPath: string }) => ({ destPath: args.srcPath.replace("/cards/", "/p/Media/"), sha256: "abc", checksum: { algorithm: "sha256" as const, value: "abc" }, size: 1000, alreadyInPlace: false }));
     const history = useProjectStore.getState().actionHistory;
     const before = history.getUndoStackSize();
     const report = await copyMediaToProject(["a", "b", "c"]);

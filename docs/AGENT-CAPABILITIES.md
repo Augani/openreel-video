@@ -2,7 +2,7 @@
 
 # OpenReel Agent — Capability Reference
 
-The agent exposes **453 tools** spanning read/observe, project, track, clip, transform, effect, color, speed, audio, subtitle, keyframe, transition, marker, text and graphics domains — plus `execute_action` and `batch_actions` escape hatches for any capability without a dedicated tool.
+The agent exposes **494 tools** spanning read/observe, project, track, clip, transform, effect, color, speed, audio, subtitle, keyframe, transition, marker, text and graphics domains — plus `execute_action` and `batch_actions` escape hatches for any capability without a dedicated tool.
 
 ## Tools
 
@@ -36,10 +36,20 @@ The agent exposes **453 tools** spanning read/observe, project, track, clip, tra
 - **open_in_source_monitor** (read-only) — Load a library media item into the Source monitor (the Source tab beside Program), optionally parked at `time` seconds. Does not edit the project. Live editor only.
 - **set_source_in_out** (read-only) — Set or clear the Source monitor In and/or Out marks of a media item (seconds, or inFrame/outFrame). Pass null to clear a mark. Marks persist per media item and are used by insert_from_source / overwrite_from_source. Not a timeline edit (no undo step). Live editor only.
 - **match_frame** (read-only) — Find the source media and source timecode shown at a timeline time: of clipId, or of the topmost visible video clip at `time`. Returns mediaId, source time and timecode so the same frame can be located in the library and used for insert_media/overwrite_media sourceIn. Also selects the source media in the library (as the UI does). Does not edit the project.
+- **reverse_match_frame** (read-only) — Reverse Match Frame: find where a source frame is used in the active sequence. Give mediaId and sourceTime (seconds) or sourceTimeFrame; both default to the clip and playhead loaded in the Source monitor. Returns every instance, topmost track first (clipId, timelineTime, whether it sits inside a nested sequence), honouring speed, reverse and nests. Does not move the playhead or edit anything; use the first instance's timelineTime with the editor's seek.
+- **list_clip_markers** (read-only) — List clip markers (on one timeline clip) or master-clip markers (on a media item, shown on every instance). Marker time is SOURCE-media seconds. For a clipId the result also gives each visible marker's timelineTime, including the media's master markers.
+- **get_source_channel_layout** (read-only) — Read a media item's audio streams (channels per stream) and the groups, one clip each, it expands to.
 - **list_proxies** (read-only) — Report the proxy state of every video: none | ready | building | failed | missing-proxy (link exists but the proxy bytes are gone) | missing-full (the full-resolution media is offline), its proxy resolution, build progress, whether Toggle Proxies is on and the project's ingest preset. Read-only.
 - **list_effect_params** (read-only) — List the animatable numeric parameters of one effect instance on a clip (key, label, min, max, step, current value) with their instance keyframes (time, value, easing). Use the keys with set_effect_param_keyframe.
 - **list_effect_presets** (read-only) — List the project's saved effect presets (id, name, timing mode, effect types, keyframe count).
 - **export_effect_presets** (read-only) — Return saved effect presets as JSON text (all, or only presetIds) in the portable OpenReel preset file format, for sharing or backup. Import with import_effect_presets.
+- **list_transitions** (read-only) — List transition types and params, project and library presets and the default.
+- **get_morph_cut_status** (read-only) — Status of every Morph Cut transition's background analysis (analysing, ready, or failed with the reason); until ready it renders as a cross dissolve.
+- **export_transition_presets** (read-only) — Export the app-wide transition preset library as JSON text.
+- **list_clip_keyframes** (read-only) — List a clip's keyframes (id, property, clip-local time, value, easing, Bezier handles, temporal and spatial interpolation) optionally for one property. Use the ids with set_keyframe_interpolation and set_keyframe_handles.
+- **sample_keyframes** (read-only) — Evaluate a clip's animated transform and keyframed values at clip-local times (seconds) with the same evaluator the preview and export use: easing, Bezier handles, Auto/Continuous tangents and spatial motion paths included. Returns { time, values } where values maps property to number (position.x, position.y, scale.x, ...).
+- **get_clip_time_interpolation** (read-only) — Read the Time Interpolation mode and Optical Flow quality of a clip.
+- **get_vr_properties** (read-only) — Read immersive video properties: the active sequence's VR properties, and for clipId / mediaId the effective, overridden and detected (spherical metadata or 2:1 hint) properties of the source.
 
 ## motion
 - **rig_humanoid_model** (expensive) — Run the desktop Blender rigging backend to create or repair a humanoid armature for a GLB/glTF model and export a rigged GLB. Use inspect_3d_model first to confirm meshes/armature/animations. Provide modelUrl directly, or resolve an existing model with compositionId+layerId(+objectId), sceneId+creationObjectId, or assetId. outputPath is optional; when omitted the desktop backend writes a temporary GLB and returns outputUrl/outputPath. overwriteExisting=true replaces an existing armature; false preserves one when present.
@@ -256,6 +266,7 @@ The agent exposes **453 tools** spanning read/observe, project, track, clip, tra
 - **get_app_state** (read-only) — Report what OpenReel is doing right now, without needing its window: appVersion, platform, route (welcome|editor|...), windows {editor, count}, projectOpen and projectId, onboarding {status unseen|in-progress|done|skipped, path, skippedBy}, ai {configured, provider}, and mcp {toolCount, autoAllow, allowedRoots, protocolVersion}. mcp.allowedRoots are the folders the path tools (import_media_from_path, open_project_file, save_project_as, export outputPath) may read and write. Call this first in a session; it works with no project open. Read-only.
 - **dismiss_onboarding** — Dismiss OpenReel's first-run onboarding (the welcome path chooser and any open setup sheet) so it never covers the UI during an agent session. Idempotent: calling it again, or after the user finished onboarding, changes nothing. It does not touch any project and is never required before other tools. Lesson and AI-setup progress is kept.
 - **get_project_fonts** (read-only) — List every font family used by text clips, motion-graphics text layers and caption styles, with where it is used and how it travels when the project is packaged (Collect Files). status is one of: embedded (user font copied into the package; license fsType installable/editable), embedded-readonly (fsType preview&print: embedded for preview/export, not for editing), restricted (fsType forbids embedding; not copied, install it on the other machine), unknown-license (font file license unreadable, e.g. WOFF2 uploads, or file data unavailable; not copied: re-upload as TTF/OTF/WOFF to embed), web (catalog font recorded by family + url, not copied), bundled (ships with OpenReel), system (installed OS font; cannot be embedded). Read-only; works only in the live OpenReel app.
+- **set_sequence_vr_properties** — Immersive video: set the active sequence's VR Properties (Premiere: Sequence Settings > VR Properties). projection "equirectangular" makes it a 360 sequence (VR effects, the Program monitor VR view and spherical metadata in MP4 / MOV exports); "none" or clear:true makes it flat. layout: "mono", "over-under" (left eye on top) or "side-by-side" (left eye on the left). horizontalFov (default 360) and verticalFov (default 180) are the captured view in degrees. initialView {yaw, pitch, roll} (degrees; yaw to the right, pitch up; all 0 = straight ahead) is the direction a player opens at, written into exports as the sv3d pose and the V1 InitialView fields. Fields not given keep their value. One undo step. Set the sequence size to 2:1 (for example 3840x1920) for a mono sphere.
 
 ## track
 - **add_track** — Add a track (video|audio|image|text|graphics).
@@ -276,6 +287,7 @@ The agent exposes **453 tools** spanning read/observe, project, track, clip, tra
 - **add_track_audio_effect** — Add an effect to a track's (or the master bus's) audio effect rack. Racks hold up to 5 effects processed in order, in live playback and in export. effectType: gain|eq|compressor|limiter|reverb|delay|noiseReduction|deHum|deClick|deClip|deEss|deReverb|gate|brickwallLimiter|lowPass. Optional params (omitted ones use defaults; gain: gainDb -24..24 dB; eq: lowGain -24..24 dB, midGain -24..24 dB, midFreq 200..8000 Hz, midQ 0.1..10, highGain -24..24 dB; compressor: threshold -60..0 dB, ratio 1..20 :1, attack 0.001..1 s, release 0.01..3 s, knee 0..40 dB, makeupGain 0..24 dB; limiter: ceiling -24..0 dB, release 0.01..1 s; reverb: roomSize 0..1, damping 0..1, wetLevel 0..1, dryLevel 0..1; delay: time 0..2 s, feedback 0..0.95, wetLevel 0..1; noiseReduction: threshold -60..0 dB, reduction 0..1, attack 0..100 ms, release 0..500 ms; deHum: frequency 40..70 Hz, harmonics 1..8, q 5..100, depth 0..1; deClick: sensitivity 0..1, maxWidth 2..48 smp; deClip: threshold -24..0 dBFS, maxRun 4..120 smp; deEss: frequency 2500..12000 Hz, bandwidthQ 0.3..6, threshold -60..0 dB, ratio 1..20 :1, attack 0.0002..0.05 s, release 0.005..0.5 s, listen 0..1; deReverb: amount 0..1, rt60 0.1..3 s, floor -40..0 dB; gate: threshold -80..0 dB, range -80..0 dB, attack 0.0002..0.2 s, hold 0..1 s, release 0.01..2 s; brickwallLimiter: ceiling -24..0 dBTP, release 0.01..1 s; lowPass: frequency 100..20000 Hz, slope 12..48 dB/oct), position (0-based slot, default end) and bypassed. Returns the new effectId. One undo step.
 - **set_track_audio_effect_param** — Edit one effect in a track/master audio rack: any of params (object of numeric parameters, clamped to range; gain: gainDb -24..24 dB; eq: lowGain -24..24 dB, midGain -24..24 dB, midFreq 200..8000 Hz, midQ 0.1..10, highGain -24..24 dB; compressor: threshold -60..0 dB, ratio 1..20 :1, attack 0.001..1 s, release 0.01..3 s, knee 0..40 dB, makeupGain 0..24 dB; limiter: ceiling -24..0 dB, release 0.01..1 s; reverb: roomSize 0..1, damping 0..1, wetLevel 0..1, dryLevel 0..1; delay: time 0..2 s, feedback 0..0.95, wetLevel 0..1; noiseReduction: threshold -60..0 dB, reduction 0..1, attack 0..100 ms, release 0..500 ms; deHum: frequency 40..70 Hz, harmonics 1..8, q 5..100, depth 0..1; deClick: sensitivity 0..1, maxWidth 2..48 smp; deClip: threshold -24..0 dBFS, maxRun 4..120 smp; deEss: frequency 2500..12000 Hz, bandwidthQ 0.3..6, threshold -60..0 dB, ratio 1..20 :1, attack 0.0002..0.05 s, release 0.005..0.5 s, listen 0..1; deReverb: amount 0..1, rt60 0.1..3 s, floor -40..0 dB; gate: threshold -80..0 dB, range -80..0 dB, attack 0.0002..0.2 s, hold 0..1 s, release 0.01..2 s; brickwallLimiter: ceiling -24..0 dBTP, release 0.01..1 s; lowPass: frequency 100..20000 Hz, slope 12..48 dB/oct), bypassed and position (new 0-based slot: reorders the rack). Also sets the bus fader/pan of that track: volume (linear 0..4, 1 = 0 dB) and pan (-1..1; tracks only) when effectId is omitted. One undo step.
 - **remove_track_audio_effect** — Remove one effect from a track's (or the master bus's) audio effect rack by effectId. One undo step.
+- **set_source_channel_patch** — Patch audio channel group `channel` (1 = A1) of a multichannel source to an audio track (trackId, null = automatic) and/or switch it off (enabled false). insert_from_source / overwrite_from_source place one clip per enabled group. Editor state, no undo step. Live editor only.
 
 ## media
 - **import_media_from_url** — Download an image, video, or audio file from a public http(s) URL (e.g. a free stock library) and add it to the media library. Returns the mediaId to use with add_clip. Requires an open project.
@@ -287,22 +299,24 @@ The agent exposes **453 tools** spanning read/observe, project, track, clip, tra
 - **rename_bin** — Rename a bin. One undo step.
 - **delete_bin** (destructive) — Delete a bin together with its nested bins, every media item inside, and the timeline clips that use that media. Pass confirm:true to proceed; without it the tool only reports what would be deleted. One undo step restores everything.
 - **set_label** — Set the label colour of media items, timeline clips and/or bins. Label colour id or name: violet, iris, caribbean, lavender, cerulean, forest, rose, mango, purple, blue, teal, magenta, tan, green, brown, yellow; "none" clears it. For clips "inherit" goes back to following the media's label. Labels show as colour chips in the Project panel and as clip colour on the timeline. One undo step.
-- **set_media_log** — Edit the Project panel logging columns on media items: "scene", "shot", "take" (free text, "" clears), "goodTake" (boolean flag), plus "comment" and "description" (the log note). Applies to every id in mediaIds. One undo step.
-- **find_media** (read-only) — Search the media library across every Project panel column (name, label, type, codec, comment, description, scene, shot, take, good take, ...). Every space-separated term must match; "scene:12" / "good:yes" / "take:2" limit a term to one column. "column" limits the whole search to one column (name, label, type, duration, frameRate, resolution, codec, audio, fileSize, startTimecode, importedAt, usage, comment, description, scene, shot, take, goodTake).
+- **set_media_log** — Edit the Project panel logging columns on media items: "scene", "shot", "take" (free text, "" clears), "goodTake" (boolean flag), plus "comment", "description" (the log note), XMP-style "keywords" (list; replaces, [] clears), "logComment" and "reel" (tape name). Applies to every id in mediaIds. One undo step.
+- **find_media** (read-only) — Search the media library across every Project panel column (name, label, type, codec, comment, description, keywords, log comment, reel, scene, shot, take, good take, ...). Every space-separated term must match; "scene:12" / "good:yes" / "take:2" limit a term to one column. "column" limits the whole search to one column (name, label, type, duration, frameRate, resolution, codec, audio, fileSize, startTimecode, importedAt, usage, comment, description, scene, shot, take, goodTake, keywords, logComment, reel).
 - **list_smart_bins** (read-only) — List the saved searches (smart bins) with their query, column and the live number of matching media items.
 - **create_smart_bin** — Save a search as a smart bin: a bin with no media of its own whose contents are the library items matching "query" (optionally limited to one "column"), recomputed live whenever metadata changes. One undo step.
 - **delete_smart_bin** — Delete a smart bin by id or name. Only the saved search is removed; no media is deleted. One undo step.
 - **make_subclip** — Create a subclip: a media-bin item that references a window (inPoint..outPoint, seconds or frames) of an existing video/audio item and is used like any media (drag, insert, overwrite). "restrictTrims": true keeps later trims on its clips inside the window. Omitting inPoint/outPoint uses the Source monitor marks for that media. One undo step.
 - **interpret_footage** — Override how video media is read. frameRate conforms the footage to that rate (a 30 fps file read as 24 fps plays at 0.8x and runs 25% longer); clips already on the timeline are retimed (speed and duration, later clips on the same track ripple to follow; pass retimeClips:false to change only the media item) and clips placed afterwards use it. pixelAspectRatio (0.25-4; 1.3333 for HDV 1440x1080, 0.9091 for DV NTSC) stretches the frame to its display width in preview, the Program monitor, scopes and export, so fit/fill math uses the display size. fieldOrder (progressive, upper, lower) marks interlaced footage, which preview and export deinterlace with the deinterlace mode (none, blend (default), bob). The file's own pixel aspect / field order are auto-detected when the importer can read them and show in list_media. Fields you give are merged into the item's existing interpretation (others are kept); clear:true goes back to what the file says. One undo step.
+- **set_source_channel_layout** — Set how a media item's audio is split into clips when placed (Modify > Audio Channels on a project item); each group is one audio clip and one patch indicator (A1..An). layout: "file" (own grouping per stream: mono/stereo/5.1 stream = one clip, other widths = one mono clip per channel), "mono", "stereo" (pairs) or "5.1". Or groups: [{stream, format: mono|stereo|5.1, sources: [source channel per output channel]}] (0-based; streams left out are not placed). Applies to mediaIds (or mediaId). One undo step.
 - **import_media_from_path** (expensive) — Import local video, audio, image and camera RAW files into the media library by absolute path. `paths` takes files and/or folders (folders import their media files; recursive:true includes subfolders). Every path is checked against the allowed folders (Settings > MCP; get_app_state lists them): symlinks are resolved, so a link that leaves an allowed folder is refused. Optional: copyToProject (desktop: also copy into the project's Media folder, originals untouched), ingestPreset none|proxies|copy for this import, createProxies (build preview proxies), bin (bin id or name to file the items in). Returns data.imported[{mediaId, path, name, kind video|audio|image|raw, durationSec, width, height, frameRate, codec}] and data.skipped[{path, code NOT_FOUND|OUTSIDE_ALLOWED_ROOTS|UNSUPPORTED_TYPE|UNREADABLE, message}]; use a mediaId with add_clip. Requires an open project (create_project first). Can take a while for big folders.
-- **create_proxies** (expensive) — Queue background builds of low-resolution H.264 proxies for video media (Project panel > Proxies > Create proxies). mediaIds picks items (default: every video without a proxy); quality is low (up to 540p), medium (720p, default) or high (1080p); force rebuilds an existing proxy. Jobs run one at a time in the background with progress in the Project panel and survive a reload; each finished proxy is linked to its media as one undo step. Proxies only change what preview, scrub and playback decode: transforms, masks, effects and text are resolution independent, and exports ALWAYS read the full-resolution media. Returns queued ids and skipped items with reasons; poll list_proxies for status.
+- **create_proxies** (expensive) — Queue background builds of low-resolution proxies for video media (Project panel > Proxies > Create proxies). In the browser they are H.264 and quality is low (up to 540p), medium (720p, default) or high (1080p); on the desktop app they are built natively with the project's proxy settings (codec, size, audio, burn-in and destination, see set_proxy_format) and quality is ignored. mediaIds picks items (default: every video without a proxy); force rebuilds an existing proxy. Jobs run one at a time in the background with progress in the Project panel and survive a reload; each finished proxy is linked to its media as one undo step. Proxies only change what preview, scrub and playback decode: transforms, masks, effects and text are resolution independent, and exports ALWAYS read the full-resolution media. Returns queued ids and skipped items with reasons; poll list_proxies for status.
 - **attach_proxies** — Attach existing proxy files that are already imported into the project to their full-resolution media (Project panel > Proxies > Attach proxies). Pass pairs [{mediaId, proxyMediaId}], or omit pairs to match by file name (extension and _proxy / -proxy suffixes ignored). Each proxy is validated against the original: it must decode, keep the aspect ratio, match the duration within 0.25 s / 1 % and the frame rate within 0.5 fps; mismatches are reported and skipped. All accepted proxies are linked as ONE undo step. The proxy media items stay in the library (delete them separately if unwanted). Exports still use full resolution.
 - **toggle_proxies** — Toggle Proxies (Program monitor button, Shift+P): on = preview, scrub and playback decode proxies where they exist; off = they decode the full-resolution media. Pass on=true/false to set it explicitly, or omit to flip it. Not an edit: no undo step. Export is unaffected and always uses full resolution.
 - **set_ingest_preset** — Set the project's ingest preset: none (default) or proxies (build proxies in the background for every video imported from now on). On the desktop app copy is also available: copy imported media into the project's Media folder (checksum-verified, originals never deleted). One undo step. Existing media is not touched; use create_proxies / copy_media_to_project for that.
-- **set_proxy_format** — Desktop app only. Set the project's native proxy settings (Project panel > Proxies): codec prores-proxy (ProRes 422 Proxy .mov) or h264 (.mp4), size half | quarter | 720p | 1080p (a fixed height never upscales), jobs at once 1-2, the Proxies folder and Media folder (absolute, or relative to the project file's folder; default Proxies/ and Media/ beside the project), and proxiesWithCopy (also build proxies when the copy preset ingests media). Only the fields you pass change. One undo step. Affects proxies built from now on; use create_proxies with force to rebuild.
+- **set_proxy_format** — Desktop app only. Set the project's native proxy and ingest settings (Project panel > Proxies); only the fields you pass change, one undo step, and they affect proxies and copies made from now on (use create_proxies with force to rebuild). codec: prores-proxy (ProRes 422 Proxy), prores-lt (ProRes 422 LT), prores-422 (ProRes 422), h264, dnxhr-lb (DNxHR LB) or dnxhr-sq (DNxHR SQ); ProRes and DNxHR write .mov, H.264 .mp4. size: full | half | quarter | 720p | 1080p (a fixed height never upscales) or custom with customWidth (16-16384 px, never upscaled, aspect kept). audio: keep (default) or strip (a proxy with no audio). burnIn: {clipName, timecode} booleans that burn the clip name and the source timecode into the picture (a viewing copy, not for delivery). destination: {mode: project (the Proxies folder, default) | media (a Proxies folder next to each media file) | custom, folder (absolute, with custom)}. Frame rate is always kept. checksum: the algorithm that verifies copies, sha256 (default), md5 or xxh64 (xxHash64). concurrency: jobs at once 1-2. proxyFolder and mediaFolder: absolute, or relative to the project file's folder (default Proxies/ and Media/ beside the project). proxiesWithCopy: also build proxies when the copy preset ingests media. The profile is stored in the project, which stays portable (the app's named presets are copies).
 - **retry_failed_proxies** (expensive) — Desktop app only (Project panel > Proxies > Retry failed). Re-queue every proxy build that failed in this project. Returns how many were retried; poll list_proxies for status.
-- **copy_media_to_project** (expensive) — Desktop app only. Copy media files into the project's Media folder and point the project at the copies. Every copy is verified by SHA-256 (the copy is re-read and compared) and the originals are never modified or deleted. mediaIds picks items (default: every online item not yet copied). The whole batch is ONE undo step for the reference change (undo re-points to the originals; the copied files stay on disk). The project must be saved first so its Media folder has a home.
+- **copy_media_to_project** (expensive) — Desktop app only. Copy media files into the project's Media folder and point the project at the copies. Every copy is re-read and verified by checksum (SHA-256 by default, MD5 or xxHash64 when set with set_proxy_format checksum; the digest and algorithm are returned and recorded on the media) and a corrupted copy is refused and no file is kept; the originals are never modified or deleted. mediaIds picks items (default: every online item not yet copied). The whole batch is ONE undo step for the reference change (undo re-points to the originals; the copied files stay on disk). The project must be saved first so its Media folder has a home.
 - **relink_media** (expensive) — Desktop app only (Project panel: Reconnect full resolution / Find proxies). Search a folder (recursively, hidden folders skipped) for offline media (kind full, default) or missing proxies (kind proxy) and relink every match by file name + duration (0.25 s / 1 %) + frame rate. A media item that two files fit equally well is reported as ambiguous and left alone. Returns linked, ambiguous, notFound and failed items.
+- **set_clip_vr_properties** — Immersive video: tell OpenReel how a clip's source is projected (Premiere: Interpret Footage > VR Properties), for clipId / clipIds / mediaIds. projection "equirectangular" | "none"; layout "mono" | "over-under" | "side-by-side"; horizontalFov / verticalFov are the captured view in degrees. clear:true goes back to what the file's spherical metadata says. Footage with spherical metadata is detected on import (see list_media / get_vr_properties); a 2:1 picture without metadata is only a hint until you set it. One undo step.
 
 ## clip
 - **add_clip** — Add a media clip to a track at a time.
@@ -319,8 +333,8 @@ The agent exposes **453 tools** spanning read/observe, project, track, clip, tra
 - **track_select_clips** (read-only) — Premiere's Track Select Forward/Backward: the clip with clipId plus every clip and overlay item after it (direction "forward", default) or before it ("backward") on all unlocked tracks, or only on its own track with trackOnly. Items on locked tracks are never included. Read-only; pass the returned ids to ripple_delete_clip, delete or move tools to act on the whole range as one undo step.
 - **trim_edit_point** — Trim-mode nudge of one edit point by whole frames, like selecting it in the timeline and pressing , or . (1 frame) or Shift , / . (5). clipId + edge ("left" = the clip start, "right" = its end) name the edit point; frames > 0 moves the edge later in time, < 0 earlier. kind "roll" moves the cut between two touching clips (total length unchanged), "ripple" trims the one edge and pulls everything after it along; the default is roll at a cut and ripple at a free edge, and roll on a free edge falls back to ripple. Sync Lock, linked clips (pass linkedClipIds to override), locked tracks and source handles apply exactly as for the Ripple and Roll tools; the move is clamped to the handles and the applied frames are returned. One undo step.
 - **add_edit** — Premiere-style Add Edit: split every clip under a timeline time on trackIds (default: the targeted tracks, else every unlocked track). One undo step. Give `time` seconds or `timeFrame`.
-- **insert_from_source** — Premiere-style Insert (ripples later content) from the Source monitor using three-point editing. The source range is the media's In/Out marks (set_source_in_out; or pass sourceIn/sourceOut; unmarked = whole media). Placement: at `at` (default 0), or at the sequence In when sequenceIn/sequenceOut are given: source In-only fits the range (Out derived), source Out-only back-times, source In+Out with only sequenceOut ends at it; with all four marks the source range wins at sequenceIn. component: both (default) | video (muted) | audio. One undo step. Returns the rule applied.
-- **overwrite_from_source** (destructive) — Premiere-style Overwrite (replaces what it covers) from the Source monitor using three-point editing. The source range is the media's In/Out marks (set_source_in_out; or pass sourceIn/sourceOut; unmarked = whole media). Placement: at `at` (default 0), or at the sequence In when sequenceIn/sequenceOut are given: source In-only fits the range (Out derived), source Out-only back-times, source In+Out with only sequenceOut ends at it; with all four marks the source range wins at sequenceIn. component: both (default) | video (muted) | audio. One undo step. Returns the rule applied.
+- **insert_from_source** — Premiere-style Insert (ripples later content) from the Source monitor using three-point editing. The source range is the media's In/Out marks (set_source_in_out; or pass sourceIn/sourceOut; unmarked = whole media). Placement: at `at` (default 0), or at the sequence In when sequenceIn/sequenceOut are given: source In-only fits the range (Out derived), source Out-only back-times, source In+Out with only sequenceOut ends at it; with all four marks the source range wins at sequenceIn. component: both (default) | video (muted) | audio. A multichannel file places its picture plus one audio clip per enabled channel group (set_source_channel_layout / set_source_channel_patch). One undo step. Returns the rule applied.
+- **overwrite_from_source** (destructive) — Premiere-style Overwrite (replaces what it covers) from the Source monitor using three-point editing. The source range is the media's In/Out marks (set_source_in_out; or pass sourceIn/sourceOut; unmarked = whole media). Placement: at `at` (default 0), or at the sequence In when sequenceIn/sequenceOut are given: source In-only fits the range (Out derived), source Out-only back-times, source In+Out with only sequenceOut ends at it; with all four marks the source range wins at sequenceIn. component: both (default) | video (muted) | audio. A multichannel file places its picture plus one audio clip per enabled channel group (set_source_channel_layout / set_source_channel_patch). One undo step. Returns the rule applied.
 - **roll_trim** — Roll the cut between a clip and its neighbour: one clip gets longer by exactly as much as the other gets shorter, so total duration and everything else stay put. Uses the clip's source handles; clamped to them. One undo step. Positive moves later in time. Give delta in seconds or deltaFrame in project frames (snapped to the frame grid and clamped to the available source handles; the applied value is returned). Linked clips (separated audio/video) are edited together automatically when the editor's linked selection is on; pass linkedClipIds ([] for none) to override (they must share this clip's timing).
 - **slide_trim** — Slide a clip along the timeline between its two neighbours without changing its own content or the overall duration: the previous clip's out and the next clip's in move with it. Needs an adjacent clip on both sides. One undo step. Positive moves later in time. Give delta in seconds or deltaFrame in project frames (snapped to the frame grid and clamped to the available source handles; the applied value is returned). Linked clips (separated audio/video) are edited together automatically when the editor's linked selection is on; pass linkedClipIds ([] for none) to override (they must share this clip's timing).
 - **rate_stretch** — Rate Stretch: change a clip's length by dragging one edge so its playback speed changes to fill the new length (source range unchanged); never ripples. Returns the new speed. Not available on clips with speed ramps, images or generated media. One undo step. Positive moves later in time. Give delta in seconds or deltaFrame in project frames (snapped to the frame grid and clamped to the available source handles; the applied value is returned). Linked clips (separated audio/video) are edited together automatically when the editor's linked selection is on; pass linkedClipIds ([] for none) to override (they must share this clip's timing).
@@ -336,6 +350,7 @@ The agent exposes **453 tools** spanning read/observe, project, track, clip, tra
 - **transcript_cut_range** (destructive) — Ripple-cut a time range [start, end] (seconds, as read from get_caption_transcript) out of the sequence the way deleting that text in the Transcript panel does: every unlocked sync-locked track is cut and closed together (linked picture and sound stay in sync), markers and captions ripple, one undo step. Fails (nothing changes) if a linked partner sits on a locked or not sync-locked track.
 - **remove_filler_words** (destructive) — Find filler words in the transcript (default list: um, umm, uh, uhh, uhm, er, erm, hmm, like, you know; override with fillers) and ripple-cut each one out, all as ONE undo step. Pass preview:true to only list what would be removed (text, start, end) without editing. Same sync-lock and linked-clip rules as transcript_cut_range.
 - **remove_pauses** (destructive) — Ripple-cut pauses longer than minDuration seconds between spoken words, leaving `keep` seconds (default 0.2) of breathing room at each, all as ONE undo step. preview:true lists them without editing.
+- **set_clip_channel_map** — Set or clear what an audio clip plays from its file: map {format: mono|stereo|5.1, sources: [source channel per output channel; -1 silent, -2 mix of all]}, or clear: true. Applies to clipIds. One undo step.
 
 ## speed
 - **set_clip_speed** — Set an existing main-timeline clip's playback-speed multiplier (for example 0.5 = half speed, 2 = double speed); recomputes its duration. Use get_capabilities speed.range for limits.
@@ -344,6 +359,7 @@ The agent exposes **453 tools** spanning read/observe, project, track, clip, tra
 - **set_speed_ramp** — Set speed keyframes / freeze frames / pitch.
 - **set_clip_stabilization** — Set clip stabilization settings.
 - **set_clip_chroma_key** — Set green-screen / chroma-key settings.
+- **set_clip_time_interpolation** — Set how a video clip makes the frames between two source frames when it is slowed, ramped, reversed or conformed to another frame rate: "frameSampling" (default; repeats the nearest frame), "frameBlending" (blends the two nearest frames) or "opticalFlow" (motion-compensated in-between frames; heavy, best for slow motion). Optional quality "low" | "medium" | "high" tunes optical flow. Applies to clipId or clipIds. One undo step per call; preview and export render identically.
 
 ## transform
 - **set_clip_transform** — Update an existing main-timeline clip's static transform. position is a pixel offset from canvas center; scale uses 1 = 100%; rotation is degrees; opacity is 0..1. Partial nested updates are safely merged, so {scale:{x:1.2,y:1.2}} performs a 120% zoom without resetting position.
@@ -351,7 +367,7 @@ The agent exposes **453 tools** spanning read/observe, project, track, clip, tra
 - **set_clip_blend_opacity** — Set a clip's blend opacity (0..1).
 
 ## effect
-- **add_video_effect** — Add a video effect to a clip. Standard effectType values include brightness, contrast, saturation, blur, sharpen, vignette, grain, temperature, tint, shadow, glow, motion-blur, radial-blur, chromatic-aberration. Pro effect types (params validated against their ranges; omitted params take the same defaults as adding the effect in the editor UI): mosaic (size 1..200); posterize (levels 2..256); mirror (mode none|horizontal|vertical|quad, center 0..100); lens-distortion (amount -100..100, zoom 10..400, compensate boolean); directional-blur (angle 0..360, length 0..200); find-edges (amount 0..100, invert boolean); emboss (amount 0..100, angle 0..360, relief 0..10); exposure (exposure -5..5, offset -0.5..0.5, gamma 0.2..3); threshold (level 0..255, mix 0..100); halftone (dotSize 2..100, angle 0..360, amount 0..100, invert boolean); vhs-glitch (scanlines 0..100, rgbSplit 0..100, jitter 0..200, noise 0..100, time 0..3600, seed 0..9999); unsharp-mask (amount 0..500, radius 0.1..50, threshold 0..255); gaussian-blur (blurX 0..100, blurY 0..100); crop (left 0..100, top 0..100, right 0..100, bottom 0..100, feather 0..100); vibrance (vibrance -100..100, saturation -100..100); skew (skewX -60..60, skewY -60..60); hsl-secondary (hueMin 0..360, hueMax 0..360, hueSoft 0..180, satMin 0..100, satMax 0..100, satSoft 0..100, lumMin 0..100, lumMax 0..100, lumSoft 0..100, denoise 0..100, blur 0..20, invert boolean, temperature -100..100, tint -100..100, contrast -100..100, sharpen 0..100, saturation -100..100, wheelX -1..1, wheelY -1..1, maskShape none|ellipse|rectangle, maskX 0..100, maskY 0..100, maskW 0..100, maskH 0..100, maskFeather 0..200, maskInvert boolean); camera-blur (radius 0..60); channel-blur (red 0..60, green 0..60, blue 0..60, alpha 0..60); tilt-shift (blur 0..40, angle 0..360, center 0..100, focus 0..100, falloff 1..100); luma-key (mode none|darker|brighter, threshold 0..100, softness 0..100); color-key (keyR 0..255, keyG 0..255, keyB 0..255, tolerance 0..100, softness 0..100, invert boolean); ultra-key (keyR 0..255, keyG 0..255, keyB 0..255, transparency 0..100, highlight 0..100, shadow 0..100, tolerance 0..100, pedestal 0..100, choke 0..100, soften 0..100, contrast 0..100, midPoint 0..100, desaturate 0..100, range 0..100, spill 0..100, luma 0..100, saturation 0..200, hue -180..180, luminance 0..200, output composite|alpha|color|source); alpha-adjust (opacity 0..100, ignore boolean, invert boolean, matte boolean); leave-color (keyR 0..255, keyG 0..255, keyB 0..255, amount 0..100, tolerance 0..100, softness 0..100); change-to-color (fromR 0..255, fromG 0..255, fromB 0..255, toR 0..255, toG 0..255, toB 0..255, tolerance 0..100, softness 0..100); solarize (threshold 0..100); levels (inBlack 0..254, inWhite 1..255, gamma 0.1..10, outBlack 0..255, outWhite 0..255); channel-mixer (rr -200..200, rg -200..200, rb -200..200, gr -200..200, gg -200..200, gb -200..200, br -200..200, bg -200..200, bb -200..200, mono boolean); tint-map (blackR 0..255, blackG 0..255, blackB 0..255, whiteR 0..255, whiteG 0..255, whiteB 0..255, amount 0..100); spherize (amount -100..100, radius 1..200, centerX 0..100, centerY 0..100); twirl (angle -720..720, radius 1..200, centerX 0..100, centerY 0..100); ripple (amplitude 0..200, wavelength 4..1000, angle 0..360, phase 0..360, speed -10..10, time 0..3600); turbulent-displace (amount 0..300, size 4..1000, complexity 1..4, evolution 0..1000, seed 0..9999); offset (shiftX -100..100, shiftY -100..100, edge wrap|clamp|transparent); corner-pin (x0 -100..200, y0 -100..200, x1 -100..200, y1 -100..200, x2 -100..200, y2 -100..200, x3 -100..200, y3 -100..200); polar-coordinates (mode rect-to-polar|polar-to-rect, amount 0..100); replicate (count 1..16); color-emboss (amount 0..100, angle 0..360, relief 0..10); noise (amount 0..100, size 1..32, mono boolean, time 0..3600, seed 0..9999); bevel-alpha (thickness 1..50, angle 0..360, intensity 0..100); four-color-gradient (c1R 0..255, c1G 0..255, c1B 0..255, c2R 0..255, c2G 0..255, c2B 0..255, c3R 0..255, c3G 0..255, c3B 0..255, c4R 0..255, c4G 0..255, c4B 0..255, opacity 0..100, blend normal|multiply|screen|add); lens-flare (centerX 0..100, centerY 0..100, brightness 0..200, size 1..200); strobe-light (flashR 0..255, flashG 0..255, flashB 0..255, opacity 0..100, period 0.05..10, duration 0..10, phase -10..10, blend normal|add, time 0..3600); grid (size 4..500, border 1..50, lineR 0..255, lineG 0..255, lineB 0..255, opacity 0..100); echo (echoTime -2..2, echoes 0..32, startIntensity 0..1, decay 0..1, operator add|maximum|minimum|screen|composite-back|composite-front); posterize-time (frameRate 0..120). Prefer the pro type where one supersedes a legacy effect (gaussian-blur over blur, mosaic over shader pixelate, mirror over shader mirror, lens-distortion over shader fisheye, posterize over shader posterize, vhs-glitch over shader vhs); the legacy types still render in existing projects. Omitted legacy params also take the editor's visible defaults. Pro effect params can be keyframed with add_keyframe property fx:<effectId>:<param> (effectId from get_clip or list_effect_params). Set effectType to 'shader' to run a GPU shader effect from the Motion shader library (only category 'effect' shaders, e.g. the Paper Design catalog like paper-halftone-dots or paper-liquid-metal — use list_motion_shaders with category 'effect' to discover ids); for shader effects, params MUST include a valid shaderId plus optional numeric params (name/value pairs from the shader's params) and an optional numeric time. Shader effects no-op gracefully when WebGL2 is unavailable.
+- **add_video_effect** — Add a video effect to a clip. Standard effectType values include brightness, contrast, saturation, blur, sharpen, vignette, grain, temperature, tint, shadow, glow, motion-blur, radial-blur, chromatic-aberration. Pro effect types (params validated against their ranges; omitted params take the same defaults as adding the effect in the editor UI): mosaic (size 1..200); posterize (levels 2..256); mirror (mode none|horizontal|vertical|quad, center 0..100); lens-distortion (amount -100..100, zoom 10..400, compensate boolean); directional-blur (angle 0..360, length 0..200); find-edges (amount 0..100, invert boolean); emboss (amount 0..100, angle 0..360, relief 0..10); exposure (exposure -5..5, offset -0.5..0.5, gamma 0.2..3); threshold (level 0..255, mix 0..100); halftone (dotSize 2..100, angle 0..360, amount 0..100, invert boolean); vhs-glitch (scanlines 0..100, rgbSplit 0..100, jitter 0..200, noise 0..100, time 0..3600, seed 0..9999); unsharp-mask (amount 0..500, radius 0.1..50, threshold 0..255); gaussian-blur (blurX 0..100, blurY 0..100); crop (left 0..100, top 0..100, right 0..100, bottom 0..100, feather 0..100); vibrance (vibrance -100..100, saturation -100..100); skew (skewX -60..60, skewY -60..60); hsl-secondary (hueMin 0..360, hueMax 0..360, hueSoft 0..180, satMin 0..100, satMax 0..100, satSoft 0..100, lumMin 0..100, lumMax 0..100, lumSoft 0..100, denoise 0..100, blur 0..20, invert boolean, temperature -100..100, tint -100..100, contrast -100..100, sharpen 0..100, saturation -100..100, wheelX -1..1, wheelY -1..1, maskShape none|ellipse|rectangle, maskX 0..100, maskY 0..100, maskW 0..100, maskH 0..100, maskFeather 0..200, maskInvert boolean); camera-blur (radius 0..60); channel-blur (red 0..60, green 0..60, blue 0..60, alpha 0..60); tilt-shift (blur 0..40, angle 0..360, center 0..100, focus 0..100, falloff 1..100); luma-key (mode none|darker|brighter, threshold 0..100, softness 0..100); color-key (keyR 0..255, keyG 0..255, keyB 0..255, tolerance 0..100, softness 0..100, invert boolean); ultra-key (keyR 0..255, keyG 0..255, keyB 0..255, transparency 0..100, highlight 0..100, shadow 0..100, tolerance 0..100, pedestal 0..100, choke 0..100, soften 0..100, contrast 0..100, midPoint 0..100, desaturate 0..100, range 0..100, spill 0..100, luma 0..100, saturation 0..200, hue -180..180, luminance 0..200, output composite|alpha|color|source); alpha-adjust (opacity 0..100, ignore boolean, invert boolean, matte boolean); leave-color (keyR 0..255, keyG 0..255, keyB 0..255, amount 0..100, tolerance 0..100, softness 0..100); change-to-color (fromR 0..255, fromG 0..255, fromB 0..255, toR 0..255, toG 0..255, toB 0..255, tolerance 0..100, softness 0..100); solarize (threshold 0..100); levels (inBlack 0..254, inWhite 1..255, gamma 0.1..10, outBlack 0..255, outWhite 0..255); channel-mixer (rr -200..200, rg -200..200, rb -200..200, gr -200..200, gg -200..200, gb -200..200, br -200..200, bg -200..200, bb -200..200, mono boolean); tint-map (blackR 0..255, blackG 0..255, blackB 0..255, whiteR 0..255, whiteG 0..255, whiteB 0..255, amount 0..100); spherize (amount -100..100, radius 1..200, centerX 0..100, centerY 0..100); twirl (angle -720..720, radius 1..200, centerX 0..100, centerY 0..100); ripple (amplitude 0..200, wavelength 4..1000, angle 0..360, phase 0..360, speed -10..10, time 0..3600); turbulent-displace (amount 0..300, size 4..1000, complexity 1..4, evolution 0..1000, seed 0..9999); offset (shiftX -100..100, shiftY -100..100, edge wrap|clamp|transparent); corner-pin (x0 -100..200, y0 -100..200, x1 -100..200, y1 -100..200, x2 -100..200, y2 -100..200, x3 -100..200, y3 -100..200); polar-coordinates (mode rect-to-polar|polar-to-rect, amount 0..100); replicate (count 1..16); color-emboss (amount 0..100, angle 0..360, relief 0..10); noise (amount 0..100, size 1..32, mono boolean, time 0..3600, seed 0..9999); bevel-alpha (thickness 1..50, angle 0..360, intensity 0..100); four-color-gradient (c1R 0..255, c1G 0..255, c1B 0..255, c2R 0..255, c2G 0..255, c2B 0..255, c3R 0..255, c3G 0..255, c3B 0..255, c4R 0..255, c4G 0..255, c4B 0..255, opacity 0..100, blend normal|multiply|screen|add); lens-flare (centerX 0..100, centerY 0..100, brightness 0..200, size 1..200); strobe-light (flashR 0..255, flashG 0..255, flashB 0..255, opacity 0..100, period 0.05..10, duration 0..10, phase -10..10, blend normal|add, time 0..3600); grid (size 4..500, border 1..50, lineR 0..255, lineG 0..255, lineB 0..255, opacity 0..100); echo (echoTime -2..2, echoes 0..32, startIntensity 0..1, decay 0..1, operator add|maximum|minimum|screen|composite-back|composite-front); posterize-time (frameRate 0..120); vr-rotate-sphere (layout mono|over-under|side-by-side, tilt -360..360, pan -360..360, roll -360..360); vr-projection (mode none|rectilinear|stereographic|fisheye, layout mono|over-under|side-by-side, fov 10..360, pan -360..360, tilt -360..360, roll -360..360, aspect 0.25..4); vr-blur (layout mono|over-under|side-by-side, radius 0..15); vr-plane-to-sphere (width 5..179, pan -360..360, tilt -360..360, roll -360..360, enabled boolean); vr-sharpen (layout mono|over-under|side-by-side, amount 0..100, radius 0.05..3); vr-glow (layout mono|over-under|side-by-side, threshold 0..100, radius 0.1..12, brightness 0..400, tintR 0..255, tintG 0..255, tintB 0..255); vr-chromatic-aberrations (layout mono|over-under|side-by-side, amount 0..100, pan -360..360, tilt -360..360); vr-digital-glitch (layout mono|over-under|side-by-side, intensity 0..100, seed 0..9999, rate 1..24, time 0..3600); vr-de-noise (layout mono|over-under|side-by-side, amount 0..100, radius 0.1..3). Prefer the pro type where one supersedes a legacy effect (gaussian-blur over blur, mosaic over shader pixelate, mirror over shader mirror, lens-distortion over shader fisheye, posterize over shader posterize, vhs-glitch over shader vhs); the legacy types still render in existing projects. Omitted legacy params also take the editor's visible defaults. Pro effect params can be keyframed with add_keyframe property fx:<effectId>:<param> (effectId from get_clip or list_effect_params). Set effectType to 'shader' to run a GPU shader effect from the Motion shader library (only category 'effect' shaders, e.g. the Paper Design catalog like paper-halftone-dots or paper-liquid-metal — use list_motion_shaders with category 'effect' to discover ids); for shader effects, params MUST include a valid shaderId plus optional numeric params (name/value pairs from the shader's params) and an optional numeric time. Shader effects no-op gracefully when WebGL2 is unavailable.
 - **remove_video_effect** — Remove a clip's video effect.
 - **update_video_effect** — Update a video effect's params. Pro effect params (see list_pro_effects) are range-checked.
 - **toggle_video_effect** — Enable/disable a video effect.
@@ -363,6 +379,7 @@ The agent exposes **453 tools** spanning read/observe, project, track, clip, tra
 - **apply_effect_preset** — Apply a saved effect preset to a clip: its effects are added as fresh independent instances with their keyframes (relative presets are scaled to this clip's duration). mode 'append' (default) adds to the stack, 'replace' replaces the clip's effect stack. Returns the new effectIds. One undo step.
 - **delete_effect_preset** (destructive) — Delete a saved effect preset (clips that already used it keep their effects). One undo step.
 - **import_effect_presets** — Import effect presets from JSON text produced by export_effect_presets (or a single preset object). The file is validated strictly; presets are added to the project library and never overwrite existing ones. Returns the new presetIds. One undo step.
+- **reframe_360_to_flat** — Make a flat edit from 360 footage: adds a VR Projection effect (mode rectilinear) to the clip with a view aimed at pan (yaw, degrees to the right), tilt (degrees up), roll and fov (horizontal field of view, 10-170, default 90), and sets the clip to Cover so the view fills the sequence. The view aspect defaults to the sequence's, so use a flat sequence (for example 1920x1080); the clip's source layout (mono / over-under / side-by-side) is read from its VR Properties. Returns effectId: keyframe pan / tilt / roll / fov with the effect keyframe tools (angles interpolate along the shorter arc). One undo step.
 
 ## color
 - **set_color_grading** — Set a clip's color grading (wheels/curves/lut/hsl/temp/tint).
@@ -403,6 +420,18 @@ The agent exposes **453 tools** spanning read/observe, project, track, clip, tra
 - **get_audio_latency_report** (read-only) — Report the processing latency of lookahead/FFT audio effects (compressor, limiter, DeClick, DeClip, DeReverb and the zero-latency repair effects) and what the project's mixer adds. data.effects lists each effect's latency in samples and ms; data.tracks lists each track's rack latency and the compensation delay the graph inserts so parallel tracks and buses stay aligned; data.totalLatencyMs is how late the whole mix leaves the graph before offline renders and the realtime scheduler compensate it. Compensation is automatic, so a click stays on the same sample as the picture; this is for diagnosing and explaining. Read-only.
 - **analyze_audio_issues** (read-only, expensive) — Analyze a clip's audio (as it sounds before any repair effects) for mains hum (50/60 Hz and harmonics), clipping, clicks and harsh sibilance. Returns data.report (hum {present, frequency, prominenceDb, harmonics}, clipping {present, runs, clippedSamples, peak}, clicks {present, count, perMinute}, sibilance {present, centerHz, thresholdDb, fraction}, peakDb) and data.suggestions: the repair effects (type + params + reason) that would address what was found. Read-only; needs the live editor's audio decoder. Use add_audio_repair to apply.
 - **add_audio_repair** — Add repair effects to a clip as ONE undo step. auto:true (the default when no fixes are given) analyzes the clip and adds only what it found (hum, clipping, clicks, sibilance), with the suggested settings. fixes: explicit effect types to add (deHum | deClick | deClip | deEss | deReverb | gate | brickwallLimiter | lowPass) with their default or given params (params: {deHum: {frequency: 50, harmonics: 4}, deEss: {threshold: -28}}; ranges in get_capabilities / the effect definitions: deHum frequency 40-70 Hz, harmonics 1-8, q 5-100, depth 0-1; deClick sensitivity 0-1, maxWidth 2-48 samples; deClip threshold -24..0 dBFS, maxRun 4-120; deEss frequency 2500-12000 Hz, threshold -60..0 dB, ratio 1-20, listen 0/1; deReverb amount 0-1, rt60 0.1-3 s, floor -40..0 dB; gate threshold -80..0 dB, range -80..0 dB, hold 0-1 s; brickwallLimiter ceiling -24..0 dBTP, release 0.01-1 s (5 ms lookahead, true-peak safe); lowPass frequency 100-20000 Hz, slope 12-48 dB/oct). A repair effect already on the clip is updated instead of duplicated. DeReverb is experimental (reduces the late tail only, adds ~21 ms latency). The same effects can sit on a track/bus rack via set_track_audio_rack. Returns data.added with each effect id, type, params and reason.
+- **enhance_speech** — Remove noise and room reverb from dialogue with an on-device model. Adds or updates an 'enhanceSpeech' audio effect (mix 0-100, default 100) on clipIds/clipId as ONE undo step; remove:true removes it. Computed once per source and cached: the preview plays the original until ready, the export waits.
+- **list_spectral_regions** (read-only) — List the spectral edits (Audio tab > Spectral editing) on a clip: data.regions[] with id, mode (attenuate | remove | heal), shape (rect | lasso | brush | wand | harmonic; a frequency band is a rect over the whole source), channel (both | left | right), enabled, startTime/endTime/lowHz/highHz (the bounding box), gainDb (attenuate), feather, points / brush size for lasso and brush, wand {seedTime, seedHz, toleranceDb, localContrast, frames, bins} for a magic-wand region and harmonic {harmonics, maxHz, bandCents, f0Start, f0End, f0Min, f0Max, trackPoints} for a harmonic one. Times are SOURCE seconds (the clip's media, not the timeline), so they stay on the sound when the clip is trimmed or moved. Read-only.
+- **add_spectral_region** — Add one spectral edit to a clip's "spectralRepair" effect as ONE undo step. shape: "rect" (startTime, endTime, lowHz, highHz), "band" (lowHz, highHz over the whole source), "lasso" (points: [{t, hz}, ...], at least 3, a free-form polygon on the time / log-frequency plane) or "brush" (points = the stroke's path, brushSeconds and brushOctaves = its half-size, default 0.04 s x 0.12 octave). mode: "remove" (default for a selection that covers only part of the source's duration) or "heal" (default for a band or a selection that spans the whole source; refills the selection with the surrounding background at its own level and texture, so it leaves no quiet hole, and carries steady partials such as a held note or hum harmonics through gaps up to about a quarter of a second; a longer selection is treated as the sound to remove, not continued. Heal on only a slice of a persistent whistle or hum leaves it in, because it continues the partial from both sides, so a heal on a narrow band whose steady energy continues on both sides of the selection comes back with data.warning; use "remove" for that or cover the whole duration). "remove" is a smooth interpolated fill, 5 to 10 dB quieter than its surroundings: use it when the background underneath is silence or cannot be predicted and a notch does not matter. Or "attenuate" (gainDb <= 0, default -12). feather softens a lasso or brush edge in STFT cells (0-8, default 1). channel (both | left | right, default both) edits only one channel of a stereo source (a mono source is its "left"). For a click-to-select region use add_spectral_magic_wand, and for a pitch-following overtone selection add_spectral_harmonic_region. Times are SOURCE seconds (the clip's media, not the timeline), so they stay on the sound when the clip is trimmed or moved. Computed once per source and cached; the preview plays the original until ready, the export waits. Returns data.regionId.
+- **update_spectral_region** — Change one spectral region of a clip as ONE undo step: any of mode (attenuate | remove | heal), enabled (show / hide), gainDb, feather, startTime/endTime/lowHz/highHz (rect), points (lasso / brush), brushSeconds, brushOctaves. Fields you leave out keep their value. channel (both | left | right) chooses which channel of a stereo source the region edits (a mono source is its "left"). A harmonic region also takes harmonics (1-64), maxHz and bandCents; a wand region takes toleranceDb and localContrast, which re-run the wand from its stored seed against the live editor's decoder (its stored cells are otherwise never recomputed). Times are SOURCE seconds (the clip's media, not the timeline), so they stay on the sound when the clip is trimmed or moved.
+- **remove_spectral_region** (destructive) — Delete one spectral region (regionId) or every region of a clip (all: true), as ONE undo step. Deleting the last region removes the clip's spectral effect.
+- **find_spectral_tones** (read-only, expensive) — Find stationary tones (a whine, carrier, whistle that holds one pitch, hum) in a clip's source audio. Returns data.tones[] with hz, startTime, endTime (source seconds) and prominenceDb, strongest first; gliding harmonics (voices, instruments) are ignored. Options: minSeconds (0.25), minProminenceDb (15), maxTones (4), minHz (60). Needs the live editor's audio decoder. Read-only; use remove_spectral_tones to take them out.
+- **remove_spectral_tones** (expensive) — Find the stationary tones of a clip (as find_spectral_tones) and add one thin band over each as ONE undo step. mode defaults to "remove" for a tone that covers only part of the clip, and to "heal" only when the tone lasts the whole clip: heal continues a steady partial from both sides, so healing a slice of a persistent whistle or hum leaves it in. Pass mode "heal" or "attenuate" to choose (a heal that would carry the tone through comes back with data.warnings). Pass hz to act only on the tone nearest that frequency (within 5 %). Same options as find_spectral_tones. Returns data.regionIds, data.modes and data.tones; nothing is added when nothing is found.
+- **remove_spectral_clicks** (expensive) — Find clicks (impulsive transients) in a clip's source audio and add one box (50 ms, above 2.5 kHz, where a click stands out from speech and music) over each, as ONE undo step. mode defaults to "heal": a click is short and its box covers the whole of it, so heal refills it from the background on both sides (pass "remove" or "attenuate" to choose). sensitivity 0-1 (default 0.5); maxClicks (default 64). dryRun: true only reports data.clicks[] (source seconds). Needs the live editor's audio decoder. For many small clicks the DeClick effect (add_audio_repair) is lighter.
+- **add_spectral_magic_wand** (expensive) — Magic wand in the spectrogram as ONE undo step: select the connected region of similar energy around one time-frequency point (time in source seconds, hz). toleranceDb (default 6, 0.1-60) is how far a cell's level may be from the clicked cell's, in dB, measured on 3 x 3 smoothed power; a small tolerance takes one tone line or one click, a large one floods into the noise floor and selects most of the clip. localContrast: true measures how far a cell stands above its own surroundings instead (one-sided, so a louder part of the same ridge is kept), which follows a whistle or hum whose level wanders. The seed snaps to the loudest of its 3 x 3 cells. The result is stored as the selected cells themselves (run-length coded on the STFT grid) together with the seed and settings, so it renders identically after a reload and never depends on this algorithm again. mode defaults to "remove" (pass "heal" or "attenuate" with gainDb <= 0, default -12); feather defaults to 0 for a wand (a thin tone line is thinned by a feather); channel (both | left | right) edits one channel of a stereo source. Analysis is of the clip's mono mix within 20 s either side of the point. Returns data.regionId, data.cells, data.startTime/endTime/lowHz/highHz. Needs the live editor's audio decoder (headless hosts return UNSUPPORTED_HOST). Times are SOURCE seconds (the clip's media, not the timeline), so they stay on the sound when the clip is trimmed or moved.
+- **add_spectral_harmonic_region** (expensive) — Harmonic (overtone-following) selection as ONE undo step: pick a fundamental and the tool tracks its pitch through time (vibrato and glides included) and selects its overtones as one region. Give the seed as a point (time in source seconds, hz of the FUNDAMENTAL; refined within 200 cents) to track the whole source from it, or as a box (startTime, endTime, lowHz, highHz) to take the strongest peak inside it and track only within its time span. harmonics (1-64, default 8) partials, the fundamental counting as 1; maxHz (default 20000) drops partials above it; bandCents (5-400, default 50) is the half-width of each partial's band in cents (never narrower than 1.5 STFT bins, about 35 Hz at 48 kHz). The tracker follows the pitch to a few cents on a clean tone (median about 1.4 cents on an analytic vibrato and glide) and stops where the partials fade or stop looking like the seed's; on a dense mix it can follow a neighbouring voice, so read data.f0Start/f0End/startTime/endTime and check them. The fundamental track (at most 512 points) is stored, so the region renders identically after a reload. mode defaults to "remove" (heal would carry a steady partial through; pass "heal" or "attenuate" with gainDb <= 0, default -12); feather defaults to 0; channel (both | left | right) edits one channel of a stereo source. Returns data.regionId, data.startTime/endTime, data.f0Start/f0End/f0Min/f0Max and data.trackPoints. Needs the live editor's audio decoder (headless hosts return UNSUPPORTED_HOST). Times are SOURCE seconds (the clip's media, not the timeline), so they stay on the sound when the clip is trimmed or moved.
+- **reduce_reverb** — Remove the late reverb tail from dialogue on-device (Premiere Essential Sound Reduce Reverb / Audition DeReverb style): weighted prediction error dereverberation plus a blind-RT60 late-reverb spectral stage. Adds or updates a 'reduceReverb' audio effect on clipIds/clipId as ONE undo step; amount 0-100 (default 60, how hard the tail is removed), sensitivity 0-100 (default 50, higher starts earlier and assumes more of the signal is reverb; strong settings can thin the voice); remove:true removes it. It cannot remove early reflections. Applied after spectral repair and before Enhance Speech, hosted plugins and the live chain (so Enhance Speech and the Speech / Background balance work on the dereverberated voice); computed once per source and setting and cached: the preview plays the original until ready, the export waits.
+- **set_speech_background_balance** — Set the Speech / Background balance of Enhance Speech on clipIds/clipId as ONE undo step: balance 0-100, where 100 (default) is speech only, 50 is the original mix and 0 is background only. Background is what the on-device model took out (original minus enhanced, sample aligned); the cached enhancement is remixed, the model is never re-run. Adds Enhance Speech (mix 100) to a clip that has none. Independent of enhance_speech's mix, which blends the result with the original.
 
 ## subtitle
 - **add_subtitle** — Add a subtitle (text, start, end seconds).
@@ -411,10 +440,11 @@ The agent exposes **453 tools** spanning read/observe, project, track, clip, tra
 - **import_srt** — Import subtitles from SRT content.
 - **set_subtitle_style** — Set the global subtitle style.
 - **get_caption_transcript** (read-only) — Read the caption transcript: words with start/end seconds and speakers, plus sentences (word index ranges) and the caption tracks. Words of cues without word timings carry estimated:true. Optional captionTrackId ("" = default track), speaker filter, and limit/offset over words (default 400). Read-only; use it to pick the times for transcript_cut_range.
-- **export_captions** (read-only) — Render the project's captions as a file: format srt, vtt (WebVTT with <v Speaker> voice tags), ttml (TTML/IMSC1), scc (Scenarist CEA-608: pop-on, odd-parity byte pairs, EOC on the cue start frame, 32-column rows, <i>/<u> as mid-row codes) or stl (EBU-STL, binary: returned as data.contentBase64). One caption track per call (captionTrackId, "" = default; omit for every cue). includeSpeakers prefixes SRT cues with "Name: ". SCC/STL options: frameRate (SCC default 29.97 drop-frame, STL default 25), dropFrame (SCC), offsetSeconds (programme start, e.g. 3600), title (STL). SCC/STL return data.issues, the validation report (wrapped lines, rows dropped, characters substituted, captions delayed because the 608 channel was busy). embedded: "subtitle" or "cea608" instead returns data.embedded, the subtitle track a video export would embed (webvtt/mov_text/c608 payload text and warnings) for context mp4|mov (container) and desktop:true|false; pass those to queue_export captions to embed. Read-only.
+- **export_captions** (read-only) — Render the project's captions as a file: format srt, vtt (WebVTT with <v Speaker> voice tags), ttml (TTML/IMSC1), scc (CEA-608 pop-on, 32-column rows, <i>/<u> as mid-row codes), mcc (MacCaption: the same CEA-608 captions, one CDP per frame) or stl (EBU-STL, binary: returned as data.contentBase64). One track per call (captionTrackId, "" = default; omit for all). includeSpeakers true prefixes SRT cues with "Name: "; false drops speaker names everywhere (unset keeps WebVTT voice tags and TTML agents). SCC/MCC/STL options: frameRate (SCC/MCC default 29.97 DF, STL 25; 23.976 and 59.94 need it set), dropFrame, offsetSeconds (programme start, e.g. 3600), title (STL). SCC/MCC/STL return data.issues (wrapped lines, dropped rows, substituted characters, delayed captions). embedded: "subtitle" or "cea608" instead returns data.embedded, the subtitle track a video export would embed (payload text and warnings) for context mp4|mov and desktop:true|false. Read-only.
 - **caption_qc** (read-only) — Quality-check the captions: reading speed (characters/second and words/minute), rows per cue, characters per row, minimum/maximum duration, gaps shorter than minGapFrames frames and overlaps. Defaults: maxCps 17, maxWpm 180, maxLines 2, maxCharsPerLine 42, minDuration 0.833s, maxDuration 7s, minGapFrames 2, frameRate = the project's. One caption track via captionTrackId ("" = default). Returns data.issues (code, severity, cueId, cueIndex, time in seconds to jump to, message, value, limit), data.counts, data.averageCps, data.worstCps. Read-only: fix problems with the caption edit tools.
-- **import_captions** — Add captions from SRT, WebVTT (speakers from <v Name> tags), SCC (Scenarist CEA-608: pop-on, paint-on and roll-up RU2/3/4 on CC1; frameRate default 29.97, drop-frame detected from the timecode separator), a word-timed transcript JSON ({segments:[{start,end,speaker?,words:[{word,start,end}]}]}) given as content, or an EBU-STL file given as contentBase64. For SCC/STL, offsetSeconds is subtracted from every time (the file's programme start) and styleTags:"keep" keeps <i>/<u> for italic/underlined runs. Optional captionTrackId and language put them on their own caption track (e.g. a translation). SCC/STL decoding notes come back in data.issues. One undo step.
+- **import_captions** — Add captions from a caption file; the format is detected from the content. Text formats go in `content`: SRT, WebVTT (speakers from <v Name>), SBV, TTML / DFXP / iTT (styles, regions, agents, SMPTE drop-frame times), SCC (pop-on, paint-on, roll-up; frameRate default 29.97, drop-frame from the timecode separator), MCC (CEA-608 in CDP packets; 708 is reported, not decoded; 24/30/60 vs 23.976/29.97/59.94 follows the project rate), a timed text transcript ([00:01:02] lines) or word-timed transcript JSON ({segments:[{start,end,speaker?,words:[{word,start,end}]}]}). Binary EBU-STL goes in `contentBase64`. For SCC/MCC, ccChannel (1-4, default 1) picks CC1..CC4; row/indent become an approximate position, PAC/mid-row colours the cue colour. For SCC/MCC/STL, offsetSeconds is subtracted from every time (the file's programme start) and styleTags:"keep" keeps <i>/<u>. Optional captionTrackId and language put the cues on their own caption track (e.g. a translation). data.format is the detected format. data.issues lists what the caption model cannot hold (other channels, text service, colours, flashing, approximated positions, 708, ...), data.skipped the unreadable blocks: relay both to the user. One undo step.
 - **rename_speaker** — Rename a speaker on every caption (renaming onto an existing speaker merges them; an empty `to` clears the label). One undo step.
+- **merge_speakers** — Merge speaker `from` into the existing speaker `into`: every caption labelled `from` takes `into` (and its look). Use when speaker detection split one voice in two. One undo step.
 - **set_caption_style** — Style caption cues as ONE undo step. Targets subtitleIds, else every cue of captionTrackId, else all cues. `style` merges into each cue's style: fontFamily, fontSize, color, backgroundColor, position (top|center|bottom), highlightColor, strokeColor, strokeWidth, shadowColor, shadowBlur, shadowOffsetX, shadowOffsetY, boxPaddingX, boxPaddingY, boxRadius, safeMargin (0..0.25 of the frame; keeps captions inside the safe area). `cueSettings` merges WebVTT settings (line, snapToLines, lineAlign, position, positionAlign, size, align) and is written into VTT export; SRT cannot carry them. cueSettings:null clears them.
 - **save_caption_style** — Save a caption look (style plus cue settings) under a name. Pass { name, subtitleId } to copy a cue's look, or { name, style, cueSettings? }. Saving an existing name overwrites it.
 
@@ -424,16 +454,27 @@ The agent exposes **453 tools** spanning read/observe, project, track, clip, tra
 - **set_clip_keyframes** — Replace all animation keyframes on an existing main-timeline clip. Times are clip-local seconds. Each item needs property, time, and value; id and easing default automatically.
 - **set_effect_param_keyframe** — Add or update a keyframe on one numeric parameter of one effect INSTANCE at a clip-local time in seconds (the inspector stopwatch). Keyframes belong to the instance, so two copies of the same effect animate independently. Works for every classic video effect; see list_effect_params for the keys. A keyframe already at that time is updated. One undo step.
 - **remove_effect_param_keyframe** (destructive) — Remove the keyframe of an effect instance parameter at a clip-local time (seconds), or every keyframe of that parameter when time is omitted (stopwatch off; the parameter keeps its stored value). One undo step.
+- **set_keyframe_interpolation** — Premiere-style interpolation for keyframes picked by keyframeIds, or by property (+ optional times). temporal: linear, bezier, auto-bezier (smooth tangents recomputed from neighbours), continuous-bezier (collinear handles), hold, ease-in, ease-out; side 'both' (default), 'in' or 'out'. spatial (position.x/position.y keys whose X and Y keys share times): linear, bezier, auto-bezier, continuous-bezier shape the motion PATH while temporal timing still comes from the X key. One undo step.
+- **set_keyframe_handles** — Drag a keyframe handle like the graph editor. temporal: { in:{x,y}, out:{x,y} } are the normalized Bezier handles of the segment leaving the key (x is time 0..1, y is progress, overshoot allowed to -2..3); on an Auto Bezier key this makes it Continuous. spatial: { which:'in'|'out', x, y } is a position-path handle as an offset from the key point in position units (Auto becomes Continuous, Continuous keeps the handles collinear). One undo step.
+- **copy_keyframes_to_clip** — Copy keyframes (keyframeIds, or a property and optional times) from one clip and paste them onto another, the first copied key landing at clip-local `time` on the target (default 0). Keeps temporal handles and spatial paths. Effect parameter keys move onto the target's only effect of the same type; ambiguous ones are skipped and counted. targetProperty retargets a single copied property. Replaces target keys at the same instants. One undo step.
 
 ## transition
-- **add_transition** — Add a rendered transition between two adjacent existing clips on the same main-timeline track. Use list_clips for ordered clip ids and get_capabilities transitionTypes for values such as whipPan, zoom, push, glitch, or flash.
-- **update_transition** — Update an existing main-timeline transition's type and/or duration.
+- **add_transition** — Add a rendered transition between two adjacent existing clips on the same main-timeline track. Use list_clips for clip ids; list_transitions shows types and params. morphCut (hides a jump cut in one shot) analyses in the background: dissolve until ready, see get_morph_cut_status.
+- **update_transition** — Update a main-timeline transition's type, duration and/or params (merged into the current ones).
 - **remove_transition** — Remove a transition.
+- **save_transition_preset** — Save a named transition preset from transitionId, or type + duration + params. scope "library" keeps it for every project.
+- **delete_transition_preset** (destructive) — Delete a project or library transition preset by id.
+- **set_default_transition** — Set the default transition (presetId, or type + duration + params; reset true clears).
+- **apply_transition_preset** — Apply a preset at the cut clipAId|clipBId (outro of clipAId without clipBId).
+- **apply_default_transition** — Apply the default transition at the cut clipAId|clipBId (outro of clipAId without clipBId).
+- **import_transition_presets** — Import an exported preset file (json) into the library.
 
 ## marker
 - **add_marker** — Add a timeline marker.
 - **remove_marker** — Remove a marker.
 - **update_marker** — Update a marker.
+- **add_clip_marker** — Add a clip marker (clipId: one timeline clip) or a master-clip marker (mediaId: shown on every timeline instance of the media). `time` (or timeFrame) is SOURCE-media seconds, so it stays on the same frame through trims and speed changes. Optional label, color, comment, duration (range marker). One undo step.
+- **remove_clip_marker** — Remove a clip marker (clipId) or master-clip marker (mediaId) by markerId. One undo step.
 
 ## text
 - **create_text_clip** — Create a text overlay that renders immediately. Pass { clip: { text, startTime, duration, style?, trackId? } }. A text track is created automatically if needed.
@@ -474,7 +515,7 @@ The agent exposes **453 tools** spanning read/observe, project, track, clip, tra
 - **export_video** (expensive) — Render the whole project to a video file and wait for it (use queue_export for long or queued jobs). With no options it writes a standard MP4 (H.264). Call get_export_options first for anything else: format (mp4|mov|webm|mxf), codec, bitDepth (8|10), hdr (sdr|pq|hlg), width, height, frameRate, bitrateKbps, audioChannels (mono|stereo|5.1), timecode, presetId. outputPath (absolute, inside the allowed folders; see get_app_state mcp.allowedRoots) puts the file there, overwrite:true replaces an existing one; without it the file stays in the app's export folder and data.path says where. targetLufs (-40..-5) normalizes loudness with a true-peak ceiling (truePeakCeilingDb, default -1). An unsupported combination returns UNSUPPORTED with a hint listing valid alternatives. Result data: path, filename, bytes, sizeBytes, sha256, format, contentType. Expensive: requires confirmation.
 - **export_audio** (expensive) — Render the project audio to a local file (format: mp3|wav|aac|flac|ogg, default wav) and return its local result metadata. Optional targetLufs (-40..-5) normalizes the mix to that integrated loudness with a true-peak ceiling (truePeakCeilingDb, default -1). Expensive — requires confirmation.
 - **export_timeline_xml** (read-only) — Serialize the video/audio timeline for another editor and return the file text. format "xmeml" (default) = Final Cut Pro 7 XML v5 that Premiere Pro and DaVinci Resolve import; "fcpxml" = Final Cut Pro X FCPXML 1.10; "edl" = CMX3600, one file per video track; "otio" = OpenTimelineIO JSON (Resolve, Avid, Premiere plugins; also carries sync lock and track targeting). Clips, tracks, speed, opacity, volume, cross dissolves and markers are included. Pass "sequence" (id or name, see list_sequences) to export ANY sequence, open or not; it defaults to the active one. Nested sequences stay nested in xmeml (nested sequence), otio (stacks) and fcpxml (compound clips / ref-clip); edl gets them flattened, with a report entry. Multicam cuts are written as multiclip (xmeml) or mc-clip (fcpxml) with every angle; otio and edl flatten them to the active angle, with a report entry. Everything dropped or approximated (effects, speed ramps, text clips, sync lock where the format has no field...) is listed per clip in `report.items`, never silently; `report.notes` says AAF is available only from File > Export timeline in the editor (it is a binary file, so this text tool does not return it; see docs/interchange.md). Read-only.
-- **render_in_to_out** (expensive) — Render the timeline's In/Out range (or the whole sequence when none is marked) into the preview render cache so effects, transitions and grades play back at full frame rate. Optional rangeStart/rangeEnd (seconds, start<end) render that span instead. Frames already cached are skipped. Returns data.status (completed|canceled|failed), framesRendered, framesSkipped, elapsedMs and the codec. Not an edit: no undo step. Expensive — requires confirmation.
+- **render_in_to_out** (expensive) — Render the timeline's In/Out range (or the whole sequence when none is marked) into the preview render cache so effects, transitions and grades play back at full frame rate. Optional rangeStart/rangeEnd (seconds, start<end) render that span instead. Set effectsOnly to render only the stretches that carry effects, transitions, grades or layers (Render Effects In to Out; plain media is skipped). Frames already cached are skipped; render files persist across app restarts and only edited ranges are re-rendered. Returns data.status (completed|canceled|failed), framesRendered, framesSkipped, elapsedMs and the codec. Not an edit: no undo step. Expensive — requires confirmation.
 - **delete_render_files** — Delete every cached preview render (Sequence > Delete render files). Playback of those segments goes back to live rendering. Cancels a running render first. Returns data.removedFrames. The project is unchanged: no undo step.
 - **get_render_status** (read-only) — Report the render-status bar: data.segments lists timeline stretches as cached (green: plays from the render cache), light (yellow: needs a render but likely plays in real time) or heavy (red: effects-heavy, unlikely to play in real time); plain media is omitted. Also data.cachedRanges (seconds), frameCount, bytes and whether a render is running. Read-only.
 - **get_export_options** (read-only) — List what export_video and queue_export can do on this machine, from the same sources as the Export dialog: formats[{id, container, codecs, bitDepths, hdr[sdr|pq|hlg], available, reason?, codecOptions, unavailableCodecs}], presets[{id, label, kind, format, codec, width, height, frameRate, bitrateKbps}] (pass an id as presetId), resolutions, frameRates, audioLayouts (mono|stereo|5.1), hdr {supported, reason?} and timecode {supported}. Call this before exporting anything but a plain MP4: an unsupported combination is refused with UNSUPPORTED and a hint that lists the valid alternatives. Read-only.
@@ -557,6 +598,8 @@ The agent exposes **453 tools** spanning read/observe, project, track, clip, tra
     "brickwallLimiter",
     "lowPass",
     "spectralRepair",
+    "enhanceSpeech",
+    "reduceReverb",
     "fadeIn",
     "fadeOut"
   ],
@@ -584,7 +627,29 @@ The agent exposes **453 tools** spanning read/observe, project, track, clip, tra
     "mosaic",
     "ripple",
     "pageTurn",
-    "colorSplit"
+    "colorSplit",
+    "irisRound",
+    "irisBox",
+    "irisCross",
+    "irisDiamond",
+    "bandWipe",
+    "barnDoor",
+    "clockWipe",
+    "gradientWipe",
+    "filmDissolve",
+    "additiveDissolve",
+    "cubeSpin",
+    "crossZoom",
+    "pagePeel",
+    "checkerboard",
+    "checkerWipe",
+    "inset",
+    "split",
+    "wedgeWipe",
+    "randomBlocks",
+    "randomWipe",
+    "flipOver",
+    "morphCut"
   ],
   "easings": [
     "linear",
@@ -4640,6 +4705,445 @@ The agent exposes **453 tools** spanning read/observe, project, track, clip, tra
           "neutral": 0
         }
       ]
+    },
+    {
+      "type": "vr-rotate-sphere",
+      "label": "VR Rotate Sphere",
+      "category": "Immersive Video",
+      "params": [
+        {
+          "key": "layout",
+          "kind": "select",
+          "default": "mono",
+          "neutral": "mono",
+          "options": [
+            "mono",
+            "over-under",
+            "side-by-side"
+          ]
+        },
+        {
+          "key": "tilt",
+          "kind": "number",
+          "min": -360,
+          "max": 360,
+          "step": 0.1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "pan",
+          "kind": "number",
+          "min": -360,
+          "max": 360,
+          "step": 0.1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "roll",
+          "kind": "number",
+          "min": -360,
+          "max": 360,
+          "step": 0.1,
+          "default": 0,
+          "neutral": 0
+        }
+      ]
+    },
+    {
+      "type": "vr-projection",
+      "label": "VR Projection",
+      "category": "Immersive Video",
+      "params": [
+        {
+          "key": "mode",
+          "kind": "select",
+          "default": "none",
+          "neutral": "none",
+          "options": [
+            "none",
+            "rectilinear",
+            "stereographic",
+            "fisheye"
+          ]
+        },
+        {
+          "key": "layout",
+          "kind": "select",
+          "default": "mono",
+          "neutral": "mono",
+          "options": [
+            "mono",
+            "over-under",
+            "side-by-side"
+          ]
+        },
+        {
+          "key": "fov",
+          "kind": "number",
+          "min": 10,
+          "max": 360,
+          "step": 0.1,
+          "default": 90,
+          "neutral": 90
+        },
+        {
+          "key": "pan",
+          "kind": "number",
+          "min": -360,
+          "max": 360,
+          "step": 0.1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "tilt",
+          "kind": "number",
+          "min": -360,
+          "max": 360,
+          "step": 0.1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "roll",
+          "kind": "number",
+          "min": -360,
+          "max": 360,
+          "step": 0.1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "aspect",
+          "kind": "number",
+          "min": 0.25,
+          "max": 4,
+          "step": 0.01,
+          "default": 1.7777777777777777,
+          "neutral": 1.7777777777777777
+        }
+      ]
+    },
+    {
+      "type": "vr-blur",
+      "label": "VR Blur",
+      "category": "Immersive Video",
+      "params": [
+        {
+          "key": "layout",
+          "kind": "select",
+          "default": "mono",
+          "neutral": "mono",
+          "options": [
+            "mono",
+            "over-under",
+            "side-by-side"
+          ]
+        },
+        {
+          "key": "radius",
+          "kind": "number",
+          "min": 0,
+          "max": 15,
+          "step": 0.1,
+          "default": 0,
+          "neutral": 0
+        }
+      ]
+    },
+    {
+      "type": "vr-plane-to-sphere",
+      "label": "VR Plane to Sphere",
+      "category": "Immersive Video",
+      "params": [
+        {
+          "key": "width",
+          "kind": "number",
+          "min": 5,
+          "max": 179,
+          "step": 0.1,
+          "default": 60,
+          "neutral": 60
+        },
+        {
+          "key": "pan",
+          "kind": "number",
+          "min": -360,
+          "max": 360,
+          "step": 0.1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "tilt",
+          "kind": "number",
+          "min": -360,
+          "max": 360,
+          "step": 0.1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "roll",
+          "kind": "number",
+          "min": -360,
+          "max": 360,
+          "step": 0.1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "enabled",
+          "kind": "toggle",
+          "default": false,
+          "neutral": false
+        }
+      ]
+    },
+    {
+      "type": "vr-sharpen",
+      "label": "VR Sharpen",
+      "category": "Immersive Video",
+      "params": [
+        {
+          "key": "layout",
+          "kind": "select",
+          "default": "mono",
+          "neutral": "mono",
+          "options": [
+            "mono",
+            "over-under",
+            "side-by-side"
+          ]
+        },
+        {
+          "key": "amount",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 0.1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "radius",
+          "kind": "number",
+          "min": 0.05,
+          "max": 3,
+          "step": 0.05,
+          "default": 0.4,
+          "neutral": 0.4
+        }
+      ]
+    },
+    {
+      "type": "vr-glow",
+      "label": "VR Glow",
+      "category": "Immersive Video",
+      "params": [
+        {
+          "key": "layout",
+          "kind": "select",
+          "default": "mono",
+          "neutral": "mono",
+          "options": [
+            "mono",
+            "over-under",
+            "side-by-side"
+          ]
+        },
+        {
+          "key": "threshold",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 0.5,
+          "default": 60,
+          "neutral": 60
+        },
+        {
+          "key": "radius",
+          "kind": "number",
+          "min": 0.1,
+          "max": 12,
+          "step": 0.1,
+          "default": 3,
+          "neutral": 3
+        },
+        {
+          "key": "brightness",
+          "kind": "number",
+          "min": 0,
+          "max": 400,
+          "step": 1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "tintR",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 255,
+          "neutral": 255
+        },
+        {
+          "key": "tintG",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 255,
+          "neutral": 255
+        },
+        {
+          "key": "tintB",
+          "kind": "number",
+          "min": 0,
+          "max": 255,
+          "step": 1,
+          "default": 255,
+          "neutral": 255
+        }
+      ]
+    },
+    {
+      "type": "vr-chromatic-aberrations",
+      "label": "VR Chromatic Aberrations",
+      "category": "Immersive Video",
+      "params": [
+        {
+          "key": "layout",
+          "kind": "select",
+          "default": "mono",
+          "neutral": "mono",
+          "options": [
+            "mono",
+            "over-under",
+            "side-by-side"
+          ]
+        },
+        {
+          "key": "amount",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 0.1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "pan",
+          "kind": "number",
+          "min": -360,
+          "max": 360,
+          "step": 0.1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "tilt",
+          "kind": "number",
+          "min": -360,
+          "max": 360,
+          "step": 0.1,
+          "default": 0,
+          "neutral": 0
+        }
+      ]
+    },
+    {
+      "type": "vr-digital-glitch",
+      "label": "VR Digital Glitch",
+      "category": "Immersive Video",
+      "params": [
+        {
+          "key": "layout",
+          "kind": "select",
+          "default": "mono",
+          "neutral": "mono",
+          "options": [
+            "mono",
+            "over-under",
+            "side-by-side"
+          ]
+        },
+        {
+          "key": "intensity",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 0.1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "seed",
+          "kind": "number",
+          "min": 0,
+          "max": 9999,
+          "step": 1,
+          "default": 1,
+          "neutral": 1
+        },
+        {
+          "key": "rate",
+          "kind": "number",
+          "min": 1,
+          "max": 24,
+          "step": 1,
+          "default": 12,
+          "neutral": 12
+        },
+        {
+          "key": "time",
+          "kind": "number",
+          "min": 0,
+          "max": 3600,
+          "step": 0.1,
+          "default": 0,
+          "neutral": 0
+        }
+      ]
+    },
+    {
+      "type": "vr-de-noise",
+      "label": "VR De-Noise",
+      "category": "Immersive Video",
+      "params": [
+        {
+          "key": "layout",
+          "kind": "select",
+          "default": "mono",
+          "neutral": "mono",
+          "options": [
+            "mono",
+            "over-under",
+            "side-by-side"
+          ]
+        },
+        {
+          "key": "amount",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 0.1,
+          "default": 0,
+          "neutral": 0
+        },
+        {
+          "key": "radius",
+          "kind": "number",
+          "min": 0.1,
+          "max": 3,
+          "step": 0.05,
+          "default": 0.5,
+          "neutral": 0.5
+        }
+      ]
     }
   ],
   "premiere": {
@@ -4678,6 +5182,10 @@ The agent exposes **453 tools** spanning read/observe, project, track, clip, tra
       "set_track_target",
       "set_source_patch",
       "match_frame",
+      "reverse_match_frame",
+      "list_clip_markers",
+      "add_clip_marker",
+      "remove_clip_marker",
       "make_split_edit",
       "extend_edit",
       "trim_edit_point",

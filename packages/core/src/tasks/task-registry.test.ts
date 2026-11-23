@@ -129,4 +129,11 @@ describe("BackgroundTaskRegistry", () => {
     r.syncSource("q", done);
     expect(r.getSnapshot()).toHaveLength(40);
   });
+
+  it("treats an AbortError-named rejection from another realm as a cancel, not a failure", async () => {
+    const registry = new BackgroundTaskRegistry();
+    const foreign = { name: "AbortError", message: "stopped" };
+    await expect(registry.track({ id: "x", kind: "analysis", title: "X" }, () => Promise.reject(foreign))).rejects.toBe(foreign);
+    expect(registry.get("x")?.status).toBe("cancelled");
+  });
 });

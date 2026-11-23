@@ -1,4 +1,4 @@
-import { memo, useCallback, useState } from "react";
+import { Suspense, lazy, memo, useCallback, useState } from "react";
 import {
   AUDIO_RACK_EFFECT_DEFINITIONS,
   AUDIO_RACK_EFFECT_TYPES,
@@ -7,6 +7,8 @@ import {
   effectLatencySamples,
   getRealtimeAudioGraph,
   isRepairEffectType,
+  MASTER_RACK_TARGET,
+  rackPluginEffects,
   sanitizeRackEffectParams,
   type AudioRack,
   type AudioRackEffect,
@@ -28,6 +30,30 @@ import { ChevronDown, ChevronUp, Plus, Power, X } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../stores/project-store";
 import { GainReductionMeter, RepairEffectEditor } from "../audio-repair/RepairEffectEditor";
 import { EqCurve } from "../audio-repair/EqCurve";
+
+// The plugin panel (and the plugin host service it talks to) loads only when its popover opens.
+const RackPluginsPanel = lazy(() => import("./RackPluginsPanel"));
+
+/** Hosted audio plugins (Audio Unit / VST3) on a track, a bus or the master: a button with the count, the panel opens on demand. */
+const RackPluginsButton = memo(function RackPluginsButton({ target, label }: { target: string; label: string }) {
+  const count = useProjectStore((state) =>
+    rackPluginEffects(target === MASTER_RACK_TARGET ? state.project.timeline.masterPluginRack : (state.project.timeline.tracks.find((t) => t.id === target)?.pluginRack ?? state.project.timeline.audioBuses?.find((b) => b.id === target)?.pluginRack)).length,
+  );
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" size="sm" className="h-6 w-full gap-1 px-1 text-[11px]" aria-label={`Audio plugins on ${label}`} data-testid={`rack-plugins-${target === MASTER_RACK_TARGET ? "master" : target}`}>
+          Plugins{count > 0 ? ` ${count}` : ""}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent side="right" align="start" className="max-h-[70vh] w-80 overflow-y-auto">
+        <Suspense fallback={<p className="text-[11px] text-fg-muted">Loading plugins…</p>}>
+          <RackPluginsPanel target={target} label={label} />
+        </Suspense>
+      </PopoverContent>
+    </Popover>
+  );
+});
 
 interface AudioRackSectionProps {
   /** Track id, bus id, or "master" for the master bus. */
@@ -310,6 +336,7 @@ export const AudioRackSection = memo(function AudioRackSection({
           </DropdownMenuContent>
         </DropdownMenu>
       )}
+      <RackPluginsButton target={target === "master" ? MASTER_RACK_TARGET : target} label={label} />
     </div>
   );
 });

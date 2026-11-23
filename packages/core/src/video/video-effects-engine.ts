@@ -20,6 +20,7 @@ import {
 } from "./pro-effects";
 import { isTemporalEffectType } from "./temporal-effects";
 import { PRO_EFFECT_SHADER_DEFS } from "./pro-effect-shaders";
+import { isVrEffectType, isVrRuntimeLoaded, loadVrRuntime } from "./vr-runtime-loader";
 import { isPluginEffectType } from "../plugins/manifest";
 import { drawBurnIn, isBurnInEffectType } from "./burn-in";
 import { getPluginHost } from "../plugins/plugin-host";
@@ -1318,6 +1319,10 @@ export class VideoEffectsEngine {
       return;
     }
     if (isProEffectType(effect.type)) {
+      // The VR effects' CPU reference and GLSL are a lazy chunk (vr-runtime-loader.ts). Every render path, preview,
+      // render cache and export alike, runs through this async pass, so the first VR frame waits for the load
+      // instead of being drawn without the effect.
+      if (!isVrRuntimeLoaded() && isVrEffectType(effect.type)) await loadVrRuntime();
       this.applyProEffectToContext(ctx, effect.type, params, width, height);
       return;
     }
@@ -1716,14 +1721,20 @@ export class VideoEffectsEngine {
     }
   }
 
+  /**
+   * Temperature and tint are per-channel functions of one byte each: the 256 results are computed once with the
+   * original expressions and the pixel loop is three table reads (the former per-pixel Math.min/max/round chain
+   * was the preview's second-largest CPU stage after the LUT).
+   */
   private applyTemperature(data: Uint8ClampedArray, temperature: number): void {
     const normalizedTemp = temperature / 100;
-
-    for (let i = 0; i < data.length; i += 4) {
-      let r = data[i];
-      let g = data[i + 1];
-      let b = data[i + 2];
-
+    const rTable = new Uint8Array(256);
+    const gTable = new Uint8Array(256);
+    const bTable = new Uint8Array(256);
+    for (let v = 0; v < 256; v++) {
+      let r = v;
+      let g = v;
+      let b = v;
       if (normalizedTemp > 0) {
         r = Math.min(255, r + normalizedTemp * 51);
         g = Math.min(255, g + normalizedTemp * 25.5);
@@ -1733,28 +1744,31 @@ export class VideoEffectsEngine {
         g = Math.max(0, g + normalizedTemp * 12.75);
         b = Math.min(255, b - normalizedTemp * 51);
       }
-
-      data[i] = Math.round(r);
-      data[i + 1] = Math.round(g);
-      data[i + 2] = Math.round(b);
+      rTable[v] = Math.round(r);
+      gTable[v] = Math.round(g);
+      bTable[v] = Math.round(b);
+    }
+    for (let i = 0; i < data.length; i += 4) {
+      data[i] = rTable[data[i]];
+      data[i + 1] = gTable[data[i + 1]];
+      data[i + 2] = bTable[data[i + 2]];
     }
   }
 
   private applyTint(data: Uint8ClampedArray, tint: number): void {
     const normalizedTint = tint / 100;
-
+    const rTable = new Uint8Array(256);
+    const gTable = new Uint8Array(256);
+    const bTable = new Uint8Array(256);
+    for (let v = 0; v < 256; v++) {
+      rTable[v] = Math.round(Math.max(0, Math.min(255, v + normalizedTint * 25.5)));
+      gTable[v] = Math.round(Math.max(0, Math.min(255, v - normalizedTint * 51)));
+      bTable[v] = Math.round(Math.max(0, Math.min(255, v + normalizedTint * 25.5)));
+    }
     for (let i = 0; i < data.length; i += 4) {
-      let r = data[i];
-      let g = data[i + 1];
-      let b = data[i + 2];
-
-      r = Math.max(0, Math.min(255, r + normalizedTint * 25.5));
-      g = Math.max(0, Math.min(255, g - normalizedTint * 51));
-      b = Math.max(0, Math.min(255, b + normalizedTint * 25.5));
-
-      data[i] = Math.round(r);
-      data[i + 1] = Math.round(g);
-      data[i + 2] = Math.round(b);
+      data[i] = rTable[data[i]];
+      data[i + 1] = gTable[data[i + 1]];
+      data[i + 2] = bTable[data[i + 2]];
     }
   }
 

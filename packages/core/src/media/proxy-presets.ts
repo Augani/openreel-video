@@ -1,4 +1,5 @@
 import type { DesktopProxyCodec, DesktopProxyProfile } from "../types/project";
+import { sameProxyProfile } from "./ingest-presets";
 
 /**
  * Named proxy presets (Premiere's Create Proxies presets). A preset is a codec + frame-size pair that
@@ -34,7 +35,7 @@ export function proxyPresetById(id: ProxyPresetId): ProxyPreset {
 
 /** The preset a stored profile equals, or null when it is a custom codec/size combination. */
 export function proxyPresetForProfile(profile: DesktopProxyProfile): ProxyPresetId | null {
-  return PROXY_PRESETS.find((preset) => preset.profile.codec === profile.codec && preset.profile.size === profile.size)?.id ?? null;
+  return PROXY_PRESETS.find((preset) => sameProxyProfile(preset.profile, profile))?.id ?? null;
 }
 
 /** Intermediate codecs (ProRes, DNxHR) are not decodable by the preview player, so they get an H.264 preview twin. */

@@ -57,7 +57,8 @@ describe("portable edit sharing controls", () => {
   });
 
   it("exports runtime grain as normalized preset v2 without changing the clip", async () => {
-    vi.stubGlobal("URL", class extends URL { static createObjectURL = vi.fn(() => "blob:preset"); static revokeObjectURL = vi.fn(); });
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", class extends URL { static createObjectURL = vi.fn(() => "blob:preset"); static revokeObjectURL = revokeObjectURL; });
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     const clipId = await addMediaClip();
     await useProjectStore.getState().addVideoEffect(clipId, "grain", { amount: 18, colored: false });
@@ -69,6 +70,8 @@ describe("portable edit sharing controls", () => {
     expect(exported.effects[0].params).toEqual({ amount: 0.18, colored: false });
     expect(useProjectStore.getState().project.timeline.tracks.flatMap(track => track.clips).find(clip => clip.id === clipId)!.effects[0].params.amount).toBe(18);
     expect(screen.queryByRole("alert")).toBeNull();
+    // The download revokes its object URL a second later, on the URL implementation that created it (the global is restored before then).
+    await waitFor(() => expect(revokeObjectURL).toHaveBeenCalledWith("blob:preset"), { timeout: 2500 });
   });
   it.each(["undo", "redo"] as const)("does not report success when project %s fails", async direction => {
     selectTitle();

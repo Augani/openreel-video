@@ -2,6 +2,7 @@ import "./clip-fx";
 import "./clip-timing";
 import "./bulk-set";
 import "./effect-presets";
+import "./transition-presets";
 import "./overlay";
 import "./saved-styles";
 import "./speakers";
@@ -13,6 +14,7 @@ import "./media-organize";
 
 import "./timeline-tool-edit";
 import "./audio-rack";
+import "./audio-plugin-rack";
 import "./audio-routing";
 import "./track-automation";
 import "./audio-surround";

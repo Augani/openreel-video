@@ -1,4 +1,5 @@
 import type { Keyframe } from "../types/timeline";
+import { effectInstanceKeyframeProperty, parseEffectInstanceKeyframeProperty } from "../video/effect-instance-keyframes";
 
 export interface CopiedKeyframes {
   /** Keyframes with times rebased so the earliest copied key is at 0. */
@@ -44,4 +45,35 @@ export function pasteKeyframeSet(
     (key) => !pasted.some((p) => p.property === key.property && Math.abs(p.time - key.time) < SAME_TIME),
   );
   return [...kept, ...pasted];
+}
+
+export interface KeyframeEffectRef {
+  readonly id: string;
+  readonly type: string;
+}
+
+/**
+ * Effect parameter keys belong to an effect INSTANCE (`fx:<effectId>:<param>`), so keys copied from
+ * another clip would point at an effect the target does not have. Each such key is moved onto the
+ * target's effect of the same type when there is exactly one; a key that already points at an effect
+ * of the target (same clip, or a duplicate that kept ids) stays; otherwise it is dropped and counted.
+ * Transform keys (position, scale, rotation, opacity) always paste as they are.
+ */
+export function retargetCopiedKeyframes(
+  keyframes: readonly Keyframe[],
+  sourceEffects: readonly KeyframeEffectRef[],
+  targetEffects: readonly KeyframeEffectRef[],
+): { keyframes: Keyframe[]; dropped: number } {
+  const out: Keyframe[] = [];
+  let dropped = 0;
+  for (const key of keyframes) {
+    const ref = parseEffectInstanceKeyframeProperty(key.property);
+    if (!ref) { out.push(key); continue; }
+    if (targetEffects.some((effect) => effect.id === ref.effectId)) { out.push(key); continue; }
+    const type = sourceEffects.find((effect) => effect.id === ref.effectId)?.type;
+    const candidates = type ? targetEffects.filter((effect) => effect.type === type) : [];
+    if (candidates.length === 1) out.push({ ...key, property: effectInstanceKeyframeProperty(candidates[0].id, ref.param) });
+    else dropped++;
+  }
+  return { keyframes: out, dropped };
 }

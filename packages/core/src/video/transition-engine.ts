@@ -1,10 +1,32 @@
 import type { TransitionType, TransitionParams } from "../types/effects";
+import { TRANSITION_TYPES } from "../types/effects";
+import { isMaskTransition } from "./transition-masks";
+import { getDefaultTransitionParams } from "./transition-default-params";
+import { getMorphCutRegistry } from "./morph-cut/registry";
+import {
+  crossZoomPlan,
+  cubeSpinPlan,
+  flipOverPlan,
+  pagePeelPlan,
+  splitPlan,
+  type DrawPlan,
+} from "./transition-plans";
+import {
+  createExtraRenderScratch,
+  renderAdditiveDissolve,
+  renderDrawPlan,
+  renderFilmDissolve,
+  renderMaskTransition,
+  type ExtraRenderScratch,
+} from "./transition-extra-render";
 import type {
   Transition,
   Clip,
   Track,
   TransitionEdge,
 } from "../types/timeline";
+
+export { getDefaultTransitionParams };
 
 interface TransitionRenderResult {
   frame: ImageBitmap;
@@ -27,60 +49,14 @@ interface TransitionEngineConfig {
 
 type EasingFunction = (t: number) => number;
 
-/** Read transition defaults without initializing a renderer or allocating canvases. */
-export function getDefaultTransitionParams(type: TransitionType): Record<string, unknown> {
-  switch (type) {
-    case "crossfade":
-      return { curve: "ease" };
-    case "dipToBlack":
-      return { holdDuration: 0.1 };
-    case "dipToWhite":
-      return { holdDuration: 0.1 };
-    case "wipe":
-      return { direction: "left", softness: 0 };
-    case "slide":
-      return { direction: "left", pushOut: false };
-    case "zoom":
-      return { scale: 2, center: { x: 0.5, y: 0.5 } };
-    case "push":
-      return { direction: "left" };
-    case "circleReveal":
-      return { center: { x: 0.5, y: 0.5 } };
-    case "blur":
-      return { intensity: 1 };
-    case "whipPan":
-      return { direction: "left", blurIntensity: 1 };
-    case "radialWipe":
-      return { startAngle: -90, clockwise: true };
-    case "pixelate":
-      return { maxPixelSize: 48 };
-    case "glitch":
-      return { intensity: 0.08, slices: 12 };
-    case "blinds":
-      return { count: 8, direction: "vertical" };
-    case "diamondReveal":
-      return { center: { x: 0.5, y: 0.5 } };
-    case "spin":
-      return { rotations: 1 };
-    case "flip":
-      return { axis: "horizontal" };
-    case "splitReveal":
-      return { orientation: "horizontal" };
-    case "flash":
-      return { intensity: 1 };
-    case "filmBurn":
-      return { intensity: 1, warmth: 0.75 };
-    case "mosaic":
-      return { tiles: 8, randomness: 0.85 };
-    case "ripple":
-      return { amplitude: 0.04, waves: 3 };
-    case "pageTurn":
-      return { direction: "left", shadow: 0.55 };
-    case "colorSplit":
-      return { maxOffset: 18, angle: 0 };
-    default:
-      return {};
-  }
+/** Maps eased progress 0..1 into the transition's custom start / end percentage range. */
+export function mapTransitionRange(progress: number, params: Record<string, unknown>): number {
+  const start = typeof params.startPct === "number" && Number.isFinite(params.startPct) ? params.startPct : 0;
+  const end = typeof params.endPct === "number" && Number.isFinite(params.endPct) ? params.endPct : 100;
+  if (start === 0 && end === 100) return progress;
+  const lo = Math.max(0, Math.min(100, start)) / 100;
+  const hi = Math.max(0, Math.min(100, end)) / 100;
+  return lo + (hi - lo) * progress;
 }
 
 export class TransitionEngine {
@@ -98,6 +74,7 @@ export class TransitionEngine {
   private scratchBCtx: OffscreenCanvasRenderingContext2D | null = null;
   private pixelScratch: OffscreenCanvas | null = null;
   private pixelScratchCtx: OffscreenCanvasRenderingContext2D | null = null;
+  private extraScratch: ExtraRenderScratch = createExtraRenderScratch();
 
   constructor(config: TransitionEngineConfig) {
     this.width = config.width;
@@ -206,6 +183,34 @@ export class TransitionEngine {
     return scratch;
   }
 
+  /**
+   * Runs the transition once on 2x2 stand-in frames so the engine-sized scratch canvases, 2D contexts and the
+   * transition's own buffers exist before its first real frame (allocating them is the engine-side cost of a
+   * transition's first frame). Never shown or exported: the result canvas is overwritten by the next real render, so
+   * call it only while no transition is being rendered. Morph Cut is skipped (its frames come from an analysis).
+   */
+  async warmUp(transition: Transition): Promise<boolean> {
+    if (!this.canvas || !this.ctx || typeof OffscreenCanvas === "undefined" || transition.type === "morphCut") {
+      return false;
+    }
+    const standIn = (shade: string) => {
+      const c = new OffscreenCanvas(2, 2);
+      const ctx = c.getContext("2d");
+      if (ctx) {
+        ctx.fillStyle = shade;
+        ctx.fillRect(0, 0, 2, 2);
+      }
+      return c;
+    };
+    try {
+      await this.renderTransitionToCanvas(standIn("#000"), standIn("#fff"), transition, 0.5);
+      this.ctx.clearRect(0, 0, this.width, this.height);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async renderTransition(
     outgoingFrame: CanvasImageSource,
     incomingFrame: CanvasImageSource,
@@ -240,10 +245,7 @@ export class TransitionEngine {
       );
     }
     const clampedProgress = Math.max(0, Math.min(1, progress));
-    const easedProgress = this.applyEasing(
-      clampedProgress,
-      transition.params.curve as string,
-    );
+    const easedProgress = this.easedProgress(transition, clampedProgress);
 
     // Letterbox both inputs to the engine canvas first so a clip whose aspect
     // differs from the project (e.g. a portrait clip in a landscape project)
@@ -465,11 +467,119 @@ export class TransitionEngine {
           (transition.params.angle as number) ?? 0,
         );
         break;
+      case "morphCut":
+        await this.renderMorphCut(outgoing, incoming, easedProgress, transition);
+        break;
+      case "filmDissolve":
+        renderFilmDissolve(this.getContext(), this.extraScratch, outgoing, incoming, easedProgress, this.width, this.height);
+        break;
+      case "additiveDissolve":
+        renderAdditiveDissolve(this.getContext(), outgoing, incoming, easedProgress, this.width, this.height);
+        break;
+      case "cubeSpin":
+      case "flipOver":
+      case "split":
+      case "crossZoom":
+      case "pagePeel":
+        renderDrawPlan(
+          this.getContext(),
+          this.planFor(transition, easedProgress),
+          outgoing,
+          incoming,
+          this.width,
+          this.height,
+        );
+        break;
       default:
-        await this.renderCrossfade(outgoing, incoming, easedProgress);
+        if (isMaskTransition(transition.type)) {
+          renderMaskTransition(
+            this.getContext(),
+            this.extraScratch,
+            transition.type,
+            { ...getDefaultTransitionParams(transition.type), ...transition.params },
+            outgoing,
+            incoming,
+            easedProgress,
+            this.width,
+            this.height,
+          );
+        } else {
+          await this.renderCrossfade(outgoing, incoming, easedProgress);
+        }
     }
 
     return this.canvas;
+  }
+
+  /** The draw plan of a geometric transition (cube spin, flip over, split, cross zoom, page peel) at eased progress. */
+  private planFor(transition: Transition, progress: number): DrawPlan {
+    const params = { ...getDefaultTransitionParams(transition.type), ...transition.params } as Record<string, unknown>;
+    const size = { width: this.width, height: this.height, progress };
+    const border = { borderWidth: Number(params.borderWidth) || 0, borderColor: String(params.borderColor ?? "#ffffff") };
+    switch (transition.type) {
+      case "cubeSpin":
+        return cubeSpinPlan({ ...size, ...border, direction: String(params.direction ?? "left") });
+      case "flipOver":
+        return flipOverPlan({ ...size, ...border, direction: String(params.direction ?? "left") });
+      case "split":
+        return splitPlan({ ...size, ...border, orientation: String(params.orientation ?? "horizontal"), reverse: params.reverse === true });
+      case "crossZoom":
+        return crossZoomPlan({ ...size, center: (params.center as { x: number; y: number } | undefined) ?? { x: 0.5, y: 0.5 }, intensity: Number(params.intensity ?? 1) });
+      default:
+        return pagePeelPlan({ ...size, corner: String(params.corner ?? "bottomRight"), shadow: Number(params.shadow ?? 0.55) });
+    }
+  }
+
+  /** How the last Morph Cut frame was produced: "gpu" | "cpu" | "dissolve" (not analysed yet, failed or no pixels). */
+  lastMorphCutPath: "gpu" | "cpu" | "dissolve" | null = null;
+  private morphScratch: [OffscreenCanvas | null, OffscreenCanvas | null] = [null, null];
+
+  private readPixels(source: CanvasImageSource, slot: 0 | 1): ImageData | null {
+    if (typeof OffscreenCanvas === "undefined") return null;
+    let canvas = this.morphScratch[slot];
+    if (!canvas || canvas.width !== this.width || canvas.height !== this.height) {
+      canvas = new OffscreenCanvas(this.width, this.height);
+      this.morphScratch[slot] = canvas;
+    }
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.clearRect(0, 0, this.width, this.height);
+    ctx.drawImage(source, 0, 0, this.width, this.height);
+    return ctx.getImageData(0, 0, this.width, this.height);
+  }
+
+  /**
+   * Morph Cut: the outgoing and incoming frames are warped toward each other through the analysed displacement
+   * fields and cross dissolved (see morph-cut/render.ts). Until the analysis has finished, when it failed, or when
+   * the field does not fit this frame, it is a cross dissolve.
+   */
+  private async renderMorphCut(outgoing: CanvasImageSource, incoming: CanvasImageSource, progress: number, transition: Transition): Promise<void> {
+    this.lastMorphCutPath = "dissolve";
+    const analysis = getMorphCutRegistry().resolve(transition.id);
+    if (!analysis?.field || progress <= 0 || progress >= 1) {
+      await this.renderCrossfade(outgoing, incoming, progress);
+      return;
+    }
+    try {
+      const { renderMorphFrame, fieldFitsFrame } = await import("./morph-cut/render");
+      if (!fieldFitsFrame(analysis.field, this.width, this.height)) {
+        await this.renderCrossfade(outgoing, incoming, progress);
+        return;
+      }
+      const a = this.readPixels(outgoing, 0);
+      const b = this.readPixels(incoming, 1);
+      if (!a || !b) {
+        await this.renderCrossfade(outgoing, incoming, progress);
+        return;
+      }
+      const result = await renderMorphFrame(analysis, { width: a.width, height: a.height, data: a.data }, { width: b.width, height: b.height, data: b.data }, progress);
+      this.getContext().putImageData(new ImageData(result.data as Uint8ClampedArray<ArrayBuffer>, this.width, this.height), 0, 0);
+      this.lastMorphCutPath = result.path;
+    } catch (error) {
+      console.warn("[TransitionEngine] Morph Cut render failed, cross dissolving:", error);
+      this.getContext().clearRect(0, 0, this.width, this.height);
+      await this.renderCrossfade(outgoing, incoming, progress);
+    }
   }
 
   private async renderCrossfade(
@@ -1273,9 +1383,13 @@ export class TransitionEngine {
     ctx.globalAlpha = 1;
   }
 
-  /** The transition's progress after its easing curve (what the renderers blend with). */
+  /**
+   * The transition's progress after its easing curve and its start / end percentage (what the renderers blend
+   * with). `startPct` / `endPct` (0 to 100, defaults 0 and 100) set the part of the effect the window runs through.
+   */
   easedProgress(transition: Transition, progress: number): number {
-    return this.applyEasing(Math.max(0, Math.min(1, progress)), transition.params.curve as string);
+    const eased = this.applyEasing(Math.max(0, Math.min(1, progress)), transition.params.curve as string);
+    return mapTransitionRange(eased, transition.params);
   }
 
   private applyEasing(progress: number, curve?: string): number {
@@ -1592,32 +1706,7 @@ export class TransitionEngine {
   }
 
   getAvailableTransitionTypes(): TransitionType[] {
-    return [
-      "crossfade",
-      "dipToBlack",
-      "dipToWhite",
-      "wipe",
-      "slide",
-      "zoom",
-      "push",
-      "circleReveal",
-      "blur",
-      "whipPan",
-      "radialWipe",
-      "pixelate",
-      "glitch",
-      "blinds",
-      "diamondReveal",
-      "spin",
-      "flip",
-      "splitReveal",
-      "flash",
-      "filmBurn",
-      "mosaic",
-      "ripple",
-      "pageTurn",
-      "colorSplit",
-    ];
+    return [...TRANSITION_TYPES];
   }
 
   dispose(): void {
@@ -1630,6 +1719,7 @@ export class TransitionEngine {
     this.ctx = null;
     this.pixelScratch = null;
     this.pixelScratchCtx = null;
+    this.extraScratch = createExtraRenderScratch();
   }
 }
 

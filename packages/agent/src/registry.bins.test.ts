@@ -143,6 +143,21 @@ describe("bin agent tools", () => {
   });
 });
 
+describe("XMP-style metadata through set_media_log / find_media", () => {
+  it("sets keywords, log comment and reel as one undo step and finds them", async () => {
+    const { host, history } = setup();
+    const done = await executeTool("set_media_log", { mediaIds: ["m1"], keywords: ["Night", "night", "interior"], logComment: "use second half", reel: "A007" }, host);
+    expect(done.ok, JSON.stringify(done)).toBe(true);
+    expect(items(host).find((m) => m.id === "m1")).toMatchObject({ keywords: ["Night", "interior"], logComment: "use second half", reel: "A007" });
+    expect(undoDepth(history)).toBe(1);
+    const byKeyword = await executeTool("find_media", { query: "keyword:interior reel:a007" }, host);
+    expect((byKeyword.data as { items: { id: string; keywords: string[] }[] }).items).toMatchObject([{ id: "m1", keywords: ["Night", "interior"] }]);
+    expect((await executeTool("set_media_log", { mediaIds: ["m1"], keywords: "night" }, host)).ok).toBe(false);
+    expect((await executeTool("set_media_log", { mediaIds: ["m1"], keywords: [] }, host)).ok).toBe(true);
+    expect(items(host).find((m) => m.id === "m1")!.keywords).toBeUndefined();
+  });
+});
+
 describe("interpret_footage tool", () => {
   it("sets and clears an interpretation, one undo step each", async () => {
     const { host, history } = setup();

@@ -20,6 +20,7 @@ type ClipSlice = Pick<
   | "addClipToNewTrack"
   | "separateAudio"
   | "removeClip"
+  | "removeClips"
   | "moveClip"
   | "closeGapBeforeClip"
   | "moveClips"
@@ -264,6 +265,21 @@ export function createClipSlice(set: Set, get: Get): ClipSlice {
       return result;
     },
 
+    removeClips: async (clipIds) => {
+      if (clipIds.length === 0) return { success: true };
+      if (clipIds.length === 1) return get().removeClip(clipIds[0]);
+      const { project, actionExecutor } = get();
+      const action: Action = {
+        type: "clip/removeBatch",
+        id: uuidv4(),
+        timestamp: Date.now(),
+        params: { clipIds: [...new Set(clipIds)] },
+      };
+      const result = await actionExecutor.execute(action, project);
+      if (result.success) set({ project: { ...project } });
+      return result;
+    },
+
     moveClip: async (clipId: string, startTime: number, trackId?: string) => {
       const { project, actionExecutor } = get();
       const action: Action = {
@@ -287,7 +303,7 @@ export function createClipSlice(set: Set, get: Get): ClipSlice {
       }
     },
 
-    moveClips: async (moves) => {
+    moveClips: async (moves, options) => {
       if (moves.length === 0) return { success: true };
       if (moves.length === 1) {
         return get().moveClip(
@@ -296,31 +312,16 @@ export function createClipSlice(set: Set, get: Get): ClipSlice {
           moves[0].trackId,
         );
       }
-      const { actionExecutor } = get();
-      const history = actionExecutor.getHistory();
-      history.beginGroup("Move clips");
-      try {
-        let lastResult: ActionResult = { success: true };
-        for (const move of moves) {
-          const { project } = get();
-          const action: Action = {
-            type: "clip/move",
-            id: uuidv4(),
-            timestamp: Date.now(),
-            params: {
-              clipId: move.clipId,
-              startTime: move.startTime,
-              trackId: move.trackId,
-            },
-          };
-          lastResult = await actionExecutor.execute(action, project);
-          if (!lastResult.success) break;
-          set({ project: { ...project } });
-        }
-        return lastResult;
-      } finally {
-        history.endGroup();
-      }
+      const { project, actionExecutor } = get();
+      const action: Action = {
+        type: "clip/moveBatch",
+        id: uuidv4(),
+        timestamp: Date.now(),
+        params: { moves, ...(options?.coalesceKey ? { coalesceKey: options.coalesceKey } : {}) },
+      };
+      const result = await actionExecutor.execute(action, project);
+      if (result.success) set({ project: { ...project } });
+      return result;
     },
 
     trimClip: async (clipId: string, inPoint?: number, outPoint?: number) => {

@@ -2,10 +2,11 @@ import { MessageChannelMain, type WebContents, type MessagePortMain } from "elec
 import { promises as fs, rmSync } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { ExportJob, type CaptionInput, type ExportArgs } from "../sidecar/export-job";
+import { ExportJob, usesPcmAudio, type CaptionInput, type ExportArgs } from "../sidecar/export-job";
 import { assertLocalSourcePath } from "../sidecar/probe-source";
-import { verifySourceForCopy, type FingerprintCache } from "../sidecar/source-guard";
+import { fingerprintFile, fingerprintMismatch, verifySourceForCopy, type FingerprintCache } from "../sidecar/source-guard";
 import { SmartExportSession, type SmartStreamMatch } from "../sidecar/smart-export";
+import type { SmartAudioCopyPlan } from "../sidecar/smart-audio";
 import { CfrWriter } from "../sidecar/cfr";
 import { selectEncoder, getVerifiedEncoders, isHardwareEncoder } from "../sidecar/encoder-probe";
 import { join } from "node:path";
@@ -15,6 +16,7 @@ import { acquirePowerHold, releasePowerHold, releaseAllPowerHolds } from "../pow
 import { isBroadcastExportCodec, isProres4444, type BroadcastScan, type DnxhrProfile, type ExportCodec, type EncodeMode } from "../sidecar/encode-args";
 import { dolbyPlanFromRequest } from "../sidecar/dolby-args";
 import { dolbyContainerProblem } from "../../../../../packages/core/src/export/dolby";
+import { addSphericalMetadataToFile, type SphericalExportFields } from "../sidecar/spherical-file";
 import { isNativeColorOutput, type NativeColorOutput } from "../sidecar/color-output-args";
 
 interface ExportStartArgs {
@@ -54,6 +56,8 @@ interface ExportStartArgs {
   audioTrackCount?: number;
   /** File start timecode, HH:MM:SS:FF (`;` before the frames for drop frame). */
   startTimecode?: string;
+  /** VR sequence in MP4 / MOV: spherical metadata written into the finished file. */
+  vr?: SphericalExportFields;
   /**
    * Colour-managed export (Rec.2020 / HDR10 / HLG): frames arrive as raw planar
    * YCbCr already converted to this space instead of RGBA, and the stream is tagged with it.
@@ -190,6 +194,22 @@ export function selectColorEncoder(
   return selectEncoder(codec, platform, encoders, mode) ?? "libx264";
 }
 
+/** Spherical (VR) fields of a start request, validated (they come from the renderer). MP4 and MOV only. */
+export function sphericalExportFields(args: Pick<ExportStartArgs, "vr" | "format">): { vr?: SphericalExportFields } {
+  if (args.vr === undefined) return {};
+  if (args.format !== "mp4" && args.format !== "mov") return {};
+  const { layout, horizontalFov, verticalFov, initialView } = args.vr;
+  if (layout !== "mono" && layout !== "over-under" && layout !== "side-by-side") throw new Error("Invalid VR frame layout.");
+  if (!(Number.isFinite(horizontalFov) && horizontalFov >= 1 && horizontalFov <= 360)) throw new Error("Invalid VR horizontal field of view.");
+  if (!(Number.isFinite(verticalFov) && verticalFov >= 1 && verticalFov <= 180)) throw new Error("Invalid VR vertical field of view.");
+  if (initialView !== undefined) {
+    const { yaw, pitch, roll } = initialView;
+    if (![yaw, pitch, roll].every(Number.isFinite) || Math.abs(yaw) > 360 || Math.abs(roll) > 360 || Math.abs(pitch) > 90) throw new Error("Invalid VR initial view.");
+    return { vr: { layout, horizontalFov, verticalFov, initialView: { yaw, pitch, roll } } };
+  }
+  return { vr: { layout, horizontalFov, verticalFov } };
+}
+
 const TIMECODE_RE = /^\d{2}:\d{2}:\d{2}[:;]\d{2,3}$/;
 
 /** Broadcast delivery fields of a start request, validated (they come from the renderer). */
@@ -318,6 +338,7 @@ export function resolveExportArgs(
     audioBitrateKbps: args.audioBitrateKbps,
     ...(dolby ? { dolby } : {}),
     ...broadcastExportFields(args),
+    ...sphericalExportFields(args),
   };
 }
 
@@ -654,10 +675,13 @@ function handleSmartMessage(
         if (entry.cancelled) return;
         entry.finishDelivered = true;
         const { outputPath, audioWavPath, audioBitrateKbps, dolby, format, captionInputs, startTimecode } = entry.exportArgs;
+        // ProRes masters carry PCM like the normal export path writes (a ProRes smart export used to get AAC here).
+        const pcm = usesPcmAudio(entry.exportArgs);
         await smart.assemble(
-          { audioWavPath, outputPath, audioCodec: "aac", audioBitrateKbps, dolby, format, captionInputs, startTimecode },
+          { audioWavPath, outputPath, audioCodec: pcm ? "pcm_s24le" : "aac", audioBitrateKbps: pcm ? undefined : audioBitrateKbps, dolby, format, captionInputs, startTimecode },
           (frame) => entry.port.postMessage({ type: "progress", frame }),
         );
+        if (entry.exportArgs.vr) await addSphericalMetadataToFile(outputPath, entry.exportArgs.vr);
         entry.port.postMessage({ type: "done" });
         cleanupJob(jobId);
       })
@@ -670,6 +694,34 @@ function cancelSmartJob(jobId: string, entry: JobEntry): void {
   markCancelled(entry);
   entry.smart?.cancel();
   cleanupJob(jobId);
+}
+
+/**
+ * Native smart render, audio: before any frame is encoded the renderer sends the audio plan (spans of untouched source audio
+ * to copy, the rest rendered). The main process checks the sources are still the imported files, writes the AAC packets or the
+ * PCM spans, and proves them (see smart-audio.ts). Resolves to `{ declined }` when the audio has to be rendered and encoded
+ * instead; a changed source file throws SOURCE_CHANGED like a video copy.
+ */
+export async function prepareAudioCopy(args: { jobId: string; plan: SmartAudioCopyPlan }): Promise<{ declined?: string }> {
+  const entry = jobs.get(args.jobId);
+  if (!entry?.smart) throw new Error(`export job ${args.jobId} is not a smart-render job`);
+  for (const segment of args.plan.segments) {
+    if (segment.kind !== "copy") continue;
+    assertLocalSourcePath(segment.sourcePath);
+    try {
+      if (segment.sourceSize !== undefined && segment.sourceContentHash !== undefined) {
+        const mismatch = fingerprintMismatch(
+          { size: segment.sourceSize, mtimeMs: segment.sourceMtimeMs, contentHash: segment.sourceContentHash },
+          await fingerprintFile(segment.sourcePath, entry.sourceFingerprints),
+        );
+        if (mismatch) throw new Error(mismatch);
+      }
+    } catch (error) {
+      throw new Error(`SOURCE_CHANGED: ${segment.sourcePath}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  const declined = await entry.smart.prepareAudio(args.plan);
+  return declined ? { declined } : {};
 }
 
 /**
@@ -779,6 +831,8 @@ function cleanupJob(jobId: string): void {
   const entry = jobs.get(jobId);
   if (!entry) return;
   discardAudio(entry);
+  // The run files, the prepared audio copies and the joined audio track live beside the video temp; they were left behind after a finished export.
+  void entry.smart?.dispose().catch(() => undefined);
   if (entry.smartVideoPath) void releaseTemp(entry.smartVideoPath).catch(() => {});
   jobs.delete(jobId);
   releasePowerHold(jobId);
