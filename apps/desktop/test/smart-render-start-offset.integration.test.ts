@@ -49,7 +49,7 @@ const lavfi = ["-f", "lavfi", "-i", `testsrc2=size=${W}x${H}:rate=${FPS_NUM}/${F
 const x264 = ["-c:v", "libx264", "-g", String(KEY), "-keyint_min", String(KEY), "-sc_threshold", "0", "-bf", "3", "-pix_fmt", "yuv420p", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv"];
 
 function rgbaFrames(src: string, from: number, to: number): Uint8Array[] {
-  const out = execFileSync(ffmpeg, ["-v", "error", "-i", src, "-vf", `select=between(n\\,${from}\\,${to - 1})`, "-vsync", "0", "-pix_fmt", "rgba", "-f", "rawvideo", "-"], { maxBuffer: 1 << 30 });
+  const out = execFileSync(ffmpeg, ["-v", "error", "-i", src, "-vf", `select=between(n\\,${from}\\,${to - 1})`, "-fps_mode", "passthrough", "-pix_fmt", "rgba", "-f", "rawvideo", "-"], { maxBuffer: 1 << 30 });
   const size = W * H * 4;
   const frames: Uint8Array[] = [];
   for (let i = 0; i + size <= out.length; i += size) frames.push(new Uint8Array(out.subarray(i, i + size)));
