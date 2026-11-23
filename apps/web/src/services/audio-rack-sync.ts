@@ -1,5 +1,6 @@
 import { getChannelLayout, getRealtimeAudioGraph, hasAudioRouting, hasTrackAutomation, type AudioBus, type AudioRack, type AudioSend, type ChannelLayout, type Track } from "@openreel/core";
 import { useProjectStore } from "../stores/project-store";
+import { getPluginRackPreview } from "./plugin-rack-preview";
 
 /**
  * Mirrors project racks (tracks + master) into the live Web Audio graph.
@@ -21,8 +22,15 @@ export function startAudioRackSync(): () => void {
   let appliedPanTracks: unknown;
   let layoutGraph: ReturnType<typeof getRealtimeAudioGraph> | null = null;
 
+  // Hosted plugins on tracks and buses: the preview renders their stems in the background and, once a stem is ready, the
+  // graph's routing is the one that plays it (synthetic stem tracks for buses). Until then the timeline is the project's own.
+  const rackPreview = getPluginRackPreview();
   const sync = () => {
-    const { timeline, settings } = useProjectStore.getState().project;
+    const project = useProjectStore.getState().project;
+    rackPreview.update(project);
+    const { settings } = project;
+    const timeline = project.timeline;
+    const routingTimeline = rackPreview.timelineFor(timeline);
     let graph: ReturnType<typeof getRealtimeAudioGraph> | null = null;
     const ensureGraph = () => (graph ??= getRealtimeAudioGraph());
     // The layout goes first: it rebuilds the track/bus/master nodes, which the racks below then target.
@@ -69,7 +77,7 @@ export function startAudioRackSync(): () => void {
     for (const id of [...applied.keys()]) {
       if (!seen.has(id)) applied.delete(id);
     }
-    const routing = new Map(timeline.tracks.map((t) => [t.id, [t.output, t.sends, t.automation] as const]));
+    const routing = new Map(routingTimeline.tracks.map((t) => [t.id, [t.output, t.sends, t.automation] as const]));
     // Playback re-initialises the graph singleton: re-apply routing to the new one.
     let graphReplaced = false;
     if (routingApplied) {
@@ -81,21 +89,21 @@ export function startAudioRackSync(): () => void {
     }
     const routingChanged =
       graphReplaced ||
-      appliedBuses !== timeline.audioBuses ||
+      appliedBuses !== routingTimeline.audioBuses ||
       routing.size !== appliedRouting.size ||
       [...routing].some(([id, value]) => {
         const prev = appliedRouting.get(id);
         return !prev || prev[0] !== value[0] || prev[1] !== value[1] || prev[2] !== value[2];
       });
     if (routingChanged) {
-      const automated = timeline.tracks.some(hasTrackAutomation);
-      const needed = hasAudioRouting(timeline) || automated || routingApplied;
-      appliedBuses = timeline.audioBuses;
+      const automated = routingTimeline.tracks.some(hasTrackAutomation);
+      const needed = hasAudioRouting(routingTimeline) || automated || routingApplied;
+      appliedBuses = routingTimeline.audioBuses;
       appliedRouting = routing;
       if (needed) {
-        routingApplied = hasAudioRouting(timeline) || automated;
+        routingApplied = hasAudioRouting(routingTimeline) || automated;
         try {
-          ensureGraph().setRouting(timeline);
+          ensureGraph().setRouting(routingTimeline);
           routingGraph = ensureGraph();
         } catch {
           /* audio unavailable */
@@ -114,5 +122,10 @@ export function startAudioRackSync(): () => void {
   };
 
   sync();
-  return useProjectStore.subscribe(sync);
+  const stopStore = useProjectStore.subscribe(sync);
+  const stopPreview = rackPreview.onChange(sync);
+  return () => {
+    stopStore();
+    stopPreview();
+  };
 }

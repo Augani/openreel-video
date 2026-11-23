@@ -32,7 +32,7 @@ export default defineConfig({
       "src/**/*.spec.tsx",
       "vite-plugins/**/*.test.ts",
     ],
-    setupFiles: ["./src/test/setup.ts"],
+    setupFiles: ["./src/test/render-hook.ts", "./src/test/setup.ts"],
     // Full-editor UI tests render the real editor; under a parallel full run
     // they can exceed the 5s default even though they pass in isolation.
     testTimeout: 30_000,

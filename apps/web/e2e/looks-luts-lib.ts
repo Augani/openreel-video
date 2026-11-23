@@ -21,6 +21,8 @@ interface CardRead {
   state: string | undefined;
   source: string | undefined;
   frame: string | undefined;
+  /** Id of the def the poster on the canvas was drawn for (set just after the poster is drawn). */
+  def: string | undefined;
   /** Source time (s) of the frame the poster shows; set once the poster for the current footage is drawn. */
   time: number | undefined;
   width: number;
@@ -67,6 +69,7 @@ async function readCard(page: Page, ariaLabel: string, selector = cardSelector(a
       state: canvas.dataset.previewState,
       source: canvas.dataset.previewSource,
       frame: canvas.dataset.previewFrame,
+      def: canvas.dataset.previewDef,
       time: canvas.dataset.previewTime === undefined ? undefined : Number(canvas.dataset.previewTime),
       width: canvas.width,
       height: canvas.height,
@@ -86,9 +89,11 @@ const signatureDiff = (a: number[], b: number[]): number => {
 /**
  * Waits for the card's poster to be drawn for the current def and footage: the card marks itself "loading" while a
  * poster is pending and stamps the source time of the frame it drew. `atTime` (source seconds) additionally waits
- * for the preview footage to have retargeted to the playhead after a seek, which is debounced.
+ * for the preview footage to have retargeted to the playhead after a seek, which is debounced. `defEndsWith` waits for
+ * the poster of the def with that id suffix: a setting the UI shows at once (the LUT strength readout) reaches the cards a
+ * few tens of ms later, and until then the old def's poster is still on the canvas in the resting "poster" state.
  */
-async function waitForPoster(page: Page, ariaLabel: string, atTime?: number): Promise<CardRead> {
+async function waitForPoster(page: Page, ariaLabel: string, atTime?: number, defEndsWith?: string): Promise<CardRead> {
   const canvas = page.locator(cardSelector(ariaLabel)).first();
   await canvas.scrollIntoViewIfNeeded();
   // A card under the pointer loops its footage window on hover: a read taken then is some frame of the loop, not the
@@ -101,6 +106,7 @@ async function waitForPoster(page: Page, ariaLabel: string, atTime?: number): Pr
       async () => {
         const read = await readCard(page, ariaLabel);
         if (read.state !== "poster") return false;
+        if (defEndsWith !== undefined && !read.def?.endsWith(defEndsWith)) return false;
         return atTime === undefined || (read.time !== undefined && Math.abs(read.time - atTime) < 0.15);
       },
       { timeout: 45_000, message: `poster for ${ariaLabel}${atTime === undefined ? "" : ` at ${atTime}s`}` },
@@ -415,9 +421,9 @@ export function registerLooksLutsTests(): void {
         .toBeLessThan(PARITY);
       return diff;
     };
-    const applyAndCompare = async (label: string, name: string, differsFromMonitor = true): Promise<{ card: CardRead; raw: number[] }> => {
+    const applyAndCompare = async (label: string, name: string, differsFromMonitor = true, defEndsWith?: string): Promise<{ card: CardRead; raw: number[] }> => {
       const raw = await programSignature(page);
-      const card = await waitForPoster(page, label);
+      const card = await waitForPoster(page, label, undefined, defEndsWith);
       expect(card.source, `${name}: the card is the decoded footage`).toBe("footage");
       // The monitor is the reference only while it shows the clip as the card started from (the graded case is checked against the ungraded card).
       if (differsFromMonitor) expect(signatureDiff(card.signature, raw), `${name}: the card differs from the frame on the monitor`).toBeGreaterThan(PARITY * 1.5);
@@ -498,7 +504,7 @@ export function registerLooksLutsTests(): void {
     await strength.fill("40");
     await strength.press("Enter");
     await expect(page.getByTestId("lut-strength")).toContainText("40%");
-    const half = await applyAndCompare(invertLabel, "invert-rgb at 40%");
+    const half = await applyAndCompare(invertLabel, "invert-rgb at 40%", true, "-0.4");
     await waitForToastsGone(page);
     await page.getByRole("button", { name: invertLabel }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${SHOTS}/${project}-lut-strength.png` });

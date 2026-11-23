@@ -531,8 +531,8 @@ importers:
         specifier: ^1.25.3
         version: 1.25.3
       onnxruntime-web:
-        specifier: 1.21.0
-        version: 1.21.0
+        specifier: 1.22.0-dev.20250409-89f8206ba4
+        version: 1.22.0-dev.20250409-89f8206ba4
       polygon-clipping:
         specifier: 0.15.7
         version: 0.15.7

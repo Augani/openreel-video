@@ -29,6 +29,29 @@ export const W7_LABELS = [
 
 export const SMALL = { w: 320, h: 180 };
 
+/**
+ * An effect whose defaults are neutral (Premiere adds VR Rotate Sphere at 0 / 0 / 0, for example) changes nothing when
+ * it is added from its card, so a sweep that asks "does the card visibly change the canvas" has to give it a value
+ * first. When the effect just added to the clip is neutral under its own parameters, set every parameter of its spec
+ * to a clearly non-neutral value in one undoable update (`proEffectActingParams`: numbers move a fraction of their range
+ * away from neutral, toggles flip, selects take the first other option). Returns the number of extra history steps it added (0 or 1).
+ * General on purpose: it reads the effect's parameter spec, nothing is special-cased per effect.
+ */
+export async function makeAddedEffectNonNeutral(page: Page, clipId: string): Promise<number> {
+  const added = await page.evaluate(async (id) => {
+    const hook = (window as unknown as { __openreelE2E: any }).__openreelE2E;
+    const { proEffectActingParams, isProEffectNeutral, PRO_EFFECT_SPECS } = hook.core.proEffects;
+    const clip = hook.project.getState().project.timeline.tracks.flatMap((t: any) => t.clips).find((c: any) => c.id === id);
+    const fx = clip?.effects?.[clip.effects.length - 1];
+    if (!fx || !PRO_EFFECT_SPECS[fx.type] || !isProEffectNeutral(fx.type, fx.params ?? {})) return false;
+    const params = proEffectActingParams(fx.type);
+    await hook.project.getState().updateVideoEffect(id, fx.id, params);
+    return true;
+  }, clipId);
+  if (added) await settle(page, 600);
+  return added ? 1 : 0;
+}
+
 export interface SweepRow {
   label: string;
   ok: boolean;
@@ -102,6 +125,7 @@ export async function sweepOne(page: Page, clipId: string, label: string): Promi
       await settle(page, 100);
     }
     await settle(page, 1200);
+    const extraSteps = await makeAddedEffectNonNeutral(page, clipId);
     const after = await readState(page);
     if (after.historyLength <= pre.historyLength) {
       throw new Error(
@@ -115,7 +139,7 @@ export async function sweepOne(page: Page, clipId: string, label: string): Promi
     await snapStable(page, "after");
     const changed = await diffSnaps(page, "before", "after");
     const small = await smallOf(page, "after");
-    await undo(page);
+    for (let i = 0; i <= extraSteps; i++) await undo(page);
     await settle(page, 600);
     await expect.poll(async () => clipsOf(await readState(page), "Main")[0]?.effects, { timeout: 15_000 }).toBe(0).catch(() => undefined);
     await snapStable(page, "undone");
@@ -125,7 +149,7 @@ export async function sweepOne(page: Page, clipId: string, label: string): Promi
       throw new Error(`"${label}" (frame ${frame}s): Main track has no clip after undo (history ${pre.historyLength} -> ${after.historyLength})`);
     }
     const restored = afterUndo[0].effects;
-    const historyDelta = after.historyLength - pre.historyLength;
+    const historyDelta = after.historyLength - pre.historyLength - extraSteps;
     const ok = historyDelta === 1 && changed.changed > 0 && residual.changed === 0 && restored === 0;
     row = {
       label,

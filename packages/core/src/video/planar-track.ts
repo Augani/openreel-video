@@ -1,7 +1,7 @@
 import { grayscale, type TrackingPixels } from "./motion-frame-tracker";
 import {
   applyHomography, invertHomography, isConvexQuad, pointInQuad, quadArea, ransacHomography, transformQuad,
-  type Pt, type Quad,
+  type Homography, type Pt, type Quad,
 } from "./planar-homography";
 
 /**
@@ -151,6 +151,67 @@ export function lucasKanade(prev: Level[], cur: Level[], point: Pt, guess: Pt = 
   return Number.isFinite(out.x) && Number.isFinite(out.y) ? { p: out, err } : null;
 }
 
+/* ------------------- reference-frame (anchor) refinement ------------------ */
+
+const REF_HALF = 8;
+const REF_SIDE = REF_HALF * 2 + 1;
+
+function sampleGray(d: Float32Array, w: number, x: number, y: number): number {
+  const x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0, i = y0 * w + x0;
+  return (d[i] * (1 - fx) + d[i + 1] * fx) * (1 - fy) + (d[i + w] * (1 - fx) + d[i + w + 1] * fx) * fy;
+}
+
+/**
+ * Align the anchor-frame patch around `anchorPoint` directly to the current frame, starting at `guess`. The patch is
+ * warped by the local Jacobian of the current homography, so rotation, zoom and perspective do not bias it, and both
+ * patches are mean-subtracted so a brightness change does not either. Because every point is matched against the
+ * ANCHOR, not the previous frame, the result carries no accumulated drift. Null when the patch leaves the image or is
+ * too flat; `err` is the mean absolute residual.
+ */
+export function refineToReference(
+  ref: { d: Float32Array; w: number; h: number }, cur: { d: Float32Array; w: number; h: number },
+  anchorPoint: Pt, guess: Pt, jacobian: readonly [number, number, number, number],
+): { p: Pt; err: number } | null {
+  const m = REF_HALF + 2;
+  if (anchorPoint.x < m || anchorPoint.y < m || anchorPoint.x > ref.w - m - 1 || anchorPoint.y > ref.h - m - 1) return null;
+  const tpl = new Float32Array(REF_SIDE * REF_SIDE);
+  let tm = 0, k = 0;
+  for (let y = -REF_HALF; y <= REF_HALF; y++) for (let x = -REF_HALF; x <= REF_HALF; x++, k++) { tpl[k] = sampleGray(ref.d, ref.w, anchorPoint.x + x, anchorPoint.y + y); tm += tpl[k]; }
+  tm /= tpl.length;
+  let px = guess.x, py = guess.y, err = 0;
+  const [j0, j1, j2, j3] = jacobian, cv = new Float32Array(tpl.length), gx = new Float32Array(tpl.length), gy = new Float32Array(tpl.length);
+  for (let it = 0; it < 12; it++) {
+    const reach = (REF_HALF + 1) * (Math.abs(j0) + Math.abs(j1) + Math.abs(j2) + Math.abs(j3)) + 3;
+    if (px < reach || py < reach || px > cur.w - reach - 1 || py > cur.h - reach - 1) return null;
+    let cm = 0; k = 0;
+    for (let y = -REF_HALF; y <= REF_HALF; y++) for (let x = -REF_HALF; x <= REF_HALF; x++, k++) {
+      const sx = px + j0 * x + j1 * y, sy = py + j2 * x + j3 * y;
+      cv[k] = sampleGray(cur.d, cur.w, sx, sy); cm += cv[k];
+      gx[k] = (sampleGray(cur.d, cur.w, sx + 1, sy) - sampleGray(cur.d, cur.w, sx - 1, sy)) * 0.5;
+      gy[k] = (sampleGray(cur.d, cur.w, sx, sy + 1) - sampleGray(cur.d, cur.w, sx, sy - 1)) * 0.5;
+    }
+    cm /= cv.length;
+    let sxx = 0, sxy = 0, syy = 0, bx = 0, by = 0, e = 0;
+    for (k = 0; k < tpl.length; k++) {
+      const diff = (tpl[k] - tm) - (cv[k] - cm);
+      sxx += gx[k] * gx[k]; sxy += gx[k] * gy[k]; syy += gy[k] * gy[k]; bx += diff * gx[k]; by += diff * gy[k]; e += Math.abs(diff);
+    }
+    err = e / tpl.length;
+    const det = sxx * syy - sxy * sxy;
+    if (det < 1e-3 * tpl.length) return null;
+    const ux = (syy * bx - sxy * by) / det, uy = (sxx * by - sxy * bx) / det;
+    px += ux; py += uy;
+    if (Math.hypot(px - guess.x, py - guess.y) > 6) return null;
+    if (ux * ux + uy * uy < 1e-5) break;
+  }
+  return Number.isFinite(px) && Number.isFinite(py) ? { p: { x: px, y: py }, err } : null;
+}
+
+function jacobianAt(h: Homography, a: Pt): [number, number, number, number] {
+  const w = h[6] * a.x + h[7] * a.y + h[8], x = (h[0] * a.x + h[1] * a.y + h[2]) / w, y = (h[3] * a.x + h[4] * a.y + h[5]) / w;
+  return [(h[0] - x * h[6]) / w, (h[1] - x * h[7]) / w, (h[3] - y * h[6]) / w, (h[4] - y * h[7]) / w];
+}
+
 /* --------------------------------- session -------------------------------- */
 
 interface Track { a: Pt; p: Pt }
@@ -165,6 +226,7 @@ export class PlanarTrackSession {
   private readonly seed: number;
   private anchor: Quad | null = null;
   private prev: Level[] | null = null;
+  private reference: { d: Float32Array; w: number; h: number } | null = null;
   private tracks: Track[] = [];
   private last: Quad | null = null;
   private frames = 0;
@@ -191,7 +253,7 @@ export class PlanarTrackSession {
       if (!isConvexQuad(quad) || Math.abs(quadArea(quad)) < 400) throw new Error("Place the four corners around a visible surface");
       const points = detectFeatures(gray, frame.width, frame.height, quad);
       if (points.length < MIN_POINTS) throw new Error("The surface has too little detail to track; choose a textured area");
-      this.anchor = quad; this.last = quad; this.prev = pyramid;
+      this.anchor = quad; this.last = quad; this.prev = pyramid; this.reference = { d: gray, w: frame.width, h: frame.height };
       this.tracks = points.map(p => ({ a: p, p }));
       return emit(quad, 1, points.length, "tracked");
     }
@@ -208,26 +270,41 @@ export class PlanarTrackSession {
     const fit = next.length >= MIN_POINTS
       ? ransacHomography(next.map(t => ({ from: t.a, to: t.p })), { threshold: RANSAC_THRESHOLD, iterations: 150, seed: this.seed + this.frames, minInliers: MIN_POINTS })
       : null;
-    const quad = fit ? transformQuad(fit.homography, anchor) : null;
-    const prevArea = Math.abs(quadArea(this.last!)), area = quad ? Math.abs(quadArea(quad)) : 0;
-    if (!fit || !quad || !isConvexQuad(quad) || area < prevArea * 0.5 || area > prevArea * 2) {
+    const quad0 = fit ? transformQuad(fit.homography, anchor) : null;
+    const prevArea = Math.abs(quadArea(this.last!)), area = quad0 ? Math.abs(quadArea(quad0)) : 0;
+    if (!fit || !quad0 || !isConvexQuad(quad0) || area < prevArea * 0.5 || area > prevArea * 2) {
       // Surface not found: hold the last good corners, keep the last good frame and points to recover from.
       return emit(this.last!, 0, fit?.inlierCount ?? 0, "predicted");
     }
-    const kept = next.filter((_, i) => fit.inliers[i]);
+    let kept = next.filter((_, i) => fit.inliers[i]);
+    let model = fit, quad = quad0;
+    // Drift control: re-match every surviving point against the ANCHOR frame and refit, so error cannot accumulate.
+    const ref = this.reference!, cur = { d: gray, w: frame.width, h: frame.height };
+    const direct: Track[] = [];
+    for (const t of kept) {
+      const got = refineToReference(ref, cur, t.a, applyHomography(fit.homography, t.a), jacobianAt(fit.homography, t.a));
+      if (got && got.err < MAX_ERR) direct.push({ a: t.a, p: got.p });
+    }
+    if (direct.length >= MIN_POINTS) {
+      const refit = ransacHomography(direct.map(t => ({ from: t.a, to: t.p })), { threshold: 1, iterations: 120, seed: this.seed + this.frames, minInliers: MIN_POINTS });
+      const refitQuad = refit ? transformQuad(refit.homography, anchor) : null;
+      if (refit && refitQuad && isConvexQuad(refitQuad) && refit.inlierCount >= Math.min(MIN_POINTS, Math.round(kept.length * 0.5))) {
+        model = refit; quad = refitQuad; kept = direct.filter((_, i) => refit.inliers[i]);
+      }
+    }
     const ratio = fit.inlierCount / next.length;
-    let confidence = Math.min(1, ratio) * Math.min(1, fit.inlierCount / 15) * (1 - Math.min(0.5, fit.rmsError / RANSAC_THRESHOLD * 0.25));
+    let confidence = Math.min(1, ratio) * Math.min(1, model.inlierCount / 15) * (1 - Math.min(0.5, model.rmsError / RANSAC_THRESHOLD * 0.25));
     confidence = Math.max(0, Math.min(1, confidence));
     this.last = quad;
     if (kept.length < TARGET_POINTS * 0.6) {
-      const inverse = invertHomography(fit.homography);
+      const inverse = invertHomography(model.homography);
       if (inverse) {
         const fresh = detectFeatures(gray, frame.width, frame.height, quad, { maxPoints: TARGET_POINTS - kept.length, avoid: kept.map(t => t.p) });
         for (const p of fresh) kept.push({ a: applyHomography(inverse, p), p });
       }
     }
     this.tracks = kept; this.prev = pyramid;
-    return emit(quad, confidence, fit.inlierCount, "tracked");
+    return emit(quad, confidence, model.inlierCount, "tracked");
   }
 }
 

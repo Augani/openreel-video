@@ -10,7 +10,10 @@ import {
   PRO_EFFECT_DEFAULTS,
   PRO_EFFECT_TYPES,
   isProEffectNeutral,
+  proEffectActingParams,
 } from "./pro-effects";
+import { VR_PRO_EFFECT_TYPES } from "./vr-effects";
+import { VR_IMAGE_EFFECT_TYPES } from "./vr-image-effects";
 
 /** The value each legacy param takes when it is missing: the engine reads
  * these (video-effects-engine readEffectNumber fallbacks) and every one of
@@ -72,7 +75,9 @@ describe("legacy effect defaults", () => {
   it("routes pro effects to their authored defaults", () => {
     for (const type of PRO_EFFECT_TYPES) {
       expect(getDefaultEffectParams(type)).toEqual({ ...PRO_EFFECT_DEFAULTS[type] });
-      expect(isProEffectNeutral(type, withEffectDefaults(type)!)).toBe(false);
+      // A default set is not neutral, except for the effects authored to be added neutral (the VR ones).
+      expect(isProEffectNeutral(type, withEffectDefaults(type)!)).toBe(VR_PRO_EFFECT_TYPES.includes(type as never) || VR_IMAGE_EFFECT_TYPES.includes(type as never));
+      expect(isProEffectNeutral(type, proEffectActingParams(type))).toBe(false);
     }
   });
 

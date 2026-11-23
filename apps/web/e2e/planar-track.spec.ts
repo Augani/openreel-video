@@ -47,18 +47,31 @@ function renderFrames(): Buffer {
   return out;
 }
 
+let cached: { surface: string; red: string } | null = null;
 function fixtures(): { surface: string; red: string } {
+  if (cached) return cached;
   const dir = mkdtempSync(join(tmpdir(), "openreel-planar-"));
   const surface = join(dir, "planar.mp4"), red = join(dir, "red.mp4");
   execFileSync(E2E_FFMPEG, ["-y", "-f", "rawvideo", "-pix_fmt", "gray", "-s", "640x360", "-r", "30", "-i", "-", "-c:v", "libx264", "-crf", "12", "-g", "15", "-pix_fmt", "yuv420p", "-frames:v", String(FRAMES), surface], { input: renderFrames(), stdio: ["pipe", "ignore", "ignore"], maxBuffer: 64 * 1024 * 1024 });
   execFileSync(E2E_FFMPEG, ["-y", "-f", "lavfi", "-i", "color=c=red:s=640x360:r=30:d=1.5", "-c:v", "libx264", "-crf", "12", "-pix_fmt", "yuv420p", "-frames:v", String(FRAMES), red], { stdio: "ignore" });
-  return { surface, red };
+  return (cached = { surface, red });
 }
 
-/** Fraction of the quad interior that is red, and red pixels outside it as a fraction of the quad area, in one exported frame. */
-function redCoverage(file: string, frame: number): { inside: number; outside: number } {
-  const w = 640, h = 360, q = quadAt(frame);
-  const buf = execFileSync(E2E_FFMPEG, ["-v", "error", "-ss", String((frame + 0.5) / FPS), "-i", file, "-frames:v", "1", "-vf", `scale=${w}:${h}`, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], { maxBuffer: 64 * 1024 * 1024 });
+const SHOT = { w: 640, h: 360 };
+/** Decode an image or one video frame to raw rgb24 at the 640x360 composition size. */
+function decodeRgb(input: { file: string; frame?: number } | { png: Buffer }): Buffer {
+  const scale = ["-frames:v", "1", "-vf", `scale=${SHOT.w}:${SHOT.h}`, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"];
+  if ("png" in input) return execFileSync(E2E_FFMPEG, ["-v", "error", "-i", "-", ...scale], { input: input.png, maxBuffer: 64 * 1024 * 1024 });
+  return execFileSync(E2E_FFMPEG, ["-v", "error", "-ss", String(((input.frame ?? 0) + 0.5) / FPS), "-i", input.file, ...scale], { maxBuffer: 64 * 1024 * 1024 });
+}
+
+const isRed = (b: Buffer, o: number): boolean => b[o] > 190 && b[o + 1] < 90 && b[o + 2] < 90;
+/** Anything that is not black: the footage inside a mask (the textured plane is never darker than 35). */
+const isLit = (b: Buffer, o: number): boolean => b[o] + b[o + 1] + b[o + 2] > 60;
+
+/** Coverage of the TRUE quad of `frame` by pixels that satisfy `match`: the fraction of the quad interior covered, and matches outside as a fraction of the quad area. */
+function quadCoverage(buf: Buffer, frame: number, match: (b: Buffer, o: number) => boolean): { inside: number; outside: number; centroid: { x: number; y: number }; area: number } {
+  const { w, h } = SHOT, q = quadAt(frame);
   const inQuad = (x: number, y: number, margin: number): boolean => {
     let sign = 0;
     for (let i = 0; i < 4; i++) {
@@ -70,13 +83,22 @@ function redCoverage(file: string, frame: number): { inside: number; outside: nu
     }
     return true;
   };
-  let insideRed = 0, insideTotal = 0, outsideRed = 0;
+  let insideHit = 0, insideTotal = 0, outsideHit = 0, count = 0, sx = 0, sy = 0;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const o = (y * w + x) * 3, red = buf[o] > 190 && buf[o + 1] < 90 && buf[o + 2] < 90;
-    if (inQuad(x, y, 4)) { insideTotal++; if (red) insideRed++; }
-    else if (red && !inQuad(x, y, -4)) outsideRed++;
+    const hit = match(buf, (y * w + x) * 3);
+    if (hit) { count++; sx += x; sy += y; }
+    if (inQuad(x, y, 4)) { insideTotal++; if (hit) insideHit++; }
+    else if (hit && !inQuad(x, y, -4)) outsideHit++;
   }
-  return { inside: insideRed / Math.max(1, insideTotal), outside: outsideRed / Math.max(1, insideTotal) };
+  return { inside: insideHit / Math.max(1, insideTotal), outside: outsideHit / Math.max(1, insideTotal), centroid: { x: sx / Math.max(1, count), y: sy / Math.max(1, count) }, area: count };
+}
+const redCoverage = (file: string, frame: number) => quadCoverage(decodeRgb({ file, frame }), frame, isRed);
+
+/** The Program monitor as pixels, with the editing overlays hidden. */
+async function previewRgb(page: Page): Promise<Buffer> {
+  await page.addStyleTag({ content: '[data-testid="planar-track-overlay"],[data-testid="corner-pin-overlay"]{display:none!important}' });
+  const canvas = page.locator('canvas[role="img"][aria-label^="Program"]').first();
+  return decodeRgb({ png: await canvas.screenshot() });
 }
 
 async function setCorners(page: Page, corners: Array<{ x: number; y: number }>): Promise<void> {
@@ -191,6 +213,19 @@ test.describe("planar tracking", () => {
     expect(pinned.effects).toContain("corner-pin");
     expect(pinned.keys).toBeGreaterThanOrEqual(8);
 
+    // Preview: the Program monitor shows the red graphic on the true surface.
+    const previewLines: string[] = [];
+    for (const frame of [2, 22, 42]) {
+      await seekFrame(page, frame);
+      await settle(page, 900);
+      const shot = quadCoverage(await previewRgb(page), frame, isRed);
+      previewLines.push(`${frame}: in ${(shot.inside * 100).toFixed(1)}% out ${(shot.outside * 100).toFixed(1)}%`);
+      expect(shot.inside, `red covers the true surface in preview frame ${frame}`).toBeGreaterThanOrEqual(0.9);
+      expect(shot.outside, `no red outside the true surface in preview frame ${frame}`).toBeLessThanOrEqual(0.06);
+    }
+    console.log(`[planar-track] preview red coverage ${previewLines.join(" | ")}`);
+    await seekFrame(page, 0);
+
     // Export and compare the red pixels with the true quad.
     const file = testInfo.outputPath("planar-pinned.mp4");
     await exportTo(page, file);
@@ -212,6 +247,175 @@ test.describe("planar tracking", () => {
       return { effects: c.effects.length, keys: c.keyframes.length };
     }, redClipId);
     expect(gone).toEqual({ effects: 0, keys: 0 });
+  });
+
+  async function addRedClip(page: Page): Promise<string> {
+    const { red } = fixtures();
+    await importInput(page).setInputFiles(red);
+    await page.getByLabel("Select media red.mp4").waitFor({ timeout: 30_000 });
+    const id = await page.evaluate(async () => {
+      const store = (window as unknown as { __openreelE2E: Hook }).__openreelE2E.project.getState();
+      const media = store.project.mediaLibrary.items.find((m: any) => m.name === "red.mp4");
+      await store.addClipToNewTrack(media.id, 0);
+      const added = (window as unknown as { __openreelE2E: Hook }).__openreelE2E.project.getState().project.timeline.tracks.at(-1);
+      await store.reorderTrack(added.id, 0);
+      return added.clips[0].id as string;
+    });
+    await settle(page);
+    return id;
+  }
+
+  async function trackSurface(page: Page, clipId: string): Promise<void> {
+    await openPlanarSection(page, clipId);
+    await setCorners(page, quadAt(0));
+    await page.getByRole("button", { name: /Start Tracking/ }).last().click();
+    await expect(page.getByTestId("planar-track-complete")).toBeVisible({ timeout: 180_000 });
+  }
+
+  async function chooseApply(page: Page, mode: "Corner Pin" | "Mask" | "Transform", target: RegExp): Promise<void> {
+    await page.getByLabel("Apply track as").getByText(mode, { exact: true }).click({ timeout: 15_000 });
+    const select = page.getByRole("combobox", { name: "Corner pin target" });
+    await select.scrollIntoViewIfNeeded();
+    await select.click();
+    await page.getByRole("option", { name: target }).first().click();
+  }
+
+  test("a mask follows the surface: only the tracked plane survives in the export", async ({ page }, testInfo) => {
+    const { surface } = fixtures();
+    await openEditorWith(page, surface, "planar.mp4");
+    const [clip] = clipsOf(await readState(page), "Main");
+    await trackSurface(page, clip.id);
+    const historyBefore = (await readState(page)).historyLength;
+    await chooseApply(page, "Mask", /This clip/);
+    await page.getByRole("button", { name: "Mask Follows Surface" }).click();
+    await expect(page.getByRole("button", { name: "Update" })).toBeVisible({ timeout: 15_000 });
+    expect((await readState(page)).historyLength, "applying the mask is one undo step").toBe(historyBefore + 1);
+    const mask = await page.evaluate((id) => {
+      const masks = (window as unknown as { __openreelE2E: Hook }).__openreelE2E.project.getState().project.masks ?? [];
+      const m = masks.find((x: any) => x.clipId === id);
+      return m ? { points: m.path.points.length, keys: m.keyframes.length } : null;
+    }, clip.id);
+    expect(mask?.points).toBe(4);
+    expect(mask!.keys, "one path keyframe per tracked frame, plus the clip edge").toBeGreaterThanOrEqual(FRAMES);
+    expect(mask!.keys).toBeLessThanOrEqual(FRAMES + 2);
+
+    // Preview: footage inside the true quad, nothing but the transparent canvas outside it.
+    await seekFrame(page, 22);
+    await settle(page, 900);
+    const shot = quadCoverage(await previewRgb(page), 22, isLit);
+    console.log(`[planar-track] mask preview frame 22: in ${(shot.inside * 100).toFixed(1)}% out ${(shot.outside * 100).toFixed(1)}%`);
+    expect(shot.inside).toBeGreaterThanOrEqual(0.9);
+    expect(shot.outside).toBeLessThanOrEqual(0.06);
+
+    const file = testInfo.outputPath("planar-masked.mp4");
+    await exportTo(page, file);
+    const lines: string[] = [];
+    for (const frame of [2, 22, 42]) {
+      const { inside, outside } = quadCoverage(decodeRgb({ file, frame }), frame, isLit);
+      lines.push(`${frame}: in ${(inside * 100).toFixed(1)}% out ${(outside * 100).toFixed(1)}%`);
+      expect(inside, `footage survives inside the true surface in exported frame ${frame}`).toBeGreaterThanOrEqual(0.9);
+      expect(outside, `background is masked away outside the surface in exported frame ${frame}`).toBeLessThanOrEqual(0.06);
+    }
+    console.log(`[planar-track] mask export ${lines.join(" | ")}`);
+    await undo(page);
+    expect(await page.evaluate(() => ((window as unknown as { __openreelE2E: Hook }).__openreelE2E.project.getState().project.masks ?? []).length)).toBe(0);
+  });
+
+  test("a clip fitted to the surface as a screen replacement follows it in preview and export", async ({ page }, testInfo) => {
+    const { surface } = fixtures();
+    await openEditorWith(page, surface, "planar.mp4");
+    const [clip] = clipsOf(await readState(page), "Main");
+    await addRedClip(page);
+    await trackSurface(page, clip.id);
+    await chooseApply(page, "Transform", /red\.mp4/);
+    await page.getByRole("button", { name: "Fit Clip to Surface" }).click();
+    await expect(page.getByRole("button", { name: "Update" })).toBeVisible({ timeout: 15_000 });
+    const quadArea = (n: number): number => { const q = quadAt(n); let a = 0; for (let i = 0; i < 4; i++) { const p = q[i], r = q[(i + 1) % 4]; a += p.x * r.y - r.x * p.y; } return Math.abs(a) / 2; };
+    const check = (label: string, rgb: Buffer, frame: number) => {
+      const shot = quadCoverage(rgb, frame, isRed), q = quadAt(frame);
+      const cx = q.reduce((a, p) => a + p.x, 0) / 4, cy = q.reduce((a, p) => a + p.y, 0) / 4;
+      const centroidError = Math.hypot(shot.centroid.x - cx, shot.centroid.y - cy), areaRatio = shot.area / quadArea(frame);
+      console.log(`[planar-track] transform ${label} frame ${frame}: centroid error ${centroidError.toFixed(2)} px, area ratio ${areaRatio.toFixed(3)}, in ${(shot.inside * 100).toFixed(1)}%`);
+      expect(centroidError, `${label} frame ${frame}: the fitted clip is centred on the surface`).toBeLessThanOrEqual(4);
+      expect(areaRatio, `${label} frame ${frame}: the fitted clip has the surface's area`).toBeGreaterThan(0.9);
+      expect(areaRatio).toBeLessThan(1.1);
+      expect(shot.inside, `${label} frame ${frame}: the surface interior is covered`).toBeGreaterThanOrEqual(0.9);
+    };
+    for (const frame of [2, 22, 42]) { await seekFrame(page, frame); await settle(page, 900); check("preview", await previewRgb(page), frame); }
+    const file = testInfo.outputPath("planar-fitted.mp4");
+    await exportTo(page, file);
+    for (const frame of [2, 22, 42]) check("export", decodeRgb({ file, frame }), frame);
+  });
+
+  test("Corner Pin corners drag on the Program monitor: static and keyframed, each one undo step", async ({ page }) => {
+    const { red } = fixtures();
+    await openEditorWith(page, red, "red.mp4");
+    const [clip] = clipsOf(await readState(page), "Main");
+    const effectId = await page.evaluate(async (id) => {
+      const store = (window as unknown as { __openreelE2E: Hook }).__openreelE2E.project.getState();
+      await store.addVideoEffect(id, "corner-pin");
+      const c = (window as unknown as { __openreelE2E: Hook }).__openreelE2E.project.getState().project.timeline.tracks.flatMap((t: any) => t.clips).find((x: any) => x.id === id);
+      return c.effects.find((e: any) => e.type === "corner-pin").id as string;
+    }, clip.id);
+    for (let attempt = 0; attempt < 4; attempt++) {
+      await clickClip(page, clip.id);
+      await settle(page, 400);
+      if ((await readState(page)).selected.some((item) => item.id === clip.id)) break;
+    }
+    const toggle = page.getByRole("button", { name: "Edit corners on the Program monitor" });
+    const section = page.getByRole("button", { name: /Expand Effects · \d+ section/ });
+    if (await section.count()) await section.click();
+    const videoEffects = page.getByRole("button", { name: "Expand Video Effects section" });
+    if (await videoEffects.count()) { await videoEffects.scrollIntoViewIfNeeded(); await videoEffects.click(); }
+    if (!(await toggle.isVisible().catch(() => false))) await page.getByRole("button", { name: /^Corner Pin$/ }).first().click({ timeout: 10_000 });
+    await toggle.scrollIntoViewIfNeeded({ timeout: 15_000 });
+    await toggle.click();
+    await expect(page.getByTestId("corner-pin-overlay")).toBeVisible();
+    const params = () => page.evaluate(([id, fx]) => {
+      const c = (window as unknown as { __openreelE2E: Hook }).__openreelE2E.project.getState().project.timeline.tracks.flatMap((t: any) => t.clips).find((x: any) => x.id === id);
+      const e = c.effects.find((x: any) => x.id === fx);
+      return { params: { ...e.params } as Record<string, number>, keys: c.keyframes.filter((k: any) => k.property.startsWith(`fx:${fx}:`)).length };
+    }, [clip.id, effectId] as const);
+
+    const handle = page.getByTestId("corner-pin-handle-2"), frameBox = (await page.getByTestId("corner-pin-overlay").boundingBox())!;
+    const before = await params();
+    const history = (await readState(page)).historyLength;
+    const dragTo = async (xPct: number, yPct: number) => {
+      const box = (await handle.boundingBox())!;
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(frameBox.x + frameBox.width * xPct / 100, frameBox.y + frameBox.height * yPct / 100, { steps: 6 });
+      await page.mouse.up();
+      await settle(page, 400);
+    };
+    await dragTo(60, 70);
+    const moved = await params();
+    expect(moved.params.x2).toBeCloseTo(60, 0);
+    expect(moved.params.y2).toBeCloseTo(70, 0);
+    expect(moved.params.x0).toBe(before.params.x0);
+    expect(moved.keys, "a static corner is not keyframed").toBe(0);
+    expect((await readState(page)).historyLength, "one drag is one undo step").toBe(history + 1);
+    await undo(page);
+    expect((await params()).params.x2).toBeCloseTo(before.params.x2, 3);
+    await redo(page);
+    expect((await params()).params.x2).toBeCloseTo(60, 0);
+
+    // Keyframe the corner at t=0, then drag at 1 s: the corner animates instead of being overwritten.
+    await page.evaluate(([id, fx]) => {
+      const e = (window as unknown as { __openreelE2E: Hook }).__openreelE2E;
+      const clipNow = e.project.getState().project.timeline.tracks.flatMap((t: any) => t.clips).find((x: any) => x.id === id);
+      const key = (param: string, time: number, value: number) => ({ id: `kf-${param}-${time}`, property: `fx:${fx}:${param}`, time, value, easing: "linear" });
+      e.project.getState().updateClipKeyframes(id, [...clipNow.keyframes, key("x2", 0, 60), key("y2", 0, 70)]);
+    }, [clip.id, effectId] as const);
+    await seek(page, 1);
+    await dragTo(80, 85);
+    const animated = await params();
+    expect(animated.keys, "x2 and y2 each have a keyframe at 0 s and at 1 s").toBe(4);
+    expect(animated.params.x2, "the stored value is untouched when the corner is keyframed").toBeCloseTo(60, 0);
+    await seek(page, 0);
+    await expect(page.getByTestId("corner-pin-handle-2")).toHaveAttribute("aria-label", /at 60\.0%, 70\.0%/);
+    await seek(page, 1);
+    await expect(page.getByTestId("corner-pin-handle-2")).toHaveAttribute("aria-label", /at 80\.0%, 85\.0%/);
   });
 
   test("cancel stops tracking and saves nothing", async ({ page }) => {

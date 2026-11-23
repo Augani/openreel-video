@@ -17,7 +17,10 @@ installRawWorker();
 startRawThumbnailSync();
 
 if (import.meta.env.VITE_OPENREEL_E2E === "1") {
-  void import("./e2e-hook").then((module) => module.installE2EHook());
+  void import("./e2e-hook").then(async (module) => {
+    await module.prepareE2EHook();
+    module.installE2EHook();
+  });
 }
 
 const isDesktop =
@@ -47,6 +50,9 @@ const desktopNativeReady: Promise<void> = !isDesktop
   .catch((error: unknown) => {
     console.error("[openreel] desktop native decode / export backend failed to load", error);
   });
+
+// Hosted audio plugins (desktop): report plugins a project uses that this computer lacks, whenever a project opens.
+if (isDesktop) void import("./services/native-plugin-report").then((report) => report.startNativePluginReport());
 
 // The editor chunk (1.6 MB) and engine init are warmed by DesktopApp's idle callback
 // once the welcome screen is mounted. Queueing them here instead made the editor

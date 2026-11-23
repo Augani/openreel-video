@@ -34,7 +34,7 @@ vi.mock("./KeyframeEditorPanel", () => ({ KeyframeEditorPanel: ({ onClose, onUpd
 </div> }));
 vi.mock("../audio-mixer", () => ({ AudioMixer: ({ onClose }: { onClose: () => void }) => <button onClick={onClose}>Close mixer</button> }));
 vi.mock("./KeyboardShortcutsOverlay", () => ({ KeyboardShortcutsOverlay: () => null }));
-vi.mock("./tour", () => ({ SpotlightTour: () => null, MoGraphTour: () => null }));
+vi.mock("./tour/TourHost", () => ({ default: () => null }));
 
 const mediaListeners = new Set<() => void>();
 let coarsePointer = true;

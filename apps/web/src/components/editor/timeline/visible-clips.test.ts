@@ -42,3 +42,19 @@ describe("getVisibleClips", () => {
     expect(isTimelineClipPinned("x")).toBe(false);
   });
 });
+
+describe("getVisibleClips selection pinning", () => {
+  const many = Array.from({ length: 200 }, (_, i) => ({ id: `c${i}`, startTime: i, duration: 1 }) as Clip);
+
+  it("keeps a handful of off-screen selected clips mounted", () => {
+    const ids = ["c150", "c199"];
+    const visible = getVisibleClips(many, 0, 1000, 100, ids).map((c) => c.id);
+    expect(visible).toContain("c150");
+    expect(visible).toContain("c199");
+  });
+
+  it("does not mount a select-all's off-screen clips", () => {
+    const visible = getVisibleClips(many, 0, 1000, 100, many.map((c) => c.id));
+    expect(visible.length).toBeLessThan(30);
+  });
+});

@@ -87,3 +87,51 @@ test("tracked work shows progress, can be cancelled and a failure can be retried
   await panel.getByRole("button", { name: "Clear finished tasks" }).click();
   await expect(panel.getByTestId("background-task-row")).toHaveCount(0);
 });
+
+test("the panel is keyboard operable and its list loads only when opened", async ({ page }) => {
+  const listChunks: string[] = [];
+  page.on("request", (request) => {
+    if (/BackgroundTasksList/.test(request.url())) listChunks.push(request.url());
+  });
+  await openEditor(page);
+  await page.evaluate(() => {
+    const h = (window as unknown as { __openreelE2E: Hook }).__openreelE2E;
+    void h.backgroundTasks
+      .track({ id: "e2e:plugin", kind: "render", source: "plugin-render", title: "Audio plugin render" }, (ctx) => {
+        ctx.progress(0.25, "Rendering through the plugin");
+        return new Promise((_, reject) => ctx.signal.addEventListener("abort", () => reject(new DOMException("a", "AbortError"))));
+      })
+      .catch(() => undefined);
+    void h.backgroundTasks
+      .track({ id: "e2e:diarize", kind: "analysis", source: "diarization", title: "Speaker detection", retry: () => undefined }, async () => {
+        throw new Error("No speech was clear enough");
+      })
+      .catch(() => undefined);
+  });
+
+  // Closed: the badge counts the running job and the list chunk has not been requested (dev server serves modules by name).
+  await expect(page.getByTestId("background-tasks-badge")).toHaveAttribute("data-count", "1");
+  expect(listChunks).toHaveLength(0);
+
+  await page.getByTestId("background-tasks-button").focus();
+  await page.keyboard.press("Enter");
+  const panel = page.getByTestId("background-tasks-panel");
+  await expect(panel).toBeVisible();
+  await expect(panel.locator('[data-task-id="e2e:plugin"]')).toBeVisible();
+  await expect(panel.locator('[data-task-id="e2e:plugin"]').getByRole("progressbar")).toHaveAttribute("aria-valuenow", "25");
+  const failed = panel.locator('[data-task-id="e2e:diarize"]');
+  await expect(failed).toContainText("No speech was clear enough");
+
+  // Tab reaches the Cancel button of the running row and Enter activates it.
+  const cancel = panel.getByRole("button", { name: "Cancel Audio plugin render" });
+  await cancel.focus();
+  await expect(cancel).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(panel.locator('[data-task-id="e2e:plugin"]')).toHaveAttribute("data-status", "cancelled");
+  await expect(failed.getByRole("button", { name: "Retry Speaker detection" })).toBeVisible();
+
+  // Escape closes the panel and returns focus to the status-bar button.
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
+  await expect(page.getByTestId("background-tasks-button")).toBeFocused();
+});

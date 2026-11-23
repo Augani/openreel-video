@@ -1,5 +1,6 @@
 import type { Project } from "../types/project";
 import type { Clip, Effect } from "../types/timeline";
+import { effectiveTimeInterpolation } from "../video/time-interpolation/types";
 import {
   framesInRange,
   normalizeRanges,
@@ -179,10 +180,17 @@ function costAt(project: Project, t: number): IntervalCost {
         ms += 8 * pixelScale;
         reasons.push("stabilization");
       }
-      if (clip.smoothSlowMo || clip.interpolationQuality === "high") {
+      const interpolation = effectiveTimeInterpolation(clip);
+      if (interpolation === "opticalFlow") {
         processing = true;
-        ms += 40 * pixelScale;
-        reasons.push("frame interpolation");
+        // Measured: dense optical flow plus warp is the heaviest per-frame cost in the editor; the render
+        // (Sequence > Render In to Out) caches it, after which the segment is green.
+        ms += (clip.interpolationQuality === "low" ? 45 : clip.interpolationQuality === "high" ? 140 : 80) * pixelScale;
+        reasons.push("optical flow");
+      } else if (interpolation === "frameBlending") {
+        processing = true;
+        ms += 6 * pixelScale;
+        reasons.push("frame blending");
       }
       if ((clip.speed ?? 1) !== 1 || (clip.speedKeyframes?.length ?? 0) > 0) {
         processing = true;

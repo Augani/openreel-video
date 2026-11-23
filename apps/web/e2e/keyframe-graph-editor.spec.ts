@@ -186,7 +186,7 @@ test.describe("Premiere-parity: keyframe graph editor", () => {
     expect((await key("o1")).interpolationOut).toBe("continuous-bezier");
   });
 
-  test("dragging a handle on an Auto Bezier key keeps the drag and converts that side to Bezier", async ({ page }) => {
+  test("dragging a handle on an Auto Bezier key keeps the drag and turns the key Continuous Bezier", async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 1300 });
     const { first, panel } = await setup(page);
     await panel.getByRole("combobox", { name: "Property" }).click();
@@ -216,7 +216,8 @@ test.describe("Premiere-parity: keyframe graph editor", () => {
     await expect.poll(async () => (await keyframesOf(page, first.id)).find((k) => k.id === "o1")?.bezierHandles?.in.y ?? 0).toBeGreaterThan(0.5);
     const o1 = (await keyframesOf(page, first.id)).find((k) => k.id === "o1")!;
     const o2 = (await keyframesOf(page, first.id)).find((k) => k.id === "o2")!;
-    expect(o1.interpolationOut).toBeUndefined();
+    expect(o1.interpolationOut).toBe("continuous-bezier");
+    expect(o1.interpolationIn).toBe("continuous-bezier");
     expect(o2.interpolationIn).toBe("auto-bezier");
     // The other end of the shared segment keeps its own Auto handle (flat).
     expect(o1.bezierHandles.out.y).toBeCloseTo(1, 6);

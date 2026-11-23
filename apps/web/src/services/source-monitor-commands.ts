@@ -5,6 +5,7 @@ import {
   planReplaceEdit,
   planSourceEdit,
   sourceDropError,
+  type AudioChannelPlacement,
   type MediaItem,
   type ReplaceAlignment,
   type ResolvedFitToFill,
@@ -18,10 +19,12 @@ import { useTimelineStore } from "../stores/timeline-store";
 import { useSourceMonitorStore } from "../stores/source-monitor-store";
 import {
   commit,
+  findMultichannelSourceTracks,
   findSourceTracks,
   getMarkedRange,
   getTargetedTrackIds,
   type CommandOutcome,
+  type MultichannelSourceTracks,
 } from "./premiere-edit-commands";
 
 /**
@@ -110,6 +113,12 @@ export function editFromSource(
   const media = getSourceMedia();
   if (!media) return fail("Open a clip in the Source monitor first.");
   const marks = useSourceMonitorStore.getState().getMarks(media.id);
+  const multichannel = findMultichannelSourceTracks(
+    useProjectStore.getState().project,
+    media,
+    component,
+  );
+  if (multichannel) return editFromMultichannelSource(mode, media, component, multichannel, marks, playhead, sequence);
   const { primary, audio } = findSourceTracks(
     useProjectStore.getState().project,
     media,
@@ -151,6 +160,62 @@ export function editFromSource(
   };
 }
 
+/** Insert / Overwrite of a source whose audio expands to several channel-group clips (one per enabled source patch). */
+function editFromMultichannelSource(
+  mode: "insert" | "overwrite",
+  media: MediaItem,
+  component: SourceComponent,
+  tracks: MultichannelSourceTracks,
+  marks: { in?: number; out?: number },
+  playhead: number,
+  sequence: { start: number; end: number } | null,
+): SourceEditOutcome {
+  const wantsPicture = media.type === "video" && component !== "audio";
+  if (!tracks.audio.length && !wantsPicture) {
+    return fail("Every audio channel of this source is switched off in the source patch.");
+  }
+  const first = tracks.primary ?? tracks.audio[0];
+  const clipId = uuidv4();
+  const audioChannels: AudioChannelPlacement[] = tracks.audio.map((entry, index) => ({
+    trackId: entry.track.id,
+    clipId: !wantsPicture && index === 0 ? clipId : uuidv4(),
+    channel: entry.channel,
+    group: entry.group,
+    newTrack: entry.created,
+  }));
+  let resolved: ResolvedSourceEdit | undefined;
+  const outcome = commit((project) => {
+    const planned = planSourceEdit(project, {
+      mode,
+      media,
+      trackId: first.track.id,
+      clipId,
+      operationId: uuidv4(),
+      sourceIn: marks.in,
+      sourceOut: marks.out,
+      playhead,
+      sequenceIn: sequence?.start,
+      sequenceOut: sequence?.end,
+      component,
+      newTrack: tracks.primary?.created,
+      audioChannels,
+    });
+    resolved = planned.resolved;
+    return planned.plan;
+  }, "Nothing to place.");
+  if (!outcome.success || !resolved) return { success: false, message: outcome.message };
+  useTimelineStore.getState().seekTo(resolved.at + resolved.duration);
+  const clips = audioChannels.length;
+  return {
+    success: true,
+    message: `${mode === "insert" ? "Inserted" : "Overwrote"} ${wantsPicture ? "picture and " : ""}${clips} audio clip${clips === 1 ? "" : "s"}`,
+    resolved,
+    clipId,
+    trackId: first.track.id,
+    ...(tracks.audio.length ? { audioTrackId: tracks.audio[0].track.id } : {}),
+  };
+}
+
 export const insertFromSource = (component?: SourceComponent) =>
   editFromSource("insert", component);
 export const overwriteFromSource = (component?: SourceComponent) =>
@@ -172,25 +237,57 @@ export function dropSourceRange(
   const refusal = sourceDropError(track, media, component);
   if (refusal) return fail(refusal);
   const marks = useSourceMonitorStore.getState().getMarks(mediaId);
+  // A multichannel source: the picture lands on the track it was dropped on (or, for sound only, A1 does) and the other
+  // audio groups follow the source patch, as for Overwrite.
+  const wantsPicture = media.type === "video" && component !== "audio";
+  const multichannel = findMultichannelSourceTracks(project, media, component, wantsPicture ? { videoTrackId: trackId } : { audioTrackId: trackId });
+  if (multichannel && !multichannel.primary && !multichannel.audio.length) {
+    return fail("Every audio channel of this source is switched off in the source patch.");
+  }
   let resolved: ResolvedSourceEdit | undefined;
   const outcome = commit((current) => {
-    const planned = planSourceEdit(current, {
-      mode: "overwrite",
-      media,
-      trackId,
-      clipId: uuidv4(),
-      operationId: uuidv4(),
-      sourceIn: marks.in,
-      sourceOut: marks.out,
-      // A drop places exactly where it lands: the sequence marks do not apply.
-      playhead: Math.max(0, time),
-      component,
-    });
+    const planned = multichannel
+      ? planSourceEdit(current, {
+          mode: "overwrite",
+          media,
+          trackId: (multichannel.primary ?? multichannel.audio[0]).track.id,
+          clipId: uuidv4(),
+          operationId: uuidv4(),
+          sourceIn: marks.in,
+          sourceOut: marks.out,
+          playhead: Math.max(0, time),
+          component,
+          newTrack: multichannel.primary?.created,
+          audioChannels: toAudioChannels(multichannel),
+        })
+      : planSourceEdit(current, {
+          mode: "overwrite",
+          media,
+          trackId,
+          clipId: uuidv4(),
+          operationId: uuidv4(),
+          sourceIn: marks.in,
+          sourceOut: marks.out,
+          // A drop places exactly where it lands: the sequence marks do not apply.
+          playhead: Math.max(0, time),
+          component,
+        });
     resolved = planned.resolved;
     return planned.plan;
   }, "Nothing to place.");
   if (outcome.success && resolved) useTimelineStore.getState().seekTo(resolved.at + resolved.duration);
   return { success: outcome.success, message: outcome.message };
+}
+
+/** One audio clip placement per enabled audio channel group. */
+function toAudioChannels(tracks: MultichannelSourceTracks): AudioChannelPlacement[] {
+  return tracks.audio.map((entry) => ({
+    trackId: entry.track.id,
+    clipId: uuidv4(),
+    channel: entry.channel,
+    group: entry.group,
+    newTrack: entry.created,
+  }));
 }
 
 export interface FitToFillOutcome extends CommandOutcome {
@@ -216,7 +313,15 @@ export function fitToFillFromSource(component: SourceComponent = "both"): FitToF
   if (!media) return fail("Open a clip in the Source monitor first.");
   if (media.type === "image") return fail("Fit to Fill needs video or audio; a still has no speed to change.");
   const marks = useSourceMonitorStore.getState().getMarks(media.id);
-  const { primary, audio } = findSourceTracks(useProjectStore.getState().project, media, component);
+  const current = useProjectStore.getState().project;
+  // A multichannel source fits its picture and every enabled audio group (each retimed alike) onto the patched tracks.
+  const multichannel = findMultichannelSourceTracks(current, media, component);
+  if (multichannel && !multichannel.primary && !multichannel.audio.length) {
+    return fail("Every audio channel of this source is switched off in the source patch.");
+  }
+  const { primary, audio } = multichannel
+    ? { primary: multichannel.primary ?? { track: multichannel.audio[0].track }, audio: undefined }
+    : findSourceTracks(current, media, component);
   const { track, created } = primary;
   const clipId = uuidv4();
   const audioClipId = uuidv4();
@@ -224,6 +329,7 @@ export function fitToFillFromSource(component: SourceComponent = "both"): FitToF
   const outcome = commit((project) => {
     const planned = planFitToFill(project, {
       media,
+      audioChannels: multichannel ? toAudioChannels(multichannel) : undefined,
       trackId: track.id,
       clipId,
       operationId: uuidv4(),

@@ -4,9 +4,29 @@ import { pathToFileURL } from "node:url";
 import { cacheControlFor, contentTypeFor, resolveAppPath } from "./protocol-paths";
 
 const SCHEME = "app";
+/**
+ * Serves one tiny page that only constructs an AudioContext. The preload embeds it in a hidden
+ * iframe (preload/audio-warm-frame.ts): because the scheme differs from `app`, Chromium puts it in its
+ * own renderer process, which absorbs the first-use audio device discovery (50-160 ms) so the editor's
+ * own `new AudioContext()` later takes ~25 ms. See apps/desktop/PERF.md, "Cold start round 3".
+ */
+export const AUDIO_WARM_SCHEME = "openreel-warm";
+export const AUDIO_WARM_URL = `${AUDIO_WARM_SCHEME}://audio/warm.html`;
+export const AUDIO_WARM_PAGE =
+  '<!doctype html><meta charset="utf-8"><title></title><script>try{new AudioContext()}catch(e){}</script>';
+
+export const AUDIO_WARM_HEADERS: Record<string, string> = {
+  "Content-Type": "text/html; charset=utf-8",
+  "Cache-Control": "no-store",
+  // The embedding page is cross-origin isolated (COEP require-corp): the frame has to opt in.
+  "Cross-Origin-Embedder-Policy": "require-corp",
+  "Cross-Origin-Resource-Policy": "cross-origin",
+  "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline'",
+};
 
 export function registerAppSchemePrivileges(): void {
   protocol.registerSchemesAsPrivileged([
+    { scheme: AUDIO_WARM_SCHEME, privileges: { standard: true, secure: true } },
     {
       scheme: SCHEME,
       privileges: {
@@ -19,6 +39,10 @@ export function registerAppSchemePrivileges(): void {
       },
     },
   ]);
+}
+
+export function handleAudioWarmScheme(): void {
+  protocol.handle(AUDIO_WARM_SCHEME, () => new Response(AUDIO_WARM_PAGE, { headers: AUDIO_WARM_HEADERS }));
 }
 
 export function handleAppScheme(rendererRoot: string): void {

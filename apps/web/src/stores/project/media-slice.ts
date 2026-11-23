@@ -228,10 +228,12 @@ export function createMediaSlice(set: Set, get: Get): MediaSlice {
             sampleRate: processedMedia.metadata.sampleRate || 0,
             channels: processedMedia.metadata.channels || 0,
             audioTrackCount: processedMedia.metadata.audioTrackCount,
+            ...(processedMedia.metadata.audioStreamChannels ? { audioStreamChannels: processedMedia.metadata.audioStreamChannels } : {}),
             fileSize: file.size,
             hasVideo: processedMedia.metadata.hasVideo,
             hasAudio: processedMedia.metadata.hasAudio,
             ...detectedSourceColor(processedMedia.metadata.sourceColor, nativeSourceColor),
+            ...(processedMedia.metadata.vr ? { vr: processedMedia.metadata.vr } : {}),
             ...detectedFootageShape(claimedNative ?? (processedMedia.metadata.hasVideo ? await probeFootageShape(file) : null)),
             ...(await sourceTimecodeMetadata(file)),
           },
@@ -481,7 +483,7 @@ export function createMediaSlice(set: Set, get: Get): MediaSlice {
         // Reconnecting offline media keeps everything the user organised around it (bin, label, notes, proxy, copy provenance).
         const preserved: Partial<MediaItem> = options?.restorePlaceholder
           ? Object.fromEntries(
-              (["binId", "label", "comment", "description", "scene", "shot", "take", "goodTake", "importedAt", "proxy", "copiedFrom"] as const)
+              (["binId", "label", "comment", "description", "scene", "shot", "take", "goodTake", "keywords", "reel", "logComment", "xmpSource", "importedAt", "proxy", "copiedFrom"] as const)
                 .filter((key) => originalItem[key] !== undefined)
                 .map((key) => [key, originalItem[key]]),
             )
@@ -505,10 +507,12 @@ export function createMediaSlice(set: Set, get: Get): MediaSlice {
             sampleRate: processedMedia.metadata.sampleRate || 0,
             channels: processedMedia.metadata.channels || 0,
             audioTrackCount: processedMedia.metadata.audioTrackCount,
+            ...(processedMedia.metadata.audioStreamChannels ? { audioStreamChannels: processedMedia.metadata.audioStreamChannels } : {}),
             fileSize: file.size,
             hasVideo: processedMedia.metadata.hasVideo,
             hasAudio: processedMedia.metadata.hasAudio,
             ...detectedSourceColor(processedMedia.metadata.sourceColor, nativeSourceColor),
+            ...(processedMedia.metadata.vr ? { vr: processedMedia.metadata.vr } : {}),
             ...detectedFootageShape(claimedNative ?? (processedMedia.metadata.hasVideo ? await probeFootageShape(file) : null)),
             ...(await sourceTimecodeMetadata(file)),
           },

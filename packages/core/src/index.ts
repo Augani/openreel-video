@@ -22,6 +22,7 @@ export * from "./effects";
 export * from "./device";
 export * from "./multicam";
 export * from "./render-cache";
+export * from "./vr";
 export * from "./plugins";
 export {
   ExportEngine,
@@ -63,6 +64,7 @@ export * from "./raw";
 // GpuHdrCompositor / isGpuHdrAvailable: import from "@openreel/core/video/hdr-gpu". Its shader templates call .toFixed() at module scope, which Rollup keeps, so a barrel re-export would pull the module into the startup entry.
 export { hdrExportTargetFor, type HdrExportTarget } from "./video/hdr-frame";
 export * from "./export/smart-render";
+export * from "./export/smart-render-audio";
 export { scanSourceForSmartRender } from "./export/smart-render-scan";
 export * from "./export/source-fingerprint";
 export * from "./export/progress-estimator";
@@ -113,9 +115,10 @@ export {
 
 export { toRuntimeVideoEffectParams } from "./video/effect-parameter-units";
 
+export { clonePlain } from "./editing/clone-plain";
 export { prepareTimelineToolEdit, applyTimelineToolEdits, validateTimelineToolEdits, invertTimelineToolEdits } from "./editing/timeline-tool-edit";
 export type { TimelineToolMode, TimelineToolPlan, TimelineToolPreview } from "./editing/timeline-tool-edit";
-export { planToolNudge, chooseNudgeEdge, NUDGE_FRAMES, NUDGE_FRAMES_LARGE } from "./editing/timeline-tool-nudge";
+export { planToolNudge, planToolNudgeSelection, chooseNudgeEdge, NUDGE_FRAMES, NUDGE_FRAMES_LARGE, type ToolNudgeSelectionResult } from "./editing/timeline-tool-nudge";
 export {
   defaultEditPointKind,
   findEditPointNeighbor,
@@ -134,6 +137,8 @@ export {
 export {
   DEFAULT_SPLIT_EDIT_FRAMES,
   findLinkedPartners,
+  buildLinkIndex,
+  type LinkIndex,
   planEdgeMoves,
   planExtendEdit,
   planSplitEdit,
@@ -204,31 +209,40 @@ export type {
   SourceComponent,
   SourceEditPlan,
   SourceEditRequest,
+  AudioChannelPlacement,
   ThreePointInput,
   ThreePointRule,
 } from "./editing/source-edit";
 export * from "./media/bins";
+export * from "./media/xmp";
+export * from "./media/camera-cards";
 export * from "./media/interpretation";
 export * from "./media/smart-bins";
 export * from "./media/proxy-workflow";
 export * from "./media/desktop-ingest";
 export * from "./media/proxy-presets";
+export * from "./media/proxy-attach";
+export * from "./media/ingest-presets";
 export type { MediaItemPatch, ClipLabelPatch, MediaOrganizeParams } from "./actions/handlers/media-organize";
 export { buildBenchProject } from "./perf/bench-project";
 export type { BenchProjectOptions } from "./perf/bench-project";
 export type { ClipPlacement, NewTrackPlacement } from "./editing/premiere-edits";
-export { findReverseMatch, timelineTimeForSource } from "./editing/reverse-match-frame";
-export type { ReverseMatch } from "./editing/reverse-match-frame";
+export { findReverseMatch, findReverseMatches, pickReverseMatch, timelineTimeForSource } from "./editing/reverse-match-frame";
+export type { ReverseMatch, ReverseMatchPick } from "./editing/reverse-match-frame";
 export {
   canTargetTrack,
   chooseTrackForMedia,
   createEmptyTrack,
   findMainTrack,
   resolveSourceTracks,
+  resolveMultichannelSourceTracks,
 } from "./editing/track-targeting";
 export type {
   SourcePatch,
   SourceTrackResolution,
+  AudioChannelDestination,
+  MultichannelPatch,
+  MultichannelSourceResolution,
   TargetMediaKind,
   TrackChoice,
   TrackTargetingInput,
@@ -258,6 +272,8 @@ export type {
   CaptionTrackSummary,
 } from "./captions/caption-formats";
 export { parseTtml, isTtmlContent } from "./captions/ttml";
+export { importCaptionFile, exportCaptionFileAsync, isCaptionFileName, looksLikeTranscriptJson, CAPTION_IMPORT_EXTENSIONS } from "./captions/caption-import";
+export type { CaptionFileImport, CaptionFileFormat } from "./captions/caption-import";
 export { parseSbv, encodeSbv, isSbvContent } from "./captions/sbv";
 export { encodeScc, exportScc, parseScc, isSccContent } from "./captions/scc";
 export type { CaptionFormatIssue, SccExportResult, SccOptions, SccParseOptions, SccParseResult } from "./captions/scc";
@@ -362,6 +378,7 @@ export {
   markerFrameRate,
   nearestMarkerColorName,
   CSV_COLUMNS,
+  CSV_SOURCE_COLUMNS,
   MIN_CHAPTERS,
   MIN_CHAPTER_SECONDS,
 } from "./interchange/marker-export";
@@ -370,6 +387,7 @@ export type {
   ChaptersResult,
   ChaptersOptions,
   MarkersCsvOptions,
+  MarkerSourceMetadata,
   EdlLocOptions,
   ParsedLoc,
 } from "./interchange/marker-export";
@@ -389,4 +407,6 @@ export type {
   CaptionTranslationResult,
   TranslateCaptionTrackOptions,
 } from "./captions/caption-translate";
+export { resegmentCues, splitText, DEFAULT_RESEGMENT } from "./captions/caption-resegment";
+export type { ResegmentOptions, ResegmentResult } from "./captions/caption-resegment";
 export * from "./tasks";

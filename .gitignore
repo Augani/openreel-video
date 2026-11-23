@@ -60,6 +60,8 @@ apps/android
 # Desktop bundled ffmpeg binaries (large; fetched/built per-platform, documented in MANIFEST.json)
 apps/desktop/resources/bin/**/ffmpeg
 apps/desktop/resources/bin/**/ffmpeg.exe
+# Plugin helper binaries (built from native/plughost by scripts/build-plughost.mjs)
+apps/desktop/resources/plughost/
 
 # Desktop bundled Blender sidecars (large; fetched/built per-platform, documented in apps/desktop/RIGGING.md)
 apps/desktop/resources/rigging/blender/
@@ -103,3 +105,7 @@ xcuserdata/
 **/local.properties
 apps/web/test-results/
 apps/web/playwright-report/
+
+# VST3 host helper (built from native/vst3host by scripts/build-vst3host.mjs); the MIT-licensed SDK is fetched at build time
+apps/desktop/resources/vst3host/
+apps/desktop/.cache/

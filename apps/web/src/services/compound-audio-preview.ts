@@ -314,13 +314,15 @@ export class CompoundAudioPreview {
         // scheduled buffer, so the offline pre-mix must not bake them in too.
         // Likewise its output assignment, sends and volume/pan automation lanes
         // (the buses and lanes are applied by the live graph; baking them in squares them).
-        const { audioRack: _trackRack, output: _output, sends: _sends, automation: _trackAutomation, ...trackWithoutRack } = track;
+        const { audioRack: _trackRack, pluginRack: _trackPlugins, output: _output, sends: _sends, automation: _trackAutomation, ...trackWithoutRack } = track;
         void _trackRack;
+        void _trackPlugins;
         void _output;
         void _sends;
         void _trackAutomation;
-        const { masterAudioRack: _masterRack, audioBuses: _buses, ...timelineWithoutMaster } = project.timeline;
+        const { masterAudioRack: _masterRack, masterPluginRack: _masterPlugins, audioBuses: _buses, ...timelineWithoutMaster } = project.timeline;
         void _masterRack;
+        void _masterPlugins;
         void _buses;
         const renderProject: Project = {
           ...project,

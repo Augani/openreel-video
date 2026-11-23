@@ -24,7 +24,7 @@ export interface NativeSourceInfo {
   /** Demuxer of the file (`mxf`, `mov,mp4,...`). */
   readonly container?: string;
   /** Audio the container carries: MXF holds one mono PCM stream per channel, so `trackCount` is often 2-16. */
-  readonly audio?: { readonly trackCount: number; readonly channels: number; readonly sampleRate: number };
+  readonly audio?: { readonly trackCount: number; readonly channels: number; readonly sampleRate: number; /** Channels of each stream, in stream order. */ readonly streamChannels?: readonly number[] };
   /** Colour space read from the file's stream tags by the native probe (ffmpeg); absent when untagged. */
   readonly sourceColor?: SourceColorSpace;
   /** Non-square pixel (sample) aspect ratio the stream reports; absent = square. */

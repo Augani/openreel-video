@@ -1,3 +1,4 @@
+import { guessVrFromAspect, type VrProperties } from "../vr/vr-properties";
 import { parseSourceColor, type SourceColorSpace } from "../color/source-color";
 import type {
   MediaTrackInfo,
@@ -24,6 +25,22 @@ import type {
   ConversionOptions,
   WrappedCanvas,
 } from "mediabunny";
+
+/**
+ * Spherical Video V1 / V2 metadata only exists in MP4 / MOV (ISO BMFF) files, so the parser (which also holds the
+ * export-side box writers) is a lazy chunk that loads only when one is probed: a file whose bytes 4-8 read "ftyp".
+ */
+async function detectSphericalMetadataIfMp4(file: Blob): Promise<VrProperties | null> {
+  try {
+    if (typeof file.slice !== "function") return null;
+    const head = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+    if (head.length < 8 || String.fromCharCode(head[4], head[5], head[6], head[7]) !== "ftyp") return null;
+    const { detectSphericalMetadata } = await import("../export/spherical-metadata");
+    return await detectSphericalMetadata(file);
+  } catch {
+    return null;
+  }
+}
 
 const SUPPORTED_VIDEO_FORMATS = [
   "video/mp4",
@@ -537,6 +554,7 @@ export class MediaBunnyEngine {
       canDecode: true,
       canDecodeVideo: true,
       audioTrackCount: audio?.trackCount ?? 0,
+      ...(audio?.streamChannels && audio.streamChannels.length > 1 ? { audioStreamChannels: [...audio.streamChannels] } : {}),
     };
   }
 
@@ -589,11 +607,18 @@ export class MediaBunnyEngine {
         }
       }
 
+      // Immersive video: spherical metadata in the file, else a 2:1 picture is only a hint.
+      let vr: VrProperties | undefined;
+      if (videoTrack && width > 0) {
+        vr = ((await detectSphericalMetadataIfMp4(file)) ?? guessVrFromAspect(width, height)) ?? undefined;
+      }
+
       let sampleRate = 0;
       let channels = 0;
       let audioCodec = "";
       let canDecodeAudio = false;
       let audioTrackCount = 0;
+      let audioStreamChannels: number[] | undefined;
 
       if (audioTrack) {
         sampleRate = audioTrack.sampleRate;
@@ -605,6 +630,7 @@ export class MediaBunnyEngine {
       try {
         const allAudioTracks = await input.getAudioTracks();
         audioTrackCount = allAudioTracks.length;
+        if (allAudioTracks.length > 1) audioStreamChannels = allAudioTracks.map((track) => track.numberOfChannels);
       } catch {
         audioTrackCount = audioTrack ? 1 : 0;
       }
@@ -626,7 +652,9 @@ export class MediaBunnyEngine {
         canDecodeVideo,
         videoBitrate,
         audioTrackCount,
+        ...(audioStreamChannels ? { audioStreamChannels } : {}),
         ...(sourceColor ? { sourceColor } : {}),
+        ...(vr ? { vr } : {}),
       };
     } finally {
       input[Symbol.dispose]?.();

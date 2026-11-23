@@ -89,7 +89,7 @@ export function isHdrWorkingMode(
   settings: Pick<ProjectSettings, "workingColorSpace" | "colorManagement"> | undefined,
   hdr: HdrTransfer | undefined,
 ): boolean {
-  return settings?.workingColorSpace === "rec2020" || hdr === "pq" || hdr === "hlg" || isAcesMode(settings);
+  return settings?.workingColorSpace === "rec2020" || hdr === "pq" || hdr === "hlg" || isAcesMode(settings) || settings?.colorManagement === "ocio";
 }
 
 /** `acesOutputTransform` of `color/aces-output.ts`, registered by whoever runs the ACES pipeline (the video engine, tests). */
@@ -113,10 +113,24 @@ function acesOutput(): AcesOutputFn {
  * Which colour pipeline the float compositor runs.
  *   scene-hdr  working space scene-linear BT.2020, grading in PQ, SDR view / HDR encode by tone map (the Rec.2020 / HDR mode)
  *   aces       working space ACEScg (AP1), grading in ACEScct, SDR view / encode through the ACES Output Transform (RRT + ODT)
+ *   ocio       working space = the OCIO colour space the project picked (scene-linear), grading in ACEScct, inputs and the
+ *              view run the config's own transforms (`color/ocio`)
  */
 export type HdrColorPipeline =
   | { readonly kind: "scene-hdr" }
-  | { readonly kind: "aces"; readonly sdrOutput: AcesSdrOutput };
+  | { readonly kind: "aces"; readonly sdrOutput: AcesSdrOutput }
+  | { readonly kind: "ocio"; readonly key: string; readonly output: HdrOcioTransform; readonly overlay: HdrOcioTransform };
+
+/**
+ * A compiled OCIO transform (`color/ocio/runtime.ts` builds them; this file only consumes the shape, so the OCIO runtime
+ * stays out of the startup bundle). `apply` is the CPU reference, `gpu()` the GLSL snippet defining
+ * `vec3 ocioTransform(vec3)` with its optional LUT texture (RGBA32F, read with texelFetch, sampler `ocioLut`).
+ */
+export interface HdrOcioTransform {
+  readonly key: string;
+  apply(r: number, g: number, b: number, out: number[]): void;
+  gpu(): { readonly source: string; readonly lut: { readonly data: Float32Array; readonly width: number; readonly height: number } | null };
+}
 
 export const SCENE_HDR_PIPELINE: HdrColorPipeline = { kind: "scene-hdr" };
 
@@ -124,9 +138,21 @@ export function acesPipeline(sdrOutput: AcesSdrOutput = "srgb"): HdrColorPipelin
   return { kind: "aces", sdrOutput };
 }
 
-/** The pipeline a project's settings select. */
-export function hdrPipelineFor(settings: Pick<ProjectSettings, "colorManagement" | "acesOutput"> | undefined): HdrColorPipeline {
+/**
+ * The pipeline a project's settings select. An OCIO project needs its compiled transforms (built asynchronously by the video
+ * engine, see `ocioPipeline`); without them it falls back to the ACES pipeline rather than the display-referred one.
+ */
+export function hdrPipelineFor(
+  settings: Pick<ProjectSettings, "colorManagement" | "acesOutput"> | undefined,
+  ocio?: HdrColorPipeline | null,
+): HdrColorPipeline {
+  if (settings?.colorManagement === "ocio" && ocio && ocio.kind === "ocio") return ocio;
+  if (settings?.colorManagement === "ocio") return acesPipeline("srgb");
   return isAcesMode(settings) ? acesPipeline(settings?.acesOutput === "rec709" ? "rec709" : "srgb") : SCENE_HDR_PIPELINE;
+}
+
+export function ocioPipeline(key: string, output: HdrOcioTransform, overlay: HdrOcioTransform): HdrColorPipeline {
+  return { kind: "ocio", key, output, overlay };
 }
 
 // -- source decode --------------------------------------------------------------------------------------------
@@ -146,6 +172,8 @@ export interface HdrSourceDecode {
   readonly transfer: HdrTransferId;
   /** Source primaries to the working primaries (BT.2020 in the scene-hdr pipeline, AP1 / ACEScg in the aces pipeline), in linear light. */
   readonly toBt2020: Matrix3;
+  /** OCIO pipeline: the whole decode (code values to working space) is this transform; `transfer` / `toBt2020` are unused. */
+  readonly ocio?: HdrOcioTransform;
 }
 
 function transferId(transfer: SourceTransfer): HdrTransferId {
@@ -216,7 +244,13 @@ export const HDR_OVERLAY_DECODE: HdrSourceDecode = SDR_DECODE;
 
 /** Where 8-bit overlays enter: sRGB white in the working primaries of the pipeline. */
 export function overlayDecodeFor(pipeline: HdrColorPipeline): HdrSourceDecode {
+  if (pipeline.kind === "ocio") return { key: `ocio-overlay:${pipeline.overlay.key}`, transfer: HDR_TRANSFER_SRGB, toBt2020: IDENTITY, ocio: pipeline.overlay };
   return pipeline.kind === "aces" ? ACES_SDR_DECODE : HDR_OVERLAY_DECODE;
+}
+
+/** Footage in OCIO colour space `space` (a compiled transform from the config) as a decode of the OCIO pipeline. */
+export function ocioSourceDecode(transform: HdrOcioTransform): HdrSourceDecode {
+  return { key: `ocio:${transform.key}`, transfer: HDR_TRANSFER_SRGB, toBt2020: IDENTITY, ocio: transform };
 }
 
 /** Signal 0..1 to scene-linear where 1.0 = SDR reference white (no clipping above 1). */
@@ -277,6 +311,32 @@ export type SourceCodes =
 export function decodeSourceToLinear(codes: SourceCodes, decode: HdrSourceDecode): HdrLayerPixels {
   const n = codes.width * codes.height;
   const out = new Float32Array(n * 4);
+  if (decode.ocio) {
+    const transform = decode.ocio;
+    const scale = codes.depth === 8 ? 1 / 255 : 1 / 65535;
+    const src = codes.data as ArrayLike<number>;
+    const rgb = [0, 0, 0];
+    // Footage is mostly smooth: remember the last colour so flat areas cost one evaluation.
+    let lr = -1;
+    let lg = -1;
+    let lb = -1;
+    for (let p = 0, o = 0; p < n; p++, o += 4) {
+      const r = src[o];
+      const g = src[o + 1];
+      const b = src[o + 2];
+      if (r !== lr || g !== lg || b !== lb) {
+        transform.apply(r * scale, g * scale, b * scale, rgb);
+        lr = r;
+        lg = g;
+        lb = b;
+      }
+      out[o] = rgb[0];
+      out[o + 1] = rgb[1];
+      out[o + 2] = rgb[2];
+      out[o + 3] = src[o + 3] * scale;
+    }
+    return { width: codes.width, height: codes.height, data: out };
+  }
   const lut = codes.depth === 8 ? decodeLut8(decode.transfer) : decodeLut16(decode.transfer);
   const [m0, m1, m2] = decode.toBt2020;
   const src = codes.data as ArrayLike<number>;
@@ -488,7 +548,7 @@ export function prepareHdrGrade(grading: ClipColorGrading | undefined, pipeline:
     lut,
     hsl,
     vignette,
-    ...(pipeline.kind === "aces" ? { acescct: true } : {}),
+    ...(pipeline.kind === "aces" || pipeline.kind === "ocio" ? { acescct: true } : {}),
   };
   return isNeutralHdrGrade(spec) ? null : spec;
 }
@@ -884,6 +944,21 @@ export class CpuHdrCompositor implements HdrCompositor {
     const src = pixels.data as ArrayLike<number>;
     const acc = this.acc;
     const n = this.width * this.height;
+    if (this.pipeline.kind === "ocio") {
+      const overlay = this.pipeline.overlay;
+      const rgb = [0, 0, 0];
+      for (let p = 0, o = 0; p < n; p++, o += 4) {
+        const a = src[o + 3] / 255;
+        if (a <= 0) continue;
+        overlay.apply(src[o] / 255, src[o + 1] / 255, src[o + 2] / 255, rgb);
+        const keep = 1 - a;
+        acc[o] = rgb[0] * gain * a + acc[o] * keep;
+        acc[o + 1] = rgb[1] * gain * a + acc[o + 1] * keep;
+        acc[o + 2] = rgb[2] * gain * a + acc[o + 2] * keep;
+        acc[o + 3] = a + acc[o + 3] * keep;
+      }
+      return;
+    }
     for (let p = 0, o = 0; p < n; p++, o += 4) {
       const a = src[o + 3] / 255;
       if (a <= 0) continue;
@@ -971,6 +1046,19 @@ function srgbEncode(linear: number): number {
 export function hdrFrameToSdrRgba(frame: HdrFrame, pipeline: HdrColorPipeline = SCENE_HDR_PIPELINE): Uint8ClampedArray {
   const n = frame.width * frame.height;
   const out = new Uint8ClampedArray(n * 4);
+  if (pipeline.kind === "ocio") {
+    const d = frame.data;
+    const rgb = [0, 0, 0];
+    const view = pipeline.output;
+    for (let p = 0, o = 0; p < n; p++, o += 4) {
+      view.apply(d[o], d[o + 1], d[o + 2], rgb);
+      out[o] = Math.round((Number.isFinite(rgb[0]) ? Math.max(0, Math.min(1, rgb[0])) : 0) * 255);
+      out[o + 1] = Math.round((Number.isFinite(rgb[1]) ? Math.max(0, Math.min(1, rgb[1])) : 0) * 255);
+      out[o + 2] = Math.round((Number.isFinite(rgb[2]) ? Math.max(0, Math.min(1, rgb[2])) : 0) * 255);
+      out[o + 3] = Math.round(Math.max(0, Math.min(1, d[o + 3])) * 255);
+    }
+    return out;
+  }
   if (pipeline.kind === "aces") {
     const d = frame.data;
     const rgb = [0, 0, 0];
@@ -1049,6 +1137,18 @@ export function acesOutputForSpec(spec: OutputColorSpec, sdrOutput: AcesSdrOutpu
 export function encodeHdrFrameRgb(frame: HdrFrame, spec: OutputColorSpec, pipeline: HdrColorPipeline = SCENE_HDR_PIPELINE): Float32Array {
   const n = frame.width * frame.height;
   const out = new Float32Array(n * 3);
+  if (pipeline.kind === "ocio") {
+    // The signal of the project's display / view, whatever the export container tags it as: pick a PQ / HLG display to export HDR.
+    const d = frame.data;
+    const rgb = [0, 0, 0];
+    for (let p = 0, o = 0, q = 0; p < n; p++, o += 4, q += 3) {
+      pipeline.output.apply(d[o], d[o + 1], d[o + 2], rgb);
+      out[q] = Number.isFinite(rgb[0]) ? rgb[0] : 0;
+      out[q + 1] = Number.isFinite(rgb[1]) ? rgb[1] : 0;
+      out[q + 2] = Number.isFinite(rgb[2]) ? rgb[2] : 0;
+    }
+    return out;
+  }
   if (pipeline.kind === "aces") {
     const id = acesOutputForSpec(spec, pipeline.sdrOutput);
     const d = frame.data;

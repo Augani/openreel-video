@@ -4,6 +4,7 @@ import { registerActionHandler } from "../registry";
 import type { ActionHandler } from "../registry";
 import { makeClipFieldHandler, findClip, patchClip } from "./clip-helpers";
 import { isFootageColorPreset } from "../../color/source-color";
+import { isTimeInterpolation } from "../../video/time-interpolation/types";
 
 import { CLIP_SPEED_MIN as SPEED_MIN, CLIP_SPEED_MAX as SPEED_MAX } from "../../editing/speed-limits";
 
@@ -113,11 +114,37 @@ const handlers = [
       v == null || typeof v === "boolean" ? null : "reversed must be a boolean",
   }),
   makeClipFieldHandler({
+    type: "clip/setTimeInterpolation",
+    paramKey: "timeInterpolation",
+    field: "timeInterpolation",
+    validateValue: (v) =>
+      v === undefined || isTimeInterpolation(v)
+        ? null
+        : "timeInterpolation must be frameSampling, frameBlending or opticalFlow",
+  }),
+  makeClipFieldHandler({
+    type: "clip/setInterpolationQuality",
+    paramKey: "interpolationQuality",
+    field: "interpolationQuality",
+    validateValue: (v) =>
+      v === undefined || v === "low" || v === "medium" || v === "high"
+        ? null
+        : "interpolationQuality must be low, medium or high",
+  }),
+  makeClipFieldHandler({
     type: "clip/setColorInterpretation",
     paramKey: "colorInterpretation",
     field: "colorInterpretation",
     validateValue: (v) =>
       v == null || isFootageColorPreset(v) ? null : "colorInterpretation must be an Interpret Footage preset id",
+    transform: (v) => (v == null ? undefined : v),
+  }),
+  makeClipFieldHandler({
+    type: "clip/setOcioInputSpace",
+    paramKey: "ocioInputSpace",
+    field: "ocioInputSpace",
+    validateValue: (v) =>
+      v == null || (typeof v === "string" && v.length > 0 && v.length <= 256) ? null : "ocioInputSpace must be a colour space name",
     transform: (v) => (v == null ? undefined : v),
   }),
   makeClipFieldHandler({

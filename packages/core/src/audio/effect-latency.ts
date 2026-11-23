@@ -232,6 +232,8 @@ export function planTimelineDelayCompensation(
   timeline: Pick<Timeline, "tracks" | "audioBuses">,
   sampleRate: number,
   trackLatency?: ReadonlyMap<string, number>,
+  /** Extra seconds of latency per bus on top of its rack (live plugin inserts). */
+  busExtraLatency?: ReadonlyMap<string, number>,
 ): PdcPlan {
   const buses = getAudioBuses(timeline);
   const resolved = new Map(buses.map((b) => [b.id, resolveOutputBusId(timeline, b.output) ?? null]));
@@ -253,7 +255,7 @@ export function planTimelineDelayCompensation(
     })),
     buses.map((bus) => ({
       id: bus.id,
-      latency: rackLatencySamples(bus.rack, sampleRate) / sampleRate,
+      latency: rackLatencySamples(bus.rack, sampleRate) / sampleRate + (busExtraLatency?.get(bus.id) ?? 0),
       output: reaches(bus.id) ? null : (resolved.get(bus.id) ?? null),
     })),
   );

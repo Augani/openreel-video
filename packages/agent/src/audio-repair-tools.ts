@@ -6,6 +6,7 @@ import {
 } from "@openreel/core/audio/repair/repair-definitions";
 import { REPAIR_EFFECT_TYPES, isRepairEffectType, type RepairEffectType } from "@openreel/core/audio/repair/repair-dsp";
 import { getAudioBuses } from "@openreel/core/audio/audio-routing";
+import { planEnhanceSpeechAction, sanitizeEnhanceMix } from "@openreel/core/audio/enhance/enhance-effect";
 import {
   listEffectLatencies,
   planTimelineDelayCompensation,
@@ -207,6 +208,41 @@ export const AUDIO_REPAIR_TOOLS: RegisteredTool[] = [
         `Added ${added.length} repair effect${added.length === 1 ? "" : "s"} to the clip: ${added.map((a) => REPAIR_EFFECT_DEFINITIONS[a.type as RepairEffectType].label).join(", ")}.`,
         { clipId, added, analysis },
       );
+    },
+  },
+  {
+    name: "enhance_speech",
+    domain: "audio",
+    title: "Enhance Speech",
+    description:
+      "Remove noise and room reverb from dialogue with an on-device model. Adds or updates an 'enhanceSpeech' audio effect (mix 0-100, default 100) on clipIds/clipId as ONE undo step; remove:true removes it. Computed once per source and cached: the preview plays the original until ready, the export waits.",
+    inputSchema: obj({ clipIds: { type: "array", items: str }, clipId: str, mix: num, remove: bool }),
+    readOnly: false,
+    destructive: false,
+    expensive: false,
+    handler: async (args, host) => {
+      host.requireOpenProject();
+      const ids = new Set<string>(Array.isArray(args.clipIds) ? args.clipIds.filter((id): id is string => typeof id === "string") : []);
+      if (typeof args.clipId === "string" && args.clipId) ids.add(args.clipId);
+      if (ids.size === 0) return fail("Pass clipId or clipIds.", "INVALID_PARAMS");
+      if (args.mix !== undefined && typeof args.mix !== "number") return fail("mix must be a number from 0 to 100.", "INVALID_PARAMS");
+      const mix = args.remove === true ? null : sanitizeEnhanceMix(args.mix);
+      const clips = [...ids].map((id) => ({ id, clip: findClip(host, id) }));
+      const missing = clips.find((entry) => !entry.clip);
+      if (missing) return fail(`Clip not found: ${missing.id}`, "CLIP_NOT_FOUND");
+      const txn = host.beginTransaction("Enhance Speech");
+      try {
+        for (const { clip } of clips) {
+          const action = clip && planEnhanceSpeechAction(clip, mix, { actionId: genId(), effectId: genId() });
+          const result = action ? await host.applyAction(action) : { success: true };
+          if (!result.success) throw new Error(result.error?.message ?? "Could not change Enhance Speech");
+        }
+        await host.commitTransaction(txn, "Enhance Speech");
+      } catch (error) {
+        await host.rollbackTransaction(txn);
+        return fail(error instanceof Error ? error.message : "Could not change Enhance Speech.", "ENHANCE_FAILED");
+      }
+      return ok(mix === null ? "Removed Enhance Speech." : `Enhance Speech at ${mix}% on ${ids.size} clip(s).`, { clipIds: [...ids], mix });
     },
   },
   {

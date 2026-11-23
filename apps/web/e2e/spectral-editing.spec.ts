@@ -311,3 +311,54 @@ test("paint a region over a test tone: the exported and previewed audio lose it,
   expect(db(e440, e3k), "exported file: the 3 kHz tone is 12 dB under the 440 Hz tone").toBeGreaterThan(11);
   expect(db(e440, e3k)).toBeLessThan(13);
 });
+
+test("the spectral editor warns on Heal when a steady tone continues on both sides of the selection, and Use Remove adds a remove region", async ({ page }, testInfo) => {
+  testInfo.setTimeout(180_000);
+  const wavPath = join(workDir, "three-tones-warn.wav");
+  writeToneWav(wavPath);
+  await openEditor(page);
+  await importInput(page).setInputFiles(wavPath);
+  await page.getByLabel("Select media three-tones-warn.wav").waitFor({ timeout: 30_000 });
+  await page.evaluate(async () => {
+    const st = E().project.getState();
+    const item = st.project.mediaLibrary.items.find((m: any) => m.name === "three-tones-warn.wav");
+    const target = st.project.timeline.tracks.find((t: any) => t.name === "Dialogue");
+    return st.addClip(target.id, item.id, 0);
+  });
+  await settle(page, 400);
+  const clipId = await page.evaluate(() => E().project.getState().project.timeline.tracks.find((t: any) => t.name === "Dialogue").clips[0].id as string);
+  await clickClip(page, clipId);
+  await page.getByRole("tab", { name: /^Audio$/ }).click();
+  await page.getByRole("button", { name: "Expand Spectral editing section" }).click();
+  const editor = page.getByTestId("spectral-editor");
+  await editor.waitFor({ timeout: 30_000 });
+  await expect(editor.getByTestId("spectral-canvas")).toHaveAttribute("data-ready", "true", { timeout: 60_000 });
+  await editor.getByTestId("spectral-range").selectOption("voice");
+  await page.waitForTimeout(500);
+
+  // A long slice of the 1 kHz tone (1.2 s to 2.4 s of 4 s): Heal only carries a tone across a short gap, so it would take this one
+  // out and there is nothing to warn about.
+  await page.getByTestId("spectral-stage").scrollIntoViewIfNeeded();
+  let stage = await readStage(page);
+  await drag(page, { x: px(stage, 1.2), y: py(stage, 1250) }, { x: px(stage, 2.4), y: py(stage, 800) });
+  await expect(editor.getByTestId("spectral-heal")).toBeEnabled();
+  await expect(editor.getByTestId("spectral-heal-warning")).toHaveCount(0);
+
+  // A short slice (0.15 s): the tone carries on both sides and Heal would carry it through, so it stays: warn.
+  stage = await readStage(page);
+  await drag(page, { x: px(stage, 1.2), y: py(stage, 1250) }, { x: px(stage, 1.35), y: py(stage, 800) });
+  await expect(editor.getByTestId("spectral-heal-warning")).toBeVisible();
+  await editor.getByTestId("spectral-heal-use-remove").click();
+  await expect.poll(() => page.evaluate((id) => {
+    const clip = E().project.getState().project.timeline.tracks.flatMap((t: any) => t.clips).find((c: any) => c.id === id);
+    const effect = (clip.audioEffects ?? []).find((e: any) => e.type === "spectralRepair");
+    return (effect?.params.regions ?? []).map((r: any) => r.mode);
+  }, clipId)).toEqual(["remove"]);
+
+  // The same band over the whole length has nothing on either side to carry: no warning.
+  await page.getByTestId("spectral-stage").scrollIntoViewIfNeeded();
+  stage = await readStage(page);
+  await drag(page, { x: px(stage, stage.start + 0.01), y: py(stage, 3600) }, { x: px(stage, stage.end - 0.01), y: py(stage, 2600) });
+  await expect(editor.getByTestId("spectral-heal")).toBeEnabled();
+  await expect(editor.getByTestId("spectral-heal-warning")).toHaveCount(0);
+});

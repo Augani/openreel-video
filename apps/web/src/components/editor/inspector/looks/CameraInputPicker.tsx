@@ -10,6 +10,7 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import { useProjectStore } from "../../../../stores/project-store";
 import { applyFootageInterpretation, runOrganize } from "../../../../services/project-panel-commands";
+import OcioClipInputPicker from "../../ocio/OcioClipInputPicker";
 
 const sectionTitle = "text-[10px] font-semibold uppercase tracking-wide text-fg-3";
 
@@ -95,4 +96,10 @@ const CameraInputPicker: React.FC<{ clipId: string }> = ({ clipId }) => {
   );
 };
 
-export default CameraInputPicker;
+/** In OCIO mode the input is a colour space of the loaded config, picked per clip; otherwise the built-in camera presets. */
+const InputPicker: React.FC<{ clipId: string }> = ({ clipId }) => {
+  const ocio = useProjectStore((s) => s.project.settings.colorManagement === "ocio");
+  return ocio ? <OcioClipInputPicker clipId={clipId} /> : <CameraInputPicker clipId={clipId} />;
+};
+
+export default InputPicker;

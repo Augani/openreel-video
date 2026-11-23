@@ -116,7 +116,7 @@ export function acesOutputPrimaries(output: AcesOutputId): "bt709" | "bt2020" {
 
 // -- project settings ----------------------------------------------------------------------------------------------
 
-export type ColorManagementMode = "display-referred" | "aces";
+export type ColorManagementMode = "display-referred" | "aces" | "ocio";
 
 export interface AcesSettings {
   readonly colorManagement?: ColorManagementMode;

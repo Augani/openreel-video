@@ -21,7 +21,7 @@ import { isTtmlContent, parseTtml } from "./ttml";
 export interface CaptionParseResult {
   subtitles: Subtitle[];
   errors: Array<{ line: number; message: string }>;
-  format: "srt" | "vtt" | "scc" | "stl" | "ttml" | "sbv";
+  format: "srt" | "vtt" | "scc" | "mcc" | "stl" | "ttml" | "sbv" | "txt";
   /** Format-specific notes (SCC / STL decoding). */
   issues?: CaptionFormatIssue[];
 }
@@ -178,14 +178,20 @@ export interface CaptionImportOptions {
   language?: string;
   /** SCC / STL: real frame rate of the timecodes (default 29.97 SCC, the file's base for STL). */
   frameRate?: number;
+  /** MCC: the project / sequence frame rate. Settles 24 vs 23.976, 30 vs 29.97 and 60 vs 59.94, which `Time Code Rate` cannot say. */
+  projectFrameRate?: number;
   /** SCC / STL: seconds subtracted from every time (the file's programme start). */
   offsetSeconds?: number;
   /** SCC / STL: keep <i> / <u> tags for styled runs (default: strip). */
   styleTags?: "keep" | "strip";
+  /** SCC / MCC: which CEA-608 caption channel to import, 1 (CC1, default) to 4 (CC4). */
+  ccChannel?: 1 | 2 | 3 | 4;
 }
 
 /** Parse SRT, WebVTT or SCC (auto-detected). Malformed blocks are reported, not fatal. */
 export function parseCaptions(content: string, options: CaptionImportOptions = {}): CaptionParseResult {
+  if (/^\uFEFF?\s*File Format\s*=\s*MacCaption_MCC/i.test(content))
+    return { subtitles: [], errors: [{ line: 1, message: "MCC files are read by importCaptionFile (the parser loads on demand)." }], format: "mcc" };
   if (isTtmlContent(content)) {
     const r = parseTtml(content, options);
     return { subtitles: r.subtitles, errors: r.errors, format: "ttml", issues: r.issues };
@@ -375,8 +381,8 @@ export function exportTtml(
   ].join("\n");
 }
 
-export type CaptionExportFormat = "srt" | "vtt" | "sbv" | "ttml" | "scc" | "stl";
-export const CAPTION_EXPORT_FORMATS: readonly CaptionExportFormat[] = ["srt", "vtt", "sbv", "ttml", "scc", "stl"];
+export type CaptionExportFormat = "srt" | "vtt" | "sbv" | "ttml" | "scc" | "mcc" | "stl";
+export const CAPTION_EXPORT_FORMATS: readonly CaptionExportFormat[] = ["srt", "vtt", "sbv", "ttml", "scc", "mcc", "stl"];
 
 export interface CaptionExportOptions extends CaptionTrackSelect {
   includeSpeakers?: boolean;
@@ -389,6 +395,8 @@ export interface CaptionExportOptions extends CaptionTrackSelect {
   offsetSeconds?: number;
   /** STL: programme title for the GSI block. */
   title?: string;
+  /** WebVTT: source-clip metadata (scene, take, keywords, ...) written as a `NOTE` block under the header. */
+  metadataNote?: readonly string[];
 }
 
 export const CAPTION_FORMAT_INFO: Readonly<
@@ -399,6 +407,7 @@ export const CAPTION_FORMAT_INFO: Readonly<
   sbv: { label: "SBV (YouTube)", extension: "sbv", mimeType: "text/plain", binary: false },
   ttml: { label: "TTML (IMSC1)", extension: "ttml", mimeType: "application/ttml+xml", binary: false },
   scc: { label: "SCC (CEA-608)", extension: "scc", mimeType: "text/x-scc", binary: false },
+  mcc: { label: "MCC (MacCaption)", extension: "mcc", mimeType: "text/plain", binary: false },
   stl: { label: "EBU-STL", extension: "stl", mimeType: "application/octet-stream", binary: true },
 };
 
@@ -409,11 +418,19 @@ export function exportCaptions(
   options: CaptionExportOptions = {},
 ): string {
   if (format === "srt") return exportSrt(subtitles, options);
-  if (format === "vtt") return exportVtt(subtitles, options);
-  if (format === "ttml") return exportTtml(subtitles, options);
+  // `includeSpeakers: false` leaves the speaker out of the voice-tag / agent formats too.
+  const unlabelled = () =>
+    subtitles.map((cue) => {
+      const { speaker: _speaker, ...rest } = cue;
+      void _speaker;
+      return rest;
+    });
+  if (format === "vtt") return exportVtt(options.includeSpeakers === false ? unlabelled() : subtitles, options);
+  if (format === "ttml") return exportTtml(options.includeSpeakers === false ? unlabelled() : subtitles, options);
   if (format === "sbv") return encodeSbv(select(subtitles, options)).content;
   if (format === "scc") return encodeScc(subtitles, options).content;
   if (format === "stl") throw new Error("EBU-STL is a binary format: use exportCaptionFile.");
+  if (format === "mcc") throw new Error("MCC is loaded on demand: use exportCaptionFileAsync.");
   throw new Error(`Unsupported caption format "${String(format)}". Use ${CAPTION_EXPORT_FORMATS.join(", ")}.`);
 }
 
@@ -425,6 +442,15 @@ export interface CaptionFile {
   issues: CaptionFormatIssue[];
 }
 
+/** Insert a `NOTE` block (no blank lines inside, no `-->`) right after the WEBVTT header block. */
+export function withVttNote(vtt: string, lines: readonly string[]): string {
+  const clean = lines.map((l) => l.replace(/-->/g, "->").replace(/[\r\n]+/g, " ").trim()).filter(Boolean);
+  if (!clean.length) return vtt;
+  const match = /^(\uFEFF?WEBVTT[^\n]*\n)/.exec(vtt);
+  if (!match) return vtt;
+  return `${match[1]}\nNOTE OpenReel clip metadata\n${clean.join("\n")}\n${vtt.slice(match[1].length)}`;
+}
+
 /** Any caption format as file bytes, with the encoder's validation report. */
 export function exportCaptionFile(
   subtitles: readonly Subtitle[],
@@ -433,6 +459,7 @@ export function exportCaptionFile(
 ): CaptionFile {
   const info = CAPTION_FORMAT_INFO[format];
   if (!info) throw new Error(`Unsupported caption format "${String(format)}". Use ${CAPTION_EXPORT_FORMATS.join(", ")}.`);
+  if (format === "mcc") throw new Error("MCC is loaded on demand: use exportCaptionFileAsync.");
   if (format === "stl") {
     const r = encodeStl(subtitles, options);
     return { bytes: r.bytes, mimeType: info.mimeType, extension: info.extension, issues: r.issues };
@@ -441,8 +468,10 @@ export function exportCaptionFile(
     const r = encodeScc(subtitles, options);
     return { bytes: new TextEncoder().encode(r.content), mimeType: info.mimeType, extension: info.extension, issues: r.issues };
   }
+  let text = exportCaptions(subtitles, format, options);
+  if (format === "vtt" && options.metadataNote?.length) text = withVttNote(text, options.metadataNote);
   return {
-    bytes: new TextEncoder().encode(exportCaptions(subtitles, format, options)),
+    bytes: new TextEncoder().encode(text),
     mimeType: info.mimeType,
     extension: info.extension,
     issues: format === "sbv" ? encodeSbv(select(subtitles, options)).issues : [],

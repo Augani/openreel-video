@@ -89,6 +89,12 @@ class PdcDelay {
  * incrementally reconciled by `configure()`.
  */
 
+/** Where a live plugin insert plugs into the graph: any node pair, wherever its processing happens. */
+export interface LiveInsertPoint {
+  readonly input: AudioNode;
+  readonly output: AudioNode;
+}
+
 type RoutingTimeline = Pick<Timeline, "tracks" | "audioBuses">;
 
 interface BusNodes {
@@ -144,6 +150,9 @@ export class AudioRoutingGraph {
   private plan: PdcPlan = EMPTY_PLAN;
   private trackLatencies: ReadonlyMap<string, number> | undefined;
   private masterRackLatency = 0;
+  private busExtraLatencies: ReadonlyMap<string, number> | undefined;
+  /** Live plugin inserts spliced between a bus's input and its rack (see setBusLiveInsert). */
+  private busInserts = new Map<string, LiveInsertPoint>();
   private readonly trackOutputs = new Map<string, PdcDelay>();
 
   constructor(
@@ -180,9 +189,10 @@ export class AudioRoutingGraph {
    * racks): they report each track's total latency (seconds) and the master
    * rack's. Without an entry a track's latency is its rack's.
    */
-  setLatencies(trackLatencies: ReadonlyMap<string, number> | undefined, masterRackLatencySeconds = 0): void {
+  setLatencies(trackLatencies: ReadonlyMap<string, number> | undefined, masterRackLatencySeconds = 0, busExtraLatencies?: ReadonlyMap<string, number>): void {
     this.trackLatencies = trackLatencies;
     this.masterRackLatency = masterRackLatencySeconds;
+    this.busExtraLatencies = busExtraLatencies;
     this.refreshPlan();
     this.applyDelays();
   }
@@ -193,7 +203,7 @@ export class AudioRoutingGraph {
     const known = new Set(this.timeline.tracks.map((t) => t.id));
     const extra = [...(this.trackLatencies?.keys() ?? [])].filter((id) => !known.has(id)).map((id) => ({ id }) as Track);
     const timeline = extra.length ? { ...this.timeline, tracks: [...this.timeline.tracks, ...extra] } : this.timeline;
-    this.plan = planTimelineDelayCompensation(timeline, this.ctx.sampleRate || 48000, this.trackLatencies);
+    this.plan = planTimelineDelayCompensation(timeline, this.ctx.sampleRate || 48000, this.trackLatencies, this.busExtraLatencies);
   }
 
   /** The compensation currently planned (read-only; for tests and the UI). */
@@ -247,7 +257,11 @@ export class AudioRoutingGraph {
     const rackBus = createRackBus(this.ctx, bus.rack, { live: this.options.live, surround: this.options.surround });
     const pan = this.options.surround ? this.ctx.createGain() : this.ctx.createStereoPanner();
     const fader = this.ctx.createGain();
-    input.connect(rackBus.input);
+    const insert = this.busInserts.get(bus.id);
+    if (insert) {
+      input.connect(insert.input);
+      insert.output.connect(rackBus.input);
+    } else input.connect(rackBus.input);
     rackBus.output.connect(pan);
     pan.connect(fader);
     this.buses.set(bus.id, { id: bus.id, input, rackBus, pan, fader, connectedTo: null, pdc: null, bus });
@@ -287,6 +301,31 @@ export class AudioRoutingGraph {
 
   getBusRackBus(busId: string): RackBusLike | undefined {
     return this.buses.get(busId)?.rackBus;
+  }
+
+  /**
+   * Splices a live plugin insert between the bus's summed input and its built-in rack (where hosted plugins sit), or removes it
+   * (null). The insert's latency is the caller's to report through `setLatencies`; it survives topology rebuilds.
+   */
+  setBusLiveInsert(busId: string, insert: LiveInsertPoint | null): void {
+    const previous = this.busInserts.get(busId);
+    if (previous === insert || (!previous && !insert)) return;
+    if (insert) this.busInserts.set(busId, insert);
+    else this.busInserts.delete(busId);
+    const nodes = this.buses.get(busId);
+    if (!nodes) return;
+    nodes.input.disconnect();
+    if (previous) {
+      try {
+        previous.output.disconnect(nodes.rackBus.input);
+      } catch {
+        /* never connected */
+      }
+    }
+    if (insert) {
+      nodes.input.connect(insert.input);
+      insert.output.connect(nodes.rackBus.input);
+    } else nodes.input.connect(nodes.rackBus.input);
   }
 
   /**

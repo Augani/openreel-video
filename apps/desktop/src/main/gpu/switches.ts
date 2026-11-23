@@ -18,10 +18,19 @@ const MIN_OLD_SPACE_MB = 4096;
 const MAX_OLD_SPACE_MB = 8192;
 const OLD_SPACE_RAM_FRACTION = 0.3;
 
+/**
+ * Starts Chromium's audio service process with the app instead of at the first AudioContext. With it
+ * already up, the throw-away warm-up frame (preload/audio-warm-frame.ts) finishes the first-use
+ * device discovery early enough that the editor's own AudioContext takes ~25 ms instead of 60-160 ms
+ * (apps/desktop/PERF.md, "Cold start round 3"). Alone it does nothing for the editor: both are needed.
+ */
+export const AUDIO_SERVICE_LAUNCH_ON_STARTUP = "AudioServiceLaunchOnStartup";
+
 /** Single `enable-features` list: a second appendSwitch call would overwrite the first. */
-export function buildEnableFeatures(platform: NodeJS.Platform): string[] {
-  if (platform === "linux") return ["VaapiVideoDecoder", "VaapiVideoEncoder"];
-  return [];
+export function buildEnableFeatures(platform: NodeJS.Platform, aggressive = false): string[] {
+  const features = [AUDIO_SERVICE_LAUNCH_ON_STARTUP];
+  if (aggressive && platform === "linux") features.push("VaapiVideoDecoder", "VaapiVideoEncoder");
+  return features;
 }
 
 /** V8 old-space cap: 30% of system RAM, clamped to 4-8 GB so small machines are not starved. */
@@ -121,13 +130,13 @@ export function applyPerformanceSwitches(): void {
 
   // Chromium already enables GPU rasterization on macOS/Windows and benchmarks
   // showed no gain from these flags, so they are opt-in for problem drivers.
-  if (process.env[AGGRESSIVE_GPU_ENV] === "1") {
+  const aggressive = process.env[AGGRESSIVE_GPU_ENV] === "1";
+  if (aggressive) {
     commandLine.appendSwitch("ignore-gpu-blocklist");
     commandLine.appendSwitch("enable-gpu-rasterization");
     commandLine.appendSwitch("enable-zero-copy");
-    const features = buildEnableFeatures(process.platform);
-    if (features.length > 0) commandLine.appendSwitch("enable-features", features.join(","));
   }
+  commandLine.appendSwitch("enable-features", buildEnableFeatures(process.platform, aggressive).join(","));
 
   commandLine.appendSwitch("js-flags", buildJsFlags(os.totalmem(), process.env[JS_FLAGS_ENV]));
 }

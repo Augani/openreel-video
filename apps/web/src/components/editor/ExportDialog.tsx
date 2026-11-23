@@ -392,13 +392,13 @@ const UsePreviewsToggle: React.FC<{
   const snapshot = useRenderCacheSnapshot();
   const match = useMemo(() => {
     if (snapshot.frameCount === 0 || settings.upscaling?.enabled) return false;
-    const size = cacheFrameSize(projectWidth, projectHeight);
+    const size = cacheFrameSize(projectWidth, projectHeight, snapshot.maxWidth);
     return (
       snapshot.frameRate === settings.frameRate &&
       size.width === settings.width &&
       size.height === settings.height
     );
-  }, [snapshot.frameCount, snapshot.frameRate, settings, projectWidth, projectHeight]);
+  }, [snapshot.frameCount, snapshot.frameRate, snapshot.maxWidth, settings, projectWidth, projectHeight]);
   return (
     <label
       className="flex items-center gap-1.5"
@@ -414,6 +414,26 @@ const UsePreviewsToggle: React.FC<{
     </label>
   );
 };
+
+const SMART_RENDER_KEY = "openreel.export.smartRender";
+const readSmartRenderPreference = (): boolean => {
+  try {
+    return window.localStorage.getItem(SMART_RENDER_KEY) !== "off";
+  } catch {
+    return true;
+  }
+};
+
+/** "Smart render when possible": copy untouched GOPs of the sources instead of re-encoding them (on by default). */
+const SmartRenderToggle: React.FC<{ checked: boolean; onCheckedChange: (value: boolean) => void }> = ({ checked, onCheckedChange }) => (
+  <label
+    className="flex items-center gap-1.5"
+    title="When the export format matches the source files (codec, size, frame rate, colour), parts of the timeline you did not edit are copied without re-encoding: faster, and no quality loss there. Edited parts and the group of pictures around each cut are re-encoded. The finished export reports how many seconds were copied."
+  >
+    <Switch checked={checked} onCheckedChange={onCheckedChange} aria-label="Smart render when possible" />
+    <span>Smart render when possible</span>
+  </label>
+);
 
 export const ExportDialog: React.FC<ExportDialogProps> = ({
   isOpen,
@@ -480,6 +500,14 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
       active = false;
     };
   }, [isOpen, isDesktop]);
+  const [smartRenderOn, setSmartRenderOn] = useState<boolean>(readSmartRenderPreference);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SMART_RENDER_KEY, smartRenderOn ? "on" : "off");
+    } catch {
+      /* preference only */
+    }
+  }, [smartRenderOn]);
   const [browserAudioCodec, setBrowserAudioCodec] = useState<string | null>(
     null,
   );
@@ -523,8 +551,10 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
           : undefined,
       // One click, on every video tab: the sequence timecode is drawn into each frame.
       burnInTimecode: timecodeBurnIn.enabled && activeTab !== "stills" ? { ...timecodeBurnIn } : undefined,
+      // On unless switched off: the engine copies untouched spans whenever the export matches the sources.
+      ...(smartRenderOn ? {} : { smartRender: false }),
     }),
-    [exportSection, validMarkedRange, loudness, activeTab, captionExport, timecodeBurnIn, sequenceIsSurround, audioChannelChoice],
+    [exportSection, validMarkedRange, loudness, activeTab, captionExport, timecodeBurnIn, sequenceIsSurround, audioChannelChoice, smartRenderOn],
   );
 
   /** Sidecar caption files are independent of the render: save them when the export starts. */
@@ -3149,6 +3179,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                           duration,
                         )}
                   </div>
+                  <SmartRenderToggle checked={smartRenderOn} onCheckedChange={setSmartRenderOn} />
                   <UsePreviewsToggle
                     checked={usePreviews}
                     onCheckedChange={setUsePreviews}

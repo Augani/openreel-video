@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import {
   Button,
   Select,
@@ -23,7 +23,6 @@ import {
 } from "./inspector/AutoCaptionPanel";
 import { CaptionStyleCards } from "./inspector/CaptionStyleCards";
 import { CaptionWorkspace } from "./CaptionWorkspace";
-import { TranscriptPanel } from "./TranscriptPanel";
 import { CaptionQcPanel } from "./CaptionQcPanel";
 import { createCaptionSourceSummarySelector } from "../../services/caption-source";
 import { usePhoneEditor } from "../../hooks/usePhoneEditor";
@@ -33,6 +32,8 @@ import {
   LOWER_THIRD_PRESETS,
   type LowerThirdPresetId,
 } from "../../services/lower-third-presets";
+
+const TranscriptPanel = lazy(() => import("./TranscriptPanel").then((m) => ({ default: m.TranscriptPanel })));
 
 type TitlePreset = { name: string; text: string; style: Partial<TextStyle> };
 const referenceTitles: TitlePreset[] = [
@@ -251,7 +252,11 @@ export function WorkspaceTextPanel({
           )}
         </div>
       </ScrollArea>
-      {tab === "transcript" && <TranscriptPanel />}
+      {tab === "transcript" && (
+        <Suspense fallback={<div className="min-h-[160px] p-3 text-[11px] text-fg-muted" role="status">Loading transcript…</div>}>
+          <TranscriptPanel />
+        </Suspense>
+      )}
       {tab === "qc" && <CaptionQcPanel />}
       {(captionMounted || tab === "captions" || mobileCaptionsOpen) && <CaptionWorkspace key={projectId} active={tab === "captions"} language={language} onLanguageChange={setLanguage} style={captionStyle} onStyleChange={setCaptionStyle}/>}
     </div>

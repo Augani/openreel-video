@@ -24,6 +24,10 @@ const ACTION_DESCRIPTIONS: Record<
   "clip/add": () => "Add clip",
   "clip/remove": () => "Delete clip",
   "clip/move": () => "Move clip",
+  "clip/addBatch": (params) => `Paste ${(params.clips as unknown[] | undefined)?.length ?? 0} clips`,
+  "clip/removeBatch": (params) => `Delete ${(params.clipIds as unknown[] | undefined)?.length ?? 0} clips`,
+  "clip/restoreBatch": (params) => `Restore ${(params.entries as unknown[] | undefined)?.length ?? 0} clips`,
+  "clip/moveBatch": (params) => `Move ${(params.moves as unknown[] | undefined)?.length ?? 0} clips`,
   "clip/trim": () => "Trim clip",
   "clip/split": () => "Split clip",
   "clip/rippleDelete": () => "Ripple delete",
@@ -38,6 +42,7 @@ const ACTION_DESCRIPTIONS: Record<
   "track/rename": () => "Rename track",
   "audioRack/set": (params) =>
     params.target === "master" ? "Edit master audio rack" : "Edit track audio rack",
+  "audioPluginRack/set": () => "Edit audio plugin rack",
   "trackAutomation/set": (params) => `Edit track ${params.lane} automation`,
   "audioRouting/set": (params) => (typeof params.label === "string" && params.label ? params.label : "Edit audio routing"),
   "effect/add": (params) => `Add ${params.effectType} effect`,
@@ -47,6 +52,7 @@ const ACTION_DESCRIPTIONS: Record<
   "effect/setStack": () => "Replace effect stack",
   "effect/setStackState": () => "Update effects and keyframes",
   "effectPreset/setAll": () => "Update effect presets",
+  "transitionPreset/setLibrary": () => "Update transition presets",
   "transform/update": () => "Transform clip",
   "keyframe/add": (params) => `Add ${params.property} keyframe`,
   "keyframe/remove": () => "Remove keyframe",
@@ -246,6 +252,18 @@ export class ActionHistory {
       }
     }
 
+    // Consecutive batches of one gesture (a drag of a big selection commits every frame) are one entry that
+    // keeps the FIRST inverse (the pre-gesture state): memory stays O(1) per gesture, not O(frames x clips).
+    const coalesceKey = (action.params as Record<string, unknown> | undefined)?.coalesceKey;
+    if (typeof coalesceKey === "string" && lastEntry && groupId && lastEntry.groupId === groupId &&
+        (lastEntry.action.params as Record<string, unknown> | undefined)?.coalesceKey === coalesceKey) {
+      this.undoStack[this.undoStack.length - 1] = { ...lastEntry, action, timestamp: now };
+      this.redoStack = [];
+      this.notify();
+      this.notifyApplied({ kind: "edit", actions: [action] });
+      return;
+    }
+
     const entry: HistoryEntry = {
       action,
       inverseAction,
@@ -261,15 +279,36 @@ export class ActionHistory {
       (s) => s.stackIndex <= this.undoStack.length,
     );
 
-    if (this.undoStack.length > this.maxHistorySize) {
-      this.undoStack.shift();
-      this.snapshots = this.snapshots
-        .map((s) => ({ ...s, stackIndex: s.stackIndex - 1 }))
-        .filter((s) => s.stackIndex >= 0);
-    }
+    this.trimToMaxSize();
 
     this.notify();
     this.notifyApplied({ kind: "edit", actions: [action] });
+  }
+
+  /**
+   * Drop the oldest history past the size limit, a whole undo step at a time. The limit counts undo steps: a
+   * group (one user action made of many entries, like deleting 2000 clips or one drag) is a single step and is
+   * never cut in the middle, because undoing half a group restores half an edit, nor does it push earlier
+   * steps out of history. The newest step is always kept.
+   */
+  private trimToMaxSize(): void {
+    const stack = this.undoStack;
+    // Steps never outnumber entries: nothing to trim until the raw entry count passes the limit.
+    if (stack.length <= this.maxHistorySize) return;
+    const stepEnds: number[] = [];
+    for (let i = 0; i < stack.length; i++) {
+      const groupId = stack[i].groupId;
+      if (!groupId || stack[i + 1]?.groupId !== groupId) stepEnds.push(i + 1);
+    }
+    let excess = stepEnds.length - this.maxHistorySize;
+    if (excess <= 0) return;
+    // Never drop the newest step.
+    excess = Math.min(excess, stepEnds.length - 1);
+    const drop = stepEnds[excess - 1];
+    this.undoStack.splice(0, drop);
+    this.snapshots = this.snapshots
+      .map((s) => ({ ...s, stackIndex: s.stackIndex - drop }))
+      .filter((s) => s.stackIndex >= 0);
   }
 
   beginGroup(_description?: string): string {
@@ -491,9 +530,6 @@ export class ActionHistory {
 
   setMaxHistorySize(size: number): void {
     this.maxHistorySize = size;
-    // Trim if necessary
-    while (this.undoStack.length > this.maxHistorySize) {
-      this.undoStack.shift();
-    }
+    this.trimToMaxSize();
   }
 }

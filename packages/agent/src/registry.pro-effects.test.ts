@@ -21,7 +21,7 @@ describe("agent pro effects", () => {
   it("lists every pro effect and its params in the add_video_effect description", () => {
     const description = getTool("add_video_effect")?.description ?? "";
     for (const type of PRO_EFFECT_TYPES) expect(description).toContain(type);
-    expect(PRO_EFFECT_TYPES).toHaveLength(47);
+    expect(PRO_EFFECT_TYPES).toHaveLength(56);
     expect(description).toContain("blurX 0..100");
   });
 

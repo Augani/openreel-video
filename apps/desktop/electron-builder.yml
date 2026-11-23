@@ -30,6 +30,14 @@ extraResources:
     to: bin
     filter:
       - "**/*"
+  - from: resources/plughost
+    to: plughost
+    filter:
+      - "**/*"
+  - from: resources/vst3host
+    to: vst3host
+    filter:
+      - "**/*"
   - from: resources/rigging
     to: rigging
     filter:
@@ -46,6 +54,60 @@ extraResources:
     to: LICENSES
     filter:
       - "**/*"
+# File associations: OpenReel projects (.oreel) and the caption formats the editor imports. macOS gets
+# CFBundleDocumentTypes (rank Alternate for captions: never take .srt over from the user's other apps) and an
+# exported type for .oreel; NSIS registers the extensions; Linux gets a MimeType in the desktop entry and the
+# shared-mime-info rules electron-builder generates. The list is generated from src/shared/file-associations.ts
+# and checked against it by test/file-associations.test.ts.
+fileAssociations:
+  - ext: oreel
+    name: OpenReel Project
+    description: OpenReel project
+    role: Editor
+    rank: Owner
+    mimeType: application/vnd.openreel.project+json
+  - ext: srt
+    name: SubRip Captions
+    description: SubRip (.srt) captions
+    role: Viewer
+    rank: Alternate
+    mimeType: application/x-subrip
+  - ext: vtt
+    name: WebVTT Captions
+    description: WebVTT captions
+    role: Viewer
+    rank: Alternate
+    mimeType: text/vtt
+  - ext: scc
+    name: Scenarist Closed Captions
+    description: SCC closed captions
+    role: Viewer
+    rank: Alternate
+    mimeType: text/x-scc
+  - ext: mcc
+    name: MacCaption Closed Captions
+    description: MCC closed captions
+    role: Viewer
+    rank: Alternate
+    mimeType: text/x-mcc
+  - ext: stl
+    name: EBU STL Subtitles
+    description: EBU STL subtitles
+    role: Viewer
+    rank: Alternate
+    mimeType: application/x-ebu-stl
+  - ext: ttml
+    name: TTML Captions
+    description: TTML timed text captions
+    role: Viewer
+    rank: Alternate
+    mimeType: application/ttml+xml
+  - ext: dfxp
+    name: DFXP Captions
+    description: DFXP timed text captions
+    role: Viewer
+    rank: Alternate
+    mimeType: application/ttaf+xml
 mac:
   category: public.app-category.video
   icon: build/icon.png
@@ -59,6 +121,19 @@ mac:
   extendInfo:
     NSMicrophoneUsageDescription: OpenReel uses the microphone to record voice-overs and narration into your project.
     NSCameraUsageDescription: OpenReel uses the camera to record webcam clips into your project.
+    UTExportedTypeDeclarations:
+      - UTTypeIdentifier: video.openreel.project
+        UTTypeDescription: OpenReel project
+        UTTypeConformsTo:
+          - public.json
+          - public.data
+        UTTypeTagSpecification:
+          public.filename-extension:
+            - oreel
+          public.mime-type:
+            - application/vnd.openreel.project+json
+  # .oreel is a type of our own: declare it so Launch Services knows its name and that it is JSON text.
+  # (Added to Info.plist next to the NSMicrophone keys above; CFBundleDocumentTypes comes from fileAssociations.)
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist

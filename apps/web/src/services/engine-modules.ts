@@ -4,20 +4,19 @@
  * module: go through `./lazy-engines` (memoised dynamic import) instead. The
  * bundle budget (bundle-budgets.json) catches a regression.
  */
+// Records where Enhance Speech finds its model and the onnxruntime WASM (URLs only; nothing is fetched until a job runs).
+import "./enhance-model-config";
+// Hosted audio plugins: installs the desktop render host (a no-op in the browser).
+import "./native-plugin-backend";
+
 export {
   ActionExecutor,
   VideoEngine,
   AudioEngine,
   PlaybackController,
-  SubtitleEngine,
   PhotoEngine,
   ExportEngine,
-  SpeechToTextEngine,
-  TemplateEngine,
-  SoundLibraryEngine,
   ChromaKeyEngine,
-  MultiCamEngine,
-  multicamEngine,
   MaskEngine,
   NestedSequenceEngine,
   AdjustmentLayerEngine,
@@ -62,6 +61,7 @@ export {
   withBurnInText,
   BURN_IN_SAMPLE_SOURCE,
   PRO_EFFECT_DEFAULTS,
+  withVrSequenceLayout,
   resolveEditingTemplate,
   getBuiltInEditingTemplate,
   getBuiltInEditingTemplates,

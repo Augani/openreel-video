@@ -4,11 +4,12 @@ import { SPEED_MAX, SPEED_MIN } from "../video/speed-engine";
 import {
   allTracksRipple,
   diffPlan,
-  openTimelineGap,
+  openTimelineGaps,
   pruneTransitions,
-  removeTimelineSpan,
-  shiftAfter,
+  removeTimelineSpans,
+  shiftAfterBatch,
   splitAt,
+  type ShiftStep,
 } from "./premiere-edits";
 import { assertRangeEmptyOnTracks, syncFollowerTrackIds } from "./sync-lock";
 import { resizeKeys, type Item, type TimelineToolPlan, type TimelineToolPreview } from "./timeline-tool-edit";
@@ -146,39 +147,51 @@ export function planClipSpeedEdit(
         assertRangeEmptyOnTracks(project, followers, g.end + g.delta, g.end);
   }
 
-  let work = project;
-  const replaceClips = (trackId: string, replacements: Map<string, Clip>) => {
-    work = {
-      ...work,
-      timeline: {
-        ...work.timeline,
-        tracks: work.timeline.tracks.map((t) =>
-          t.id !== trackId
-            ? t
-            : { ...t, clips: t.clips.map((clip) => replacements.get(clip.id) ?? clip) },
-        ),
-      },
-    };
+  // One pass per concern, not one per clip: swapping in the new clips, then
+  // shifting each edit track's trailing clips by every change in one sweep
+  // (O(n log n) for n clips, the per-clip version was O(n^2)).
+  const replacements = new Map<string, Clip>(changes.map((c) => [c.before.id, c.after]));
+  let work: Project = {
+    ...project,
+    timeline: {
+      ...project.timeline,
+      tracks: project.timeline.tracks.map((t) =>
+        editTracks.includes(t.id)
+          ? { ...t, clips: t.clips.map((clip) => replacements.get(clip.id) ?? clip) }
+          : t,
+      ),
+    },
   };
-  for (const c of changes) {
-    replaceClips(c.trackId, new Map([[c.before.id, c.after]]));
-    if (options.ripple && Math.abs(c.delta) > EPS)
-      work = shiftAfter(work, [c.trackId], c.before.startTime + c.before.duration, c.delta);
-  }
   if (options.ripple) {
+    const stepsByTrack = new Map<string, ShiftStep[]>();
+    for (const c of retimed) {
+      const steps = stepsByTrack.get(c.trackId) ?? [];
+      steps.push({ from: c.before.startTime + c.before.duration, delta: c.delta });
+      stepsByTrack.set(c.trackId, steps);
+    }
+    for (const [trackId, steps] of stepsByTrack) work = shiftAfterBatch(work, [trackId], steps);
     const counter = { n: 0 };
     const moveCaptions = allTracksRipple(project, [...editTracks, ...followers]);
-    for (const g of [...groups].reverse()) {
-      if (Math.abs(g.delta) <= EPS) continue;
-      if (g.delta > 0) {
-        work = splitAt(work, followers, g.end, operationId, counter);
-        work = shiftAfter(work, followers, g.end, g.delta);
-        work = openTimelineGap(work, g.end, g.delta, operationId, moveCaptions);
-      } else {
-        work = shiftAfter(work, followers, g.end, g.delta);
-        work = removeTimelineSpan(work, g.end + g.delta, g.end, moveCaptions);
-      }
+    const live = [...groups].reverse().filter((g) => Math.abs(g.delta) > EPS);
+    // Follower splits happen in the original timeline (a clip straddling a
+    // group's end is not moved by the groups to its right), then every
+    // follower shifts in one sweep.
+    if (followers.length) {
+      for (const g of live) if (g.delta > 0) work = splitAt(work, followers, g.end, operationId, counter);
+      work = shiftAfterBatch(work, followers, live.map((g) => ({ from: g.end, delta: g.delta })));
     }
+    // Markers and captions: all gaps in one sweep, then all closed spans.
+    work = openTimelineGaps(
+      work,
+      live.filter((g) => g.delta > 0).map((g) => ({ at: g.end, length: g.delta })),
+      operationId,
+      moveCaptions,
+    );
+    work = removeTimelineSpans(
+      work,
+      live.filter((g) => g.delta < 0).map((g) => ({ start: g.end + g.delta, stop: g.end })),
+      moveCaptions,
+    );
   }
   return diffPlan(project, pruneTransitions(work, project), label);
 }

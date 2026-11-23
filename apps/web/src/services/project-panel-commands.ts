@@ -3,6 +3,7 @@ import {
   binDeletionImpact,
   binSubtreeIds,
   binsOf,
+  parseKeywordText,
   createSubclipItem,
   resolveSubclipParent,
   smartBinsOf,
@@ -20,6 +21,7 @@ import {
   type MediaLabelId,
   type MediaOrganizeParams,
   type RawSourceSettings,
+  type VrProperties,
   normalizeInterpretation,
   normalizeRawSettings,
   rawSettingsEqual,
@@ -39,7 +41,7 @@ import type { CommandOutcome } from "./premiere-edit-commands";
 
 const fail = (message: string): CommandOutcome => ({ success: false, message });
 
-async function organize(params: MediaOrganizeParams): Promise<CommandOutcome> {
+export async function organize(params: MediaOrganizeParams): Promise<CommandOutcome> {
   const result = await useProjectStore.getState().executeAction({
     type: "media/organize",
     id: uuidv4(),
@@ -197,11 +199,19 @@ const TEXT_UNDO_LABELS: Record<EditableTextColumn, string> = {
   scene: "Edit scene",
   shot: "Edit shot",
   take: "Edit take",
+  keywords: "Edit keywords",
+  logComment: "Edit log comment",
+  reel: "Edit reel",
 };
 
 export function setMediaText(mediaId: string, field: EditableTextColumn, value: string): Promise<CommandOutcome> {
   const item = project().mediaLibrary.items.find((i) => i.id === mediaId);
-  const next = field === "comment" || field === "description" ? value : value.trim();
+  if (field === "keywords") {
+    const words = parseKeywordText(value);
+    if (!item || (item.keywords ?? []).join("\u0000") === words.join("\u0000")) return Promise.resolve({ success: true });
+    return organize({ label: TEXT_UNDO_LABELS.keywords, itemPatches: { [mediaId]: { keywords: words } } });
+  }
+  const next = field === "comment" || field === "description" || field === "logComment" ? value : value.trim();
   if (!item || (item[field] ?? "") === next) return Promise.resolve({ success: true });
   return organize({ label: TEXT_UNDO_LABELS[field], itemPatches: { [mediaId]: { [field]: next } } });
 }
@@ -251,6 +261,23 @@ export function applyFootageInterpretation(mediaIds: readonly string[], edit: Fo
     itemPatches,
     ...(edit.retimeClips !== false && Object.values(itemPatches).some((p) => p.interpretation !== undefined) ? { retimeClips: true } : {}),
   });
+}
+
+/**
+ * Immersive video: the VR properties a clip's source is read with (projection, frame layout, captured view). One
+ * `media/organize` action, so one undo step; null clears the override and goes back to what the file says.
+ */
+export function setMediaVrProperties(mediaIds: readonly string[], vr: VrProperties | null): Promise<CommandOutcome> {
+  const items = project().mediaLibrary.items;
+  const itemPatches: Record<string, MediaItemPatch> = {};
+  for (const id of mediaIds) {
+    const item = items.find((i) => i.id === id);
+    if (!item || (item.type !== "video" && item.type !== "image")) continue;
+    if (JSON.stringify(item.vrProperties ?? null) === JSON.stringify(vr)) continue;
+    itemPatches[id] = { vrProperties: vr };
+  }
+  if (!Object.keys(itemPatches).length) return Promise.resolve({ success: true });
+  return organize({ label: "VR properties", itemPatches });
 }
 
 /**

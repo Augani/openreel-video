@@ -21,6 +21,9 @@ void hook;
 
 const PROGRAM = 'canvas[aria-label^="Program frame"]';
 
+/** Mean abs difference (0-255) of the downsampled frames allowed for an outro sampled one frame apart. */
+const OUTRO_FRAME_STEP_TOLERANCE = 1;
+
 export interface FrameSig {
   /** sha-256 of the full-resolution RGBA program frame. */
   hash: string;
@@ -249,7 +252,12 @@ export async function runAuthoringFlow(page: Page, savePath: string): Promise<Fl
   frames.inAfter = await frameAt(page, start + 0.25, { differFrom: empty });
   frames.outAfter = await frameAt(page, start + finalDuration - 0.25, { differFrom: empty });
   expect(frames.inAfter.hash, "frame at in+0.25s identical after stretching").toBe(frames.inBefore.hash);
-  expect(frames.outAfter.hash, "frame at out-0.25s identical after stretching").toBe(frames.outBefore.hash);
+  // The stretched clip's end is not on the frame grid, and the preview (like the export) composites the frame under the
+  // playhead at that frame's first instant, so the outro is sampled up to one frame earlier or later relative to the end
+  // than before the stretch. The animation timing is preserved when the two frames agree to within that one-frame step.
+  const outDiff = frames.outAfter.small.reduce((sum, v, i) => sum + Math.abs(v - frames.outBefore.small[i]), 0) / frames.outAfter.small.length;
+  console.log(`[essential-graphics] outro after stretch vs before: mean abs diff ${outDiff.toFixed(3)} (hash equal: ${frames.outAfter.hash === frames.outBefore.hash})`);
+  expect(outDiff, "frame at out-0.25s matches within one frame step after stretching").toBeLessThan(OUTRO_FRAME_STEP_TOLERANCE);
   frames.holdAfter = await frameAt(page, start + finalDuration / 2, { differFrom: empty });
   expect(coverage(frames.holdAfter, empty)).toBeGreaterThan(0.002);
 

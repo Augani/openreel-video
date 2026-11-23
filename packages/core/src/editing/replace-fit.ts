@@ -1,11 +1,13 @@
 import type { Clip, Project, Track } from "../types";
 import type { MediaItem } from "../types/project";
+import { clipFieldsForGroup, resolveSourceChannelGroups } from "../audio/source-channels";
 import { getCompoundClipId } from "../timeline/timeline-items";
 import { subclipRange } from "../media/bins";
 import { diffPlan, planOverwrite, findTopmostVisualClipAt } from "./premiere-edits";
 import {
   boundSourceMarks,
   createSourceClip,
+  multichannelPlacements,
   sourceDropError,
   type SourceComponent,
   type SourceEditRequest,
@@ -109,6 +111,13 @@ export function planFitToFill(project: Project, request: FitToFillRequest): FitT
     duration: resolved.duration,
     ...(resolved.speed !== 1 ? { speed: resolved.speed } : {}),
   });
+  if (request.audioChannels?.length) {
+    // A source whose audio expands to several channel-group clips: picture plus one retimed sound clip per patched group.
+    const { placements, picture, sounds, newTracks } = multichannelPlacements(request, range, request.component ?? "both", retime);
+    const plan = planOverwrite(project, resolved.at, placements, request.operationId, newTracks.length ? newTracks : undefined);
+    const first = (picture ?? sounds[0]) as Clip;
+    return { plan: { ...plan, label: "Fit to Fill" }, resolved, clip: { ...first, startTime: resolved.at } };
+  }
   const split =
     request.audioPatch !== undefined &&
     (request.component ?? "both") === "both" &&
@@ -201,6 +210,7 @@ const FOOTAGE_BOUND_KEYS = [
   "speed",
   "reversed",
   "smoothSlowMo",
+  "timeInterpolation",
   "interpolationQuality",
   "speedKeyframes",
   "freezeFrames",
@@ -311,26 +321,39 @@ export function planReplaceEdit(project: Project, request: ReplaceEditRequest): 
       : createSourceClip(media, oldTrack.id, old.id, range, component);
     const link = old.metadata?.separatedFromClipId;
     const sizing = { startTime: old.startTime, duration: old.duration, inPoint: sourceIn, outPoint: sourceOut };
+    // Multichannel source patching: a sound clip keeps its slot (A1..An) in the new source's channel layout, so replacing the
+    // A2 clip of one multichannel file with another plays the new file's second group. The old clip's channel map and stream
+    // described the OLD footage and never carry over.
+    const groups = !imageSource && component !== "video" ? resolveSourceChannelGroups(media) : [];
+    const slot = typeof old.metadata?.sourceChannelGroup === "number" ? old.metadata.sourceChannelGroup : 0;
+    const group = groups.length > 1 ? groups[Math.min(Math.max(0, Math.floor(slot)), groups.length - 1)] : undefined;
+    const patched = group ? { ...clipFieldsForGroup(group, media) } : {};
+    const slotMetadata = group ? { sourceChannelGroup: groups.indexOf(group) } : {};
     if (!request.keepAttributes) {
       return {
         ...fresh,
         ...sizing,
+        ...patched,
         ...(old.label !== undefined ? { label: old.label } : {}),
         metadata: {
           ...fresh.metadata,
+          ...slotMetadata,
           ...(typeof link === "string" ? { separatedFromClipId: link } : {}),
         },
       };
     }
     const kept: Record<string, unknown> = { ...old };
     for (const key of FOOTAGE_BOUND_KEYS) delete kept[key];
+    delete kept.channelMap;
     const keptMetadata = { ...old.metadata };
     delete keptMetadata.sourceMonitorComponent;
+    delete keptMetadata.sourceChannelGroup;
     return {
       ...(kept as unknown as Clip),
       ...sizing,
+      ...patched,
       mediaId: media.id,
-      metadata: { ...keptMetadata, ...(fresh.metadata?.sourceMonitorComponent ? { sourceMonitorComponent: fresh.metadata.sourceMonitorComponent } : {}) },
+      metadata: { ...keptMetadata, ...slotMetadata, ...(fresh.metadata?.sourceMonitorComponent ? { sourceMonitorComponent: fresh.metadata.sourceMonitorComponent } : {}) },
       // A component change (video-only to audio-only) still mutes or hides.
       ...(component === "video" ? { volume: 0 } : {}),
       ...(component === "audio" ? { transform: { ...old.transform, opacity: 0 } } : {}),

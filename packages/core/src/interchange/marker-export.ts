@@ -117,8 +117,24 @@ const MARKER_TYPE_NAME: Record<MarkerKind, string> = {
   web: "WebLink",
 };
 
+/** Logging metadata of the source clip under a marker; written as extra CSV columns. */
+export interface MarkerSourceMetadata {
+  readonly clip?: string;
+  readonly description?: string;
+  readonly keywords?: readonly string[];
+  readonly scene?: string;
+  readonly shot?: string;
+  readonly take?: string;
+  readonly reel?: string;
+  readonly logComment?: string;
+}
+
+export const CSV_SOURCE_COLUMNS = ["Source Clip", "Keywords", "Scene", "Shot", "Take", "Reel", "Log Comment"] as const;
+
 export interface MarkersCsvOptions {
   readonly dropFrame?: boolean;
+  /** Source-clip metadata for a marker. When any marker has some, the CSV gains the CSV_SOURCE_COLUMNS. */
+  readonly sourceMetadata?: (marker: Marker) => MarkerSourceMetadata | undefined;
   /** Field separator. Premiere writes tabs; the default is a comma. */
   readonly delimiter?: "," | "\t";
 }
@@ -132,9 +148,13 @@ const csvField = (value: string, delimiter: string): string =>
 export function markersCsv(markers: readonly Marker[], fps: number, options: MarkersCsvOptions = {}): string {
   const rate = markerFrameRate(fps, options.dropFrame);
   const delimiter = options.delimiter ?? ",";
-  const rows = [...markers].sort(byTime).map((m) => {
+  const sorted = [...markers].sort(byTime);
+  const sources = sorted.map((m) => options.sourceMetadata?.(m));
+  const withSource = sources.some((s) => s && Object.values(s).some((v) => (Array.isArray(v) ? v.length : v)));
+  const rows = sorted.map((m, index) => {
     const inFrame = Math.max(0, secondsToFrames(m.time, rate));
     const outFrame = Math.max(inFrame, secondsToFrames(m.time + (m.duration ?? 0), rate));
+    const src = sources[index];
     return [
       m.label,
       m.comment ?? "",
@@ -142,9 +162,11 @@ export function markersCsv(markers: readonly Marker[], fps: number, options: Mar
       framesToTimecode(outFrame, rate),
       framesToTimecode(outFrame - inFrame, rate),
       MARKER_TYPE_NAME[kindOf(m)],
+      ...(withSource ? [src?.clip ?? "", (src?.keywords ?? []).join("; "), src?.scene ?? "", src?.shot ?? "", src?.take ?? "", src?.reel ?? "", src?.logComment ?? ""] : []),
     ];
   });
-  return [CSV_COLUMNS as readonly string[], ...rows]
+  const header: readonly string[] = withSource ? [...CSV_COLUMNS, ...CSV_SOURCE_COLUMNS] : CSV_COLUMNS;
+  return [header, ...rows]
     .map((row) => row.map((field) => csvField(field, delimiter)).join(delimiter))
     .join("\n");
 }

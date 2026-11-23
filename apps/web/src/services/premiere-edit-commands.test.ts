@@ -163,6 +163,25 @@ describe("premiere edit commands", () => {
     expect(useTimelineStore.getState().playheadPosition).toBeCloseTo(6, 2);
   });
 
+  it("reverse match frame cycles through every instance on repeated presses", () => {
+    const project = useProjectStore.getState().project;
+    const extra = { id: "v2", name: "v2", type: "video" as const, locked: false, hidden: false, solo: false, muted: false, transitions: [], clips: [clip("c", "v2", 20, 4)] };
+    useProjectStore.setState({
+      project: { ...project, timeline: { ...project.timeline, tracks: [extra, ...project.timeline.tracks] } } as Project,
+    });
+    useSourceMonitorStore.getState().open("source", project.id, 2);
+    const order: string[] = [];
+    for (let i = 0; i < 3; i += 1) {
+      const outcome = reverseMatchFrame();
+      expect(outcome.success).toBe(true);
+      if (i === 0) expect(outcome.message).toContain("instance 1 of 2");
+      order.push(useUIStore.getState().selectedItems[0].id);
+    }
+    // Topmost track first (c at 22s), then a (2s), then it wraps.
+    expect(order).toEqual(["c", "a", "c"]);
+    expect(useTimelineStore.getState().playheadPosition).toBeCloseTo(22, 2);
+  });
+
   it("source history is most-recent-first, de-duplicated and capped", () => {
     expect(pushSourceHistory(["a", "b", "c"], "b")).toEqual(["b", "a", "c"]);
     expect(pushSourceHistory(Array.from({ length: 10 }, (_, i) => `m${i}`), "n")).toHaveLength(10);

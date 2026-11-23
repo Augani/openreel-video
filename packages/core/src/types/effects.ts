@@ -565,6 +565,8 @@ export const AUDIO_EFFECT_TYPES = [
   "brickwallLimiter",
   "lowPass",
   "spectralRepair",
+  "enhanceSpeech",
+  "reduceReverb",
   "fadeIn",
   "fadeOut",
 ] as const;
@@ -594,6 +596,28 @@ export const TRANSITION_TYPES = [
   "ripple",
   "pageTurn",
   "colorSplit",
+  "irisRound",
+  "irisBox",
+  "irisCross",
+  "irisDiamond",
+  "bandWipe",
+  "barnDoor",
+  "clockWipe",
+  "gradientWipe",
+  "filmDissolve",
+  "additiveDissolve",
+  "cubeSpin",
+  "crossZoom",
+  "pagePeel",
+  "checkerboard",
+  "checkerWipe",
+  "inset",
+  "split",
+  "wedgeWipe",
+  "randomBlocks",
+  "randomWipe",
+  "flipOver",
+  "morphCut",
 ] as const;
 export type TransitionType = (typeof TRANSITION_TYPES)[number];
 
@@ -796,4 +820,62 @@ export interface TransitionParams {
     maxOffset: number;
     angle: number;
   };
+  irisRound: MaskTransitionParams & { center: { x: number; y: number } };
+  irisBox: MaskTransitionParams & { center: { x: number; y: number } };
+  irisCross: MaskTransitionParams & { center: { x: number; y: number } };
+  irisDiamond: MaskTransitionParams & { center: { x: number; y: number } };
+  bandWipe: MaskTransitionParams & { bands: number; orientation: "horizontal" | "vertical" };
+  barnDoor: MaskTransitionParams & { orientation: "horizontal" | "vertical" };
+  clockWipe: MaskTransitionParams & { startAngle: number; clockwise: boolean; center: { x: number; y: number } };
+  gradientWipe: MaskTransitionParams & {
+    gradient: "linear" | "radial" | "diagonal" | "checker" | "noise" | "spiral";
+    /** Custom luma map (base64 8-bit luma, row-major); wins over `gradient` when present. */
+    lumaData?: string;
+    lumaWidth?: number;
+    lumaHeight?: number;
+  };
+  filmDissolve: { duration: number };
+  additiveDissolve: { duration: number };
+  cubeSpin: BorderParams & { duration: number; direction: "left" | "right" | "up" | "down" };
+  crossZoom: { duration: number; center: { x: number; y: number }; intensity: number };
+  pagePeel: { duration: number; corner: TransitionCorner; shadow: number };
+  checkerboard: MaskTransitionParams & { tiles: number };
+  checkerWipe: MaskTransitionParams & { tiles: number; direction: "left" | "right" | "up" | "down" };
+  inset: MaskTransitionParams & { corner: TransitionCorner };
+  split: BorderParams & { duration: number; orientation: "horizontal" | "vertical"; reverse: boolean };
+  wedgeWipe: MaskTransitionParams & { startAngle: number; center: { x: number; y: number } };
+  randomBlocks: MaskTransitionParams & { tiles: number; seed: number };
+  randomWipe: MaskTransitionParams & { tiles: number; seed: number; direction: "left" | "right" | "up" | "down" };
+  flipOver: BorderParams & { duration: number; direction: "left" | "right" | "up" | "down" };
+  /** Hides a jump cut by morphing the outgoing frame into the incoming one (analysed in the background). */
+  morphCut: { duration: number; quality: "low" | "medium" | "high" };
+}
+
+export type TransitionCorner = "topLeft" | "topRight" | "bottomLeft" | "bottomRight";
+
+/** Border of the geometric transitions (cube spin, flip over, split): a coloured outline of the moving faces. */
+export interface BorderParams {
+  borderWidth: number;
+  borderColor: string;
+}
+
+/**
+ * Parameters every transition honours, kept in `Transition.params` next to its own. `alignment` places the
+ * window on the cut, `startPct` / `endPct` clip the 0-100 range the transition runs through, `reverse`,
+ * `feather` (0-1) and `borderWidth` (px) / `borderColor` apply to the mask transitions (iris, band, barn door,
+ * clock and gradient wipes).
+ */
+export interface MaskTransitionParams {
+  duration: number;
+  feather: number;
+  borderWidth: number;
+  borderColor: string;
+  reverse: boolean;
+}
+
+export interface CommonTransitionParams {
+  alignment?: "start" | "center" | "end";
+  startPct?: number;
+  endPct?: number;
+  curve?: "linear" | "ease" | "ease-in" | "ease-out" | "ease-in-out";
 }

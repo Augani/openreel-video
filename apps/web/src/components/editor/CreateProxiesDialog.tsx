@@ -1,13 +1,15 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  PROXY_PRESETS,
-  proxyPresetForProfile,
+  allIngestPresets,
+  describeDesktopProxyProfile,
+  presetMatchingProfile,
   resolveDesktopProxyProfile,
-  type ProxyPresetId,
+  type DesktopProxyProfile,
 } from "@openreel/core";
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Label, RadioGroup, RadioGroupItem, cn } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { setDesktopProxyProfile } from "../../services/desktop-ingest";
+import { useIngestPresetsStore } from "../../services/ingest-presets-store";
 
 interface CreateProxiesDialogProps {
   open: boolean;
@@ -16,24 +18,34 @@ interface CreateProxiesDialogProps {
   count: number;
   /** Selected items, or every item that lacks a proxy. */
   scopeLabel: string;
-  /** Builds the proxies once the chosen preset is saved to the project. */
-  onCreate: () => void;
+  /** Builds the proxies. `profile` is the preset chosen for this batch only; null = the project's preset (already saved). */
+  onCreate: (profile: DesktopProxyProfile | null) => void;
+  /** Open the preset manager. */
+  onManage?: () => void;
 }
 
-/** Create Proxies dialog (desktop): pick a preset, save it with the project, then build. */
-export const CreateProxiesDialog: React.FC<CreateProxiesDialogProps> = ({ open, onOpenChange, count, scopeLabel, onCreate }) => {
+/** Create Proxies dialog (desktop): pick a preset for this batch, and optionally keep it as the project's preset. */
+export const CreateProxiesDialog: React.FC<CreateProxiesDialogProps> = ({ open, onOpenChange, count, scopeLabel, onCreate, onManage }) => {
   const ingestConfig = useProjectStore((s) => s.project.mediaLibrary.desktopIngest);
-  const current = proxyPresetForProfile(resolveDesktopProxyProfile({ mediaLibrary: { items: [], desktopIngest: ingestConfig } }));
-  const [choice, setChoice] = useState<ProxyPresetId>(current ?? "h264-half");
+  const user = useIngestPresetsStore((s) => s.presets);
+  const presets = useMemo(() => allIngestPresets(user), [user]);
+  const projectProfile = resolveDesktopProxyProfile({ mediaLibrary: { items: [], desktopIngest: ingestConfig } });
+  const current = presetMatchingProfile(user, projectProfile, ingestConfig?.proxyPresetId);
+  const [choice, setChoice] = useState<string>(current?.id ?? "h264-half");
+  const [keep, setKeep] = useState(true);
   useEffect(() => {
-    if (open && current) setChoice(current);
-  }, [open, current]);
+    if (open) {
+      setChoice(current?.id ?? "h264-half");
+      setKeep(true);
+    }
+  }, [open, current?.id]);
 
   const submit = async (): Promise<void> => {
-    const preset = PROXY_PRESETS.find((entry) => entry.id === choice) ?? PROXY_PRESETS[1];
-    if (current !== preset.id) await setDesktopProxyProfile(preset.profile);
+    const preset = presets.find((entry) => entry.id === choice) ?? presets[0];
+    const same = current?.id === preset.id;
+    if (keep && !same) await setDesktopProxyProfile(preset.profile, preset.id);
     onOpenChange(false);
-    onCreate();
+    onCreate(keep || same ? null : preset.profile);
   };
 
   return (
@@ -42,11 +54,11 @@ export const CreateProxiesDialog: React.FC<CreateProxiesDialogProps> = ({ open, 
         <DialogHeader>
           <DialogTitle>Create Proxies</DialogTitle>
           <DialogDescription className="text-xs text-fg-muted">
-            {count} {count === 1 ? "clip" : "clips"} ({scopeLabel}). The preset is saved with this project and used for new imports.
+            {count} {count === 1 ? "clip" : "clips"} ({scopeLabel}). Pick a preset for this batch.
           </DialogDescription>
         </DialogHeader>
-        <RadioGroup aria-label="Proxy preset" value={choice} onValueChange={(value) => setChoice(value as ProxyPresetId)} className="grid gap-2">
-          {PROXY_PRESETS.map((preset) => (
+        <RadioGroup aria-label="Proxy preset" value={choice} onValueChange={setChoice} className="grid max-h-72 gap-2 overflow-y-auto">
+          {presets.map((preset) => (
             <Label
               key={preset.id}
               htmlFor={`proxy-preset-${preset.id}`}
@@ -57,14 +69,19 @@ export const CreateProxiesDialog: React.FC<CreateProxiesDialogProps> = ({ open, 
                 choice === preset.id && "border-accent bg-selected shadow-[0_0_0_1px_var(--accent)]",
               )}
             >
-              <RadioGroupItem id={`proxy-preset-${preset.id}`} value={preset.id} aria-label={preset.label} className="sr-only" />
-              <span className="block text-[12px] font-semibold text-fg">{preset.label}</span>
-              <span className="mt-0.5 block text-[10px] leading-snug text-fg-muted">{preset.description}</span>
+              <RadioGroupItem id={`proxy-preset-${preset.id}`} value={preset.id} aria-label={preset.name} className="sr-only" />
+              <span className="block text-[12px] font-semibold text-fg">{preset.name}</span>
+              <span className="mt-0.5 block text-[10px] leading-snug text-fg-muted">{describeDesktopProxyProfile(preset.profile)}</span>
             </Label>
           ))}
         </RadioGroup>
+        <label className="flex items-center gap-1.5 text-[11px] text-fg-2">
+          <input type="checkbox" aria-label="Use as the project's preset" checked={keep} onChange={(event) => setKeep(event.target.checked)} />
+          Also use it as this project's preset for new imports
+        </label>
         <p className="text-[10px] leading-snug text-fg-muted">Proxies are for editing only. Exports always read the full-resolution media.</p>
         <DialogFooter>
+          {onManage && <Button type="button" variant="secondary" onClick={onManage}>Manage presets…</Button>}
           <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button type="button" onClick={() => void submit()} disabled={count === 0} data-testid="create-proxies-confirm">Create proxies</Button>
         </DialogFooter>

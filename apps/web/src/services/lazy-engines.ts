@@ -37,6 +37,29 @@ export function loadEngineModules(): Promise<EngineModules> {
   return pending;
 }
 
+type OptionalEngineModules = typeof import("./optional-engine-modules");
+let optionalPending: Promise<OptionalEngineModules> | null = null;
+let optionalLoaded: OptionalEngineModules | null = null;
+
+/** The optional engine modules if they have already been loaded (never starts the load), else null. */
+export function getLoadedOptionalEngineModules(): OptionalEngineModules | null {
+  return optionalLoaded;
+}
+
+/** Engines nothing on the first-paint path needs (subtitles, speech-to-text, templates, sound library, multicam); memoised. */
+export function loadOptionalEngineModules(): Promise<OptionalEngineModules> {
+  if (!optionalPending) {
+    optionalPending = import("./optional-engine-modules").then((modules) => {
+      optionalLoaded = modules;
+      return modules;
+    });
+    optionalPending.catch(() => {
+      optionalPending = null;
+    });
+  }
+  return optionalPending;
+}
+
 /** The engine modules if they have finished loading, else null. */
 export function getLoadedEngineModules(): EngineModules | null {
   return loaded;

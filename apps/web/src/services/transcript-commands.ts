@@ -9,12 +9,12 @@ import {
   buildTranscript,
   cutDuration,
   decodeCaptionText,
-  exportCaptionFile,
+  exportCaptionFileAsync,
   exportCaptions,
   findFillerWords,
   findPauses,
-  isStlContent,
-  parseCaptionBytes,
+  importCaptionFile,
+  looksLikeTranscriptJson,
   parseCaptions,
   parseTranscriptJson,
   planTranscriptCut,
@@ -74,6 +74,8 @@ export type CaptionImportOutcome = CommandOutcome & {
   errors?: string[];
   /** SCC / STL decoding notes (parity errors, unterminated captions, ...). */
   issues?: CaptionFormatIssue[];
+  /** The detected file format. */
+  format?: string;
 };
 
 /** Import SRT, WebVTT, SCC or word-timed transcript JSON as one undo step. */
@@ -81,8 +83,7 @@ export async function importCaptionText(
   content: string,
   options: CaptionImportOptions = {},
 ): Promise<CaptionImportOutcome> {
-  const trimmed = content.trimStart();
-  const isJson = trimmed.startsWith("{") || trimmed.startsWith("[");
+  const isJson = looksLikeTranscriptJson(content);
   const parsed: { subtitles: Subtitle[]; errors: string[]; issues?: CaptionFormatIssue[] } = isJson
     ? parseTranscriptJson(content, { ...options, idPrefix: `tr-${uuidv4().slice(0, 8)}` })
     : (() => {
@@ -108,18 +109,21 @@ export async function importCaptionText(
   };
 }
 
-/** Import caption file bytes: EBU-STL is binary; everything else is decoded as text. */
+/**
+ * Import caption file bytes: the format is detected from the content (EBU-STL is binary, MCC and timed
+ * transcripts load their parsers on demand, JSON is a word-timed transcript). One undo step.
+ */
 export async function importCaptionBytes(
   bytes: Uint8Array,
-  options: CaptionImportOptions = {},
+  options: CaptionImportOptions & { fileName?: string } = {},
 ): Promise<CaptionImportOutcome> {
-  if (!isStlContent(bytes)) return importCaptionText(decodeCaptionText(bytes), options);
-  const r = parseCaptionBytes(bytes, options);
+  if (looksLikeTranscriptJson(new TextDecoder().decode(bytes.subarray(0, 64)))) return importCaptionText(decodeCaptionText(bytes), options);
+  const r = await importCaptionFile(bytes, { projectFrameRate: useProjectStore.getState().project.settings.frameRate, ...options });
   const errors = r.errors.map((e) => e.message);
   if (!r.subtitles.length)
-    return { success: false, message: errors[0] ?? "No captions were found in that file.", errors, issues: r.issues };
+    return { success: false, message: errors[0] ?? "No captions were found in that file.", errors, issues: r.issues, format: r.format };
   const outcome = await setSubtitles([...getSubtitles(), ...r.subtitles]);
-  return { ...outcome, added: r.subtitles.length, errors, issues: r.issues };
+  return { ...outcome, added: r.subtitles.length, errors, issues: r.issues, format: r.format };
 }
 
 const getProfiles = (): readonly SpeakerProfile[] => useProjectStore.getState().project.speakers ?? [];
@@ -217,7 +221,7 @@ export const exportCaptionText = (
 export const exportCaptionBytes = (
   format: CaptionExportFormat,
   options: CaptionExportOptions = {},
-): CaptionFile => exportCaptionFile(getSubtitles(), format, options);
+): Promise<CaptionFile> => exportCaptionFileAsync(getSubtitles(), format, options);
 
 export type CaptionTranslateOutcome = CommandOutcome & { trackId?: string; added?: number; cancelled?: boolean };
 

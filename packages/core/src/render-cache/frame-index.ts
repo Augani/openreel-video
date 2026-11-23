@@ -93,6 +93,25 @@ export class FrameIndex {
     return { stored: true, evicted };
   }
 
+  /** Every entry with its LRU stamp, for persisting the index. */
+  entriesSnapshot(): Array<{ frame: number; bytes: number; used: number }> {
+    return Array.from(this.entries, ([frame, entry]) => ({ frame, bytes: entry.bytes, used: entry.used }));
+  }
+
+  /** Re-register a frame found valid on disk, keeping its saved LRU position. Does not evict. */
+  restoreEntry(frame: number, bytes: number, used: number): void {
+    const existing = this.entries.get(frame);
+    if (existing) this.totalBytes -= existing.bytes;
+    this.entries.set(frame, { bytes, used });
+    this.totalBytes += bytes;
+    if (used > this.clock) this.clock = used;
+  }
+
+  /** Evict least-recently-used frames until the index is inside its budget. */
+  trimToBudget(): number[] {
+    return this.evictToBudget(() => false);
+  }
+
   remove(frame: number): boolean {
     const entry = this.entries.get(frame);
     if (!entry) return false;

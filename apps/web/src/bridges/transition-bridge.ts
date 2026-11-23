@@ -2,6 +2,7 @@ import type { TransitionEngine, TransitionValidationResult } from "@openreel/cor
 import { getLoadedEngineModules } from "../services/lazy-engines";
 import type { Transition, Clip, Track, TransitionEdge } from "@openreel/core";
 import type { TransitionType, TransitionParams } from "@openreel/core";
+import { scaleBorderToFrame } from "@openreel/core/video/transition-defaults";
 
 /**
  * Result of a transition operation
@@ -12,17 +13,6 @@ interface TransitionOperationResult {
   error?: string;
   warning?: string;
   maxDuration?: number;
-}
-
-/**
- * Available transition types with display info
- */
-interface TransitionTypeInfo {
-  type: TransitionType;
-  name: string;
-  description: string;
-  hasDirection: boolean;
-  hasCustomParams: boolean;
 }
 
 const isSameTransitionPlacement = (
@@ -185,6 +175,9 @@ class TransitionBridge {
     if (!this.initialized || !this.transitionEngine) {
       return { success: false, error: "TransitionBridge not initialized" };
     }
+    if (type === "morphCut") {
+      return { success: false, error: "Morph Cut needs a cut between two clips; it cannot fade a clip in or out" };
+    }
 
     const validation = this.transitionEngine.validateClipEdgeTransition(
       clip,
@@ -334,7 +327,8 @@ class TransitionBridge {
     return this.trackTransitions.get(trackId) || [];
   }
 
-  setTransitionsForTrack(trackId: string, transitions: Transition[]): void {
+  setTransitionsForTrack(trackId: string, transitions: Transition[], projectWidth?: number): void {
+    if (projectWidth && projectWidth > 0) this.projectFrameWidth = projectWidth;
     this.trackTransitions.set(
       trackId,
       transitions.map((transition) => ({
@@ -427,183 +421,6 @@ class TransitionBridge {
     return this.transitionEngine.findAdjacentClipPairs(track);
   }
 
-  /**
-   * Get available transition types with display information
-   *
-   * @returns Array of transition type info
-   */
-  getAvailableTransitionTypes(): TransitionTypeInfo[] {
-    return [
-      {
-        type: "crossfade",
-        name: "Crossfade",
-        description: "Smooth blend between clips",
-        hasDirection: false,
-        hasCustomParams: false,
-      },
-      {
-        type: "dipToBlack",
-        name: "Dip to Black",
-        description: "Fade through black",
-        hasDirection: false,
-        hasCustomParams: true,
-      },
-      {
-        type: "dipToWhite",
-        name: "Dip to White",
-        description: "Fade through white",
-        hasDirection: false,
-        hasCustomParams: true,
-      },
-      {
-        type: "wipe",
-        name: "Wipe",
-        description: "Wipe from one clip to another",
-        hasDirection: true,
-        hasCustomParams: true,
-      },
-      {
-        type: "slide",
-        name: "Slide",
-        description: "Slide incoming clip over outgoing",
-        hasDirection: true,
-        hasCustomParams: true,
-      },
-      {
-        type: "zoom",
-        name: "Zoom",
-        description: "Zoom transition between clips",
-        hasDirection: false,
-        hasCustomParams: true,
-      },
-      {
-        type: "push",
-        name: "Push",
-        description: "Push outgoing clip with incoming",
-        hasDirection: true,
-        hasCustomParams: true,
-      },
-      {
-        type: "circleReveal",
-        name: "Circle Reveal",
-        description: "Iris reveal from the center",
-        hasDirection: false,
-        hasCustomParams: true,
-      },
-      {
-        type: "blur",
-        name: "Blur Dissolve",
-        description: "Blur out and back into the next clip",
-        hasDirection: false,
-        hasCustomParams: true,
-      },
-      {
-        type: "whipPan",
-        name: "Whip Pan",
-        description: "Fast motion-blurred pan",
-        hasDirection: true,
-        hasCustomParams: true,
-      },
-      {
-        type: "radialWipe",
-        name: "Radial Wipe",
-        description: "Clock-style angular sweep",
-        hasDirection: false,
-        hasCustomParams: true,
-      },
-      {
-        type: "pixelate",
-        name: "Pixelate",
-        description: "Chunky pixel mosaic through the cut",
-        hasDirection: false,
-        hasCustomParams: true,
-      },
-      {
-        type: "glitch",
-        name: "Glitch Cut",
-        description: "Digital slice displacement",
-        hasDirection: false,
-        hasCustomParams: true,
-      },
-      {
-        type: "blinds",
-        name: "Venetian Blinds",
-        description: "Repeating slat reveal",
-        hasDirection: true,
-        hasCustomParams: true,
-      },
-      {
-        type: "diamondReveal",
-        name: "Diamond Reveal",
-        description: "Geometric center reveal",
-        hasDirection: false,
-        hasCustomParams: true,
-      },
-      {
-        type: "spin",
-        name: "Spin",
-        description: "Rotating scale handoff",
-        hasDirection: true,
-        hasCustomParams: true,
-      },
-      {
-        type: "flip",
-        name: "Flip",
-        description: "Card-style horizontal or vertical flip",
-        hasDirection: true,
-        hasCustomParams: true,
-      },
-      {
-        type: "splitReveal",
-        name: "Split Reveal",
-        description: "Reveal outward from the center",
-        hasDirection: true,
-        hasCustomParams: true,
-      },
-      {
-        type: "flash",
-        name: "Flash Cut",
-        description: "High-energy white flash edit",
-        hasDirection: false,
-        hasCustomParams: true,
-      },
-      {
-        type: "filmBurn",
-        name: "Film Burn",
-        description: "Warm analog light leak through the edit",
-        hasDirection: false,
-        hasCustomParams: true,
-      },
-      {
-        type: "mosaic",
-        name: "Mosaic Reveal",
-        description: "Shuffled tile reveal between shots",
-        hasDirection: false,
-        hasCustomParams: true,
-      },
-      {
-        type: "ripple",
-        name: "Ripple",
-        description: "Fluid horizontal wave distortion",
-        hasDirection: false,
-        hasCustomParams: true,
-      },
-      {
-        type: "pageTurn",
-        name: "Page Turn",
-        description: "Fold the outgoing shot away like a page",
-        hasDirection: true,
-        hasCustomParams: true,
-      },
-      {
-        type: "colorSplit",
-        name: "Color Split",
-        description: "Prismatic channel ghosts through the cut",
-        hasDirection: false,
-        hasCustomParams: true,
-      },
-    ];
-  }
 
   /**
    * Get default parameters for a transition type
@@ -667,6 +484,18 @@ class TransitionBridge {
     );
   }
 
+  /** Allocates the engine's per-transition buffers ahead of the first real frame (see TransitionEngine.warmUp). */
+  async warmUp(transition: Transition): Promise<boolean> {
+    if (!this.initialized || !this.transitionEngine) return false;
+    return this.transitionEngine.warmUp(this.forEngineFrame(transition));
+  }
+
+  /** The timeline window a transition covers (the engine's own rule, so look-ahead, preview and export agree). */
+  getTransitionWindow(transition: Transition, clipA: Clip): { start: number; end: number } | null {
+    if (!this.initialized || !this.transitionEngine) return null;
+    return this.transitionEngine.getTransitionWindow(transition, clipA);
+  }
+
   /**
    * Render a transition frame
    *
@@ -690,7 +519,7 @@ class TransitionBridge {
       const result = await this.transitionEngine.renderTransition(
         outgoingFrame,
         incomingFrame,
-        transition,
+        this.forEngineFrame(transition),
         progress,
       );
       return {
@@ -701,6 +530,20 @@ class TransitionBridge {
       console.error("[TransitionBridge] Render error:", error);
       return null;
     }
+  }
+
+  /** Width of the project frame, the unit border widths are stored in (set with the track's transitions). */
+  private projectFrameWidth = 0;
+
+  /**
+   * Border width is stored in project-frame pixels, but this engine renders at its own size (1920 wide by default,
+   * whatever the project is), so the width is scaled to it: the preview then draws the same border as the export.
+   */
+  private forEngineFrame(transition: Transition): Transition {
+    const engine = this.transitionEngine;
+    if (!engine || !(Number(transition.params.borderWidth) > 0)) return transition;
+    const projectWidth = this.projectFrameWidth;
+    return { ...transition, params: scaleBorderToFrame(transition.params, engine.getEngineDimensions().width, projectWidth) };
   }
 
   async renderTransitionToCanvas(
@@ -717,7 +560,7 @@ class TransitionBridge {
       return await this.transitionEngine.renderTransitionToCanvas(
         outgoingFrame,
         incomingFrame,
-        transition,
+        this.forEngineFrame(transition),
         progress,
       );
     } catch (error) {

@@ -318,12 +318,25 @@ export const windowControlArgsSchema = z.object({
   action: z.enum(["minimize", "toggleMaximize", "close"]),
 });
 
+export const ingestProfileSchema = z.object({
+  codec: z.enum(["prores-proxy", "prores-lt", "prores-422", "h264", "dnxhr-lb", "dnxhr-sq"]),
+  size: z.enum(["full", "half", "quarter", "720p", "1080p", "custom"]),
+  customWidth: z.number().int().min(16).max(16384).optional(),
+  audio: z.enum(["keep", "strip"]).optional(),
+  burnIn: z.object({ clipName: z.boolean().optional(), timecode: z.boolean().optional() }).optional(),
+  destination: z.object({ mode: z.enum(["project", "media", "custom"]), folder: z.string().min(1).optional() }).optional(),
+});
+export const ingestChecksumSchema = z.enum(["sha256", "md5", "xxh64"]);
+
 const ingestConfigSchema = z
   .object({
-    proxyProfile: z.object({ codec: z.enum(["prores-proxy", "h264", "dnxhr-lb"]), size: z.enum(["half", "quarter", "720p", "1080p"]) }).optional(),
+    proxyProfile: ingestProfileSchema.optional(),
     proxyFolder: z.string().min(1).optional(),
     mediaFolder: z.string().min(1).optional(),
     concurrency: z.union([z.literal(1), z.literal(2)]).optional(),
+    proxiesWithCopy: z.boolean().optional(),
+    checksum: ingestChecksumSchema.optional(),
+    proxyPresetId: z.string().min(1).max(80).optional(),
   })
   .nullish();
 
@@ -342,13 +355,20 @@ export const ingestProxyEnqueueArgsSchema = ingestProjectSchema.extend({
         mediaId: z.string().min(1),
         name: z.string().min(1),
         srcPath: z.string().min(1),
-        profile: z.object({ codec: z.enum(["prores-proxy", "h264", "dnxhr-lb"]), size: z.enum(["half", "quarter", "720p", "1080p"]) }),
+        profile: ingestProfileSchema,
         previewTwin: z.boolean(),
       }),
     )
     .min(1)
     .max(500),
   force: z.boolean().optional(),
+});
+/** Queue verified copies into the project's Media folder as background jobs (optionally followed by proxies). */
+export const ingestCopyEnqueueArgsSchema = ingestProjectSchema.extend({
+  items: z.array(z.object({ mediaId: z.string().min(1), name: z.string().min(1), srcPath: z.string().min(1) })).min(1).max(500),
+  algorithm: ingestChecksumSchema.optional(),
+  /** Build proxies from each copy once it is verified. */
+  thenProxies: z.object({ profile: ingestProfileSchema, previewTwin: z.boolean() }).optional(),
 });
 export const ingestProxyListArgsSchema = z.object({ projectId: z.string().min(1) });
 export const ingestProxyIdsArgsSchema = z.object({ ids: z.array(z.string().min(1)).max(1000) });
@@ -357,6 +377,7 @@ export const ingestStatArgsSchema = z.object({ paths: z.array(z.string().min(1))
 export const ingestReadProxyArgsSchema = z.object({ path: z.string().min(1) });
 export const ingestCopyToProjectArgsSchema = ingestProjectSchema.extend({
   requestId: z.string().min(1).max(100),
+  algorithm: ingestChecksumSchema.optional(),
   srcPath: z.string().min(1),
 });
 export const ingestPickFolderArgsSchema = z.object({ title: z.string().max(200).optional(), defaultPath: z.string().optional() });
@@ -364,4 +385,36 @@ export const ingestScanFolderArgsSchema = z.object({
   root: z.string().min(1),
   names: z.array(z.string().min(1)).min(1).max(5000),
   mode: z.enum(["media", "proxy"]),
+  /** Proxy name pattern with one {name} (`{name}_proxy`); absent = the usual suffixes. */
+  proxyPattern: z.string().max(200).optional(),
+});
+
+const mediaBrowserClipSchema = z.object({
+  name: z.string().min(1).max(300),
+  kind: z.string().min(1).max(40),
+  segments: z
+    .array(z.object({ path: z.string().min(1), audioPaths: z.array(z.string().min(1)).max(32).optional() }))
+    .min(1)
+    .max(200),
+});
+export const mediaBrowserListArgsSchema = z.object({ path: z.string().min(1), rawFolders: z.boolean().optional() });
+export const mediaBrowserThumbnailArgsSchema = z.object({ path: z.string().min(1), time: z.number().min(0).max(1e6).optional(), width: z.number().int().min(32).max(1280).optional() });
+export const mediaBrowserFilmstripArgsSchema = z.object({ clip: mediaBrowserClipSchema, count: z.number().int().min(2).max(24).optional(), width: z.number().int().min(32).max(640).optional() });
+export const mediaBrowserClipArgsSchema = z.object({ clip: mediaBrowserClipSchema });
+export const mediaBrowserReadXmpArgsSchema = z.object({ path: z.string().min(1) });
+export const mediaBrowserWriteSidecarArgsSchema = z.object({
+  path: z.string().min(1),
+  fields: z.object({
+    title: z.string().max(10000).optional(),
+    description: z.string().max(100000).optional(),
+    creator: z.string().max(10000).optional(),
+    rights: z.string().max(10000).optional(),
+    keywords: z.array(z.string().max(500)).max(1000).optional(),
+    scene: z.string().max(1000).optional(),
+    shot: z.string().max(1000).optional(),
+    take: z.string().max(1000).optional(),
+    good: z.boolean().optional(),
+    logComment: z.string().max(100000).optional(),
+    reel: z.string().max(1000).optional(),
+  }),
 });

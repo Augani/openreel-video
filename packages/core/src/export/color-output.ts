@@ -90,7 +90,7 @@ export function outputColorForExport(
 ): OutputColorSpec | null {
   // ACES mode: an SDR export is the Output Transform's own display encoding (sRGB / Rec.709, 8-bit canvas path), so the
   // Rec.2020 working-space tagging does not apply; HDR exports keep their PQ / HLG Rec.2020 spec.
-  if (project.settings.colorManagement === "aces" && hdr !== "pq" && hdr !== "hlg") return null;
+  if ((project.settings.colorManagement === "aces" || project.settings.colorManagement === "ocio") && hdr !== "pq" && hdr !== "hlg") return null;
   return resolveOutputColorSpec(resolveWorkingColorSpace(project.settings), hdr);
 }
 

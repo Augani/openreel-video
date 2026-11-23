@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { describeChannelMap, resolveClipChannelMap } from "@openreel/core";
 import { Button } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
+import { buildClipIndex } from "../../../utils/clip-index";
 import { openAudioChannelsForSelection, setClipChannelMap } from "../../../services/audio-channels";
 
 /**
@@ -9,14 +10,16 @@ import { openAudioChannelsForSelection, setClipChannelMap } from "../../../servi
  * dialog. A multi-selection lists "Mixed" when the clips differ.
  */
 export const AudioChannelsSection: React.FC<{ clipIds: readonly string[] }> = ({ clipIds }) => {
-  const rows = useProjectStore((state) => {
-    const clips = state.project.timeline.tracks.flatMap((track) => track.clips);
+  const project = useProjectStore((state) => state.project);
+  const rows = useMemo(() => {
+    const index = buildClipIndex(project.timeline.tracks);
+    const items = new Map(project.mediaLibrary.items.map((item) => [item.id, item] as const));
     return clipIds.flatMap((id) => {
-      const clip = clips.find((candidate) => candidate.id === id);
-      const media = clip && state.project.mediaLibrary.items.find((item) => item.id === clip.mediaId);
+      const clip = index.clips.get(id);
+      const media = clip && items.get(clip.mediaId);
       return clip && media ? [{ clip, media }] : [];
     });
-  });
+  }, [clipIds, project]);
   if (rows.length === 0) return null;
   const labels = new Set(rows.map(({ clip, media }) => describeChannelMap(resolveClipChannelMap(clip, media), media.metadata.channels || 2)));
   const label = labels.size === 1 ? [...labels][0] : "Mixed";

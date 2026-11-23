@@ -94,6 +94,20 @@ function clearTag(m: KeyMap, id: string, side: Side): void {
   m.set(id, next);
 }
 
+/**
+ * Dragging a handle of an Auto Bezier side makes the key Continuous Bezier (Premiere): both sides become
+ * tangent-linked and the opposite handle follows. When the opposite side is not Auto (a hand-tuned
+ * handle stays untouched), only the dragged side leaves Auto and becomes a plain Bezier.
+ */
+function dragAutoSide(m: KeyMap, id: string, side: Side): void {
+  const key = m.get(id) as Keyframe;
+  if (key[tagField(side)] !== "auto-bezier") return;
+  const other = side === "in" ? "out" : "in";
+  if (key[tagField(other)] === "auto-bezier") {
+    m.set(id, setTagField(setTagField(key, tagField(side), "continuous-bezier"), tagField(other), "continuous-bezier"));
+  } else clearTag(m, id, side);
+}
+
 /** Handles owned by a side: out side = P1 of the segment starting here; in side = P2 of the segment ending here. */
 function segmentFor(order: Order, pos: number, side: Side): { segId: string; endId: string } | null {
   if (side === "out") return pos < order.length - 1 ? { segId: order[pos], endId: order[pos + 1] } : null;
@@ -273,8 +287,8 @@ export function applyKeyframeInterpolation(
 /**
  * Re-derives smooth sides after any keyframe list change (time/value edits, add, delete, paste,
  * handle drags, presets). Sides whose handle differs from `prior` were set explicitly: they are
- * protected from re-derivation. Dragging one handle of an Auto side converts it to plain Bezier
- * (as Premiere does); Continuous keeps its link and mirrors the opposite handle; replacing a
+ * protected from re-derivation. Dragging one handle of an Auto side converts the key to Continuous
+ * Bezier (as Premiere does); Continuous keeps its link and mirrors the opposite handle; replacing a
  * whole segment (a preset, an easing change) unlinks Continuous too.
  */
 export function refreshSmoothKeyframesAfterEdit(
@@ -299,8 +313,8 @@ export function refreshSmoothKeyframesAfterEdit(
       if (p2) edited.add(sideId(nextId, "in"));
       if (p1 && p2) { clearTag(m, id, "out"); clearTag(m, nextId, "in"); }
       else {
-        if (p1 && m.get(id)?.interpolationOut === "auto-bezier") clearTag(m, id, "out");
-        if (p2 && m.get(nextId)?.interpolationIn === "auto-bezier") clearTag(m, nextId, "in");
+        if (p1) dragAutoSide(m, id, "out");
+        if (p2) dragAutoSide(m, nextId, "in");
       }
     });
   }
@@ -325,4 +339,38 @@ export function keyframeSideTypes(previous: Keyframe | undefined, key: Keyframe,
     in: previous ? describe(previous, key.interpolationIn) : undefined,
     out: hasNext ? describe(key, key.interpolationOut) : undefined,
   };
+}
+
+/**
+ * Speed-graph handles (Premiere's velocity graph). Each side of a numeric key owns one handle on the
+ * speed graph: its horizontal position is the INFLUENCE (how much of the segment's time the handle
+ * spans, 0..1) and its height is the SPEED (value units per second, as a magnitude) the curve has as it
+ * leaves or arrives at the key. They are the same two numbers the value graph encodes as handle x and y.
+ */
+export interface SpeedHandle {
+  readonly influence: number;
+  readonly speed: number;
+}
+export function speedHandleOf(a: { time: number; value: number }, b: { time: number; value: number }, handles: BezierHandles, side: Side): SpeedHandle {
+  const dt = b.time - a.time;
+  const dv = b.value - a.value;
+  const x = side === "out" ? handles.in.x : 1 - handles.out.x;
+  const y = side === "out" ? handles.in.y : 1 - handles.out.y;
+  return { influence: x, speed: dt > EPS && x > EPS ? Math.abs((y * dv) / (x * dt)) : 0 };
+}
+/** The handles of segment a->b after dragging the speed handle of `side` to `influence` and `speed`. */
+export function handlesForSpeedHandle(
+  a: { time: number; value: number },
+  b: { time: number; value: number },
+  current: BezierHandles,
+  side: Side,
+  influence: number,
+  speed: number,
+): BezierHandles {
+  const dt = b.time - a.time;
+  const span = Math.abs(b.value - a.value);
+  const x = Math.min(1, Math.max(0.001, Number.isFinite(influence) ? influence : THIRD));
+  const magnitude = Math.max(0, Number.isFinite(speed) ? speed : 0);
+  const y = span > EPS && dt > EPS ? (magnitude * x * dt) / span : side === "out" ? current.in.y : 1 - current.out.y;
+  return clampBezierHandles(side === "out" ? { in: { x, y }, out: current.out } : { in: current.in, out: { x: 1 - x, y: 1 - y } });
 }

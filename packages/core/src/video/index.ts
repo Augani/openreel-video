@@ -10,6 +10,11 @@ export * from "./temporal-effects";
 export * from "./echo-compositor";
 export * from "./hsl-secondary";
 export * from "./ultra-key";
+// The VR effects: specs and the lazy-runtime loader only. The CPU reference, shaders and uniform mapping
+// (vr-effects.ts, vr-image-effects.ts, vr-runtime.ts) load on first use and are imported by path where needed.
+export * from "./vr-effect-specs";
+export * from "./vr-image-effect-specs";
+export * from "./vr-runtime-loader";
 export * from "./effect-defaults";
 export * from "./pro-effect-shaders";
 export * from "./color-grading-engine";
@@ -22,6 +27,7 @@ export * from "./white-balance-eyedropper";
 export * from "./color-match";
 export * from "./animated-color-grading";
 export * from "./transition-engine";
+export * from "./frame-time";
 export * from "./animation-engine";
 export * from "./transform-animator";
 export * from "./mask-engine";
@@ -29,7 +35,10 @@ export * from "./mask-path";
 export * from "./composite-engine";
 export * from "./speed-engine";
 export * from "./speed-presets";
-export * from "./frame-interpolation";
+// The interpolators themselves (optical flow, blending, scene cuts) are not re-exported: VideoEngine loads
+// ./time-interpolation/runtime lazily, and a barrel export would let any importer pull them into its chunk.
+export * from "./time-interpolation/types";
+export { interpolationSourceKey } from "./time-interpolation/source-key";
 export * from "./stabilization";
 export * from "./keyframe-engine";
 export * from "./chroma-key-engine";

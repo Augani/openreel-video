@@ -2,6 +2,7 @@ import { useLayoutEffect, type ReactNode } from "react";
 import { TooltipProvider } from "@openreel/ui";
 import { useThemeStore } from "../stores/theme-store";
 import { PluginManagerHost } from "./editor/plugins/PluginManagerHost";
+import { ProjectManagerHost } from "./editor/project-manager/ProjectManagerHost";
 
 /** One theme and one set of shadcn primitives for browser and native renderers. */
 export function AppProviders({ children }: { children: ReactNode }) {
@@ -14,6 +15,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
     <TooltipProvider delayDuration={350}>
       {children}
       <PluginManagerHost />
+      <ProjectManagerHost />
     </TooltipProvider>
   );
 }

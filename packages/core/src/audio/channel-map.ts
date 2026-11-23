@@ -89,9 +89,18 @@ export function matchChannelPreset(map: ClipChannelMap | undefined, sourceChanne
   return null;
 }
 
-/** True when a map reads source channels a stereo decode would have folded away (a 5.1 output, or a source beyond L/R). */
-export const channelMapNeedsWideSource = (map: ClipChannelMap | undefined): boolean =>
-  !!map && (map.format === "5.1" || map.sources.some((entry) => entry >= 2));
+/**
+ * True when a map needs the file's own channels, not the stereo fold-down: a 5.1 output, a source channel beyond L/R, or
+ * ANY map over a source wider than stereo (the fold-down of an 8-channel file mixes every channel into "left" and "right").
+ */
+export const channelMapNeedsWideSource = (map: ClipChannelMap | undefined, sourceChannels?: number): boolean =>
+  !!map && (map.format === "5.1" || map.sources.some((entry) => entry >= 2) || (sourceChannels ?? 0) > 2);
+
+/** Most channels a wide decode keeps (the multichannel source layouts go up to 32 audio clips; a file this wide is rare). */
+export const MAX_WIDE_DECODE_CHANNELS = 32;
+/** Channels a wide decode keeps for a source of `sourceChannels` channels. */
+export const wideDecodeChannels = (sourceChannels: number | undefined): number =>
+  Math.min(MAX_WIDE_DECODE_CHANNELS, Math.max(2, Math.floor(Number.isFinite(sourceChannels) ? (sourceChannels as number) : 2) || 2));
 
 export const sameChannelMap = (a: ClipChannelMap | undefined, b: ClipChannelMap | undefined): boolean =>
   a === b || (!!a && !!b && a.format === b.format && a.sources.length === b.sources.length && a.sources.every((source, index) => source === b.sources[index]));
@@ -153,10 +162,12 @@ export function mapAudioBuffer(context: Pick<BaseAudioContext, "createBuffer">, 
 
 /** The map a clip plays with: its own, else the file's import preset. undefined = the file as it is. */
 export function resolveClipChannelMap(
-  clip: { readonly channelMap?: ClipChannelMap },
-  media: { readonly channelPreset?: ChannelPreset; readonly metadata?: { readonly channels?: number } } | undefined,
+  clip: { readonly channelMap?: ClipChannelMap; readonly audioTrackIndex?: number },
+  media: { readonly channelPreset?: ChannelPreset; readonly metadata?: { readonly channels?: number; readonly audioStreamChannels?: readonly number[] } } | undefined,
 ): ClipChannelMap | undefined {
-  return clip.channelMap ?? presetChannelMap(media?.channelPreset, media?.metadata?.channels);
+  // A file can mix stream widths: the preset is built for the width of the stream this clip plays.
+  const streamWidth = media?.metadata?.audioStreamChannels?.[clip.audioTrackIndex ?? 0];
+  return clip.channelMap ?? presetChannelMap(media?.channelPreset, streamWidth ?? media?.metadata?.channels);
 }
 
 /** Short human label for a map, e.g. "Mono (Left)", "Stereo (swapped)". */

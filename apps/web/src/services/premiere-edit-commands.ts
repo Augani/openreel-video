@@ -5,15 +5,22 @@ import {
   createEmptyTrack,
   createMediaClip,
   findTopmostVisualClipAt,
-  findReverseMatch,
+  findReverseMatches,
+  pickReverseMatch,
   planAddEdit,
   planAddEditToAllTracks,
   planExtract,
   planInsert,
   planLift,
   planOverwrite,
+  planSourceEdit,
+  resolveMultichannelSourceTracks,
+  resolveSourceChannelGroups,
   resolveSourceTracks,
+  subclipRange,
+  type AudioChannelPlacement,
   type MediaItem,
+  type SourceChannelGroup,
   type NewTrackPlacement,
   type Project,
   type TargetMediaKind,
@@ -143,6 +150,65 @@ export function findSourceTracks(
   };
 }
 
+export interface MultichannelSourceTracks {
+  /** Picture track for a video source (component both / video). */
+  primary?: { track: Track; created?: NewTrackPlacement };
+  /** One entry per enabled audio channel group, in channel order, each on its own track. */
+  audio: { channel: number; group: SourceChannelGroup; track: Track; created?: NewTrackPlacement }[];
+}
+
+/**
+ * Multichannel source patching (Premiere's A1..An patch indicators): where each audio channel group of a source that
+ * expands to several audio clips goes. Null when the source has one audio clip or none, so the single-clip path
+ * applies. New tracks are created one after another so they get distinct names and positions.
+ */
+export interface MultichannelTrackOptions {
+  /** A track the picture was dropped on (overrides the source patch for the picture). */
+  videoTrackId?: string;
+  /** A track group A1 was dropped on (overrides the source patch for the first audio group). */
+  audioTrackId?: string;
+  /** Interval that must be free: occupied tracks are skipped for new ones (Add to timeline never overwrites). */
+  freeRange?: { start: number; end: number };
+}
+
+export function findMultichannelSourceTracks(
+  project: Project,
+  media: MediaItem,
+  component: "both" | "video" | "audio" = "both",
+  options: MultichannelTrackOptions = {},
+): MultichannelSourceTracks | null {
+  const groups = resolveSourceChannelGroups(media);
+  if (groups.length < 2 || media.type === "image") return null;
+  const workspace = useEditorWorkspaceStore.getState();
+  const firstAudio = options.audioTrackId ?? workspace.targetTracks.audio;
+  const resolved = resolveMultichannelSourceTracks(project, {
+    mediaType: media.type === "audio" ? "audio" : "video",
+    component,
+    groupCount: groups.length,
+    patch: {
+      video: options.videoTrackId ?? workspace.targetTracks.video,
+      audio: firstAudio,
+      channels: groups.map((_, channel) => (channel === 0 ? firstAudio : workspace.channelPatches[channel])),
+      disabledChannels: groups.map((_, channel) => workspace.disabledChannels.includes(channel)),
+    },
+    targetedTrackIds: getTargetedTrackIds(project),
+    selectedTrackId: getPrimarySelectedTrackId(project, useUIStore.getState().selectedItems),
+    ...(options.freeRange ? { freeRange: options.freeRange } : {}),
+  });
+  let working = project;
+  const realizeNext = (choice: TrackChoice): { track: Track; created?: NewTrackPlacement } => {
+    if (choice.kind === "existing") return { track: choice.track };
+    const created = createEmptyTrack(working, choice.trackType, uuidv4());
+    const tracks = [...working.timeline.tracks];
+    tracks.splice(created.index, 0, created.track);
+    working = { ...working, timeline: { ...working.timeline, tracks } };
+    return { track: created.track, created };
+  };
+  const primary = resolved.primary ? realizeNext(resolved.primary) : undefined;
+  const audio = resolved.audio.map(({ channel, choice }) => ({ channel, group: groups[channel], ...realizeNext(choice) }));
+  return { ...(primary ? { primary } : {}), audio };
+}
+
 /** The explicit timeline In/Out range, clamped to the project. */
 export function getMarkedRange(): { start: number; end: number } | null {
   const { loopStart, loopEnd } = useTimelineStore.getState();
@@ -186,6 +252,10 @@ function placeSelectedMedia(mode: "insert" | "overwrite"): CommandOutcome {
   const media = getSelectedMediaItem();
   if (!media) return fail("Select a media item in the library first.");
   const store = useProjectStore.getState();
+  // A multichannel file (several audio streams, or more than one channel group) places its picture and one audio clip
+  // per enabled source patch, exactly like Insert / Overwrite from the Source monitor.
+  const multichannel = findMultichannelSourceTracks(store.project, media);
+  if (multichannel) return placeMultichannelMedia(media, multichannel, mode, time);
   const target = findTargetTrack(store.project, media);
   if (!target) return fail(`No unlocked ${trackTypeForMedia(media)} track available.`);
   const { track, created } = target;
@@ -204,6 +274,68 @@ function placeSelectedMedia(mode: "insert" | "overwrite"): CommandOutcome {
   }, "Nothing to place.");
   if (outcome.success) useTimelineStore.getState().seekTo(time + duration);
   return { success: outcome.success, message: outcome.message };
+}
+
+/**
+ * Places a whole multichannel media item (no source marks) at `time`: the picture on its track and one audio clip per enabled
+ * channel group on the patched tracks, as ONE plan and one undo step. Add to timeline and Project-panel drops resolve their
+ * tracks with a `freeRange`, so the overwrite lands on tracks that are free for the clip's length (or on new ones) and
+ * replaces nothing.
+ */
+export function placeMultichannelMedia(
+  media: MediaItem,
+  tracks: MultichannelSourceTracks,
+  mode: "insert" | "overwrite",
+  time: number,
+  options: { seek?: boolean } = {},
+): CommandOutcome {
+  const wantsPicture = media.type === "video";
+  if (!tracks.audio.length && !wantsPicture) return fail("Every audio channel of this media is switched off in the source patch.");
+  const first = tracks.primary ?? tracks.audio[0];
+  const clipId = uuidv4();
+  const audioChannels: AudioChannelPlacement[] = tracks.audio.map((entry, index) => ({
+    trackId: entry.track.id,
+    clipId: !wantsPicture && index === 0 ? clipId : uuidv4(),
+    channel: entry.channel,
+    group: entry.group,
+    newTrack: entry.created,
+  }));
+  let duration = 0;
+  const outcome = commit((project) => {
+    const planned = planSourceEdit(project, {
+      mode,
+      media,
+      trackId: first.track.id,
+      clipId,
+      operationId: uuidv4(),
+      playhead: time,
+      component: "both",
+      newTrack: tracks.primary?.created,
+      audioChannels,
+    });
+    duration = planned.resolved.duration;
+    return planned.plan;
+  }, "Nothing to place.");
+  if (outcome.success && options.seek !== false) useTimelineStore.getState().seekTo(time + duration);
+  return { success: outcome.success, message: outcome.message };
+}
+
+/**
+ * Add to timeline / a Project-panel drop of a multichannel media item: the picture and one audio clip per enabled channel
+ * group at `time`, onto tracks that are free for the clip's length (new tracks otherwise), so nothing is overwritten and the
+ * playhead stays. `trackId` is the track it was dropped on, if any. Null when the media is not multichannel.
+ */
+export function addMultichannelMedia(media: MediaItem, trackId: string | undefined, time: number): CommandOutcome | null {
+  if (media.type === "image") return null;
+  const project = useProjectStore.getState().project;
+  const window = subclipRange(media);
+  const length = window ? window.end - window.start : media.metadata.duration > 0 ? media.metadata.duration : 5;
+  const dropped = trackId ? project.timeline.tracks.find((track) => track.id === trackId) : undefined;
+  const tracks = findMultichannelSourceTracks(project, media, "both", {
+    freeRange: { start: Math.max(0, time), end: Math.max(0, time) + length },
+    ...(dropped?.type === "audio" ? { audioTrackId: dropped.id } : dropped ? { videoTrackId: dropped.id } : {}),
+  });
+  return tracks ? placeMultichannelMedia(media, tracks, "overwrite", Math.max(0, time), { seek: false }) : null;
 }
 
 export const insertSelectedMedia = () => placeSelectedMedia("insert");
@@ -300,7 +432,9 @@ export function matchFrame(clipId?: string): CommandOutcome {
 /**
  * Reverse Match Frame (Shift+F): find the frame showing in the Source monitor
  * in the active sequence and park the playhead there. The topmost instance
- * wins; with none, nothing moves and the outcome explains why.
+ * nearest the playhead wins; pressing it again while parked on an instance
+ * cycles to the next one. Instances inside nested sequences are found too and
+ * select the nest clip. With none, nothing moves and the outcome explains why.
  */
 export function reverseMatchFrame(): CommandOutcome {
   const source = useSourceMonitorStore.getState();
@@ -310,19 +444,20 @@ export function reverseMatchFrame(): CommandOutcome {
     : undefined;
   if (!media) return fail("Open a clip in the Source monitor first.");
   const frameRate = media.metadata.frameRate || project.settings.frameRate || 30;
-  const hit = findReverseMatch(
-    project,
-    media.id,
-    source.position,
-    useTimelineStore.getState().playheadPosition,
-    1 / frameRate,
-  );
-  if (!hit) return fail(`This frame of ${media.name} is not in the sequence.`);
+  const frame = 1 / frameRate;
+  const matches = findReverseMatches(project, media.id, source.position, frame);
+  const playhead = useTimelineStore.getState().playheadPosition;
+  const selected = useUIStore.getState().getSelectedClipIds();
+  const pick = pickReverseMatch(matches, playhead, selected.length === 1 ? selected[0] : null, frame);
+  if (!pick) return fail(`This frame of ${media.name} is not in the sequence.`);
+  const { match: hit, index, count } = pick;
   useTimelineStore.getState().seekTo(hit.time);
   useUIStore.getState().select({ type: "clip", id: hit.clipId });
+  const where = `${media.name} at ${formatFrameTimecode(hit.time, project.settings.frameRate || frameRate)}`;
+  const nested = hit.nestPath.length ? " (inside a nested sequence)" : "";
   return {
     success: true,
-    message: `${media.name} at ${formatFrameTimecode(hit.time, project.settings.frameRate || frameRate)}`,
+    message: count > 1 ? `${where}${nested}: instance ${index + 1} of ${count}, press again for the next` : `${where}${nested}`,
   };
 }
 

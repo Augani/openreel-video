@@ -71,6 +71,7 @@ import {
   TimeRuler,
   TrackHeader,
   TrackLane,
+  LANE_SCROLL_BUCKET,
   BeatMarkerOverlay,
   MarkerIndicator,
   getTrackInfo,
@@ -413,13 +414,11 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
   const splittableSelectedClipIds = useTimelineStore(useShallow(state =>
     getSplittableTimelineItemIds(project, editableClipIds, state.playheadPosition),
   ));
-  const selectedMediaClipIds = useMemo(
-    () =>
-      selectedClipIds.filter((clipId) =>
-        tracks.some((track) => track.clips.some((clip) => clip.id === clipId)),
-      ),
-    [selectedClipIds, tracks],
-  );
+  const selectedMediaClipIds = useMemo(() => {
+    const mediaClipIds = new Set<string>();
+    for (const track of tracks) for (const clip of track.clips) mediaClipIds.add(clip.id);
+    return selectedClipIds.filter((clipId) => mediaClipIds.has(clipId));
+  }, [selectedClipIds, tracks]);
   const canRippleDelete =
     selectedMediaClipIds.length > 0 &&
     selectedMediaClipIds.length === selectedClipIds.length && !editableSelection.blocked;
@@ -625,6 +624,9 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
     trackDragPointerYRef.current = e.clientY;
   }, []);
 
+  // Read at drop time so the callback (a prop of every TrackHeader) keeps one identity across edits.
+  const tracksRef2 = useRef(tracks);
+  tracksRef2.current = tracks;
   const handleTrackDrop = useCallback(
     async (e: React.DragEvent, targetTrackId: string) => {
       e.preventDefault();
@@ -632,13 +634,13 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
       stopTrackDrag();
 
       if (sourceTrackId && sourceTrackId !== targetTrackId) {
-        const targetIndex = tracks.findIndex((t) => t.id === targetTrackId);
+        const targetIndex = tracksRef2.current.findIndex((t) => t.id === targetTrackId);
         if (targetIndex !== -1) {
           await reorderTrack(sourceTrackId, targetIndex);
         }
       }
     },
-    [tracks, reorderTrack, stopTrackDrag],
+    [reorderTrack, stopTrackDrag],
   );
 
   useEffect(() => {
@@ -1765,7 +1767,7 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
                   onTrimTextClip={handleTrimTextClip}
                   onMoveTextClip={handleMoveTextClip}
                   onTrimShapeClip={handleTrimShapeClip}
-                  scrollX={phone ? phoneDecorationScroll(scrollX) : scrollX}
+                  scrollX={Math.floor((phone ? phoneDecorationScroll(scrollX) : scrollX) / LANE_SCROLL_BUCKET) * LANE_SCROLL_BUCKET}
                   trackHeight={getTrackHeight(track.id, track.type, track.name)}
                   onResizeTrack={setTrackHeightById}
                   onKeyframeSelect={handleKeyframeSelect}

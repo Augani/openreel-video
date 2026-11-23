@@ -180,11 +180,13 @@ export class InverseActionGenerator {
           workingColorSpace: projectBefore.settings.workingColorSpace,
           colorManagement: projectBefore.settings.colorManagement,
           acesOutput: projectBefore.settings.acesOutput,
+          ocio: projectBefore.settings.ocio,
           graphicsWhiteNits: projectBefore.settings.graphicsWhiteNits,
           channelLayout: projectBefore.settings.channelLayout,
           startTimecode: projectBefore.settings.startTimecode,
           pixelAspectRatio: projectBefore.settings.pixelAspectRatio,
           fieldOrder: projectBefore.settings.fieldOrder,
+          vr: projectBefore.settings.vr,
         });
 
       case "project/setCanvasBackground":
@@ -443,6 +445,27 @@ export class InverseActionGenerator {
         });
       }
 
+      case "clip/addBatch":
+        return this.createInverseAction(action, "clip/removeBatch", {
+          clipIds: action.params.clips.map((entry) => entry.clipId),
+        });
+
+      case "clip/removeBatch": {
+        const doomed = new Set(action.params.clipIds);
+        const entries: Array<{ clip: Record<string, unknown>; index: number }> = [];
+        for (const track of timeline.tracks) {
+          track.clips.forEach((clip, index) => {
+            if (doomed.has(clip.id)) entries.push({ clip: this.cloneClip(clip), index });
+          });
+        }
+        return entries.length ? this.createInverseAction(action, "clip/restoreBatch", { entries }) : null;
+      }
+
+      case "clip/restoreBatch":
+        return this.createInverseAction(action, "clip/removeBatch", {
+          clipIds: action.params.entries.map((entry) => entry.clip.id),
+        });
+
       case "clip/restore":
         return this.createInverseAction(action, "clip/remove", {
           clipId: action.params.clip.id,
@@ -457,6 +480,18 @@ export class InverseActionGenerator {
           startTime: clip.startTime,
           trackId: clip.trackId,
         });
+      }
+
+      case "clip/moveBatch": {
+        const byId = new Map<string, { startTime: number; trackId: string }>();
+        for (const track of timeline.tracks) {
+          for (const clip of track.clips) byId.set(clip.id, { startTime: clip.startTime, trackId: clip.trackId });
+        }
+        const moves = action.params.moves.flatMap((move) => {
+          const before = byId.get(move.clipId);
+          return before ? [{ clipId: move.clipId, startTime: before.startTime, trackId: before.trackId }] : [];
+        });
+        return this.createInverseAction(action, "clip/moveBatch", { moves });
       }
 
       case "clip/trim": {

@@ -21,6 +21,12 @@ export interface Timeline {
   /** Master-bus effect rack, fader and trim applied after every track mixes. */
   readonly masterAudioRack?: AudioRack;
   /**
+   * Hosted audio plugins (Audio Unit / VST3) on the MASTER bus. They process the whole summed mix (every track and bus,
+   * after their own plugins and racks) BEFORE the master fader and the built-in master rack, and before any export
+   * loudness normalisation or true-peak limiting. Keyframes are timeline seconds.
+   */
+  readonly masterPluginRack?: AudioPluginRack;
+  /**
    * Submix buses of this sequence (Audio Track Mixer). Absent on old projects:
    * every track then plays straight into the master, exactly as before.
    */
@@ -42,6 +48,8 @@ export interface AudioBus {
   readonly role?: AudioBusRole;
   readonly color?: string;
   readonly rack?: AudioRack;
+  /** Hosted audio plugins (Audio Unit / VST3) on the bus's summed input, before its rack. */
+  readonly pluginRack?: AudioPluginRack;
   readonly muted: boolean;
   readonly solo: boolean;
   /** Bus id this bus plays into; absent = master. */
@@ -85,6 +93,23 @@ export interface AudioRackEffect {
   readonly type: AudioRackEffectType;
   readonly params: Record<string, number | string | boolean>;
   readonly bypassed: boolean;
+}
+
+/**
+ * Hosted audio plugins (Audio Unit today, VST3 behind the same protocol) on a track or a submix bus. The slots are
+ * `nativePlugin` effects (the same shape a clip carries); they process the track's / bus's summed signal BEFORE the
+ * built-in rack, fader and pan. Parameter automation is ordinary keyframes (property `effect.nativeplugin:<id>.<key>`)
+ * in timeline seconds.
+ */
+export interface AudioPluginRack {
+  readonly plugins: Effect[];
+  readonly keyframes?: Keyframe[];
+  /**
+   * Preview mode (desktop). Absent or true: LIVE, the plugins are streamed block by block through the plugin host while the
+   * preview plays, so a parameter change is heard at once. False: RENDERED, the preview plays the cached offline render.
+   * Never changes the export, which always uses the offline render.
+   */
+  readonly livePreview?: boolean;
 }
 
 /** Ordered rack (max 5 slots) plus the bus fader and pan it feeds. */
@@ -155,6 +180,8 @@ export interface Track {
   readonly groupId?: string;
   /** Premiere-style per-track effect rack (Audio Track Mixer). Absent on old projects. */
   readonly audioRack?: AudioRack;
+  /** Hosted audio plugins on this track's summed clips, before `audioRack`. Absent on old projects. */
+  readonly pluginRack?: AudioPluginRack;
   /** Output assignment: a bus id, or absent for the master. */
   readonly output?: string;
   /**
@@ -347,7 +374,14 @@ export interface Clip {
   readonly keyframes: Keyframe[];
   readonly speed?: number;
   readonly reversed?: boolean;
+  /**
+   * Legacy "Smooth Slow Motion" (before `timeInterpolation`): optical flow on a slowed clip. Read through
+   * `effectiveTimeInterpolation`; an explicit `timeInterpolation` always wins.
+   */
   readonly smoothSlowMo?: boolean;
+  /** Time Interpolation (Premiere): how frames between two source frames are made. Absent = Frame Sampling. */
+  readonly timeInterpolation?: import("../video/time-interpolation/types").TimeInterpolation;
+  /** Optical Flow quality (flow resolution, pyramid depth, refinements). Absent = medium. */
   readonly interpolationQuality?: "low" | "medium" | "high";
   readonly stabilization?: {
     enabled: boolean;
@@ -367,6 +401,11 @@ export interface Clip {
    * `colorInterpretation` and its tags; absent = use the footage's. See `inputSpaceForItem`.
    */
   readonly colorInterpretation?: import("../color/source-color").FootageColorPreset;
+  /**
+   * OCIO mode only: the name of the colour space of the loaded config this clip's pixels are in. Wins over the project's
+   * default input space; absent = the project's default. Ignored outside OCIO mode.
+   */
+  readonly ocioInputSpace?: string;
   /**
    * Essential Sound tag. When absent the type is inferred from the parent
    * track's `role` (see resolveAudioType in audio/essential-sound.ts).
@@ -441,6 +480,17 @@ export interface Keyframe {
   readonly interpolationIn?: "auto-bezier" | "continuous-bezier";
   /** Temporal interpolation type of this key's OUTGOING side (the handle leaving it); see interpolationIn. */
   readonly interpolationOut?: "auto-bezier" | "continuous-bezier";
+  /**
+   * Spatial interpolation of the position PATH at this key (stored on the `position.x` key; the
+   * `position.y` key at the same time is its partner). Absent or "linear" = straight segments, the
+   * pre-existing behaviour. "auto-bezier" derives smooth tangents from neighbouring keys; "bezier"
+   * and "continuous-bezier" use `spatialIn` / `spatialOut`. See animation/spatial-path.ts.
+   */
+  readonly spatialMode?: "linear" | "bezier" | "auto-bezier" | "continuous-bezier";
+  /** Spatial handle toward the previous key, as an offset from this key's point in position units. */
+  readonly spatialIn?: { readonly x: number; readonly y: number };
+  /** Spatial handle toward the next key, as an offset from this key's point in position units. */
+  readonly spatialOut?: { readonly x: number; readonly y: number };
 }
 
 export const EASING_TYPES = [

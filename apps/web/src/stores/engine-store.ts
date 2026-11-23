@@ -18,7 +18,7 @@ import type {
   NestedSequenceEngine,
   AdjustmentLayerEngine,
 } from "@openreel/core";
-import { loadEngineModules, onEngineModulesLoaded } from "../services/lazy-engines";
+import { loadEngineModules, loadOptionalEngineModules, onEngineModulesLoaded } from "../services/lazy-engines";
 import type { RenderedFrame } from "@openreel/core";
 
 const lazyEngineCache = new Map<string, unknown>();
@@ -198,6 +198,14 @@ export const useEngineStore = create<EngineState>()(
 
       try {
         const engines = await loadEngineModules();
+        const initMark = (name: string): void => {
+          try {
+            performance.mark(`openreel:engine:${name}`);
+          } catch {
+            // Marks are diagnostics only.
+          }
+        };
+        initMark("modules");
         const videoEngine = engines.getVideoEngine();
         const audioEngine = engines.getAudioEngine();
         const playbackController = engines.getPlaybackController();
@@ -208,13 +216,6 @@ export const useEngineStore = create<EngineState>()(
 
         coreTitleEngine.initialize(1920, 1080);
 
-        const initMark = (name: string): void => {
-          try {
-            performance.mark(`openreel:engine:${name}`);
-          } catch {
-            // Marks are diagnostics only.
-          }
-        };
         initMark("start");
         await videoEngine.initialize();
         initMark("video");
@@ -404,23 +405,23 @@ export const useEngineStore = create<EngineState>()(
     getPlaybackController: () => get().playbackController,
     getTitleEngine: () => get().titleEngine,
     getSubtitleEngine: () =>
-      getOrCreateEngine("subtitle", async () => new (await loadEngineModules()).SubtitleEngine()),
+      getOrCreateEngine("subtitle", async () => new (await loadOptionalEngineModules()).SubtitleEngine()),
     getGraphicsEngine: () => get().graphicsEngine,
     getPhotoEngine: () => get().photoEngine,
     getExportEngine: () => get().exportEngine,
     getSpeechToTextEngine: () =>
-      getOrCreateEngine("speechToText", async () => new (await loadEngineModules()).SpeechToTextEngine()),
+      getOrCreateEngine("speechToText", async () => new (await loadOptionalEngineModules()).SpeechToTextEngine()),
     getTemplateEngine: () =>
-      getOrCreateEngine("template", async () => new (await loadEngineModules()).TemplateEngine()),
+      getOrCreateEngine("template", async () => new (await loadOptionalEngineModules()).TemplateEngine()),
     getSoundLibraryEngine: () =>
-      getOrCreateEngine("soundLibrary", async () => new (await loadEngineModules()).SoundLibraryEngine()),
+      getOrCreateEngine("soundLibrary", async () => new (await loadOptionalEngineModules()).SoundLibraryEngine()),
     getChromaKeyEngine: () =>
       getOrCreateEngine(
         "chromaKey",
         async () => new (await loadEngineModules()).ChromaKeyEngine({ width: 1920, height: 1080 })
       ),
     getMultiCamEngine: () =>
-      getOrCreateEngine("multiCam", async () => (await loadEngineModules()).multicamEngine),
+      getOrCreateEngine("multiCam", async () => (await loadOptionalEngineModules()).multicamEngine),
     getMaskEngine: () =>
       getOrCreateEngine(
         "mask",

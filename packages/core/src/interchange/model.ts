@@ -6,6 +6,9 @@ import { getCompoundClipId } from "../timeline/timeline-items";
 import { getMulticamSource, multicamTag, MULTICAM_ANGLE_COLORS, type MulticamSource } from "../multicam/source";
 import type { TransitionType } from "../types/effects";
 import { projectUnsupported, type ReportItem } from "./report";
+import { TRANSITION_NAMES, hasCustomSettings } from "./transition-names";
+import { flattenedSourceChannels, sourceAudioShape } from "../audio/source-channels";
+import { isIdentityChannelMap, resolveClipChannelMap, type ClipChannelFormat } from "../audio/channel-map";
 import {
   resolveFrameRate,
   secondsToFrames,
@@ -32,7 +35,10 @@ export interface SeqMedia {
   readonly hasVideo: boolean;
   readonly hasAudio: boolean;
   readonly sampleRate: number;
+  /** Channels of the file across all its audio streams (streams laid end to end). */
   readonly channels: number;
+  /** Audio streams in the file (1 when not stated). */
+  readonly audioStreams?: number;
   /**
    * Embedded start timecode of the file (a time of day in seconds), from its MOV timecode track or MXF timecode
    * component. Absent = the file starts at 00:00:00:00. EDL source columns, the xmeml file timecode and the FCPXML
@@ -85,6 +91,12 @@ export interface SeqClip {
    * clips of the active angle's media). FCPXML turns it into an `mc-clip`; the other formats ignore it.
    */
   readonly multicam?: { readonly sourceId: string; readonly angleId: string };
+  /**
+   * The clip's audio channel mapping when it is not the file played as it is. `sources` are 1 per output channel in the
+   * file's flattened channels (audio streams laid end to end, 0-based; -1 silent, -2 mix of all). Absent = the file's
+   * audio untouched. XMEML (mono / adjacent-stereo clips) and FCPXML (audio-channel-source) write it.
+   */
+  readonly audioChannels?: { readonly format: ClipChannelFormat; readonly sources: readonly number[]; readonly fileChannels: number };
   /** Clip markers merged with the media's master-clip markers, in source time (XMEML writes them in the clipitem). */
   readonly markers?: readonly SeqClipMarker[];
   /** EDL import: the event's reel name and source timecodes, kept on the clip as `metadata.edl`. */
@@ -117,6 +129,10 @@ export interface SeqMulticam {
 
 export interface SeqTransition {
   readonly kind: SeqTransitionKind;
+  /** The specific OpenReel transition when the formats can name it (Premiere's transition names); `kind` is then "dissolve", what the others get. */
+  readonly type?: TransitionType;
+  /** The transition had settings (direction, border, ...) the formats do not carry. */
+  readonly settingsLost?: boolean;
   readonly startFrame: number;
   readonly endFrame: number;
   readonly alignment: "center" | "start" | "end";
@@ -291,7 +307,8 @@ export function projectToSequence(
       hasVideo: item.type !== "audio",
       hasAudio: hasAudioStream(item),
       sampleRate: m.sampleRate > 0 ? m.sampleRate : project.settings.sampleRate || 48000,
-      channels: m.channels > 0 ? m.channels : 2,
+      channels: (m.channels > 0 ? m.channels : 2) * sourceAudioShape(item).streams,
+      ...(sourceAudioShape(item).streams > 1 ? { audioStreams: sourceAudioShape(item).streams } : {}),
       ...(typeof m.startTimecode === "number" && m.startTimecode > 0 ? { startSec: m.startTimecode } : {}),
     };
     if (register) usedMedia.set(mediaId, seqMedia);
@@ -305,7 +322,8 @@ export function projectToSequence(
       const a = track.clips.find((c) => c.id === t.clipAId);
       if (!a) continue;
       const kind = TRANSITION_TO_KIND[t.type];
-      if (!kind) {
+      const named = !kind && TRANSITION_NAMES[t.type] !== undefined;
+      if (!kind && !named) {
         warnings.push(`Transition "${t.type}" has no interchange equivalent; exported as a cross dissolve.`);
         items.push({
           severity: "approximated",
@@ -319,6 +337,7 @@ export function projectToSequence(
       const start = cut - Math.floor(durationFrames / 2);
       out.push({
         kind: kind ?? "dissolve",
+        ...(named ? { type: t.type, ...(hasCustomSettings(t.type, t.params) || t.type === "morphCut" ? { settingsLost: true } : {}) } : {}),
         startFrame: start,
         endFrame: start + durationFrames,
         alignment: "center",
@@ -391,6 +410,22 @@ export function projectToSequence(
     return { sourceId: source.id, angleId: tag.angleId };
   };
 
+  /** Pictures whose sound was placed as separate, linked audio clips (a multichannel source edit): they carry no audio of their own. */
+  const separatedPictures = new Set<string>();
+  for (const track of project.timeline.tracks) {
+    for (const c of track.clips) {
+      const link = c.metadata?.separatedFromClipId;
+      if (typeof link === "string") separatedPictures.add(link);
+    }
+  }
+  const audioChannelsOf = (clip: Clip, item: MediaItem): SeqClip["audioChannels"] | undefined => {
+    const shape = sourceAudioShape(item);
+    const map = resolveClipChannelMap(clip, item);
+    const stream = clip.audioTrackIndex ?? 0;
+    if ((!map || isIdentityChannelMap(map, shape.channels)) && stream === 0 && shape.channels <= 2) return undefined;
+    return flattenedSourceChannels(clip, item);
+  };
+
   const buildClip = (clip: Clip, track: Track): SeqClip | null => {
     const nestId = getCompoundClipId(clip);
     if (nestId) return buildNest(clip, track, nestId);
@@ -412,6 +447,9 @@ export function projectToSequence(
     const speedRaw = clip.speed ?? 1;
     const speed = Math.abs(speedRaw) > 0 ? Math.abs(speedRaw) : 1;
     const multicam = noteMulticam(clip);
+    const carriesSound = track.type === "audio" || (isVisualTrack(track) && media.kind === "video" && media.hasAudio);
+    const mediaItem = mediaById.get(clip.mediaId);
+    const audioChannels = carriesSound && mediaItem ? audioChannelsOf(clip, mediaItem) : undefined;
     const clipMarkers = [...(mediaById.get(clip.mediaId)?.markers ?? []), ...(clip.markers ?? [])]
       .filter((m) => options.includeMarkers !== false && m.time >= clip.inPoint - 1e-6 && m.time <= clip.outPoint + 1e-6)
       .sort((a, b) => a.time - b.time)
@@ -435,7 +473,9 @@ export function projectToSequence(
       reversed: clip.reversed === true || speedRaw < 0,
       opacity: clip.transform?.opacity ?? 1,
       volume: clip.volume ?? 1,
-      withAudio: isVisualTrack(track) && media.kind === "video" && media.hasAudio,
+      withAudio:
+        isVisualTrack(track) && media.kind === "video" && media.hasAudio && !(clip.volume === 0 && separatedPictures.has(clip.id)),
+      ...(audioChannels ? { audioChannels } : {}),
       ...(multicam ? { multicam } : {}),
       ...(clipMarkers.length ? { markers: clipMarkers } : {}),
     };
@@ -877,6 +917,7 @@ export function sequenceToTimeline(
         transform: DEFAULT_TRANSFORM(sc.disabled ? 0 : sc.opacity, sc.motion),
         volume: sc.disabled ? 0 : sc.volume,
         keyframes: [],
+        ...(sc.audioChannels ? { channelMap: { format: sc.audioChannels.format, sources: [...sc.audioChannels.sources] } } : {}),
         ...(multicamTagFor(sc) || sc.edl || sc.metadata || sc.disabled
           ? {
               metadata: {
@@ -926,7 +967,7 @@ export function sequenceToTimeline(
         id: `transition-${makeId()}`,
         clipAId: aId,
         clipBId: bId,
-        type: KIND_TO_TRANSITION[tr.kind],
+        type: tr.type ?? KIND_TO_TRANSITION[tr.kind],
         duration: durationFrames / fps,
         params: {},
       });

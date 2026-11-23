@@ -1,9 +1,6 @@
 import { create } from "zustand";
 import { editSnapshot } from "@openreel/core/actions/handlers/edit-snapshot";
 import {
-  exportTimeline,
-  importTimelineFile,
-  applyTimelineImport,
   type ExportReport,
   type ImportableFormat,
   type InterchangeFormat,
@@ -87,8 +84,13 @@ export const useInterchangeExportPickerStore = create<ExportPickerState>((set) =
 }));
 
 /** File > Export timeline > Timeline XML / FCPXML / EDL / OpenTimelineIO / AAF. Any sequence, the active one by default. */
-export function exportTimelineInterchange(format: InterchangeFormat, sequenceId?: string): void {
+export function exportTimelineInterchange(format: InterchangeFormat, sequenceId?: string): Promise<void> {
+  return exportTimelineInterchangeNow(format, sequenceId);
+}
+
+async function exportTimelineInterchangeNow(format: InterchangeFormat, sequenceId?: string): Promise<void> {
   try {
+    const { exportTimeline } = await loadInterchange();
     const project = useProjectStore.getState().getFullProject();
     const result = exportTimeline(project, format, {
       includeMarkers: useInterchangeExportPickerStore.getState().includeMarkers,
@@ -141,6 +143,10 @@ export const useTimelineImportStore = create<TimelineImportState>((set) => ({
   setPreview: (preview) => set({ preview }),
 }));
 
+// The interchange engines (Timeline XML, FCPXML, EDL, OTIO, AAF, Premiere) are only needed once a file is exported or imported:
+// loaded on first use so the editor's first load does not compile them.
+const loadInterchange = () => import("@openreel/core/interchange/index");
+
 const isPrprojName = (name: string): boolean => /\.prproj$/i.test(name);
 
 /** A .prproj import preview (Premiere project); the parser is loaded on demand, it is not part of the editor's first load. */
@@ -176,6 +182,7 @@ async function previewPrproj(filename: string, bytes: Uint8Array): Promise<Timel
 export async function previewTimelineFile(filename: string, bytes: Uint8Array): Promise<TimelineImportPreview> {
   if (isPrprojName(filename) || (bytes.length > 2 && bytes[0] === 0x1f && bytes[1] === 0x8b)) return previewPrproj(filename, bytes);
   const project = useProjectStore.getState().project;
+  const { importTimelineFile } = await loadInterchange();
   const result = importTimelineFile(bytes, { mediaItems: project.mediaLibrary.items, frameRate: project.settings.frameRate });
   return { filename, result };
 }
@@ -219,6 +226,7 @@ export async function commitTimelineImport(
   result: TimelineImportResult,
   mode: TimelineImportMode,
 ): Promise<{ success: boolean; message?: string }> {
+  const { applyTimelineImport } = await loadInterchange();
   const store = useProjectStore.getState();
   const full = store.getFullProject();
   // Includes one project sequence per compound clip the file carried (FCPXML ref-clip).

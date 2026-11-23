@@ -47,7 +47,7 @@
     "@paper-design/shaders": "^0.0.76",
     "gsap": "^3.14.2",
     "mediabunny": "^1.25.3",
-    "onnxruntime-web": "1.21.0",
+    "onnxruntime-web": "1.22.0-dev.20250409-89f8206ba4",
     "polygon-clipping": "0.15.7",
     "three": "^0.182.0",
     "uuid": "^13.0.0",

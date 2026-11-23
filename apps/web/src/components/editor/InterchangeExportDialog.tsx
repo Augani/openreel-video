@@ -13,7 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@openreel/ui";
-import { AAF_DECISION, type InterchangeFormat } from "@openreel/core/interchange/index";
+import { AAF_DECISION } from "@openreel/core/interchange/aaf-decision";
+import type { InterchangeFormat } from "@openreel/core/interchange/index";
 import { sequenceContentDuration } from "@openreel/core";
 import { useProjectStore } from "../../stores/project-store";
 import { readSequences } from "../../services/sequence-commands";

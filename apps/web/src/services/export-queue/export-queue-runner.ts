@@ -220,6 +220,10 @@ async function runExportJobWith(engine: ExportEngine, job: ExportJob, project: P
             copiedFrames: report.copiedFrames,
             totalFrames: report.totalFrames,
             copiedRuns: report.copiedRuns,
+            ...(report.copiedSeconds !== undefined ? { copiedSeconds: report.copiedSeconds, encodedSeconds: report.encodedSeconds } : {}),
+            ...(report.audio
+              ? { audioCopiedSeconds: report.audio.copiedSeconds, audioEncodedSeconds: report.audio.encodedSeconds, audioMode: report.audio.mode }
+              : {}),
             reasons: report.reasons,
           };
         }

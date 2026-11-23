@@ -2,6 +2,7 @@ import { PrimaryAudioProperties } from "../PrimaryAudioProperties";
 import { EssentialSoundSection } from "../EssentialSoundSection";
 import { SurroundPanSection } from "../SurroundPanSection";
 import { AudioChannelsSection } from "../AudioChannelsSection";
+import { EnhanceSpeechSection } from "../EnhanceSpeechSection";
 import React, { Suspense, lazy } from "react";
 import { getChannelLayout } from "@openreel/core";
 import { useProjectStore } from "../../../../stores/project-store";
@@ -17,6 +18,9 @@ import { VoiceOverPanel } from "../VoiceOverPanel";
 import { InspectorSection } from "../shell/InspectorSection";
 
 // The spectral editor (spectrogram, selection tools, worker client) loads when its section is first opened, never with the editor shell.
+const NativePluginsSection = lazy(() => import("../NativePluginsSection").then((m) => ({ default: m.NativePluginsSection })));
+// Reduce Reverb (section, service, job status) loads when the Audio tab renders it, never with the editor shell.
+const ReduceReverbSection = lazy(() => import("../ReduceReverbSection"));
 const SpectralEditor = lazy(() => import("../../../audio-spectral/SpectralEditor"));
 
 interface AudioTabProps {
@@ -47,6 +51,25 @@ export const AudioTab: React.FC<AudioTabProps> = ({
       {showAudioEffects && clip && (
         <InspectorSection title="Essential Sound" sectionId="essential-sound" defaultOpen>
           <EssentialSoundSection clipIds={[clipId]} />
+        </InspectorSection>
+      )}
+      {showAudioEffects && clip && (
+        <InspectorSection title="Enhance Speech" sectionId="enhance-speech" defaultOpen>
+          <EnhanceSpeechSection clipId={clipId} />
+        </InspectorSection>
+      )}
+      {showAudioEffects && clip && (
+        <InspectorSection title="Reduce Reverb" sectionId="reduce-reverb" defaultOpen>
+          <Suspense fallback={<div className="min-h-[56px] text-[11px] text-fg-muted" role="status">Loading Reduce Reverb…</div>}>
+            <ReduceReverbSection clipId={clipId} />
+          </Suspense>
+        </InspectorSection>
+      )}
+      {showAudioEffects && clip && (
+        <InspectorSection title="Audio plugins" sectionId="native-plugins" defaultOpen={false}>
+          <Suspense fallback={<div className="min-h-[56px] text-[11px] text-fg-muted" role="status">Loading audio plugins…</div>}>
+            <NativePluginsSection clipId={clipId} />
+          </Suspense>
         </InspectorSection>
       )}
       {showAudioEffects && clip && <PrimaryAudioProperties clipId={clipId} />}

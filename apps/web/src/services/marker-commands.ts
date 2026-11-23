@@ -9,6 +9,7 @@ import {
   type Marker,
   type MarkerKind,
 } from "@openreel/core";
+import { markerSourceMetadata } from "./export-metadata";
 import { useEditorWorkspaceStore } from "../stores/editor-workspace-store";
 import { useProjectStore } from "../stores/project-store";
 import { useTimelineStore } from "../stores/timeline-store";
@@ -153,7 +154,7 @@ export function buildMarkerExport(kind: MarkerExportKind): MarkerExportFile {
     return { filename: `${base}_chapters.txt`, mimeType: "text/plain", content: result.text, warnings: result.warnings };
   }
   if (kind === "csv") {
-    return { filename: `${base}_markers.csv`, mimeType: "text/csv", content: markersCsv(list, fps), warnings: [] };
+    return { filename: `${base}_markers.csv`, mimeType: "text/csv", content: markersCsv(list, fps, { sourceMetadata: markerSourceMetadata(project) }), warnings: [] };
   }
   const lines = markersEdlLocs(list, fps);
   const fcm = markerFrameRate(fps).dropFrame ? "DROP FRAME" : "NON-DROP FRAME";

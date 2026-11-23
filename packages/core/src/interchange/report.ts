@@ -1,6 +1,8 @@
 import type { Clip } from "../types/timeline";
 import type { Project } from "../types/project";
-import type { Sequence, SeqClip, SeqTrack } from "./model";
+import type { Sequence, SeqClip, SeqTrack, SeqTransition } from "./model";
+import { TRANSITION_NAMES } from "./transition-names";
+import { FCP_CLOSEST } from "./transition-fcp";
 import { expectedMemberIds } from "../graphic-templates/instances";
 import { isBakeStale } from "../linked-comps/linked-comps";
 
@@ -107,9 +109,6 @@ export function clipUnsupported(clip: Clip, clipName: string, trackName: string)
   }
   if (clip.stabilization?.enabled) out.push(item("dropped", "Stabilization", "Warp stabilization is not exported.", where));
   if (clip.emphasisAnimation) out.push(item("dropped", "Emphasis animation", "The emphasis animation is not exported.", where));
-  if (clip.audioTrackIndex) {
-    out.push(item("dropped", "Audio stream selection", `Source audio stream ${clip.audioTrackIndex + 1} is not selected in the export.`, where));
-  }
   return out;
 }
 
@@ -205,6 +204,9 @@ export function projectUnsupported(
   if (project.timeline.masterAudioRack?.effects.length) {
     out.push(item("dropped", "Master audio rack", "The master bus effect rack is not exported."));
   }
+  if (project.timeline.masterPluginRack?.plugins.length) {
+    out.push(item("dropped", "Master audio plugins", "Hosted audio plugins on the master bus are not exported."));
+  }
   if (project.timeline.audioBuses?.length) {
     out.push(item("dropped", "Audio buses", `${project.timeline.audioBuses.length} submix bus(es), track outputs and sends are not exported; the tracks mix straight to the master in the other tool.`));
   }
@@ -234,6 +236,29 @@ export function projectUnsupported(
   }
   return out;
 }
+
+type ChannelSpec = NonNullable<SeqClip["audioChannels"]>;
+const chNames = (sources: readonly number[]): string => sources.map((s) => (s === -1 ? "off" : s === -2 ? "mix" : String(s + 1))).join(" + ");
+
+/** What one format can say about a clip's audio channel mapping, as a report item (null when it is carried exactly). */
+function channelMappingItem(format: ExportFormatId, spec: ChannelSpec): ReportItem | null {
+  const mapping = `${spec.format} clip from file channel ${chNames(spec.sources)}`;
+  if (format === "xmeml") {
+    const exact =
+      (spec.format === "mono" && spec.sources[0] >= 0) ||
+      (spec.format === "stereo" && spec.sources[0] >= 0 && spec.sources[1] === spec.sources[0] + 1);
+    return exact ? null : item("approximated", "Audio channel mapping", `xmeml carries mono clips and adjacent stereo pairs; this ${mapping} is written as a stereo clip starting at its first channel.`);
+  }
+  if (format === "fcpxml") {
+    return spec.sources.includes(-2)
+      ? item("approximated", "Audio channel mapping", `FCPXML cannot mix source channels; this ${mapping} is written with every source channel selected.`)
+      : null;
+  }
+  return item("dropped", "Audio channel mapping", `${format.toUpperCase()} has no audio channel mapping or audio stream selection; this ${mapping} plays the file's first channels.`);
+}
+
+const transitionLabel = (tr: SeqTransition): string => (tr.type ? (TRANSITION_NAMES[tr.type]?.name ?? tr.type) : tr.kind);
+const closestFcp = (tr: SeqTransition): string => (tr.type ? ` The closest Final Cut transition is "${FCP_CLOSEST[tr.type] ?? "Cross Dissolve"}": apply it by hand.` : "");
 
 /** Per-format additions to the base report: what this one format cannot carry. */
 export function formatItems(
@@ -268,6 +293,26 @@ export function formatItems(
     }
   };
 
+  const audioClips = (): void => {
+    for (const t of audioTracks) {
+      perClip(t, (c) => (c.audioChannels ? channelMappingItem(format, c.audioChannels) : null));
+    }
+    for (const t of videoTracks) {
+      perClip(t, (c) => (c.withAudio && c.audioChannels ? channelMappingItem(format, c.audioChannels) : null));
+    }
+  };
+  audioClips();
+  if (format === "xmeml" || format === "otio") {
+    for (const t of videoTracks) {
+      for (const tr of t.transitions) {
+        if (tr.type === "morphCut") {
+          out.push(item("approximated", "Transition", `Morph Cut at frame ${tr.startFrame} is written by name ("Morph Cut") ${format === "otio" ? "and as a cross dissolve for readers that do not know it" : "and imports into Premiere as its own Morph Cut"}; OpenReel's analysis is not exported, so the other editor analyses the cut itself (a cross dissolve until it has).`, { trackName: label(t) }));
+        } else if (tr.type && tr.settingsLost) {
+          out.push(item("approximated", "Transition", `${transitionLabel(tr)} at frame ${tr.startFrame} is written by name; its settings (direction, border, feather, ...) ${format === "otio" ? "stay in OpenReel's own metadata and are restored when this file is imported back" : "are not carried, the other editor applies its own defaults"}.`, { trackName: label(t) }));
+        }
+      }
+    }
+  }
   if (format === "xmeml") {
     syncDropped("xmeml has no sync-lock field, so it is not carried (locked, enabled and targeting are).");
   } else if (format === "fcpxml") {
@@ -282,8 +327,8 @@ export function formatItems(
               trackName: label(t),
             }),
           );
-        } else if (tr.kind !== "dissolve") {
-          out.push(item("approximated", "Transition", `${tr.kind} at frame ${tr.startFrame} is exported as a cross dissolve.`, { trackName: label(t) }));
+        } else if (tr.kind !== "dissolve" || tr.type) {
+          out.push(item("approximated", "Transition", `${transitionLabel(tr)} at frame ${tr.startFrame} is exported as a cross dissolve; FCPXML transitions are matched by Final Cut's own effect ids, which are not written.${closestFcp(tr)}`, { trackName: label(t) }));
         }
       }
     });
@@ -301,8 +346,8 @@ export function formatItems(
       perClip(t, (c) => (c.opacity !== 1 ? item("dropped", "Opacity", `Opacity ${Math.round(c.opacity * 100)}% is not exported.`) : null));
       perClip(t, (c) => (c.volume !== 1 ? item("dropped", "Clip level", "The clip's audio level is not exported.") : null));
       for (const tr of t.transitions) {
-        if (tr.kind !== "dissolve") {
-          out.push(item("approximated", "Transition", `${tr.kind} at frame ${tr.startFrame} is exported as a dissolve.`, { trackName: label(t) }));
+        if (tr.kind !== "dissolve" || tr.type) {
+          out.push(item("approximated", "Transition", `${transitionLabel(tr)} at frame ${tr.startFrame} is exported as a dissolve${tr.type ? " (the EDL notes its Premiere name in a comment)" : ""}.`, { trackName: label(t) }));
         }
       }
       if (t.disabled) {
@@ -318,8 +363,8 @@ export function formatItems(
     lockDropped();
     for (const t of seq.tracks) {
       for (const tr of t.transitions) {
-        if (tr.kind !== "dissolve") {
-          out.push(item("approximated", "Transition", `${tr.kind} at frame ${tr.startFrame} is written as a video dissolve.`, { trackName: label(t) }));
+        if (tr.kind !== "dissolve" || tr.type) {
+          out.push(item("approximated", "Transition", `${transitionLabel(tr)} at frame ${tr.startFrame} is written as a video dissolve.`, { trackName: label(t) }));
         }
       }
       if (t.kind === "video") {

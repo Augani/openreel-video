@@ -1,13 +1,7 @@
 import type { Keyframe, EasingType } from "../types/timeline";
-import {
-  EASING_FUNCTIONS,
-  type EasingName,
-} from "../animation/easing-functions";
 import { AnimationEngine, type BezierControlPoints } from "./animation-engine";
-import {
-  solveBezierEase,
-  DEFAULT_BEZIER_HANDLES,
-} from "../animation/keyframe-bezier";
+import { samplePositionPath } from "../animation/spatial-path";
+import { easeKeyframeSegment } from "../animation/keyframe-easing";
 
 type EasingPreset =
   | "linear"
@@ -55,6 +49,12 @@ interface KeyframeInterpolationResult {
   keyframeB: ExtendedKeyframe | null;
   progress: number;
   easedProgress: number;
+}
+
+/** Signed difference from `a` to `b` on a circle of the given period, the short way round. */
+export function shortestDelta(a: number, b: number, period: number): number {
+  const d = b - a;
+  return d - period * Math.round(d / period);
 }
 
 export class KeyframeEngine {
@@ -126,9 +126,14 @@ export class KeyframeEngine {
       .sort((a, b) => a.time - b.time);
   }
 
+  /**
+   * Value of a keyframed property at `time`. `options.wrap` marks an angle with that period (degrees): numbers then
+   * interpolate along the shorter arc, so 350 to 10 passes through 360 instead of 180.
+   */
   getValueAtTime(
     keyframes: ExtendedKeyframe[],
     time: number,
+    options?: { readonly wrap?: number },
   ): KeyframeInterpolationResult {
     if (keyframes.length === 0) {
       return {
@@ -182,11 +187,11 @@ export class KeyframeEngine {
     const elapsed = time - keyframeA.time;
     const linearProgress = duration > 0 ? elapsed / duration : 0;
     const easedProgress = this.applyEasing(linearProgress, keyframeA);
-    const value = this.interpolateValue(
-      keyframeA.value,
-      keyframeB.value,
-      easedProgress,
-    );
+    const wrap = options?.wrap;
+    const value =
+      wrap && typeof keyframeA.value === "number" && typeof keyframeB.value === "number"
+        ? keyframeA.value + shortestDelta(keyframeA.value, keyframeB.value, wrap) * easedProgress
+        : this.interpolateValue(keyframeA.value, keyframeB.value, easedProgress);
 
     return {
       value,
@@ -244,40 +249,7 @@ export class KeyframeEngine {
   }
 
   private applyEasing(t: number, keyframe: ExtendedKeyframe): number {
-    const clampedT = Math.max(0, Math.min(1, t));
-    if (keyframe.bezierHandles && keyframe.easing === "bezier") {
-      return solveBezierEase(
-        clampedT,
-        keyframe.bezierHandles.in.x,
-        keyframe.bezierHandles.in.y,
-        keyframe.bezierHandles.out.x,
-        keyframe.bezierHandles.out.y,
-      );
-    }
-    switch (keyframe.easing) {
-      case "linear":
-        return clampedT;
-      case "ease-in":
-        return this.easeIn(clampedT);
-      case "ease-out":
-        return this.easeOut(clampedT);
-      case "ease-in-out":
-        return this.easeInOut(clampedT);
-      case "bezier":
-        // Default bezier if no handles specified
-        return solveBezierEase(
-          clampedT,
-          DEFAULT_BEZIER_HANDLES.in.x,
-          DEFAULT_BEZIER_HANDLES.in.y,
-          DEFAULT_BEZIER_HANDLES.out.x,
-          DEFAULT_BEZIER_HANDLES.out.y,
-        );
-      default:
-        if (isNamedEasing(keyframe.easing)) {
-          return EASING_FUNCTIONS[keyframe.easing](clampedT);
-        }
-        return clampedT;
-    }
+    return easeKeyframeSegment(t, keyframe);
   }
 
   applyEasingPreset(t: number, preset: EasingPreset): number {
@@ -449,6 +421,11 @@ export class KeyframeEngine {
 
     for (let i = 0; i <= sampleCount; i++) {
       const t = minTime + (duration * i) / sampleCount;
+      const route = samplePositionPath(keyframes, t, (u, key) => this.applyEasing(u, key));
+      if (route) {
+        points.push({ time: t, x: route.x, y: route.y });
+        continue;
+      }
       const xResult = this.getValueAtTime(xKeyframes, t);
       const yResult = this.getValueAtTime(yKeyframes, t);
 
@@ -538,10 +515,6 @@ export class KeyframeEngine {
     }
     return progress < 0.5 ? valueA : valueB;
   }
-}
-
-function isNamedEasing(easing: EasingType): easing is EasingName {
-  return easing in EASING_FUNCTIONS;
 }
 
 export const keyframeEngine = new KeyframeEngine();

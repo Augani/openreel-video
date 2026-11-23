@@ -18,3 +18,11 @@ export function pickOnnxThreads(
   const cores = Number.isFinite(hardwareConcurrency) ? hardwareConcurrency : 1;
   return Math.max(1, Math.min(MAX_ONNX_THREADS, Math.floor(cores) - 1));
 }
+
+/**
+ * Directory URL of the one onnxruntime-web WASM set (ort/, emitted by vite-plugins/ort-runtime) as seen from the whisper worker.
+ * Built, the worker lives in <base>/assets/, so the runtime is its sibling; the dev server serves it at /ort/.
+ */
+export function ortWasmPathsFor(workerHref: string, dev: boolean): string {
+  return dev ? new URL("/ort/", workerHref).toString() : new URL("../ort/", workerHref).toString();
+}

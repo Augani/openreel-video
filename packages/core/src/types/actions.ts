@@ -179,8 +179,31 @@ export type ClipAction =
     }
   | { type: "clip/remove"; params: { clipId: string } }
   | {
+      /**
+       * Many clips added in one pass (paste of a big selection): one validation, one project rebuild and one history entry
+       * instead of one of each per clip. Each entry is a full copy source (`sourceClip`) placed on `trackId` at `startTime`
+       * under the new `clipId`; the inverse is `clip/removeBatch`.
+       */
+      type: "clip/addBatch";
+      params: {
+        clips: ReadonlyArray<{ clipId: string; trackId: string; startTime: number; sourceClip: Clip }>;
+      };
+    }
+  | {
       type: "clip/move";
       params: { clipId: string; startTime: number; trackId?: string };
+    }
+  | {
+      /**
+       * Many clips moved in one pass (a drag of a big selection, a bulk nudge): one validation, one project
+       * rebuild and one history entry instead of one of each per clip. `coalesceKey` merges consecutive
+       * batches of a gesture into one entry that keeps the first inverse.
+       */
+      type: "clip/moveBatch";
+      params: {
+        moves: ReadonlyArray<{ clipId: string; startTime: number; trackId?: string }>;
+        coalesceKey?: string;
+      };
     }
   | {
       type: "clip/trim";
@@ -202,6 +225,9 @@ export type ClipAction =
       params: { clipId: string; colorGrading?: ClipColorGrading };
     }
   | { type: "clip/restore"; params: { clip: Clip } }
+  /** Remove many clips in one pass (delete of a big selection); inverse is `clip/restoreBatch`. */
+  | { type: "clip/removeBatch"; params: { clipIds: readonly string[] } }
+  | { type: "clip/restoreBatch"; params: { entries: ReadonlyArray<{ clip: Clip; index: number }> } }
   | { type: "clip/merge"; params: { clipId: string; originalClip: Clip } }
   | {
       type: "clip/rippleRestore";
@@ -242,9 +268,22 @@ export type ClipAction =
   | { type: "clip/setSpeed"; params: { clipId: string; speed: number } }
   | { type: "clip/setReverse"; params: { clipId: string; reversed: boolean } }
   | {
+      type: "clip/setTimeInterpolation";
+      params: { clipId: string; timeInterpolation: import("../video/time-interpolation/types").TimeInterpolation };
+    }
+  | {
+      type: "clip/setInterpolationQuality";
+      params: { clipId: string; interpolationQuality?: "low" | "medium" | "high" };
+    }
+  | {
       type: "clip/setColorInterpretation";
       /** `undefined` / null clears the override (the footage's own interpretation applies). */
       params: { clipId: string; colorInterpretation?: import("../color/source-color").FootageColorPreset | null };
+    }
+  | {
+      type: "clip/setOcioInputSpace";
+      /** `undefined` / null clears the override (the project's default input space applies). */
+      params: { clipId: string; ocioInputSpace?: string | null };
     }
   | {
       type: "clip/setPitchCorrection";
@@ -363,6 +402,7 @@ export type TransitionAction =
         clipBId: string;
         transitionType: TransitionType;
         duration: number;
+        params?: Record<string, unknown>;
       };
     }
   | { type: "transition/set"; params: { transition: Transition } }

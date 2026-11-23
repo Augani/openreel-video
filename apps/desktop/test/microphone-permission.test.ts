@@ -7,7 +7,14 @@ vi.mock("electron", () => ({
 }));
 
 import { CHANNELS } from "../src/shared/channels";
-import { decidePermission, isTrustedAppOrigin, microphoneSettingsUrl } from "../src/main/ipc/microphone";
+import { systemPreferences } from "electron";
+import {
+  decidePermission,
+  isTrustedAppOrigin,
+  microphoneSettingsUrl,
+  readMicrophoneAccessCached,
+  resetMicrophoneAccessCache,
+} from "../src/main/ipc/microphone";
 
 describe("isTrustedAppOrigin", () => {
   it("trusts the packaged scheme and loopback dev hosts only", () => {
@@ -60,5 +67,25 @@ describe("microphone settings", () => {
       microphoneRequest: "openreel:microphone:request",
       microphoneOpenSettings: "openreel:microphone:openSettings",
     });
+  });
+});
+
+describe("readMicrophoneAccessCached", () => {
+  const status = vi.mocked(systemPreferences.getMediaAccessStatus);
+
+  it("asks the OS once inside the window, again after it, and again after a reset", () => {
+    resetMicrophoneAccessCache();
+    status.mockReset();
+    status.mockReturnValue("granted");
+    expect(readMicrophoneAccessCached(1000, "darwin")).toBe("granted");
+    status.mockReturnValue("denied");
+    expect(readMicrophoneAccessCached(1500, "darwin")).toBe("granted");
+    expect(status).toHaveBeenCalledTimes(1);
+    expect(readMicrophoneAccessCached(4100, "darwin")).toBe("denied");
+    expect(status).toHaveBeenCalledTimes(2);
+    status.mockReturnValue("granted");
+    resetMicrophoneAccessCache();
+    expect(readMicrophoneAccessCached(4200, "darwin")).toBe("granted");
+    expect(status).toHaveBeenCalledTimes(3);
   });
 });

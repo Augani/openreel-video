@@ -1,4 +1,5 @@
 import type { SourceColorSpace } from "../color/source-color";
+import type { VrProperties } from "../vr/vr-properties";
 export interface ProcessedMedia {
   id: string;
   name: string;
@@ -29,8 +30,12 @@ export interface MediaTrackInfo {
   audioBitrate?: number;
   /** Number of audio tracks in the file (may be > 1 for multi-track video/audio files) */
   audioTrackCount?: number;
+  /** Channels of each audio track, in track order (a file may mix mono and stereo tracks); `channels` is the first / widest. */
+  audioStreamChannels?: readonly number[];
   /** Colour space the video track's container tags declare; absent when untagged. */
   sourceColor?: SourceColorSpace;
+  /** Immersive video detected in the file: spherical metadata (`source: "metadata"`) or a 2:1 picture (`source: "aspect"`, a hint only). */
+  vr?: VrProperties;
 }
 
 export interface ThumbnailResult {

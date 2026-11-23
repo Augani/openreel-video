@@ -6,7 +6,8 @@ import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { useUIStore } from "../../../stores/ui-store";
 import { getPlanarTrackBridge, type PlanarTrackRange, type PlanarTrackState } from "../../../bridges/planar-track-bridge";
-import { applyPlanarTrack, readPlanarTrackAnalysis, readPlanarTrackApplication, removePlanarTrack } from "../../../services/planar-track-edit";
+import { applyPlanarTrack, readPlanarTrackAnalysis, readPlanarTrackApplication, removePlanarTrack, type PlanarApplyMode } from "../../../services/planar-track-edit";
+import { applicationMode } from "../../../services/planar-track-apply";
 import { defaultPlanarCorners, usePlanarTrackOverlayStore } from "../../../stores/planar-track-overlay-store";
 import { PropertySlider } from "./shell/PropertySlider";
 import { RegionInput } from "./MotionTrackingSection";
@@ -15,6 +16,11 @@ import { MotionTrackQualityStrip } from "./MotionTrackQualityStrip";
 const IDLE: PlanarTrackState = { isTracking: false, progress: 0, lostFrames: 0, error: null, clipId: null };
 const CORNERS = ["Top left", "Top right", "Bottom right", "Bottom left"];
 const THRESHOLD = 0.5;
+const MODES: Array<{ id: PlanarApplyMode; label: string; apply: string; hint: string }> = [
+  { id: "corner-pin", label: "Corner Pin", apply: "Pin Clip to Surface", hint: "Adds a Corner Pin effect to the clip, keyframed to the surface with full perspective. It maps the clip's frame, so a full-frame graphic fits best." },
+  { id: "transform", label: "Transform", apply: "Fit Clip to Surface", hint: "Keyframes Position, Scale and Rotation so the clip's frame covers the surface (a flat screen replacement without perspective)." },
+  { id: "mask", label: "Mask", apply: "Mask Follows Surface", hint: "Adds a four-point mask that follows the surface, so a grade, blur or key affects only that surface. Pick this clip to mask the footage itself." },
+];
 
 /** The planar path shaped as a point track so the shared quality strip can draw it. */
 function asQualityData(data: PlanarTrackData): TrackingData {
@@ -45,15 +51,19 @@ function PlanarTrackingControls({ clipId }: { clipId: string }) {
   const [range, setRange] = useState<PlanarTrackRange>("clip");
   const [smoothing, setSmoothing] = useState(0);
   const [targetId, setTargetId] = useState<string>("");
+  const [modeChoice, setModeChoice] = useState<PlanarApplyMode | null>(null);
   const [error, setError] = useState<string | null>(null), [busy, setBusy] = useState(false);
   const alive = useRef(true), owned = useRef(false);
+  const existing = project.timeline.tracks.flatMap(track => track.clips).map(clip => readPlanarTrackApplication(clip.id)).find(app => app?.sourceClipId === clipId);
+  const mode = modeChoice ?? (existing ? applicationMode(existing) : "corner-pin"), modeInfo = MODES.find(m => m.id === mode)!;
   const choices = useMemo(() => project.timeline.tracks.filter(track => track.type !== "audio").flatMap(track => track.clips
-    .filter(clip => clip.id !== clipId && project.mediaLibrary.items.find(item => item.id === clip.mediaId)?.type !== "audio")
-    .map(clip => ({ id: clip.id, label: `${project.mediaLibrary.items.find(item => item.id === clip.mediaId)?.name ?? track.name} · ${track.name}`, locked: track.locked }))), [project, clipId]);
+    .filter(clip => (clip.id !== clipId || mode === "mask") && project.mediaLibrary.items.find(item => item.id === clip.mediaId)?.type !== "audio")
+    .map(clip => ({ id: clip.id, label: `${clip.id === clipId ? "This clip · " : ""}${project.mediaLibrary.items.find(item => item.id === clip.mediaId)?.name ?? track.name} · ${track.name}`, locked: track.locked }))), [project, clipId, mode]);
   const pinned = choices.find(choice => readPlanarTrackApplication(choice.id)?.sourceClipId === clipId)?.id;
   const target = targetId || pinned || choices[0]?.id || "";
   const application = target ? readPlanarTrackApplication(target) : null;
   const applied = application?.sourceClipId === clipId;
+  const appliedMode = application && applied ? applicationMode(application) : null;
   const targetLocked = !choices.find(choice => choice.id === target) || Boolean(choices.find(choice => choice.id === target)?.locked);
   const disabled = !source || Boolean(sourceTrack?.locked) || exporting || busy || playbackLocked;
 
@@ -134,16 +144,19 @@ function PlanarTrackingControls({ clipId }: { clipId: string }) {
         </div>
       </div>
       <div className="min-w-0 space-y-3">
-        <div className="space-y-1.5"><Label className="text-xs">Pin clip</Label>
+        <div className="space-y-1.5"><Label className="text-xs">Apply track to</Label>
+          <ToggleGroup type="single" value={mode} onValueChange={value => { if (value) setModeChoice(value as PlanarApplyMode); }} aria-label="Apply track as" className="grid grid-cols-3 gap-1">
+            {MODES.map(m => <ToggleGroupItem key={m.id} value={m.id} className="h-[30px] px-1 text-[11px]">{m.label}</ToggleGroupItem>)}
+          </ToggleGroup>
           <Select value={target} onValueChange={setTargetId} disabled={disabled || !choices.length}>
             <SelectTrigger aria-label="Corner pin target" className="h-[30px] min-w-0 text-xs"><SelectValue placeholder="No other clip to pin" /></SelectTrigger>
             <SelectContent>{choices.map(choice => <SelectItem key={choice.id} value={choice.id} disabled={choice.locked}>{choice.label}</SelectItem>)}</SelectContent>
           </Select>
-          <p className="text-[10px] text-fg-2">Adds a Corner Pin effect to the clip, keyframed to the surface. It maps the clip&apos;s frame, so a full-frame graphic fits best.</p>
+          <p className="text-[10px] text-fg-2">{modeInfo.hint}</p>
         </div>
         <PropertySlider label="Path Smoothing" min={0} max={10} step={1} value={smoothing} onChange={setSmoothing} isDisabled={disabled || targetLocked} />
-        <Button type="button" className="h-8 w-full text-xs" disabled={disabled || targetLocked} onClick={() => void guarded(() => applyPlanarTrack(clipId, target, { smoothing }), "Could not pin the clip")}>{busy ? "Applying…" : applied ? "Update Pin" : "Pin Clip to Surface"}</Button>
-        {applied && <Button type="button" variant="outline" className="h-[30px] w-full text-xs" disabled={disabled || targetLocked} onClick={() => void guarded(() => removePlanarTrack(target), "Could not remove the pin")}>Remove Pin</Button>}
+        <Button type="button" className="h-8 w-full text-xs" disabled={disabled || targetLocked} onClick={() => void guarded(() => applyPlanarTrack(clipId, target, { smoothing, mode }), "Could not apply the track")}>{busy ? "Applying…" : applied && appliedMode === mode ? (mode === "corner-pin" ? "Update Pin" : "Update") : modeInfo.apply}</Button>
+        {applied && <Button type="button" variant="outline" className="h-[30px] w-full text-xs" disabled={disabled || targetLocked} onClick={() => void guarded(() => removePlanarTrack(target), "Could not remove the pin")}>{appliedMode === "corner-pin" ? "Remove Pin" : "Remove Tracking"}</Button>}
       </div>
     </div>}
   </div>;

@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { relinkNameKey, type RelinkCandidate } from "../../../../../packages/core/src/media/desktop-ingest";
+import { clipNameKey, compileProxyPattern } from "../../../../../packages/core/src/media/proxy-attach";
 import { isPreviewTwinName } from "./folders";
 import type { MediaProbe } from "./probe-media";
 
@@ -16,6 +17,8 @@ export interface ScanOptions {
   names: readonly string[];
   /** "proxy" matches `_proxy`-style suffixes too. */
   mode: "media" | "proxy";
+  /** Proxy mode: a name pattern with one {name} (`{name}_proxy`). Files that do not follow it are not looked at. */
+  proxyPattern?: string;
   probe: (filePath: string, signal?: AbortSignal) => Promise<MediaProbe | null>;
   signal?: AbortSignal;
   maxDepth?: number;
@@ -36,8 +39,9 @@ export interface ScanResult {
  * hidden folders are skipped.
  */
 export async function scanFolderForMedia(options: ScanOptions): Promise<ScanResult> {
-  const keyOf = (name: string): string => relinkNameKey(name, options.mode === "proxy");
-  const wanted = new Set(options.names.map(keyOf));
+  const pattern = options.mode === "proxy" && options.proxyPattern?.trim() ? compileProxyPattern(options.proxyPattern) : null;
+  const keyOf = (name: string): string | null => (pattern ? pattern.keyOf(name) : relinkNameKey(name, options.mode === "proxy"));
+  const wanted = new Set(options.names.map((name) => (pattern ? clipNameKey(name) : relinkNameKey(name, options.mode === "proxy"))));
   const maxDepth = options.maxDepth ?? 8;
   const maxVisited = options.maxVisited ?? 200_000;
   const found: Array<{ filePath: string; size: number }> = [];
@@ -62,7 +66,8 @@ export async function scanFolderForMedia(options: ScanOptions): Promise<ScanResu
         if (!MEDIA_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) continue;
         // The H.264 preview twin of a ProRes proxy travels with it; it is not a proxy of its own.
         if (options.mode === "proxy" && isPreviewTwinName(entry.name)) continue;
-        if (!wanted.has(keyOf(entry.name))) continue;
+        const key = keyOf(entry.name);
+        if (key === null || !wanted.has(key)) continue;
         const stat = await fs.stat(full).catch(() => null);
         if (stat) found.push({ filePath: full, size: stat.size });
       }

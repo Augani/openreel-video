@@ -17,6 +17,7 @@ import {
   type GraphicEditResult,
   type GraphicInstance,
   type GraphicTemplate,
+  type MogrtImportReport,
   type Project,
 } from "@openreel/core";
 import { useProjectStore } from "../stores/project-store";
@@ -230,11 +231,41 @@ export async function editGraphicSelection(
 }
 
 export type ImportTemplateResult =
-  | { readonly ok: true; readonly template: GraphicTemplate }
-  | { readonly ok: false; readonly message: string };
+  | { readonly ok: true; readonly template: GraphicTemplate; readonly mogrtReport?: MogrtImportReport }
+  | { readonly ok: false; readonly message: string; readonly mogrtReport?: MogrtImportReport };
 
-/** Read, validate and add a `.openreel-template` file to the library. Nothing is added when it is rejected. */
+const isMogrtFile = (file: File): boolean => /\.mogrt$/i.test(file.name);
+
+/** Add a template to the library, never overwriting an existing id (it is imported as a copy). */
+function saveImportedTemplate(parsed: GraphicTemplate): GraphicTemplate {
+  const store = useGraphicTemplatesStore.getState();
+  const taken = new Set(store.list().map((item) => item.id));
+  const template = taken.has(parsed.id) ? { ...parsed, id: `custom-${crypto.randomUUID()}` } : parsed;
+  store.save(template);
+  return template;
+}
+
+/**
+ * Import a Premiere Motion Graphics Template (.mogrt). The parser is loaded on demand so it stays out of the
+ * editor's entry chunk. The import report (what was mapped, approximated or dropped) comes back with the result.
+ */
+async function importMogrtFile(file: File): Promise<ImportTemplateResult> {
+  if (file.size > 64 * 1024 * 1024) return { ok: false, message: "That file is larger than 64 MB, which is more than a template should be." };
+  let bytes: Uint8Array;
+  try {
+    bytes = new Uint8Array(await file.arrayBuffer());
+  } catch {
+    return { ok: false, message: "The file could not be read." };
+  }
+  const { importMogrt } = await import("./mogrt-import");
+  const result = await importMogrt(bytes, { fileName: file.name });
+  if (!result.ok) return { ok: false, message: result.message, mogrtReport: result.report };
+  return { ok: true, template: saveImportedTemplate(result.template), mogrtReport: result.report };
+}
+
+/** Read, validate and add a `.openreel-template` or `.mogrt` file to the library. Nothing is added when it is rejected. */
 export async function importGraphicTemplateFile(file: File): Promise<ImportTemplateResult> {
+  if (isMogrtFile(file)) return importMogrtFile(file);
   if (file.size > 12_000_000) return { ok: false, message: "That file is larger than 12 MB, which is more than a template should be." };
   let text: string;
   try {
@@ -244,11 +275,5 @@ export async function importGraphicTemplateFile(file: File): Promise<ImportTempl
   }
   const parsed = parseGraphicTemplatePackage(text);
   if (!parsed.ok) return { ok: false, message: parsed.errors[0] ?? "That is not a valid template." };
-  const store = useGraphicTemplatesStore.getState();
-  // A template with a built-in or existing id is imported as a copy, never overwriting.
-  const taken = new Set(store.list().map((item) => item.id));
-  let template = parsed.template;
-  if (taken.has(template.id)) template = { ...template, id: `custom-${crypto.randomUUID()}` };
-  store.save(template);
-  return { ok: true, template };
+  return { ok: true, template: saveImportedTemplate(parsed.template) };
 }

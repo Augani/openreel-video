@@ -1,7 +1,7 @@
-import type { DesktopProxyProfile } from "../../../../../packages/core/src/types/project";
+import type { DesktopProxyProfile, IngestChecksumAlgorithm } from "../../../../../packages/core/src/types/project";
 
 /**
- * Background proxy queue of the main process: a bounded worker pool (1 or 2 at a time) that
+ * Background ingest queue of the main process (proxy builds and copy-to-destination jobs): a bounded worker pool (1 or 2 proxies at a time, one copy at a time) that
  * survives window reloads and app restarts. The queue owns no ffmpeg knowledge; `run` does the work.
  * Jobs are persisted after every state change (progress excluded), so a restart re-queues whatever
  * was queued or running, and a finished job stays until the renderer acknowledges it, so a proxy
@@ -9,11 +9,34 @@ import type { DesktopProxyProfile } from "../../../../../packages/core/src/types
  */
 
 export type ProxyJobStatus = "queued" | "running" | "done" | "failed";
+/** A proxy build (ffmpeg) or a verified copy of the media into its destination folder. */
+export type IngestJobKind = "proxy" | "copy";
+
+/** What a finished copy job leaves for the renderer to link into the project. */
+export interface CopyJobResult {
+  destPath: string;
+  size: number;
+  checksum: { algorithm: IngestChecksumAlgorithm; value: string };
+  /** The file already lived in the destination folder, or an identical copy from an interrupted run was reused. */
+  reused: boolean;
+}
+
+/** After a copy: build proxies from the copy (Premiere's "Copy and Create Proxies"). Decided when the job is queued so it survives a restart. */
+export interface CopyFollowUp {
+  profile: DesktopProxyProfile;
+  previewTwin: boolean;
+  /** The project's Proxies folder (used for the "project" destination). */
+  proxyDir: string;
+}
 
 export interface ProxyJobInput {
+  /** "proxy" when absent (jobs saved before copy jobs existed). */
+  kind?: IngestJobKind;
   /** Which project the job belongs to (the project id). */
   projectKey: string;
   mediaId: string;
+  /** The media's name, for the burn-in overlay and the follow-up proxy's file name. */
+  name?: string;
   srcPath: string;
   /** Folder and file name of the primary output. */
   outDir: string;
@@ -21,6 +44,8 @@ export interface ProxyJobInput {
   profile: DesktopProxyProfile;
   /** Also write an H.264 preview twin (ProRes proxies the renderer cannot decode). */
   previewTwin: boolean;
+  /** Copy jobs only. */
+  copy?: { algorithm: IngestChecksumAlgorithm; followUp?: CopyFollowUp };
 }
 
 export interface ProxyJobResult {
@@ -42,6 +67,7 @@ export interface ProxyJob extends ProxyJobInput {
   progress: number;
   error?: string;
   result?: ProxyJobResult;
+  copyResult?: CopyJobResult;
   attempts: number;
   enqueuedAt: number;
   finishedAt?: number;
@@ -55,7 +81,9 @@ export interface ProxyQueueStore {
 }
 
 export interface ProxyQueueDeps {
-  run(job: ProxyJob, onProgress: (fraction: number) => void, signal: AbortSignal): Promise<ProxyJobResult>;
+  run(job: ProxyJob, onProgress: (fraction: number) => void, signal: AbortSignal): Promise<ProxyJobResult | CopyJobResult>;
+  /** A job finished: the place to queue follow-up work (proxies of a copy). */
+  onDone?(job: ProxyJob): void;
   store: ProxyQueueStore;
   emit?: (event: ProxyQueueEvent) => void;
   now?: () => number;
@@ -64,7 +92,9 @@ export interface ProxyQueueDeps {
   progressIntervalMs?: number;
 }
 
-export const jobIdFor = (projectKey: string, mediaId: string): string => `${projectKey}:${mediaId}`;
+export const jobIdFor = (projectKey: string, mediaId: string, kind: IngestJobKind = "proxy"): string =>
+  kind === "copy" ? `${projectKey}:copy:${mediaId}` : `${projectKey}:${mediaId}`;
+export const kindOfJob = (job: Pick<ProxyJob, "kind">): IngestJobKind => job.kind ?? "proxy";
 export const clampConcurrency = (value: number): 1 | 2 => (value >= 2 ? 2 : 1);
 
 export class ProxyQueue {
@@ -109,7 +139,7 @@ export class ProxyQueue {
   enqueue(inputs: readonly ProxyJobInput[], options: { force?: boolean } = {}): ProxyJob[] {
     const out: ProxyJob[] = [];
     for (const input of inputs) {
-      const id = jobIdFor(input.projectKey, input.mediaId);
+      const id = jobIdFor(input.projectKey, input.mediaId, input.kind);
       const existing = this.jobs.get(id);
       if (existing && (existing.status === "queued" || existing.status === "running")) {
         if (!options.force) {
@@ -118,7 +148,7 @@ export class ProxyQueue {
         }
         this.abort(id, true);
       }
-      const job: ProxyJob = { ...input, id, status: "queued", progress: 0, attempts: 0, enqueuedAt: this.now() };
+      const job: ProxyJob = { ...input, kind: input.kind ?? "proxy", id, status: "queued", progress: 0, attempts: 0, enqueuedAt: this.now() };
       this.jobs.set(id, job);
       out.push(job);
       this.emit(job);
@@ -209,9 +239,15 @@ export class ProxyQueue {
 
   private pump(): void {
     if (this.stopped) return;
+    // Proxies use up to `concurrency` slots; copies are one at a time on their own slot, so a long copy never
+    // starves proxy builds and two copies never fight over one disk.
+    const running = { proxy: 0, copy: 0 };
+    for (const job of this.jobs.values()) if (this.controllers.has(job.id)) running[kindOfJob(job)]++;
     for (const job of this.jobs.values()) {
-      if (this.controllers.size >= this.concurrency) break;
       if (job.status !== "queued" || this.controllers.has(job.id)) continue;
+      const kind = kindOfJob(job);
+      if (running[kind] >= (kind === "copy" ? 1 : this.concurrency)) continue;
+      running[kind]++;
       void this.start(job);
     }
     if (this.isIdle()) {
@@ -247,7 +283,7 @@ export class ProxyQueue {
         controller.signal,
       );
       if (this.cancelled.has(job.id)) throw new DOMException("cancelled", "AbortError");
-      Object.assign(job, { status: "done", progress: 1, result, finishedAt: this.now() });
+      Object.assign(job, kindOfJob(job) === "copy" ? { status: "done", progress: 1, copyResult: result as CopyJobResult, finishedAt: this.now() } : { status: "done", progress: 1, result: result as ProxyJobResult, finishedAt: this.now() });
     } catch (error) {
       if (this.cancelled.has(job.id)) {
         // Dropped by cancel(): already removed (or being replaced by a forced re-queue).
@@ -264,6 +300,13 @@ export class ProxyQueue {
     // A forced re-queue replaced this job object while it was winding down; only publish the live one.
     const finalStatus = job.status as ProxyJobStatus;
     if (this.jobs.get(job.id) === job && (finalStatus === "done" || finalStatus === "failed")) this.emit(job);
+    if (finalStatus === "done" && this.jobs.get(job.id) === job) {
+      try {
+        this.deps.onDone?.({ ...job });
+      } catch {
+        // A follow-up that cannot be queued must not stop the queue.
+      }
+    }
     this.persist();
     this.pump();
   }

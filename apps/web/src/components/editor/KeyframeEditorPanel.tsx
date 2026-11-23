@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import {
   EASING_TYPES, EASE_PRESETS, KEYFRAME_INTERPOLATION_OPS, KEYFRAME_INTERPOLATION_LABELS, KEYFRAME_INTERPOLATION_SIDE_LABELS, keyframeSideTypes, type KeyframeInterpolationOp, type KeyframeInterpolationSide, type KeyframeSideType, clampBezierHandles, effectiveBezierHandles, keyframeEngine, keyframeSpeedAt,
+  SPATIAL_INTERPOLATION_OPS, SPATIAL_INTERPOLATION_LABELS, pairPositionKeys, handlesForSpeedHandle, speedHandleOf, type SpatialInterpolationOp,
   type BezierHandles, type EasePresetId, type Keyframe, type Clip,
 } from "@openreel/core";
 import { X, Copy, Clipboard, Trash2, ChevronLeft, ChevronRight } from "@/icons/lucide-compat";
-import { Button, ScrollArea, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuCheckboxItem, ContextMenuLabel, cn } from "@openreel/ui";
+import { Button, ScrollArea, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuCheckboxItem, ContextMenuLabel, ContextMenuSeparator, cn } from "@openreel/ui";
 
 const PROPERTY_COLORS: Record<string, string> = {
   "position.x": "#22d3ee", "position.y": "#34d399", "scale.x": "#4ade80", "scale.y": "#86efac",
@@ -31,13 +32,17 @@ function sideTypesLabel(types: SideTypes): string {
   return only ? typeLabel(only) : "";
 }
 
-/** Premiere-style "Temporal Interpolation" context menu; applies to the clicked key, or the whole selection when it was part of it. */
-function InterpolationMenu({ children, disabled, side, resolveIds, typesOf, onApply }: {
+type SpatialMenu = { modeOf: (id: string) => SpatialInterpolationOp | null; onApply: (ids: string[], op: SpatialInterpolationOp) => void };
+
+/** Premiere-style "Temporal Interpolation" context menu (plus "Spatial Interpolation" for position keys); applies to the clicked key, or the whole selection when it was part of it. */
+function InterpolationMenu({ children, disabled, side, resolveIds, typesOf, onApply, spatial }: {
   children: React.ReactNode; disabled: boolean; side: KeyframeInterpolationSide; resolveIds: (event: React.MouseEvent) => string[];
-  typesOf: (id: string) => SideTypes; onApply: (ids: string[], op: KeyframeInterpolationOp) => void;
+  typesOf: (id: string) => SideTypes; onApply: (ids: string[], op: KeyframeInterpolationOp) => void; spatial?: SpatialMenu;
 }) {
   const ids = useRef<string[]>([]);
   const [current, setCurrent] = useState<SideTypes>({});
+  const [spatialCurrent, setSpatialCurrent] = useState<SpatialInterpolationOp | null>(null);
+  const [spatialIds, setSpatialIds] = useState<string[]>([]);
   const isCurrent = (op: KeyframeInterpolationOp) => {
     const wanted = side === "both" ? [current.in, current.out] : [side === "in" ? current.in : current.out];
     return op !== "ease-in" && op !== "ease-out" && wanted.some(Boolean) && wanted.filter(Boolean).every(type => type === op);
@@ -48,15 +53,25 @@ function InterpolationMenu({ children, disabled, side, resolveIds, typesOf, onAp
         onContextMenuCapture={(event: React.MouseEvent) => {
           ids.current = resolveIds(event);
           setCurrent(ids.current.length ? typesOf(ids.current[0]) : {});
+          const positional = spatial ? ids.current.filter(id => spatial.modeOf(id) !== null) : [];
+          setSpatialIds(positional);
+          setSpatialCurrent(positional.length ? spatial!.modeOf(positional[0]) : null);
           if (!ids.current.length) event.preventDefault();
         }}>
         {children}
       </ContextMenuTrigger>
-      <ContextMenuContent aria-label="Temporal interpolation">
+      <ContextMenuContent aria-label="Keyframe interpolation">
         <ContextMenuLabel>Temporal Interpolation ({KEYFRAME_INTERPOLATION_SIDE_LABELS[side].toLowerCase()})</ContextMenuLabel>
         {KEYFRAME_INTERPOLATION_OPS.map(op => (
           <ContextMenuCheckboxItem key={op} checked={isCurrent(op)} onSelect={() => onApply(ids.current, op)}>{KEYFRAME_INTERPOLATION_LABELS[op]}</ContextMenuCheckboxItem>
         ))}
+        {spatial && spatialIds.length > 0 && <>
+          <ContextMenuSeparator/>
+          <ContextMenuLabel>Spatial Interpolation (position path)</ContextMenuLabel>
+          {SPATIAL_INTERPOLATION_OPS.map(op => (
+            <ContextMenuCheckboxItem key={`spatial-${op}`} checked={spatialCurrent === op} aria-label={`Spatial ${SPATIAL_INTERPOLATION_LABELS[op]}`} onSelect={() => spatial.onApply(spatialIds, op)}>{SPATIAL_INTERPOLATION_LABELS[op]}</ContextMenuCheckboxItem>
+          ))}
+        </>}
       </ContextMenuContent>
     </ContextMenu>
   );
@@ -80,6 +95,12 @@ interface KeyframeEditorPanelProps {
   onClose: () => void;
   onUpdateKeyframes: (ids: string[], updates: Partial<Keyframe>) => void;
   onApplyInterpolation?: (ids: string[], op: KeyframeInterpolationOp, side: KeyframeInterpolationSide) => void;
+  /** Spatial interpolation of the position path; offered on position keys whose X and Y keys line up. */
+  onApplySpatialInterpolation?: (ids: string[], op: SpatialInterpolationOp) => void;
+  /** One undo step moving several keys at once (time and value of each). */
+  onMoveKeyframes?: (moves: { id: string; time: number; value: number }[]) => void;
+  /** Replaces (or, additive, extends) the selection with several keys, e.g. after a box select. */
+  onSelectKeyframes?: (ids: string[], addToSelection: boolean) => void;
   onDeleteKeyframes: (ids: string[]) => void;
   onCopyKeyframes: (ids: string[]) => void;
   onPasteKeyframes: (clipId: string, time: number, targetProperty?: string) => void;
@@ -92,14 +113,51 @@ interface PropertyGroup { property: string; keyframes: Keyframe[]; color: string
 interface Range { min: number; max: number }
 interface Layer { group: PropertyGroup; keys: NumericKey[]; range: Range; curve: { time: number; value: number }[] }
 type Draft =
-  | { kind: "key"; id: string; time: number; value: number }
-  | { kind: "handle"; id: string; handles: BezierHandles };
+  | { kind: "keys"; moves: Record<string, { time: number; value: number }> }
+  | { kind: "handle"; id: string; handles: BezierHandles }
+  | { kind: "box"; x0: number; y0: number; x1: number; y1: number; additive: boolean };
+type HandleSpace = "value" | "speed";
 type DragSession = {
   clip: Clip; pointerId: number; width: number; timeRange: Range; draft: Draft | null;
 } & (
-  | { kind: "key"; key: NumericKey; valueRange: Range }
-  | { kind: "handle"; key: NumericKey; next: NumericKey; start: BezierHandles; which: "in" | "out" }
+  | { kind: "key"; key: NumericKey; valueRange: Range; group: NumericKey[] }
+  | { kind: "handle"; key: NumericKey; next: NumericKey; start: BezierHandles; which: "in" | "out"; space: HandleSpace; axisMax: number }
+  | { kind: "box"; x0: number; y0: number; additive: boolean }
 );
+/** A selectable point of a key on the speed graph: each side of a key sits at that side's speed. */
+interface SpeedAnchor { key: NumericKey; side: "in" | "out"; time: number; speed: number }
+/** A speed-graph handle: influence is its horizontal reach (a fraction of the segment), speed its height. */
+interface SpeedHandleSpot extends SpeedAnchor { start: NumericKey; next: NumericKey; handle: { time: number; speed: number } }
+function speedAnchors(keys: NumericKey[]): SpeedAnchor[] {
+  const out: SpeedAnchor[] = [];
+  keys.forEach((key, index) => {
+    const next = keys[index + 1], prev = keys[index - 1];
+    const outHandles = next && next.time > key.time && key.easing !== "hold" ? effectiveBezierHandles(key) : null;
+    const inHandles = prev && key.time > prev.time && prev.easing !== "hold" ? effectiveBezierHandles(prev) : null;
+    if (next && outHandles) out.push({ key, side: "out", time: key.time, speed: speedHandleOf(key, next, outHandles, "out").speed });
+    if (prev && inHandles) out.push({ key, side: "in", time: key.time, speed: speedHandleOf(prev, key, inHandles, "in").speed });
+  });
+  return out;
+}
+function speedHandleSpots(keys: NumericKey[], selected: ReadonlySet<string>): SpeedHandleSpot[] {
+  const spots: SpeedHandleSpot[] = [];
+  keys.forEach((key, index) => {
+    const next = keys[index + 1];
+    if (!next || next.time <= key.time || key.easing === "hold") return;
+    const handles = effectiveBezierHandles(key);
+    if (!handles) return;
+    const dt = next.time - key.time;
+    if (selected.has(key.id)) {
+      const sh = speedHandleOf(key, next, handles, "out");
+      spots.push({ key, side: "out", time: key.time, speed: sh.speed, start: key, next, handle: { time: key.time + sh.influence * dt, speed: sh.speed } });
+    }
+    if (selected.has(next.id)) {
+      const sh = speedHandleOf(key, next, handles, "in");
+      spots.push({ key: next, side: "in", time: next.time, speed: sh.speed, start: key, next, handle: { time: next.time - sh.influence * dt, speed: sh.speed } });
+    }
+  });
+  return spots;
+}
 
 /** Bounded curve sampling using the renderer's actual easing and Bézier handles. */
 function sampleCurve(keys: Keyframe[], range: Range) {
@@ -138,7 +196,7 @@ function handlePoints(key: NumericKey, next: NumericKey, handles: BezierHandles)
   };
 }
 
-export function KeyframeEditorPanel({ clip, disabled = false, playheadTime = 0, onClose, onUpdateKeyframes, onApplyInterpolation, onDeleteKeyframes,
+export function KeyframeEditorPanel({ clip, disabled = false, playheadTime = 0, onClose, onUpdateKeyframes, onApplyInterpolation, onApplySpatialInterpolation, onMoveKeyframes, onSelectKeyframes, onDeleteKeyframes,
   onCopyKeyframes, onPasteKeyframes, selectedKeyframeIds, onSelectKeyframe, copiedKeyframes }: KeyframeEditorPanelProps) {
   const [activeProperty, setActiveProperty] = useState<string | null>(null);
   const [overlay, setOverlay] = useState<string[]>([]);
@@ -148,6 +206,7 @@ export function KeyframeEditorPanel({ clip, disabled = false, playheadTime = 0, 
   const [interpSide, setInterpSide] = useState<KeyframeInterpolationSide>("both");
   const [graphWidth, setGraphWidth] = useState(GRAPH_WIDTH);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [speedFreeze, setSpeedFreeze] = useState<number | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drag = useRef<DragSession | null>(null);
   const hasClip = Boolean(clip);
@@ -179,6 +238,17 @@ export function KeyframeEditorPanel({ clip, disabled = false, playheadTime = 0, 
     if (!group || index < 0) return {};
     return keyframeSideTypes(group.keyframes[index - 1], group.keyframes[index], index < group.keyframes.length - 1);
   }, [propertyGroups]);
+  /** The route is only editable when every X key has a Y partner at the same time. */
+  const pathPairs = useMemo(() => pairPositionKeys(clip?.keyframes ?? []), [clip?.keyframes]);
+  const spatialModeOf = useCallback((id: string): SpatialInterpolationOp | null => {
+    const pair = pathPairs?.find(p => p.x.id === id || p.y.id === id);
+    return pair ? pair.x.spatialMode ?? "linear" : null;
+  }, [pathPairs]);
+  const spatialMenu = useMemo<SpatialMenu | undefined>(() => onApplySpatialInterpolation ? { modeOf: spatialModeOf, onApply: onApplySpatialInterpolation } : undefined, [onApplySpatialInterpolation, spatialModeOf]);
+  const pathLabelOf = (id: string) => {
+    const path = spatialModeOf(id);
+    return path && path !== "linear" ? ` · Path ${SPATIAL_INTERPOLATION_LABELS[path]}` : "";
+  };
   const selectedKeys = useMemo(() => {
     const ids = new Set(selectedKeyframeIds);
     return (clip?.keyframes ?? []).filter(key => ids.has(key.id));
@@ -204,20 +274,32 @@ export function KeyframeEditorPanel({ clip, disabled = false, playheadTime = 0, 
     return { group, keys, curve, range: rangeOf(keys, curve) };
   }), [shownGroups, timeRange]);
   const layers = useMemo((): Layer[] => baseLayers.map(layer => {
-    if (!draft || !layer.keys.some(key => key.id === draft.id)) return layer;
-    const keys = layer.keys.map(key => key.id !== draft.id ? key
-      : draft.kind === "key" ? { ...key, time: draft.time, value: draft.value }
-        : { ...key, easing: "bezier" as const, bezierHandles: draft.handles }).sort((a, b) => a.time - b.time);
+    if (!draft || draft.kind === "box") return layer;
+    if (draft.kind === "keys") {
+      if (!layer.keys.some(key => draft.moves[key.id])) return layer;
+      const keys = layer.keys.map(key => draft.moves[key.id] ? { ...key, ...draft.moves[key.id] } : key).sort((a, b) => a.time - b.time);
+      return { ...layer, keys, curve: sampleCurve(keys, timeRange) };
+    }
+    if (!layer.keys.some(key => key.id === draft.id)) return layer;
+    const keys = layer.keys.map(key => key.id !== draft.id ? key : { ...key, easing: "bezier" as const, bezierHandles: draft.handles }).sort((a, b) => a.time - b.time);
     // Handle drags keep the axis fixed; key drags keep the range they started with.
     return { ...layer, keys, curve: sampleCurve(keys, timeRange) };
   }), [baseLayers, draft, timeRange]);
   const activeLayer = layers.find(layer => layer.group.property === activeGroup?.property) ?? null;
+  const activeSpeedSpots = useMemo(() => mode === "speed" && activeLayer ? speedHandleSpots(activeLayer.keys, selectedIdSet) : [], [mode, activeLayer, selectedIdSet]);
+  const activeSpeedAnchors = useMemo(() => mode === "speed" && activeLayer ? speedAnchors(activeLayer.keys) : [], [mode, activeLayer]);
   const speedLayers = useMemo(() => mode === "speed" ? layers.map(layer => {
     const curve = speedCurve(layer.keys, timeRange);
-    return { layer, curve, max: Math.max(1e-9, ...curve.map(point => point.value)) };
-  }) : [], [mode, layers, timeRange]);
+    const isActive = layer === activeLayer;
+    // The active axis leaves headroom for the handles and stays put while one is dragged.
+    const reach = isActive ? Math.max(...activeSpeedAnchors.map(anchor => anchor.speed), ...activeSpeedSpots.map(spot => spot.handle.speed), 0) : 0;
+    const natural = Math.max(1e-9, ...curve.map(point => point.value), reach) * (isActive ? 1.1 : 1);
+    return { layer, curve, max: isActive && speedFreeze !== null ? speedFreeze : natural };
+  }) : [], [mode, layers, timeRange, activeLayer, activeSpeedAnchors, activeSpeedSpots, speedFreeze]);
+  const speedAxisMax = speedLayers.find(entry => entry.layer === activeLayer)?.max ?? 1;
   const timeToX = useCallback((time: number) => GRAPH_PADDING + (time - timeRange.min) / (timeRange.max - timeRange.min) * (graphWidth - GRAPH_PADDING * 2), [timeRange, graphWidth]);
   const valueToY = useCallback((range: Range, value: number) => GRAPH_PADDING + (1 - (value - range.min) / (range.max - range.min)) * (GRAPH_HEIGHT - GRAPH_PADDING * 2), []);
+  const speedToY = useCallback((speed: number, max: number) => GRAPH_PADDING + (1 - speed / max) * (GRAPH_HEIGHT - GRAPH_PADDING * 2), []);
   /** Segments whose Bézier handles are editable: those touching a selected key of the active property. */
   const handleSegments = useMemo(() => {
     if (mode !== "value" || !activeLayer) return [];
@@ -230,24 +312,46 @@ export function KeyframeEditorPanel({ clip, disabled = false, playheadTime = 0, 
     });
     return segments;
   }, [mode, activeLayer, selectedIdSet]);
-  const cancelDrag = useCallback(() => { drag.current = null; setDraft(null); }, []);
+  /** Screen position of every selectable key point in the current graph, in canvas pixels. */
+  const keyPoints = useCallback(() => mode === "speed"
+    ? (activeLayer ? activeSpeedAnchors.map(anchor => ({ key: anchor.key, layer: activeLayer, x: timeToX(anchor.time), y: speedToY(anchor.speed, speedAxisMax) })) : [])
+    : layers.flatMap(layer => layer.keys.map(key => ({ key, layer, x: timeToX(key.time), y: valueToY(layer.range, key.value) }))),
+  [mode, activeLayer, activeSpeedAnchors, layers, speedAxisMax, speedToY, timeToX, valueToY]);
+  const cancelDrag = useCallback(() => { drag.current = null; setDraft(null); setSpeedFreeze(null); }, []);
   useEffect(cancelDrag, [clip, disabled, graphWidth, mode, cancelDrag]);
   useEffect(() => { setPage(1); }, [clip?.id, activeGroup?.property]);
 
+  const selectMany = useCallback((ids: string[], additive: boolean) => {
+    if (onSelectKeyframes) { onSelectKeyframes(ids, additive); return; }
+    const have = new Set(selectedIdSet);
+    if (!additive) for (const id of have) if (!ids.includes(id)) onSelectKeyframe(id, true);
+    for (const id of ids) if (!have.has(id)) onSelectKeyframe(id, true);
+  }, [onSelectKeyframes, onSelectKeyframe, selectedIdSet]);
   const finishDrag = useCallback((event: PointerEvent) => {
     const session = drag.current;
     if (!session || event.pointerId !== session.pointerId) return;
-    drag.current = null; setDraft(null);
+    drag.current = null; setDraft(null); setSpeedFreeze(null);
     if (disabled || session.clip !== clip || !session.draft) return;
-    if (session.kind === "key" && session.draft.kind === "key") {
-      if (session.draft.time !== session.key.time || session.draft.value !== session.key.value) {
-        onUpdateKeyframes([session.key.id], { time: session.draft.time, value: session.draft.value });
-      }
-    } else if (session.kind === "handle" && session.draft.kind === "handle") {
+    if (session.kind === "key" && session.draft.kind === "keys") {
+      const moves = session.group.flatMap(key => {
+        const to = (session.draft as Extract<Draft, { kind: "keys" }>).moves[key.id];
+        return to && (to.time !== key.time || to.value !== key.value) ? [{ id: key.id, time: to.time, value: to.value }] : [];
+      });
+      if (!moves.length) return;
       // One gesture, one update, one undo step.
+      if (onMoveKeyframes) onMoveKeyframes(moves);
+      else for (const move of moves) onUpdateKeyframes([move.id], { time: move.time, value: move.value });
+    } else if (session.kind === "handle" && session.draft.kind === "handle") {
       onUpdateKeyframes([session.key.id], { easing: "bezier", bezierHandles: clampBezierHandles(session.draft.handles) });
+    } else if (session.kind === "box" && session.draft.kind === "box") {
+      const box = session.draft;
+      const [left, right] = [Math.min(box.x0, box.x1), Math.max(box.x0, box.x1)];
+      const [top, bottom] = [Math.min(box.y0, box.y1), Math.max(box.y0, box.y1)];
+      if (right - left < 3 && bottom - top < 3) { if (!box.additive) selectMany([], false); return; }
+      const inside = keyPoints().filter(point => point.x >= left && point.x <= right && point.y >= top && point.y <= bottom).map(point => point.key.id);
+      selectMany(Array.from(new Set(inside)), box.additive);
     }
-  }, [clip, disabled, onUpdateKeyframes]);
+  }, [clip, disabled, keyPoints, onMoveKeyframes, onUpdateKeyframes, selectMany]);
   useEffect(() => {
     const cancelPointer = (event: PointerEvent) => { if (drag.current?.pointerId === event.pointerId) cancelDrag(); };
     const escape = (event: KeyboardEvent) => { if (event.key === "Escape" && drag.current) { event.preventDefault(); cancelDrag(); } };
@@ -285,9 +389,8 @@ export function KeyframeEditorPanel({ clip, disabled = false, playheadTime = 0, 
       ctx.fillText(`${time.toFixed(2)}s`, timeToX(time), GRAPH_HEIGHT - 10);
     }
     ctx.textAlign = "right";
-    const axisMax = mode === "speed" ? speedLayers.find(entry => entry.layer === activeLayer)?.max ?? speedLayers[0]?.max ?? 1 : 0;
     for (let index = 0; index <= 5; index++) {
-      if (mode === "speed") ctx.fillText(`${(axisMax * (1 - index / 5)).toFixed(1)}/s`, GRAPH_PADDING - 5, GRAPH_PADDING + index / 5 * (GRAPH_HEIGHT - GRAPH_PADDING * 2) + 3);
+      if (mode === "speed") ctx.fillText(`${(speedAxisMax * (1 - index / 5)).toFixed(1)}/s`, GRAPH_PADDING - 5, GRAPH_PADDING + index / 5 * (GRAPH_HEIGHT - GRAPH_PADDING * 2) + 3);
       else if (activeLayer) {
         const value = activeLayer.range.min + index / 5 * (activeLayer.range.max - activeLayer.range.min);
         ctx.fillText(value.toFixed(2), GRAPH_PADDING - 5, valueToY(activeLayer.range, value) + 3);
@@ -303,21 +406,39 @@ export function KeyframeEditorPanel({ clip, disabled = false, playheadTime = 0, 
       points.forEach((point, index) => { if (index === 0) ctx.moveTo(point.x, point.y); else ctx.lineTo(point.x, point.y); });
       ctx.stroke();
     };
+    const diamond = (x: number, y: number, color: string, selected: boolean) => {
+      ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4);
+      ctx.fillStyle = color; ctx.fillRect(-6, -6, 12, 12);
+      if (selected) { ctx.strokeStyle = fg; ctx.lineWidth = 1; ctx.strokeRect(-6, -6, 12, 12); }
+      ctx.restore();
+    };
+    const marquee = () => {
+      if (draft?.kind !== "box") return;
+      ctx.save(); ctx.strokeStyle = fg; ctx.fillStyle = "rgba(120,160,255,0.15)"; ctx.setLineDash([4, 3]); ctx.lineWidth = 1;
+      ctx.fillRect(Math.min(draft.x0, draft.x1), Math.min(draft.y0, draft.y1), Math.abs(draft.x1 - draft.x0), Math.abs(draft.y1 - draft.y0));
+      ctx.strokeRect(Math.min(draft.x0, draft.x1), Math.min(draft.y0, draft.y1), Math.abs(draft.x1 - draft.x0), Math.abs(draft.y1 - draft.y0));
+      ctx.restore();
+    };
     if (mode === "speed") {
       // Each curve is scaled to its own peak; the axis shows the active property's units per second.
       speedLayers.forEach(({ layer, curve, max }, index) => strokeCurve(layer.group.color, index === 0 ? 2 : 1.5,
-        curve.map(point => ({ x: timeToX(point.time), y: GRAPH_PADDING + (1 - point.value / max) * (GRAPH_HEIGHT - GRAPH_PADDING * 2) }))));
+        curve.map(point => ({ x: timeToX(point.time), y: speedToY(point.value, max) }))));
+      if (activeLayer) {
+        for (const anchor of activeSpeedAnchors) diamond(timeToX(anchor.time), speedToY(anchor.speed, speedAxisMax), activeLayer.group.color, selectedIdSet.has(anchor.key.id));
+        ctx.strokeStyle = fg; ctx.lineWidth = 1;
+        for (const spot of activeSpeedSpots) {
+          const hx = timeToX(spot.handle.time), hy = speedToY(spot.handle.speed, speedAxisMax);
+          ctx.beginPath(); ctx.moveTo(timeToX(spot.time), speedToY(spot.speed, speedAxisMax)); ctx.lineTo(hx, hy); ctx.stroke();
+          ctx.fillStyle = fg; ctx.fillRect(hx - 4, hy - 4, 8, 8);
+        }
+      }
+      marquee();
       return;
     }
     [...layers].reverse().forEach(layer => {
       const isActive = layer === activeLayer;
       strokeCurve(layer.group.color, isActive ? 2 : 1.25, layer.curve.map(point => ({ x: timeToX(point.time), y: valueToY(layer.range, point.value) })));
-      for (const key of layer.keys) {
-        ctx.save(); ctx.translate(timeToX(key.time), valueToY(layer.range, key.value)); ctx.rotate(Math.PI / 4);
-        ctx.fillStyle = layer.group.color; ctx.fillRect(-6, -6, 12, 12);
-        if (selectedIdSet.has(key.id)) { ctx.strokeStyle = fg; ctx.lineWidth = 1; ctx.strokeRect(-6, -6, 12, 12); }
-        ctx.restore();
-      }
+      for (const key of layer.keys) diamond(timeToX(key.time), valueToY(layer.range, key.value), layer.group.color, selectedIdSet.has(key.id));
     });
     if (activeLayer) for (const segment of handleSegments) {
       const handles = draft?.kind === "handle" && draft.id === segment.key.id ? draft.handles : segment.handles;
@@ -333,7 +454,8 @@ export function KeyframeEditorPanel({ clip, disabled = false, playheadTime = 0, 
         ctx.fillRect(timeToX(end.handle.time) - 4, valueToY(activeLayer.range, end.handle.value) - 4, 8, 8);
       }
     }
-  }, [activeLayer, draft, handleSegments, layers, mode, playheadTime, selectedIdSet, speedLayers, timeRange, timeToX, valueToY, graphWidth]);
+    marquee();
+  }, [activeLayer, activeSpeedAnchors, activeSpeedSpots, draft, handleSegments, layers, mode, playheadTime, selectedIdSet, speedAxisMax, speedLayers, speedToY, timeRange, timeToX, valueToY, graphWidth]);
   useEffect(() => { drawGraph(); }, [drawGraph]);
   useEffect(() => {
     const observer = new MutationObserver(drawGraph);
@@ -347,48 +469,94 @@ export function KeyframeEditorPanel({ clip, disabled = false, playheadTime = 0, 
       y: (event.clientY - rect.top) * GRAPH_HEIGHT / rect.height } : null;
   };
   const startDrag = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    if (disabled || !clip || event.button !== 0 || mode !== "value" || !activeLayer) return;
+    if (disabled || !clip || event.button !== 0 || !activeLayer) return;
     const point = pointerPoint(event); if (!point) return;
+    const additive = event.shiftKey || event.metaKey || event.ctrlKey;
     const base = { clip, pointerId: event.pointerId, width: graphWidth, timeRange, draft: null };
-    // Bézier handles first: they sit on top of the curve near their keyframes.
-    for (const segment of handleSegments) {
-      const points = handlePoints(segment.key, segment.next, segment.handles);
-      for (const which of ["in", "out"] as const) {
-        const handle = points[which];
-        if (Math.hypot(point.x - timeToX(handle.time), point.y - valueToY(activeLayer.range, handle.value)) < HIT_RADIUS) {
-          event.preventDefault();
-          drag.current = { ...base, kind: "handle", key: segment.key, next: segment.next, start: segment.handles, which };
-          event.currentTarget.setPointerCapture?.(event.pointerId);
-          return;
+    const capture = () => event.currentTarget.setPointerCapture?.(event.pointerId);
+    // Handles first: they sit on top of the curve near their keyframes.
+    if (mode === "speed") {
+      for (const spot of activeSpeedSpots) {
+        if (Math.hypot(point.x - timeToX(spot.handle.time), point.y - speedToY(spot.handle.speed, speedAxisMax)) >= HIT_RADIUS) continue;
+        event.preventDefault();
+        const start = effectiveBezierHandles(spot.start);
+        if (!start) return;
+        drag.current = { ...base, kind: "handle", key: spot.start, next: spot.next, start, which: spot.side === "out" ? "in" : "out", space: "speed", axisMax: speedAxisMax };
+        setSpeedFreeze(speedAxisMax); capture();
+        return;
+      }
+    } else {
+      for (const segment of handleSegments) {
+        const points = handlePoints(segment.key, segment.next, segment.handles);
+        for (const which of ["in", "out"] as const) {
+          const handle = points[which];
+          if (Math.hypot(point.x - timeToX(handle.time), point.y - valueToY(activeLayer.range, handle.value)) < HIT_RADIUS) {
+            event.preventDefault();
+            drag.current = { ...base, kind: "handle", key: segment.key, next: segment.next, start: segment.handles, which, space: "value", axisMax: 0 };
+            capture();
+            return;
+          }
         }
       }
     }
-    for (const layer of layers) {
-      const key = layer.keys.find(key => Math.hypot(point.x - timeToX(key.time), point.y - valueToY(layer.range, key.value)) < HIT_RADIUS);
-      if (!key) continue;
+    const hit = keyPoints().find(candidate => Math.hypot(point.x - candidate.x, point.y - candidate.y) < HIT_RADIUS);
+    if (hit) {
       event.preventDefault();
-      setActiveProperty(layer.group.property);
-      onSelectKeyframe(key.id, event.shiftKey || event.metaKey || event.ctrlKey);
-      drag.current = { ...base, kind: "key", key, valueRange: layer.range };
-      event.currentTarget.setPointerCapture?.(event.pointerId);
+      setActiveProperty(hit.layer.group.property);
+      onSelectKeyframe(hit.key.id, additive);
+      // Shift-click toggles and never drags; a plain press on a selected key drags the whole selection.
+      if (additive || mode === "speed") return;
+      const group = selectedIdSet.has(hit.key.id)
+        ? layers.flatMap(layer => layer.keys).filter(key => selectedIdSet.has(key.id))
+        : [hit.key];
+      drag.current = { ...base, kind: "key", key: hit.key, valueRange: hit.layer.range, group };
+      capture();
       return;
     }
+    // Empty space: drag a selection box.
+    event.preventDefault();
+    const box = { kind: "box" as const, x0: point.x, y0: point.y, x1: point.x, y1: point.y, additive };
+    drag.current = { ...base, kind: "box", x0: point.x, y0: point.y, additive, draft: box };
+    setDraft(box);
+    capture();
   };
   const moveDrag = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const session = drag.current;
     if (!session || session.pointerId !== event.pointerId || session.clip !== clip || disabled) return;
     const point = pointerPoint(event); if (!point) return;
+    if (session.kind === "box") {
+      const next = { kind: "box" as const, x0: session.x0, y0: session.y0, x1: point.x, y1: point.y, additive: session.additive };
+      session.draft = next; setDraft(next);
+      return;
+    }
     const time = session.timeRange.min + (point.x - GRAPH_PADDING) / (session.width - GRAPH_PADDING * 2) * (session.timeRange.max - session.timeRange.min);
     if (session.kind === "key") {
       const value = session.valueRange.min + (1 - (point.y - GRAPH_PADDING) / (GRAPH_HEIGHT - GRAPH_PADDING * 2)) * (session.valueRange.max - session.valueRange.min);
-      const next = { kind: "key" as const, id: session.key.id, time: Math.max(0, time), value };
+      // The whole group moves by the same time offset (none may cross zero); values move with the dragged property only.
+      const earliest = Math.min(...session.group.map(key => key.time));
+      const dt = Math.max(time - session.key.time, -earliest);
+      const dv = value - session.key.value;
+      const moves: Record<string, { time: number; value: number }> = {};
+      for (const key of session.group) moves[key.id] = { time: key.time + dt, value: key.property === session.key.property ? key.value + dv : key.value };
+      const next = { kind: "keys" as const, moves };
+      session.draft = next; setDraft(next);
+      return;
+    }
+    const dt = session.next.time - session.key.time;
+    if (session.space === "speed") {
+      const speed = Math.max(0, session.axisMax * (1 - (point.y - GRAPH_PADDING) / (GRAPH_HEIGHT - GRAPH_PADDING * 2)));
+      // The dragged handle belongs to the `side` opposite `which` (which names the handle's slot in the segment).
+      const side = session.which === "in" ? "out" : "in";
+      const influence = side === "out" ? (time - session.key.time) / dt : (session.next.time - time) / dt;
+      const handles = handlesForSpeedHandle(session.key, session.next, session.start, side, influence, speed);
+      const next = { kind: "handle" as const, id: session.key.id, handles };
       session.draft = next; setDraft(next);
       return;
     }
     const range = activeLayer?.range;
     if (!range) return;
     const value = range.min + (1 - (point.y - GRAPH_PADDING) / (GRAPH_HEIGHT - GRAPH_PADDING * 2)) * (range.max - range.min);
-    const dt = session.next.time - session.key.time, span = session.next.value - session.key.value;
+    const span = session.next.value - session.key.value;
     const x = (time - session.key.time) / dt;
     // Flat segments have no value span to scale against; their handle y stays put.
     const y = Math.abs(span) > 1e-9 ? (value - session.key.value) / span : session.start[session.which].y;
@@ -441,28 +609,28 @@ export function KeyframeEditorPanel({ clip, disabled = false, playheadTime = 0, 
         </div>
       </div>}
         <div className="p-3">
-          <InterpolationMenu disabled={disabled || !onApplyInterpolation} side={interpSide} typesOf={typesOf} onApply={(ids, op) => onApplyInterpolation?.(ids, op, interpSide)} resolveIds={event => {
+          <InterpolationMenu disabled={disabled || !onApplyInterpolation} side={interpSide} typesOf={typesOf} spatial={spatialMenu} onApply={(ids, op) => onApplyInterpolation?.(ids, op, interpSide)} resolveIds={event => {
             const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
             if (!activeLayer || rect.width <= 0) return selectedIds;
             const x = (event.clientX - rect.left) * graphWidth / rect.width, y = (event.clientY - rect.top) * GRAPH_HEIGHT / rect.height;
-            const hit = layers.flatMap(layer => layer.keys.map(key => ({ key, layer }))).find(({ key, layer }) => Math.hypot(x - timeToX(key.time), y - valueToY(layer.range, key.value)) < HIT_RADIUS);
+            const hit = keyPoints().find(point => Math.hypot(x - point.x, y - point.y) < HIT_RADIUS);
             if (!hit) return selectedIds;
             if (!selectedIdSet.has(hit.key.id)) onSelectKeyframe(hit.key.id, false);
             return selectedIdSet.has(hit.key.id) ? selectedIds : [hit.key.id];
           }}>
-          <canvas ref={canvasRef} width={GRAPH_WIDTH} height={GRAPH_HEIGHT} data-graph-mode={mode} aria-label="Keyframe value graph" className={cn("w-full touch-none rounded-md border border-border bg-bg-1", disabled || mode === "speed" ? "cursor-default" : "cursor-crosshair")} style={{ height: GRAPH_HEIGHT }} onPointerDown={startDrag} onPointerMove={moveDrag}/>
+          <canvas ref={canvasRef} width={GRAPH_WIDTH} height={GRAPH_HEIGHT} data-graph-mode={mode} aria-label="Keyframe value graph" className={cn("w-full touch-none rounded-md border border-border bg-bg-1", disabled ? "cursor-default" : "cursor-crosshair")} style={{ height: GRAPH_HEIGHT }} onPointerDown={startDrag} onPointerMove={moveDrag}/>
           </InterpolationMenu>
           {!numericActive && <p className="mt-2 text-[11px] text-fg-muted">{activeGroup ? "This property has no numeric curve." : "Add keyframes in the inspector to start animating."}</p>}
-          {numericActive && mode === "value" && <p className="mt-2 text-[10px] text-fg-muted">Select a keyframe to drag its Bézier handles. {layers.length > 1 ? "Overlaid curves are each scaled to their own range." : ""}</p>}
-          {mode === "speed" && <p className="mt-2 text-[10px] text-fg-muted">Speed graph: rate of change per second. Each curve is scaled to its own peak.</p>}
+          {numericActive && mode === "value" && <p className="mt-2 text-[10px] text-fg-muted">Select a keyframe to drag its Bézier handles; drag on empty space to box-select (Shift adds); drag a selected key to move the whole selection. Right-click for interpolation types. {layers.length > 1 ? "Overlaid curves are each scaled to their own range." : ""}</p>}
+          {mode === "speed" && <p className="mt-2 text-[10px] text-fg-muted">Speed graph: rate of change per second. Select a keyframe, then drag its square handles: sideways sets the influence, up and down the speed. Each curve is scaled to its own peak.</p>}
         </div>
         {!!rows.length && <div className="border-t border-border px-2 py-1">
           <div aria-hidden className="grid grid-cols-[1fr_1fr_2fr] gap-2 px-2 py-1 text-[10px] text-fg-muted"><span>Time</span><span>Value</span><span>Easing</span></div>
-          {rows.map(key => <InterpolationMenu key={key.id} disabled={disabled || !onApplyInterpolation} side={interpSide} typesOf={typesOf} onApply={(ids, op) => onApplyInterpolation?.(ids, op, interpSide)} resolveIds={() => {
+          {rows.map(key => <InterpolationMenu key={key.id} disabled={disabled || !onApplyInterpolation} side={interpSide} typesOf={typesOf} spatial={spatialMenu} onApply={(ids, op) => onApplyInterpolation?.(ids, op, interpSide)} resolveIds={() => {
             if (!selectedIdSet.has(key.id)) onSelectKeyframe(key.id, false);
             return selectedIdSet.has(key.id) ? selectedIds : [key.id];
-          }}><Button variant="ghost" aria-pressed={selectedIdSet.has(key.id)} aria-label={`Keyframe at ${key.time.toFixed(3)}s, value ${formatValue(key.value)}, ${sideTypesLabel(typesOf(key.id))}`} onClick={event => onSelectKeyframe(key.id, event.shiftKey || event.metaKey || event.ctrlKey)} className={cn("grid h-auto w-full grid-cols-[1fr_1fr_2fr] gap-2 whitespace-normal rounded px-2 py-1.5 text-left text-[11px] font-normal", selectedIdSet.has(key.id) && "bg-accent/10 text-accent")}>
-            <span className="font-mono">{key.time.toFixed(3)}s</span><span className="min-w-0 break-words font-mono">{formatValue(key.value)}</span><span>{sideTypesLabel(typesOf(key.id))}</span>
+          }}><Button variant="ghost" aria-pressed={selectedIdSet.has(key.id)} aria-label={`Keyframe at ${key.time.toFixed(3)}s, value ${formatValue(key.value)}, ${sideTypesLabel(typesOf(key.id))}${pathLabelOf(key.id)}`} onClick={event => onSelectKeyframe(key.id, event.shiftKey || event.metaKey || event.ctrlKey)} className={cn("grid h-auto w-full grid-cols-[1fr_1fr_2fr] gap-2 whitespace-normal rounded px-2 py-1.5 text-left text-[11px] font-normal", selectedIdSet.has(key.id) && "bg-accent/10 text-accent")}>
+            <span className="font-mono">{key.time.toFixed(3)}s</span><span className="min-w-0 break-words font-mono">{formatValue(key.value)}</span><span>{sideTypesLabel(typesOf(key.id))}{pathLabelOf(key.id)}</span>
           </Button></InterpolationMenu>)}
           {pageCount > 1 && <div className="flex items-center justify-between py-2">
             <Button variant="ghost" size="icon-sm" aria-label="Previous keyframe page" disabled={visiblePage === 1} onClick={() => setPage(visiblePage - 1)}><ChevronLeft size={14}/></Button>

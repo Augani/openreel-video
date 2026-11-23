@@ -859,69 +859,100 @@ export class ColorGradingEngine {
       ? (lut.floatData as Float32Array)
       : lut.data;
     const lutScale = hasFloat ? 1 : 1 / 255;
+    const intensity = lut.intensity;
+    const keep = 1 - intensity;
 
+    // Everything that depends only on the 8-bit channel value is tabled once per call (256 entries), so the pixel
+    // loop does table reads and the trilinear blend, with no per-pixel closures or allocations. Each table entry
+    // is the exact double the per-pixel code used to compute (v / 255, * (size - 1), floor, fraction, * (1 - intensity)),
+    // and the blend keeps the original operation order, so the output is bit-identical to the closure version.
+    const maxIndex = lutSize - 1;
+    const strideG = lutSize * 3;
+    const strideB = lutSize * lutSize * 3;
+    const off0R = new Int32Array(256);
+    const off1R = new Int32Array(256);
+    const off0G = new Int32Array(256);
+    const off1G = new Int32Array(256);
+    const off0B = new Int32Array(256);
+    const off1B = new Int32Array(256);
+    const frac = new Float64Array(256);
+    const kept = new Float64Array(256);
+    for (let v = 0; v < 256; v++) {
+      const n = v / 255;
+      const idx = n * maxIndex;
+      const i0 = Math.floor(idx);
+      const i1 = Math.min(i0 + 1, maxIndex);
+      frac[v] = idx - i0;
+      kept[v] = n * keep;
+      off0R[v] = i0 * 3;
+      off1R[v] = i1 * 3;
+      off0G[v] = i0 * strideG;
+      off1G[v] = i1 * strideG;
+      off0B[v] = i0 * strideB;
+      off1B[v] = i1 * strideB;
+    }
+
+    // The table pre-multiplied by its scale: `data * scale` is the exact double the per-sample multiply produced.
+    // Converted per call (a 17^3 table is ~15k entries, a 65^3 one ~0.8M, both far below a frame's pixel work) so an
+    // edited table can never be served stale.
+    const table = new Float64Array(lutData.length);
+    for (let i = 0; i < table.length; i++) table[i] = lutData[i] * lutScale;
+    // Flat areas repeat the previous pixel: the blend is a pure function of the three bytes, so reuse its result.
+    let lastR = -1;
+    let lastG = -1;
+    let lastB = -1;
+    let outR = 0;
+    let outG = 0;
+    let outB = 0;
     for (let i = 0; i < data.length; i += 4) {
-      const r = data[i] / 255;
-      const g = data[i + 1] / 255;
-      const b = data[i + 2] / 255;
-
-      const rIdx = r * (lutSize - 1);
-      const gIdx = g * (lutSize - 1);
-      const bIdx = b * (lutSize - 1);
-
-      const r0 = Math.floor(rIdx);
-      const g0 = Math.floor(gIdx);
-      const b0 = Math.floor(bIdx);
-
-      const r1 = Math.min(r0 + 1, lutSize - 1);
-      const g1 = Math.min(g0 + 1, lutSize - 1);
-      const b1 = Math.min(b0 + 1, lutSize - 1);
-
-      const rFrac = rIdx - r0;
-      const gFrac = gIdx - g0;
-      const bFrac = bIdx - b0;
-
-      const getLutValue = (
-        ri: number,
-        gi: number,
-        bi: number,
-        channel: number,
-      ): number => {
-        const idx = (bi * lutSize * lutSize + gi * lutSize + ri) * 3 + channel;
-        return lutData[idx] * lutScale;
-      };
-
-      const interpolateChannel = (channel: number): number => {
-        const c00 =
-          getLutValue(r0, g0, b0, channel) * (1 - rFrac) +
-          getLutValue(r1, g0, b0, channel) * rFrac;
-        const c01 =
-          getLutValue(r0, g0, b1, channel) * (1 - rFrac) +
-          getLutValue(r1, g0, b1, channel) * rFrac;
-        const c10 =
-          getLutValue(r0, g1, b0, channel) * (1 - rFrac) +
-          getLutValue(r1, g1, b0, channel) * rFrac;
-        const c11 =
-          getLutValue(r0, g1, b1, channel) * (1 - rFrac) +
-          getLutValue(r1, g1, b1, channel) * rFrac;
-        const c0 = c00 * (1 - gFrac) + c10 * gFrac;
-        const c1 = c01 * (1 - gFrac) + c11 * gFrac;
-        return c0 * (1 - bFrac) + c1 * bFrac;
-      };
-
-      const lutR = interpolateChannel(0);
-      const lutG = interpolateChannel(1);
-      const lutB = interpolateChannel(2);
-
-      data[i] = Math.round(
-        (r * (1 - lut.intensity) + lutR * lut.intensity) * 255,
-      );
-      data[i + 1] = Math.round(
-        (g * (1 - lut.intensity) + lutG * lut.intensity) * 255,
-      );
-      data[i + 2] = Math.round(
-        (b * (1 - lut.intensity) + lutB * lut.intensity) * 255,
-      );
+      const vr = data[i];
+      const vg = data[i + 1];
+      const vb = data[i + 2];
+      if (vr === lastR && vg === lastG && vb === lastB) {
+        data[i] = outR;
+        data[i + 1] = outG;
+        data[i + 2] = outB;
+        continue;
+      }
+      lastR = vr;
+      lastG = vg;
+      lastB = vb;
+      const rFrac = frac[vr];
+      const gFrac = frac[vg];
+      const bFrac = frac[vb];
+      const rKeep = 1 - rFrac;
+      const gKeep = 1 - gFrac;
+      const bKeep = 1 - bFrac;
+      const b0 = off0B[vb];
+      const b1 = off1B[vb];
+      const g0 = off0G[vg];
+      const g1 = off1G[vg];
+      const r0 = off0R[vr];
+      const r1 = off1R[vr];
+      const o000 = b0 + g0 + r0;
+      const o100 = b0 + g0 + r1;
+      const o010 = b0 + g1 + r0;
+      const o110 = b0 + g1 + r1;
+      const o001 = b1 + g0 + r0;
+      const o101 = b1 + g0 + r1;
+      const o011 = b1 + g1 + r0;
+      const o111 = b1 + g1 + r1;
+      // Same association as the original c00 / c10 / c01 / c11 -> c0 / c1 -> result chain, per channel.
+      const mapR =
+        ((table[o000] * rKeep + table[o100] * rFrac) * gKeep + (table[o010] * rKeep + table[o110] * rFrac) * gFrac) * bKeep +
+        ((table[o001] * rKeep + table[o101] * rFrac) * gKeep + (table[o011] * rKeep + table[o111] * rFrac) * gFrac) * bFrac;
+      const mapG =
+        ((table[o000 + 1] * rKeep + table[o100 + 1] * rFrac) * gKeep + (table[o010 + 1] * rKeep + table[o110 + 1] * rFrac) * gFrac) * bKeep +
+        ((table[o001 + 1] * rKeep + table[o101 + 1] * rFrac) * gKeep + (table[o011 + 1] * rKeep + table[o111 + 1] * rFrac) * gFrac) * bFrac;
+      const mapB =
+        ((table[o000 + 2] * rKeep + table[o100 + 2] * rFrac) * gKeep + (table[o010 + 2] * rKeep + table[o110 + 2] * rFrac) * gFrac) * bKeep +
+        ((table[o001 + 2] * rKeep + table[o101 + 2] * rFrac) * gKeep + (table[o011 + 2] * rKeep + table[o111 + 2] * rFrac) * gFrac) * bFrac;
+      outR = Math.round((kept[vr] + mapR * intensity) * 255);
+      outG = Math.round((kept[vg] + mapG * intensity) * 255);
+      outB = Math.round((kept[vb] + mapB * intensity) * 255);
+      data[i] = outR;
+      data[i + 1] = outG;
+      data[i + 2] = outB;
     }
   }
 

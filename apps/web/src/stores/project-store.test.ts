@@ -2437,4 +2437,47 @@ describe("ProjectStore - smooth keyframe interpolation", () => {
     useProjectStore.getState().updateClipKeyframes("video-clip-1", legacy);
     expect(keysOf()).toEqual(legacy);
   });
+
+  describe("spatial position path edits", () => {
+    const pos = (id: string, property: "position.x" | "position.y", time: number, value: number) => ({ id, time, property, value, easing: "linear" as const });
+    const seed = () => useProjectStore.getState().updateClipKeyframes("video-clip-1", [
+      pos("x0", "position.x", 0, 0), pos("y0", "position.y", 0, 0),
+      pos("x1", "position.x", 1, 100), pos("y1", "position.y", 1, 80),
+      pos("x2", "position.x", 2, 200), pos("y2", "position.y", 2, 0),
+    ]);
+
+    it("applies a spatial type, drags a handle and moves a key as one undo step each, persisted on the clip", async () => {
+      const { applySpatialInterpolationToClip, setSpatialHandleOnClip, moveSpatialVertexOnClip } = await import("../services/spatial-path-edit");
+      seed();
+      const depth = () => useProjectStore.getState().actionExecutor.getHistory().getUndoStackSize();
+      const base = depth();
+      expect(applySpatialInterpolationToClip("video-clip-1", ["y1"], "auto-bezier")).toBe(true);
+      expect(keysOf().find((k) => k.id === "x1")!.spatialMode).toBe("auto-bezier");
+      expect(depth()).toBe(base + 1);
+      expect(setSpatialHandleOnClip("video-clip-1", "x1", "out", { x: 10, y: 70 })).toBe(true);
+      expect(keysOf().find((k) => k.id === "x1")).toMatchObject({ spatialMode: "continuous-bezier", spatialOut: { x: 10, y: 70 } });
+      expect(depth()).toBe(base + 2);
+      expect(moveSpatialVertexOnClip("video-clip-1", 1, 120, 90)).toBe(true);
+      expect(keysOf().find((k) => k.id === "x1")!.value).toBe(120);
+      expect(keysOf().find((k) => k.id === "y1")!.value).toBe(90);
+      expect(depth()).toBe(base + 3);
+      await useProjectStore.getState().undo();
+      expect(keysOf().find((k) => k.id === "x1")!.value).toBe(100);
+      await useProjectStore.getState().undo();
+      expect(keysOf().find((k) => k.id === "x1")!.spatialMode).toBe("auto-bezier");
+      await useProjectStore.getState().undo();
+      expect(keysOf().find((k) => k.id === "x1")!.spatialMode).toBeUndefined();
+    });
+
+    it("refuses edits on a locked track, with no path, or for a missing clip", async () => {
+      const { applySpatialInterpolationToClip, setSpatialHandleOnClip } = await import("../services/spatial-path-edit");
+      expect(applySpatialInterpolationToClip("video-clip-1", ["x0"], "bezier")).toBe(false); // no keyframes yet
+      expect(applySpatialInterpolationToClip("nope", ["x0"], "bezier")).toBe(false);
+      seed();
+      const project = useProjectStore.getState().project;
+      useProjectStore.setState({ project: { ...project, timeline: { ...project.timeline, tracks: project.timeline.tracks.map((t) => ({ ...t, locked: true })) } } });
+      expect(setSpatialHandleOnClip("video-clip-1", "x1", "out", { x: 1, y: 1 })).toBe(false);
+      expect(keysOf().find((k) => k.id === "x1")!.spatialMode).toBeUndefined();
+    });
+  });
 });

@@ -1,4 +1,5 @@
 import { mediaTrimBounds } from "../media/bins";
+import { validateOcioSettings } from "../color/ocio/settings";
 import type {
   Action,
   ValidationResult,
@@ -19,7 +20,9 @@ import type {
 import type { Project, Timeline, Track, Clip } from "../types";
 import { AUDIO_TYPES, EASING_TYPES, MARKER_KINDS, REVIEW_STATUSES } from "../types/timeline";
 import { TRANSITION_TYPES } from "../types/effects";
+import { validateTransitionParams } from "../video/transition-defaults";
 import { getActionHandler } from "./registry";
+import { validateVrProperties } from "../vr/vr-properties";
 
 export class ActionValidator {
   validate(action: Action, project: Project): ValidationResult {
@@ -143,14 +146,20 @@ export class ActionValidator {
             path: "params",
           });
         } else if (action.type === "project/updateSettings") {
-          const { pixelAspectRatio, fieldOrder, colorManagement, acesOutput } = action.params as {
+          const { pixelAspectRatio, fieldOrder, colorManagement, acesOutput, ocio, vr } = action.params as {
+            vr?: unknown;
             pixelAspectRatio?: unknown;
             fieldOrder?: unknown;
             colorManagement?: unknown;
             acesOutput?: unknown;
+            ocio?: unknown;
           };
-          if (colorManagement !== undefined && colorManagement !== "display-referred" && colorManagement !== "aces") {
-            errors.push({ code: "INVALID_PARAMS", message: "Colour management must be display-referred or aces", path: "params.colorManagement" });
+          if (colorManagement !== undefined && colorManagement !== "display-referred" && colorManagement !== "aces" && colorManagement !== "ocio") {
+            errors.push({ code: "INVALID_PARAMS", message: "Colour management must be display-referred, aces or ocio", path: "params.colorManagement" });
+          }
+          if (ocio !== undefined) {
+            const problem = validateOcioSettings(ocio);
+            if (problem) errors.push({ code: "INVALID_PARAMS", message: problem, path: "params.ocio" });
           }
           if (acesOutput !== undefined && acesOutput !== "srgb" && acesOutput !== "rec709") {
             errors.push({ code: "INVALID_PARAMS", message: "ACES output transform must be srgb or rec709", path: "params.acesOutput" });
@@ -160,6 +169,10 @@ export class ActionValidator {
             !(typeof pixelAspectRatio === "number" && Number.isFinite(pixelAspectRatio) && pixelAspectRatio >= 0.25 && pixelAspectRatio <= 4)
           ) {
             errors.push({ code: "INVALID_PARAMS", message: "Sequence pixel aspect ratio must be between 0.25 and 4", path: "params.pixelAspectRatio" });
+          }
+          if (vr !== undefined && vr !== null) {
+            const problem = validateVrProperties(vr);
+            if (problem) errors.push({ code: "INVALID_PARAMS", message: problem, path: "params.vr" });
           }
           if (fieldOrder !== undefined && fieldOrder !== "progressive" && fieldOrder !== "upper" && fieldOrder !== "lower") {
             errors.push({ code: "INVALID_PARAMS", message: "Sequence field order must be progressive, upper or lower", path: "params.fieldOrder" });
@@ -721,6 +734,106 @@ export class ActionValidator {
         }
         break;
 
+      case "clip/addBatch": {
+        const entries = action.params.clips;
+        if (!Array.isArray(entries) || entries.length === 0) {
+          errors.push({ code: "INVALID_PARAMS", message: "clips must be a non-empty array", path: "params.clips" });
+          break;
+        }
+        const trackLocks = new Map(timeline.tracks.map((track) => [track.id, Boolean(track.locked)] as const));
+        const mediaIds = new Set(project.mediaLibrary.items.map((item) => item.id));
+        const existing = new Set<string>();
+        for (const track of timeline.tracks) for (const clip of track.clips) existing.add(clip.id);
+        const seen = new Set<string>();
+        for (const entry of entries) {
+          if (typeof entry.clipId !== "string" || entry.clipId === "" || seen.has(entry.clipId) || existing.has(entry.clipId)) {
+            errors.push({ code: "INVALID_PARAMS", message: `Clip ID ${String(entry.clipId)} is missing or already in use`, path: "params.clips" });
+            break;
+          }
+          seen.add(entry.clipId);
+          if (!trackLocks.has(entry.trackId)) {
+            errors.push({ code: "TRACK_NOT_FOUND", message: `Track with ID ${String(entry.trackId)} not found`, path: "params.clips" });
+            break;
+          }
+          if (trackLocks.get(entry.trackId)) {
+            errors.push({ code: "TRACK_LOCKED", message: `Track ${entry.trackId} is locked`, path: "params.clips" });
+            break;
+          }
+          if (typeof entry.startTime !== "number" || !Number.isFinite(entry.startTime) || entry.startTime < 0) {
+            errors.push({ code: "INVALID_PARAMS", message: "Start time must be a non-negative number", path: "params.clips" });
+            break;
+          }
+          if (!entry.sourceClip || typeof entry.sourceClip !== "object" || typeof entry.sourceClip.mediaId !== "string" || !mediaIds.has(entry.sourceClip.mediaId)) {
+            errors.push({ code: "MEDIA_NOT_FOUND", message: `Media with ID ${String(entry.sourceClip?.mediaId)} not found`, path: "params.clips" });
+            break;
+          }
+        }
+        break;
+      }
+
+      case "clip/removeBatch": {
+        const ids = action.params.clipIds;
+        if (!Array.isArray(ids) || ids.length === 0) {
+          errors.push({ code: "INVALID_PARAMS", message: "clipIds must be a non-empty array", path: "params.clipIds" });
+          break;
+        }
+        const located = new Map<string, boolean>();
+        for (const track of timeline.tracks) for (const clip of track.clips) located.set(clip.id, Boolean(track.locked));
+        for (const id of ids) {
+          if (!located.has(id)) {
+            errors.push({ code: "CLIP_NOT_FOUND", message: `Clip with ID ${String(id)} not found`, path: "params.clipIds" });
+            break;
+          }
+          if (located.get(id)) {
+            errors.push({ code: "TRACK_LOCKED", message: `Track containing clip ${id} is locked`, path: "params.clipIds" });
+            break;
+          }
+        }
+        break;
+      }
+
+      case "clip/moveBatch": {
+        const moves = action.params.moves;
+        if (!Array.isArray(moves) || moves.length === 0) {
+          errors.push({ code: "INVALID_PARAMS", message: "moves must be a non-empty array", path: "params.moves" });
+          break;
+        }
+        const located = new Map<string, boolean>();
+        for (const track of timeline.tracks) for (const clip of track.clips) located.set(clip.id, Boolean(track.locked));
+        const trackLocks = new Map(timeline.tracks.map((track) => [track.id, Boolean(track.locked)] as const));
+        const seen = new Set<string>();
+        for (const move of moves) {
+          if (typeof move.clipId !== "string" || !located.has(move.clipId)) {
+            errors.push({ code: "CLIP_NOT_FOUND", message: `Clip with ID ${String(move.clipId)} not found`, path: "params.moves" });
+            break;
+          }
+          if (seen.has(move.clipId)) {
+            errors.push({ code: "INVALID_PARAMS", message: `Clip ${move.clipId} appears twice in one batch`, path: "params.moves" });
+            break;
+          }
+          seen.add(move.clipId);
+          if (located.get(move.clipId)) {
+            errors.push({ code: "TRACK_LOCKED", message: `Track containing clip ${move.clipId} is locked`, path: "params.moves" });
+            break;
+          }
+          if (typeof move.startTime !== "number" || !Number.isFinite(move.startTime) || move.startTime < 0) {
+            errors.push({ code: "INVALID_PARAMS", message: "Start time must be a non-negative number", path: "params.moves" });
+            break;
+          }
+          if (move.trackId !== undefined) {
+            if (!trackLocks.has(move.trackId)) {
+              errors.push({ code: "TRACK_NOT_FOUND", message: `Target track with ID ${move.trackId} not found`, path: "params.moves" });
+              break;
+            }
+            if (trackLocks.get(move.trackId)) {
+              errors.push({ code: "TRACK_LOCKED", message: `Target track ${move.trackId} is locked`, path: "params.moves" });
+              break;
+            }
+          }
+        }
+        break;
+      }
+
       case "clip/move":
         if (!action.params.clipId || typeof action.params.clipId !== "string") {
           errors.push({
@@ -1229,6 +1342,10 @@ export class ActionValidator {
             path: "params.duration",
           });
         }
+        {
+          const problem = validateTransitionParams((action.params as { params?: unknown }).params);
+          if (problem) errors.push({ code: "INVALID_PARAMS", message: problem, path: "params.params" });
+        }
         if (action.params.clipAId && action.params.clipBId) {
           const clipA = this.findClip(timeline, action.params.clipAId);
           const clipB = this.findClip(timeline, action.params.clipBId);
@@ -1296,11 +1413,22 @@ export class ActionValidator {
             path: "params.transition.clipAId",
           });
         }
+        {
+          const problem = validateTransitionParams((transition as { params?: unknown } | undefined)?.params);
+          if (problem) errors.push({ code: "INVALID_PARAMS", message: problem, path: "params.transition.params" });
+        }
         break;
       }
 
       case "transition/remove":
       case "transition/update":
+        if (action.type === "transition/update") {
+          const problem = validateTransitionParams(action.params.params);
+          if (problem) errors.push({ code: "INVALID_PARAMS", message: problem, path: "params.params" });
+          if (action.params.type !== undefined && !TRANSITION_TYPES.includes(action.params.type)) {
+            errors.push({ code: "INVALID_PARAMS", message: "Transition type must be supported", path: "params.type" });
+          }
+        }
         if (
           !action.params.transitionId ||
           typeof action.params.transitionId !== "string"

@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { Clip, Timeline, Track } from "../types/timeline";
 import {
   resolveAudibleAudioTarget,
-  resolveClipAudioEffects,
   resolveClipVolumeAutomation,
 } from "./clip-audio-resolution";
+import { resolveClipAudioEffects } from "./clip-audio-effects";
 
 const createClip = (overrides: Partial<Clip>): Clip => ({
   id: "clip",

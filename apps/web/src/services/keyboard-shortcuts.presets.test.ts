@@ -50,7 +50,9 @@ describe("preset diff", () => {
         .changes.map((c) => `${c.id}: ${c.from} -> ${c.to || "(none)"}${c.displaced ? " (displaced)" : ""}`);
     expect(snap("premiere")).toMatchInlineSnapshot(`
       [
+        "editing.duplicate: cmd+d -> alt+cmd+d (displaced)",
         "editing.split: s -> cmd+k",
+        "editing.applyDefaultTransition: cmd+shift+d -> cmd+d",
         "timeline.toggleSnap: n -> s",
         "timeline.zoomIn: cmd+= -> =",
         "timeline.zoomOut: cmd+- -> -",

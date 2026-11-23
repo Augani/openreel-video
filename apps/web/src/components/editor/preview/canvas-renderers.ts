@@ -33,6 +33,7 @@ import {
 } from "@openreel/core";
 import type { SubtitleStyle } from "@openreel/core";
 import { overlayBlendAlpha } from "@openreel/core";
+import { samplePositionPath } from "@openreel/core/animation/spatial-path";
 import { displayLayoutWidth, normalizeSequencePar, withDisplaySpace } from "@openreel/core/video/sequence-par";
 import {
   DEFAULT_CAPTION_FONT_SIZE,
@@ -553,7 +554,14 @@ export const getAnimatedTransform = (
   );
   const opacityKeyframes = keyframes.filter((kf) => kf.property === "opacity");
 
-  if (posXKeyframes.length > 0) {
+  const route = samplePositionPath(keyframes, clipLocalTime, (t, key) =>
+    animationEngine.applyKeyframeEasing(t, key),
+  );
+  if (route) {
+    result.position = { x: route.x, y: route.y };
+  }
+
+  if (!route && posXKeyframes.length > 0) {
     const { value } = animationEngine.getValueAtTime(
       posXKeyframes,
       clipLocalTime,
@@ -563,7 +571,7 @@ export const getAnimatedTransform = (
     }
   }
 
-  if (posYKeyframes.length > 0) {
+  if (!route && posYKeyframes.length > 0) {
     const { value } = animationEngine.getValueAtTime(
       posYKeyframes,
       clipLocalTime,

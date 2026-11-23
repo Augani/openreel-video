@@ -14,6 +14,8 @@
  *   memory4k  back-to-back 4K clips played through clip changes: peak process memory + rAF stats
  *   scrub4k   click-seek latency (p50/p95) on one 4K long-GOP clip + CPU per seek
  *   playback4k  10 s of 4K playback: dropped frames / effective fps + CPU % of a core
+ *   renderCache  heavy 1080p effects stack: 10 s of playback live (dropped frames) vs after Render In to Out
+ *                (played from the scratch-disk render cache). Needs a VITE_OPENREEL_E2E=1 build (effect + cache hooks).
  *   importN   import N small 1080p clips at once: time until every thumbnail shows + CPU per clip
  *   (bench also records `seekClick` p50/p95 on the 400-clip project, playback records `analysis`
  *    = dropped frames / effective fps / CPU for 10 s of 1080p; see PERF.md "Scrub, playback and import")
@@ -83,6 +85,38 @@ const pct = (a, p) => {
 const loadSamples = [];
 const sampleLoad = () => { const v = os.loadavg()[0]; loadSamples.push(Math.round(v * 100) / 100); return v; };
 const r1 = (n) => (n == null ? null : Math.round(n * 10) / 10);
+
+/**
+ * Load-robust renderer counters from CDP Performance.getMetrics: CPU seconds the renderer main
+ * thread spent (TaskDuration / ScriptDuration / LayoutDuration / RecalcStyleDuration are thread
+ * CPU-ish time, not wall latency, so other processes' load moves them far less than input-to-paint
+ * timings) and event counts (layouts, style recalcs, document/node growth). Informational; not budgeted.
+ */
+async function startCounters(page) {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Performance.enable", { timeDomain: "threadTicks" });
+  const read = async () => Object.fromEntries((await cdp.send("Performance.getMetrics")).metrics.map((m) => [m.name, m.value]));
+  const before = await read();
+  return {
+    async stop() {
+      const after = await read();
+      const d = (k) => (after[k] ?? 0) - (before[k] ?? 0);
+      const out = {
+        mainThreadTaskMs: r1(d("TaskDuration") * 1000),
+        scriptMs: r1(d("ScriptDuration") * 1000),
+        layoutMs: r1(d("LayoutDuration") * 1000),
+        styleRecalcMs: r1(d("RecalcStyleDuration") * 1000),
+        layoutCount: d("LayoutCount"),
+        styleRecalcCount: d("RecalcStyleCount"),
+        nodesAdded: d("Nodes"),
+        jsHeapDeltaKB: r1(d("JSHeapUsedSize") / 1024),
+      };
+      await cdp.send("Performance.disable").catch(() => {});
+      await cdp.detach().catch(() => {});
+      return out;
+    },
+  };
+}
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...a) => console.error(`[${label}]`, ...a);
 
@@ -540,6 +574,38 @@ async function measurePlayback(app, page, sourceFps) {
   };
 }
 
+/**
+ * Dropped frames from the editor's own paint log (render-cache telemetry: one entry per frame painted to the Program
+ * canvas, tagged "cache" or "live"). Unlike the hashing pass this adds no per-frame canvas read-back, which on a
+ * 1080p canvas costs more than the cached playback it would be measuring. Needs a VITE_OPENREEL_E2E=1 build.
+ */
+async function measurePlaybackPaintLog(app, page, sourceFps) {
+  await page.evaluate(() => document.activeElement?.blur?.());
+  const map = await rulerMap(page);
+  await page.mouse.click(map.x0 + 0.5 * map.pxPerSec, map.y);
+  await sleep(800);
+  await page.evaluate(() => window.__openreelE2E.renderCache.resetTelemetry());
+  const cpu0 = await appCpuMs(app);
+  const startedAt = await page.evaluate(() => performance.now());
+  const t0 = Date.now();
+  await page.keyboard.press("Space");
+  await sleep(playSeconds * 1000);
+  const endedAt = await page.evaluate(() => performance.now());
+  const wallMs = Date.now() - t0;
+  const cpu1 = await appCpuMs(app);
+  await page.keyboard.press("Space");
+  await sleep(400);
+  const t = await page.evaluate(() => window.__openreelE2E.renderCache.getTelemetry());
+  const inWindow = t.entries.filter((e) => e.at >= startedAt && e.at <= endedAt);
+  const distinct = new Set(inWindow.map((e) => Math.round(e.time * sourceFps)));
+  return {
+    ...analyzePlayback({ presentedFrames: distinct.size, seconds: (endedAt - startedAt) / 1000, sourceFps }),
+    framesFromCache: inWindow.filter((e) => e.source === "cache").length,
+    framesLive: inWindow.filter((e) => e.source === "live").length,
+    cpuPctOfCore: cpuPctOfCore(cpu0, cpu1, wallMs),
+  };
+}
+
 /** Hold the mouse on the ruler and sweep it at ~60 Hz. Returns stats + final-frame lag. */
 async function dragScrub(page, seconds, { hashing = false, fromSec = 1, toSec = 28, radPerSec = 1.2 } = {}) {
   const map = await rulerMap(page);
@@ -753,6 +819,8 @@ async function main() {
           windowShownMs: shown,
           welcomeVisibleMs: wall("openreel:welcome-visible"),
           editorMountedMs: wall("openreel:editor-mounted"),
+          // Editor chunk + engine init + effects bridge finished (the warm-up chain the click waits for).
+          warmDoneMs: wall("openreel:warm-done"),
           editorInteractiveFromSpawnMs: tEditor - t0,
           clickToEditorInteractiveMs: tEditor - tClick,
           clickToEditorInPageMs: inPage,
@@ -1046,6 +1114,71 @@ async function main() {
     });
   }
 
+  if (only.has("renderCache")) {
+    const app = { current: null };
+    await guardScenario(["renderCache"], app, async () => {
+      // One 1080p clip with a deliberately heavy stack (two glows, a blur, a 17^3 LUT and a grade): how many frames does
+      // live compositing drop, then the same 10 s after Render In to Out has written them to the scratch disk.
+      ensureClip();
+      const l = await launch();
+      app.current = l.app;
+      const page = await l.app.firstWindow();
+      await page.waitForLoadState("domcontentloaded");
+      await enterEditor(page);
+      await installMonitor(page);
+      await page.locator("input[type=file]").first().setInputFiles(clipPath);
+      const base = path.basename(clipPath);
+      await page.getByRole("button", { name: `Select media ${base}` }).waitFor({ timeout: 120000 });
+      await page.getByRole("button", { name: `Media actions for ${base}` }).click();
+      await page.getByRole("menuitem", { name: "Add to timeline" }).click();
+      await page.getByRole("button", { name: "Match Video" }).click({ timeout: 3000 }).catch(() => undefined);
+      await page.waitForSelector("[data-timeline-clip]", { timeout: 60000 });
+      await sleep(Number(opt("settle-ms", 2500)));
+      const hasHooks = await page.evaluate(() => Boolean(window.__openreelE2E?.renderCache && window.__openreelE2E?.project));
+      if (!hasHooks) throw new Error("renderCache scenario needs a VITE_OPENREEL_E2E=1 build");
+      await page.evaluate(async () => {
+        const store = window.__openreelE2E.project.getState();
+        const id = store.project.timeline.tracks.flatMap((t) => t.clips)[0].id;
+        await store.addVideoEffect(id, "glow", { radius: 28, intensity: 1.6, color: "#ffffff" });
+        await store.addVideoEffect(id, "glow", { radius: 12, intensity: 1.2, color: "#ffd9a0" });
+        await store.addVideoEffect(id, "gaussian-blur", { radius: 6 });
+        const size = 17;
+        const data = [];
+        for (let b = 0; b < size; b++) for (let g = 0; g < size; g++) for (let r = 0; r < size; r++) data.push(Math.min(1, (r / (size - 1)) * 1.04), (g / (size - 1)) * 0.96, Math.min(1, (b / (size - 1)) * 1.1));
+        await store.updateColorGrading(id, { temperature: 14, lut: { data, size, intensity: 0.8 } });
+      });
+      await sleep(600);
+      const liveLog = await measurePlaybackPaintLog(l.app, page, 30);
+      log("renderCache live (paint log)", JSON.stringify(liveLog));
+      const live = await measurePlayback(l.app, page, 30);
+      log("renderCache live (canvas hashing)", JSON.stringify(live.analysis));
+      const t0 = Date.now();
+      const render = await page.evaluate((seconds) => window.__openreelE2E.renderCache.renderInToOut({ start: 0, end: seconds }), playSeconds + 2);
+      const renderMs = Date.now() - t0;
+      if (!render || render.status !== "completed") throw new Error(`render did not complete: ${JSON.stringify(render)}`);
+      const cachedLog = await measurePlaybackPaintLog(l.app, page, 30);
+      log("renderCache from cache (paint log)", JSON.stringify(cachedLog));
+      await page.evaluate(() => window.__openreelE2E.renderCache.resetTelemetry());
+      const cached = await measurePlayback(l.app, page, 30);
+      const telemetry = await page.evaluate(() => { const t = window.__openreelE2E.renderCache.getTelemetry(); return { cacheFrames: t.cacheFrames, liveFrames: t.liveFrames }; });
+      const status = await page.evaluate(() => { const s = window.__openreelE2E.renderCache.getStatus(); return { frameCount: s.frameCount, bytes: s.bytes, segments: s.segments.map((x) => x.level) }; });
+      results.scenarios.renderCache = {
+        stack: "2x glow + gaussian-blur + 17^3 LUT + grade on 1080p30 (1920x1080 H.264)",
+        renderSeconds: playSeconds + 2,
+        renderWallMs: renderMs,
+        renderSummary: { framesRendered: render.framesRendered, codec: render.codec },
+        live: { paintLog: liveLog, canvasHashing: live.analysis, cpuPctOfCore: live.cpuPctOfCore },
+        fromCache: { paintLog: cachedLog, canvasHashing: cached.analysis, cpuPctOfCore: cached.cpuPctOfCore, ...telemetry },
+        canvasHashingNote: "the canvas-hashing pass reads the 1080p Program canvas back every rAF, which costs more than cached playback itself; the paint-log numbers are the playback result",
+        cacheAfterRender: status,
+        droppedFramesLive: liveLog.droppedFrames,
+        droppedFramesFromCache: cachedLog.droppedFrames,
+      };
+      log("renderCache", JSON.stringify(results.scenarios.renderCache));
+      await closeApp(l.app);
+    });
+  }
+
   if (only.has("importN")) {
     const app = { current: null };
     await guardScenario(["importN"], app, async () => {
@@ -1097,6 +1230,7 @@ async function main() {
 
     // Selection latency: click a visible clip, wait for aria-pressed=true.
     const selLat = [], selCommit = [];
+    const selCounters = await startCounters(page);
     const profileSelect = process.env.OPENREEL_PERF_PROFILE_SELECT === "1";
     const cdp = profileSelect || process.env.OPENREEL_PERF_TRACE_SELECT === "1" ? await page.context().newCDPSession(page) : null;
     if (cdp && profileSelect) {
@@ -1134,6 +1268,9 @@ async function main() {
         const el = document.querySelectorAll("[data-timeline-clip]")[k];
         el.scrollIntoView({ block: "nearest", inline: "nearest" });
         const r = el.getBoundingClientRect();
+        // Mark the element so the latency probe below measures THIS clip: the mounted list is virtualised and
+        // can change by the time it re-queries (a re-index by position picked another clip, or none).
+        document.querySelectorAll("[data-perf-idx]").forEach((e) => delete e.dataset.perfIdx);
         el.dataset.perfIdx = String(k);
         return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
       }, idx);
@@ -1143,7 +1280,8 @@ async function main() {
       // the click, which would add its IPC cost): to the DOM commit of aria-pressed
       // (MutationObserver) and to the first rAF after it (next paint opportunity).
       const waiter = page.evaluate((k) => new Promise((resolve) => {
-        const el = document.querySelectorAll("[data-timeline-clip]")[k];
+        const el = document.querySelector(`[data-perf-idx="${k}"]`) ?? document.querySelectorAll("[data-timeline-clip]")[k];
+        if (!el) { resolve(null); return; }
         const mon = window.__perfMon;
         mon.pointerDownAt = 0;
         const t0 = performance.now();
@@ -1220,6 +1358,9 @@ async function main() {
     }
     bench.selectClipCommit = { n: selCommit.length, medianMs: r1(median(selCommit)), p95Ms: r1(pct(selCommit, 0.95)) };
     bench.selectClip = { n: selLat.length, medianMs: r1(median(selLat)), p95Ms: r1(pct(selLat, 0.95)), maxMs: r1(Math.max(0, ...selLat)) };
+    // Whole select loop, per click (includes the Escape + settle between clicks).
+    const selCpu = await selCounters.stop();
+    bench.selectClipCpu = Object.fromEntries(Object.entries(selCpu).map(([k, v]) => [k, r1(v / Math.max(1, selLat.length))]));
 
     // Wheel storms over the clip area (horizontal scroll, then ctrl+wheel zoom).
     const area = await page.evaluate(() => {
@@ -1282,12 +1423,14 @@ async function main() {
     if (dragCdp) { await dragCdp.send("Profiler.enable"); await dragCdp.send("Profiler.setSamplingInterval", { interval: 100 }); await dragCdp.send("Profiler.start"); }
     const traceDrag = process.env.OPENREEL_PERF_TRACE_DRAG === "1" ? await page.context().newCDPSession(page) : null;
     if (traceDrag) await traceDrag.send("Tracing.start", { traceConfig: { includedCategories: ["devtools.timeline", "disabled-by-default-devtools.timeline", "disabled-by-default-devtools.timeline.invalidationTracking", "blink", "cc"] }, transferMode: "ReturnAsStream" });
+    const dragCounters = await startCounters(page);
     await page.evaluate(() => window.__perfMon.start(false));
     await page.mouse.down();
     for (let i = 1; i <= 30; i++) { await page.mouse.move(clipBox.x + i * 4, clipBox.y); await sleep(16); }
     await page.mouse.up();
     await sleep(300);
     bench.dragClip120px = frameStats(await page.evaluate(() => window.__perfMon.stop()));
+    bench.dragClip120px.cpu = await dragCounters.stop();
     bench.dragClip120px.movedPx = await page.evaluate((id) => {
       const el = document.querySelector(`[data-timeline-item-id="${id}"]`);
       return el ? Math.round(el.getBoundingClientRect().left) : null;
@@ -1299,6 +1442,7 @@ async function main() {
       let text = "";
       for (;;) { const c = await traceDrag.send("IO.read", { handle: stream }); text += c.data; if (c.eof) break; }
       const all = JSON.parse(text).traceEvents ?? [];
+      if (process.env.OPENREEL_PERF_TRACE_DRAG_RAW) fs.writeFileSync(process.env.OPENREEL_PERF_TRACE_DRAG_RAW, JSON.stringify(all));
       const inval = new Map();
       for (const e of all) if (/InvalidationTracking|StyleRecalcInvalidation/.test(e.name)) {
         const d = e.args?.data ?? {};
@@ -1311,7 +1455,11 @@ async function main() {
       const t0 = Math.min(...evs.map((e) => e.ts));
       bench.dragTrace = evs.sort((a, b) => a.ts - b.ts).slice(0, 80).map((e) => `${r1((e.ts - t0) / 1000)} +${r1(e.dur / 1000)} tid${e.tid} ${e.name} ${JSON.stringify(e.args?.data ?? e.args ?? {}).slice(0, 140)}`);
     }
-    if (dragCdp) bench.dragProfile = summarizeProfile((await dragCdp.send("Profiler.stop")).profile, 70);
+    if (dragCdp) {
+      const dragProf = (await dragCdp.send("Profiler.stop")).profile;
+      bench.dragProfile = summarizeProfile(dragProf, 70);
+      if (process.env.OPENREEL_PERF_PROFILE_DRAG_RAW) fs.writeFileSync(process.env.OPENREEL_PERF_PROFILE_DRAG_RAW, JSON.stringify(dragProf));
+    }
     results.scenarios.bench = bench;
     log("bench", JSON.stringify(bench));
     await closeApp(app);

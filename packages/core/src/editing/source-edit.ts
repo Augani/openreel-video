@@ -1,4 +1,5 @@
 import { subclipRange } from "../media/bins";
+import { clipFieldsForGroup, type SourceChannelGroup } from "../audio/source-channels";
 import type { Clip, Project, Track } from "../types";
 import type { MediaItem } from "../types/project";
 import { canTargetTrack, type TargetMediaKind } from "./track-targeting";
@@ -165,6 +166,22 @@ export interface SourceEditRequest {
    * `trackId` and the sound here. Only honoured for component "both".
    */
   audioPatch?: { trackId: string; clipId: string; newTrack?: NewTrackPlacement };
+  /**
+   * Multichannel source patching: one audio clip per entry, each reading its channel group of the source on its own
+   * track (see resolveMultichannelSourceTracks). Overrides `audioPatch`. A video source places its picture on
+   * `trackId` (component both / video); a source placed as sound only (audio media, or component audio) puts the
+   * first entry's clip on `trackId`. Every sound clip is linked to the picture, or to the first sound clip.
+   */
+  audioChannels?: readonly AudioChannelPlacement[];
+}
+
+export interface AudioChannelPlacement {
+  trackId: string;
+  clipId: string;
+  newTrack?: NewTrackPlacement;
+  /** Index of the group in the source's channel layout (A1 = 0). */
+  channel: number;
+  group: SourceChannelGroup;
 }
 
 export interface SourceEditPlan {
@@ -220,12 +237,16 @@ export function planSourceEdit(
     sequenceIn: request.sequenceIn,
     sequenceOut: request.sequenceOut,
   });
+  const component = request.component ?? "both";
+  const range = { inPoint: resolved.sourceIn, outPoint: resolved.sourceOut };
+  if (request.audioChannels?.length && request.media.type !== "image") {
+    return planMultichannelEdit(project, request, resolved, range, component);
+  }
   const split =
     request.audioPatch !== undefined &&
     (request.component ?? "both") === "both" &&
     request.media.type === "video" &&
     request.media.metadata.hasAudio !== false;
-  const range = { inPoint: resolved.sourceIn, outPoint: resolved.sourceOut };
   const clip = createSourceClip(
     request.media,
     request.trackId,
@@ -262,4 +283,65 @@ export function planSourceEdit(
     newTracks.length ? newTracks : undefined,
   );
   return { plan, resolved, clip: { ...clip, startTime: resolved.at } };
+}
+
+/**
+ * The clips a source whose audio expands to several channel-group clips places: the picture (video media, component both
+ * or video) and one audio clip per entry, linked to the picture or to the first sound clip. `retime` is applied to every
+ * clip (Fit to Fill).
+ */
+export function multichannelPlacements(
+  request: Pick<SourceEditRequest, "media" | "trackId" | "clipId" | "audioChannels" | "newTrack">,
+  range: { inPoint: number; outPoint: number },
+  component: SourceComponent,
+  retime: (clip: Clip) => Clip = (clip) => clip,
+): { placements: ClipPlacement[]; picture?: Clip; sounds: Clip[]; newTracks: NewTrackPlacement[] } {
+  const channels = request.audioChannels ?? [];
+  const media = request.media;
+  const withPicture = media.type === "video" && component !== "audio";
+  const withSound = media.type === "audio" || component !== "video";
+  const placements: ClipPlacement[] = [];
+  let picture: Clip | undefined;
+  if (withPicture) {
+    picture = retime(createSourceClip(media, request.trackId, request.clipId, range, withSound ? "video" : component));
+    placements.push({ trackId: request.trackId, clip: picture });
+  }
+  const sounds: Clip[] = [];
+  if (withSound) {
+    const anchorId = picture?.id ?? channels[0].clipId;
+    channels.forEach((entry) => {
+      const base = createSourceClip(media, entry.trackId, entry.clipId, range, media.type === "video" ? "audio" : "both");
+      const fields = clipFieldsForGroup(entry.group, media);
+      const sound: Clip = retime({
+        ...base,
+        ...fields,
+        metadata: {
+          ...base.metadata,
+          sourceChannelGroup: entry.channel,
+          ...(entry.clipId === anchorId ? {} : { separatedFromClipId: anchorId }),
+        },
+      });
+      sounds.push(sound);
+      placements.push({ trackId: entry.trackId, clip: sound });
+    });
+  }
+  const newTracks = [request.newTrack, ...channels.map((entry) => entry.newTrack)].filter(
+    (track): track is NewTrackPlacement => track !== undefined,
+  );
+  return { placements, ...(picture ? { picture } : {}), sounds, newTracks };
+}
+
+/** Insert / Overwrite of a source whose audio expands to several channel-group clips. */
+function planMultichannelEdit(
+  project: Project,
+  request: SourceEditRequest,
+  resolved: ResolvedSourceEdit,
+  range: { inPoint: number; outPoint: number },
+  component: SourceComponent,
+): SourceEditPlan {
+  const { placements, picture, sounds, newTracks } = multichannelPlacements(request, range, component);
+  const build = request.mode === "insert" ? planInsert : planOverwrite;
+  const plan = build(project, resolved.at, placements, request.operationId, newTracks.length ? newTracks : undefined);
+  const first = picture ?? sounds[0];
+  return { plan, resolved, clip: { ...first, startTime: resolved.at } };
 }

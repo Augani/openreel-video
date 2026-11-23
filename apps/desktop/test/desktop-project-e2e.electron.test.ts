@@ -287,7 +287,9 @@ async function expectFrame(page: any, source: string, clipStart: number, t: numb
 }
 
 /** Distinct frames (testsrc2 has a frame counter), so a frozen or black monitor cannot pass them all. */
-const PROBE_TIMES = [0.25, 1.5, 2.5];
+// On both the 24 fps source grid and the 30 fps project grid: the monitor now shows the frame the export renders for the playhead
+// (the project frame's start instant), so a time inside a project frame (0.25 s = frame 7.5 at 30 fps) would show the source frame before it.
+const PROBE_TIMES = [0.2, 1.5, 2.5];
 
 d("native-decode path persistence and moved-file relink", () => {
   let profile = "";

@@ -55,6 +55,13 @@ export interface ExportJobSmartRender {
   readonly copiedFrames?: number;
   readonly totalFrames?: number;
   readonly copiedRuns?: number;
+  /** Seconds stream-copied vs re-encoded. */
+  readonly copiedSeconds?: number;
+  readonly encodedSeconds?: number;
+  /** The audio track (native engine): seconds copied from the sources vs rendered and encoded. */
+  readonly audioCopiedSeconds?: number;
+  readonly audioEncodedSeconds?: number;
+  readonly audioMode?: "whole" | "spans" | "none";
   /** Why nothing (or less) was stream-copied: the fall-back reasons of the plan. */
   readonly reasons?: readonly string[];
 }

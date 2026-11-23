@@ -356,7 +356,7 @@ export const BIN_TOOLS: RegisteredTool[] = [
     domain: "media",
     title: "Set media log metadata",
     description:
-      'Edit the Project panel logging columns on media items: "scene", "shot", "take" (free text, "" clears), "goodTake" (boolean flag), plus "comment" and "description" (the log note). Applies to every id in mediaIds. One undo step.',
+      'Edit the Project panel logging columns on media items: "scene", "shot", "take" (free text, "" clears), "goodTake" (boolean flag), plus "comment", "description" (the log note), XMP-style "keywords" (list; replaces, [] clears), "logComment" and "reel" (tape name). Applies to every id in mediaIds. One undo step.',
     inputSchema: obj(
       {
         mediaIds: { ...strings, description: "Media items to edit." },
@@ -366,6 +366,9 @@ export const BIN_TOOLS: RegisteredTool[] = [
         goodTake: bool,
         comment: str,
         description: str,
+        keywords: { ...strings, description: "Replace the keywords (dc:subject); an empty list clears them." },
+        logComment: str,
+        reel: str,
       },
       ["mediaIds"],
     ),
@@ -378,17 +381,21 @@ export const BIN_TOOLS: RegisteredTool[] = [
       if (!mediaIds.length) return fail("Give at least one media id.");
       resolveMedia(project, mediaIds);
       const patch: MediaItemPatch = {};
-      for (const field of ["scene", "shot", "take", "comment", "description"] as const) {
+      for (const field of ["scene", "shot", "take", "comment", "description", "logComment", "reel"] as const) {
         const value = args[field];
         if (value === undefined) continue;
         if (typeof value !== "string") return fail(`${field} must be a string.`);
-        patch[field] = field === "comment" || field === "description" ? value : value.trim();
+        patch[field] = field === "comment" || field === "description" || field === "logComment" ? value : value.trim();
+      }
+      if (args.keywords !== undefined) {
+        if (!Array.isArray(args.keywords) || args.keywords.some((k) => typeof k !== "string")) return fail("keywords must be a list of strings.");
+        patch.keywords = args.keywords as string[];
       }
       if (args.goodTake !== undefined) {
         if (typeof args.goodTake !== "boolean") return fail("goodTake must be a boolean.");
         patch.goodTake = args.goodTake;
       }
-      if (!Object.keys(patch).length) return fail("Give at least one of scene, shot, take, goodTake, comment, description.");
+      if (!Object.keys(patch).length) return fail("Give at least one of scene, shot, take, goodTake, comment, description, keywords, logComment, reel.");
       const itemPatches: Record<string, MediaItemPatch> = {};
       for (const id of mediaIds) itemPatches[id] = patch;
       const result = await organize(host, { label: "Edit media log", itemPatches });
@@ -403,7 +410,7 @@ export const BIN_TOOLS: RegisteredTool[] = [
     name: "find_media",
     domain: "media",
     title: "Find media",
-    description: `Search the media library across every Project panel column (name, label, type, codec, comment, description, scene, shot, take, good take, ...). Every space-separated term must match; "scene:12" / "good:yes" / "take:2" limit a term to one column. "column" limits the whole search to one column (${MEDIA_COLUMNS.map((c) => c.id).join(", ")}).`,
+    description: `Search the media library across every Project panel column (name, label, type, codec, comment, description, keywords, log comment, reel, scene, shot, take, good take, ...). Every space-separated term must match; "scene:12" / "good:yes" / "take:2" limit a term to one column. "column" limits the whole search to one column (${MEDIA_COLUMNS.map((c) => c.id).join(", ")}).`,
     inputSchema: obj({ query: str, column: { ...str, description: 'A column id, or "all" (default).' }, limit: num }, ["query"]),
     readOnly: true,
     destructive: false,
@@ -427,6 +434,9 @@ export const BIN_TOOLS: RegisteredTool[] = [
           goodTake: !!m.goodTake,
           description: m.description ?? null,
           comment: m.comment ?? null,
+          keywords: m.keywords ?? [],
+          logComment: m.logComment ?? null,
+          reel: m.reel ?? null,
           type: mediaColumnText(m, "type", ctx),
         })),
       });

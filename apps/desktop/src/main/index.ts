@@ -1,11 +1,13 @@
 import { cleanupTempOnQuit, sweepStaleTemp } from "./temp-dir";
 import { warmEncoderProbe } from "./sidecar/encoder-probe";
 import { nativeDecodeService } from "./decode/native-decode";
-import { app, BrowserWindow, ipcMain, shell, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, ipcMain, screen, shell, type IpcMainInvokeEvent } from "electron";
+import { initialWindowBounds } from "./window-bounds";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { z } from "zod";
-import { registerAppSchemePrivileges, handleAppScheme, APP_INDEX } from "./protocol";
+import { AUDIO_WARM_ARGUMENT } from "../shared/audio-warm";
+import { registerAppSchemePrivileges, handleAppScheme, handleAudioWarmScheme, APP_INDEX } from "./protocol";
 import { installNavigationGuard } from "./nav-guard";
 import { handle } from "./ipc";
 import { ProjectLocks } from "./project-lock";
@@ -20,6 +22,7 @@ import {
   cancelExport,
   cancelAllExports,
   copyExportRun,
+  prepareAudioCopy,
 } from "./ipc/export";
 import { encodeDolbyAudio } from "./ipc/dolby-audio";
 import {
@@ -29,7 +32,8 @@ import {
   startAuroraPreviewSession,
   startAuroraSequenceSession,
 } from "./ipc/aurora";
-import { probeSource } from "./sidecar/probe-source";
+import { probeGopTypes, probeSource } from "./sidecar/probe-source";
+import { probeAudioSource } from "./sidecar/smart-audio";
 import { getKeyStore } from "./ipc/keychain";
 import { getPluginFolderStore } from "./ipc/plugins";
 import { cloudFetch } from "./ipc/cloud";
@@ -45,6 +49,7 @@ import { noteOpenProjectFile } from "./mcp/policy";
 import { getEditorWindow, registerEditorWindow, setEditorWindowFactory } from "./mcp/editor-window";
 import { getMcpClientStatus } from "./mcp/client-tracker";
 import { installApplicationMenu, sendMenuAction } from "./app-menu";
+import { OpenFileRouter } from "./open-files";
 import { attachUnsavedGuard, markQuitting } from "./lifecycle";
 import { initAutoUpdater } from "./updater";
 import { initCrashReporter, reportError } from "./crash-reporter";
@@ -78,7 +83,11 @@ import {
 } from "./ipc/media";
 import { fetchUrl } from "./ipc/fetch-url";
 import { registerIngestIpc, startIngestQueue, stopIngestQueue } from "./ingest/ipc";
+import { cancelProjectManagerJobs, registerProjectManagerIpc } from "./project-manager/ipc";
+import { registerMediaBrowserIpc } from "./media-browser/ipc";
 import { registerWatchFoldersIpc, startWatchFolders, stopWatchFolders } from "./watch/ipc";
+import { registerRenderCacheIpc, restoreBundledRenderCache } from "./render-cache/ipc";
+import { disposePlughost, registerPlughostIpc } from "./ipc/plughost";
 import { probeRiggingBackend, rigHumanoidModel } from "./sidecar/rigging-backend";
 import { disposeAuroraClient } from "./aurora/client";
 import {
@@ -114,6 +123,9 @@ import type {
   AuroraRenderPreviewArgs,
   AuroraSequenceSessionStartArgs,
 } from "../shared/ipc-contract";
+
+/** Delay before electron-updater is loaded after the window is shown; see showWindow in createWindow. */
+const UPDATER_START_DELAY_MS = 5000;
 
 const mark = (label: string): void => {
   const ms = Number(process.hrtime.bigint() / 1_000_000n);
@@ -153,6 +165,27 @@ if (!hasSingleInstanceLock) {
   consumeGpuFallbackLaunch();
 }
 
+// Files the OS hands to the app (double-click, Open With, `OpenReel file.srt`, a second launch): held until the
+// editor renderer asks for them, then sent straight to it. See open-files.ts.
+const openFiles = new OpenFileRouter({
+  send: (items) => {
+    const win = getEditorWindow();
+    if (!win || win.webContents.isLoading()) return false;
+    win.webContents.send(CHANNELS.openFilesEvent, items);
+    return true;
+  },
+  show: () => {
+    if (app.isReady()) showEditorWindow();
+  },
+  exists: (filePath) => fsSync.existsSync(filePath),
+});
+// macOS delivers every document through this event, including the one that launched the app (before `ready`).
+app.on("open-file", (event, filePath) => {
+  event.preventDefault();
+  openFiles.addPaths([filePath]);
+});
+if (hasSingleInstanceLock) openFiles.addArgv(process.argv, process.cwd(), process.defaultApp);
+
 function rendererRoot(): string {
   return app.isPackaged
     ? path.join(process.resourcesPath, "renderer")
@@ -176,11 +209,10 @@ async function logGpuStatus(): Promise<void> {
 function createWindow(options: { hidden?: boolean } = {}): BrowserWindow {
   const hidden = options.hidden === true;
   const isMac = process.platform === "darwin";
+  // Open filling the work area of the display under the pointer (not macOS full screen).
+  const bounds = initialWindowBounds(screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea);
   const win = new BrowserWindow({
-    width: 1440,
-    height: 900,
-    minWidth: 1024,
-    minHeight: 700,
+    ...bounds,
     show: false,
     // Left unset on macOS so the vibrancy material shows through (a "#00000000"
     // colour is only honoured with transparent:true); opaque dark elsewhere.
@@ -199,6 +231,8 @@ function createWindow(options: { hidden?: boolean } = {}): BrowserWindow {
       webSecurity: true,
       spellcheck: false,
       v8CacheOptions: "bypassHeatCheck",
+      // The editor windows only: the preload starts the audio warm-up frame when it sees this.
+      additionalArguments: [AUDIO_WARM_ARGUMENT],
       ...(hidden ? { backgroundThrottling: false } : {}),
     },
   });
@@ -211,9 +245,11 @@ function createWindow(options: { hidden?: boolean } = {}): BrowserWindow {
     shown = true;
     clearTimeout(showFallback);
     win.show();
-    // Loaded after the first paint (packaged builds only; idempotent). Hooked here rather than on
-    // ready-to-show alone so the 3 s fallback path also wires the updater.
-    setTimeout(initAutoUpdater, 0);
+    // Loaded after the editor has booted (packaged builds only; idempotent). Hooked here rather than on
+    // ready-to-show alone so the 3 s fallback path also wires the updater. electron-updater is ~12-15 ms of
+    // main-thread evaluation, and right after the first paint the main thread is serving the editor's
+    // ~55 app:// chunk requests; the update check is not time-critical, so it waits for them.
+    setTimeout(initAutoUpdater, UPDATER_START_DELAY_MS);
   };
   const showFallback = setTimeout(showWindow, 3000);
   win.once("ready-to-show", () => {
@@ -226,6 +262,7 @@ function createWindow(options: { hidden?: boolean } = {}): BrowserWindow {
   win.once("closed", () => clearTimeout(showFallback));
   win.webContents.once("did-finish-load", () => mark("did-finish-load"));
   registerEditorWindow(win);
+  win.webContents.on("did-start-loading", () => openFiles.rendererLoading());
   attachUnsavedGuard(win);
   installNavigationGuard(win, APP_INDEX);
   win.loadURL(APP_INDEX);
@@ -254,6 +291,7 @@ app.whenReady().then(() => {
   // A previous run killed mid-export leaves `openreel-*.part` in the temp folder; they are never a finished file.
   setTimeout(() => void sweepPartFiles(tmpdir(), 60_000, "openreel-").catch(() => undefined), 15_000);
   handleAppScheme(rendererRoot());
+  handleAudioWarmScheme();
   // Start the renderer load first: navigation, script fetch and parse run in the
   // renderer process while the IPC handlers below are registered. Handlers only need
   // to exist before the page issues its first invoke, which cannot happen until its
@@ -308,6 +346,8 @@ app.whenReady().then(() => {
   handle(CHANNELS.fsLockProject, z.object({ path: z.string().min(1) }), ({ path: p }, event) => {
     // The open project's folder is always readable/writable for MCP path tools.
     noteOpenProjectFile(p);
+    // A Project Manager folder brings its render files along: put them where the render cache looks.
+    void restoreBundledRenderCache(p).catch(() => undefined);
     return projectLocks.acquire(p, ownerOf(event));
   });
   handle(CHANNELS.fsUnlockProject, z.object({ path: z.string().min(1) }), ({ path: p }, event) => {
@@ -317,7 +357,11 @@ app.whenReady().then(() => {
   });
   mark("ipc-fs-registered");
   registerIngestIpc();
+  registerProjectManagerIpc();
+  registerMediaBrowserIpc();
   registerWatchFoldersIpc();
+  registerRenderCacheIpc();
+  registerPlughostIpc();
   handle(CHANNELS.mediaGenerateProxy, proxyArgsSchema, generateProxy);
   handle(CHANNELS.mediaTranscode, transcodeArgsSchema, transcode);
   handle(CHANNELS.mediaExtractAudioWav, extractAudioArgsSchema, extractAudioWav);
@@ -406,6 +450,44 @@ app.whenReady().then(() => {
   handle(CHANNELS.exportCancel, z.object({ jobId: z.string() }), cancelExport);
   handle(CHANNELS.exportProbeSource, z.object({ path: z.string().min(1) }), ({ path: p }) => probeSource(p));
   handle(
+    CHANNELS.exportProbeGopTypes,
+    z.object({ path: z.string().min(1), startTime: z.number().nonnegative(), frames: z.number().int().positive().max(1200) }),
+    ({ path: p, startTime, frames }) => probeGopTypes(p, startTime, frames),
+  );
+  handle(CHANNELS.exportProbeAudioSource, z.object({ path: z.string().min(1) }), ({ path: p }) => probeAudioSource(p));
+  handle(
+    CHANNELS.exportPrepareAudioCopy,
+    z.object({
+      jobId: z.string(),
+      plan: z.object({
+        codec: z.enum(["aac", "pcm"]),
+        sampleRate: z.number().int().positive(),
+        channels: z.number().int().positive(),
+        totalSamples: z.number().int().positive(),
+        segments: z
+          .array(
+            z.discriminatedUnion("kind", [
+              z.object({ kind: z.literal("encode"), start: z.number().int().nonnegative(), end: z.number().int().positive() }),
+              z.object({
+                kind: z.literal("copy"),
+                start: z.number().int().nonnegative(),
+                end: z.number().int().positive(),
+                sourcePath: z.string().min(1),
+                sourceStart: z.number().int().nonnegative(),
+                priming: z.number().int().nonnegative().optional(),
+                sourceSize: z.number().int().nonnegative().optional(),
+                sourceMtimeMs: z.number().nonnegative().optional(),
+                sourceContentHash: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+              }),
+            ]),
+          )
+          .min(1)
+          .max(20000),
+      }),
+    }),
+    prepareAudioCopy,
+  );
+  handle(
     CHANNELS.exportCopyRun,
     z.object({
       jobId: z.string(),
@@ -451,6 +533,7 @@ app.whenReady().then(() => {
   registerSamplesIpc();
   registerFontsIpc();
   registerMcpFilesIpc();
+  handle(CHANNELS.openFilesTake, z.undefined(), () => openFiles.takePending());
   handle(CHANNELS.mcpGetClientStatus, z.undefined(), () => getMcpClientStatus());
   handle(CHANNELS.mcpGetStatus, z.undefined(), () => getMcpStatus());
   handle(CHANNELS.mcpRotateToken, z.undefined(), () => rotateMcpToken());
@@ -494,8 +577,10 @@ app.whenReady().then(() => {
 
 // A second launch (blocked by the single-instance lock) surfaces the running
 // window rather than starting a duplicate process.
-app.on("second-instance", () => {
-  if (BrowserWindow.getAllWindows().length === 0) return;
+app.on("second-instance", (_event, argv, workingDirectory) => {
+  // Files named on the second launch's command line go to the running editor.
+  const opened = openFiles.addArgv(argv, workingDirectory, process.defaultApp);
+  if (opened.length || BrowserWindow.getAllWindows().length === 0) return;
   showEditorWindow();
 });
 
@@ -519,7 +604,9 @@ app.on("will-quit", () => {
   nativeDecodeService().dispose();
   cancelAllExports();
   stopIngestQueue();
+  cancelProjectManagerJobs();
   stopWatchFolders();
+  disposePlughost();
   cleanupTempOnQuit();
   void stopMcpServer();
 });

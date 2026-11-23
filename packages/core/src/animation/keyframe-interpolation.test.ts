@@ -3,7 +3,7 @@ import type { Keyframe } from "../types/timeline";
 import { AnimationEngine } from "../video/animation-engine";
 import { evaluateKeyframesAt } from "./evaluate-keyframes";
 import { effectiveBezierHandles, solveBezierEase } from "./keyframe-bezier";
-import { applyKeyframeInterpolation, keyframeSideTypes, refreshSmoothKeyframes, refreshSmoothKeyframesAfterEdit, segmentTangents } from "./keyframe-interpolation";
+import { applyKeyframeInterpolation, handlesForSpeedHandle, speedHandleOf, keyframeSideTypes, refreshSmoothKeyframes, refreshSmoothKeyframesAfterEdit, segmentTangents } from "./keyframe-interpolation";
 
 const kf = (id: string, time: number, value: number, easing: Keyframe["easing"] = "linear"): Keyframe => ({ id, time, property: "opacity", value, easing });
 const three = () => [kf("a", 0, 0), kf("b", 1, 1), kf("c", 2, 0.5)];
@@ -146,24 +146,36 @@ describe("user edits on smooth keys", () => {
       return next as unknown as Keyframe;
     }));
 
-  it("dragging one handle of an auto side keeps it and converts only that side to plain Bezier", () => {
+  it("dragging one handle of an Auto key turns the key Continuous and the other handle follows", () => {
     const auto = applyKeyframeInterpolation(three(), ["a", "b", "c"], "auto-bezier");
     const base = byId(auto, "b").bezierHandles!;
     const handles = { in: { x: 0.5, y: 0.1 }, out: base.out };
     const out = edit(auto, "b", { easing: "bezier", bezierHandles: handles });
     expect(byId(out, "b").bezierHandles).toEqual(handles);
-    expect(byId(out, "b").interpolationOut).toBeUndefined();
-    expect(byId(out, "b").interpolationIn).toBe("auto-bezier");
+    expect(byId(out, "b").interpolationOut).toBe("continuous-bezier");
+    expect(byId(out, "b").interpolationIn).toBe("continuous-bezier");
+    // The far end of the dragged segment keeps its own Auto handle.
     expect(byId(out, "c").interpolationIn).toBe("auto-bezier");
+    const nb = byId(out, "b") as Keyframe & { value: number }, na = byId(out, "a") as Keyframe & { value: number }, nc = byId(out, "c") as Keyframe & { value: number };
+    expect(segmentTangents(na, nb, effectiveBezierHandles(na)!).in).toBeCloseTo(segmentTangents(nb, nc, effectiveBezierHandles(nb)!).out, 6);
   });
 
-  it("dragging the entering handle clears the far key's incoming tag", () => {
+  it("dragging a handle on an Auto side whose opposite side is not Auto only leaves Auto (plain Bezier)", () => {
+    const auto = applyKeyframeInterpolation(three(), ["b"], "auto-bezier");
+    const half = auto.map(k => (k.id === "b" ? ({ ...k, interpolationIn: undefined } as Keyframe) : k));
+    const handles = { in: { x: 0.5, y: 0.1 }, out: byId(half, "b").bezierHandles!.out };
+    const out = edit(half, "b", { easing: "bezier", bezierHandles: handles });
+    expect(byId(out, "b").interpolationOut).toBeUndefined();
+    expect(byId(out, "b").interpolationIn).toBeUndefined();
+  });
+
+  it("dragging the entering handle turns the far key Continuous", () => {
     const auto = applyKeyframeInterpolation(three(), ["a", "b", "c"], "auto-bezier");
     const handles = { in: byId(auto, "a").bezierHandles!.in, out: { x: 0.9, y: 0.7 } };
     const out = edit(auto, "a", { easing: "bezier", bezierHandles: handles });
     expect(byId(out, "a").bezierHandles).toEqual(handles);
-    expect(byId(out, "b").interpolationIn).toBeUndefined();
-    expect(byId(out, "b").interpolationOut).toBe("auto-bezier");
+    expect(byId(out, "b").interpolationIn).toBe("continuous-bezier");
+    expect(byId(out, "b").interpolationOut).toBe("continuous-bezier");
   });
 
   it("an ease preset on an auto-bezier key replaces the segment and clears both owners' tags", () => {
@@ -208,5 +220,29 @@ describe("user edits on smooth keys", () => {
     expect(byId(moved, "b").bezierHandles).not.toEqual(byId(auto, "b").bezierHandles);
     const legacy = three();
     expect(refreshSmoothKeyframesAfterEdit(legacy, legacy)).toEqual(legacy);
+  });
+});
+
+describe("speed-graph handles", () => {
+  const a = { time: 0, value: 0 }, b = { time: 2, value: 10 };
+  it("round-trips influence and speed through the value-graph handles", () => {
+    const base = { in: { x: 1 / 3, y: 1 / 3 }, out: { x: 2 / 3, y: 2 / 3 } };
+    expect(speedHandleOf(a, b, base, "out").speed).toBeCloseTo(5, 9); // linear: 10 units over 2 s
+    expect(speedHandleOf(a, b, base, "in").speed).toBeCloseTo(5, 9);
+    const moved = handlesForSpeedHandle(a, b, base, "out", 0.5, 8);
+    expect(speedHandleOf(a, b, moved, "out")).toEqual({ influence: 0.5, speed: expect.closeTo(8, 9) });
+    expect(moved.out).toEqual(base.out);
+    const arriving = handlesForSpeedHandle(a, b, base, "in", 0.25, 2);
+    expect(speedHandleOf(a, b, arriving, "in").influence).toBeCloseTo(0.25, 9);
+    expect(speedHandleOf(a, b, arriving, "in").speed).toBeCloseTo(2, 9);
+    expect(arriving.in).toEqual(base.in);
+  });
+  it("zero speed gives a flat tangent (ease in/out) and works for decreasing segments", () => {
+    const base = { in: { x: 1 / 3, y: 1 / 3 }, out: { x: 2 / 3, y: 2 / 3 } };
+    expect(handlesForSpeedHandle(a, b, base, "out", 0.4, 0).in).toEqual({ x: 0.4, y: 0 });
+    const down = { time: 2, value: -10 };
+    const h = handlesForSpeedHandle(a, down, base, "out", 0.5, 4);
+    expect(h.in.y).toBeCloseTo((4 * 0.5 * 2) / 10, 9);
+    expect(speedHandleOf(a, down, h, "out").speed).toBeCloseTo(4, 9);
   });
 });

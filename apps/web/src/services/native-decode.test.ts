@@ -55,6 +55,15 @@ describe("MXF and other pro wrappers", () => {
   });
 });
 
+describe("MXF / MOV with audio streams of different widths", () => {
+  it("reports the channel count of every stream, not only the widest", async () => {
+    const mov = { path: "/cards/mix.mov", codec: "prores", width: 1920, height: 1080, frameRate: 25, duration: 8, frameCount: 200, audioStreams: [{ codec: "pcm_s24le", channels: 1, sampleRate: 48000 }, { codec: "pcm_s24le", channels: 2, sampleRate: 48000 }] };
+    const provider = createDesktopNativeFrameProvider(bridge({ nativeProbe: vi.fn(async () => mov), path: "/cards/mix.mov" }));
+    const claimed = await provider.claim(new File([new Uint8Array(4)], "mix.mov", { type: "video/quicktime" }));
+    expect(claimed?.audio).toEqual({ trackCount: 2, channels: 2, sampleRate: 48000, streamChannels: [1, 2] });
+  });
+});
+
 describe("desktop native frame provider", () => {
   it("claims a ProRes file with a path and describes it", async () => {
     const provider = createDesktopNativeFrameProvider(bridge());

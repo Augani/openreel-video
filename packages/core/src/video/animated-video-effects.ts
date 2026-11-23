@@ -1,5 +1,6 @@
 import type { Clip, Effect } from "../types/timeline";
 import { keyframeEngine } from "./keyframe-engine";
+import { samplePositionPath } from "../animation/spatial-path";
 import { IRIS_SHAPES } from "./clip-iris";
 import { applyEffectInstanceKeyframes, EFFECT_INSTANCE_KEYFRAME_PREFIX } from "./effect-instance-keyframes";
 import { hasAnimatedColorGrading } from "./animated-color-grading";
@@ -46,7 +47,7 @@ function sampleProEffectKeyframes(
   for (const property of PRO_EFFECT_KEYFRAME_PROPERTIES) {
     const group = keyframeEngine.getKeyframesForProperty(keyframes, property.id);
     if (group.length === 0) continue;
-    const value = keyframeEngine.getValueAtTime(group, localTime).value;
+    const value = keyframeEngine.getValueAtTime(group, localTime, { wrap: property.wrap }).value;
     if (typeof value !== "number" || !Number.isFinite(value)) continue;
     const params = sampled.get(property.type) ?? {};
     params[property.key] = value;
@@ -61,7 +62,9 @@ export function getAnimatedIrisEffects(clip: VideoEffectSource, localTime: numbe
   if (!irisKeys.length) return [];
   const position = clip.mediaId ? { x: 0.5, y: 0.5 } : clip.transform?.position ?? { x: 0.5, y: 0.5 };
   const center = { ...position };
-  if (!clip.mediaId) for (const axis of ["x", "y"] as const) {
+  const route = clip.mediaId ? null : samplePositionPath(keys, localTime, (t, key) => keyframeEngine.easeSegment(t, key));
+  if (route) { center.x = route.x; center.y = route.y; }
+  else if (!clip.mediaId) for (const axis of ["x", "y"] as const) {
     const positionKeys = keyframeEngine.getKeyframesForProperty(keys, `position.${axis}`);
     if (positionKeys.length) {
       const sampled = keyframeEngine.getValueAtTime(positionKeys, localTime).value;

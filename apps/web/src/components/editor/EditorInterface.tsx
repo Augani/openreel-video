@@ -16,7 +16,7 @@ import { InspectorPanel } from "./InspectorPanel";
 import { Timeline } from "./Timeline";
 import { useLatch } from "./use-latch";
 import { PanelErrorBoundary } from "../ErrorBoundary";
-import { SpotlightTour, MoGraphTour } from "./tour";
+import { useTourHostRequested } from "./tour/tour-launch";
 import { useProjectStore, registerSmoothKeyframeRefresh } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
 import { useAudioChannelsStore } from "../../stores/audio-channels-store";
@@ -30,7 +30,9 @@ import { ProjectLockBanner } from "./ProjectLockBanner";
 import { MissingFontsBanner } from "./MissingFontsBanner";
 import { applyPendingWorkspace } from "../../services/workspace-apply";
 import { useTimelineStore } from "../../stores/timeline-store";
-import { copyKeyframeSet, pasteKeyframeSet, applyKeyframeInterpolation, refreshSmoothKeyframesAfterEdit, type KeyframeInterpolationOp, type KeyframeInterpolationSide } from "@openreel/core";
+import { applySpatialInterpolationToClip } from "../../services/spatial-path-edit";
+import type { SpatialInterpolationOp } from "@openreel/core";
+import { copyKeyframeSet, pasteKeyframeSet, retargetCopiedKeyframes, applyKeyframeInterpolation, refreshSmoothKeyframesAfterEdit, type KeyframeInterpolationOp, type KeyframeInterpolationSide } from "@openreel/core";
 import { useInspectorNavigationStore } from "../../stores/inspector-navigation-store";
 import { useKeyboardShortcuts } from "../../hooks/useKeyboardShortcuts";
 import { useEditorInitialization } from "../../hooks/useEditorInitialization";
@@ -44,6 +46,8 @@ import { startAudioOutputService } from "../../services/audio-output-service";
 import { startLinkedCompHost } from "../../services/linked-comp-host";
 import "./editor-responsive.css";
 
+// Spotlight tours: loaded on the web build (first-run auto-start) or when a tour is requested; never on the desktop first-paint path.
+const TourHost = React.lazy(() => import("./tour/TourHost"));
 const KeyboardShortcutsOverlay = React.lazy(() =>
   import("./KeyboardShortcutsOverlay").then((module) => ({ default: module.KeyboardShortcutsOverlay })),
 );
@@ -83,6 +87,7 @@ const AudioMixer = React.lazy(() =>
   loadAudioMixer().then((module) => ({ default: module.AudioMixer })),
 );
 const AudioChannelsDialog = React.lazy(() => import("./AudioChannelsDialog").then(module => ({ default: module.AudioChannelsDialog })));
+const SourceChannelsDialog = React.lazy(() => import("./SourceChannelsDialog").then(module => ({ default: module.SourceChannelsDialog })));
 const MultiCameraDialog = React.lazy(() =>
   loadMultiCameraDialog().then((module) => ({ default: module.MultiCameraDialog })),
 );
@@ -164,6 +169,8 @@ registerSmoothKeyframeRefresh(refreshSmoothKeyframesAfterEdit);
 export const EditorInterface: React.FC = () => {
   const compact = useCompactEditor();
   const phone = usePhoneEditor();
+  const tourRequested = useTourHostRequested();
+  const tourHostWanted = tourRequested || (typeof window !== "undefined" && window.openreel?.platform !== "desktop");
   const [compactPanel, setCompactPanel] = useState<"timeline" | "media" | "inspector" | "chat">("timeline");
   const [hasOpenedChat, setHasOpenedChat] = useState(false);
   const { initialized, initializing, initError, initStatus, retry } =
@@ -183,6 +190,7 @@ export const EditorInterface: React.FC = () => {
 
   const sourceTab = useSourceMonitorStore((state) => state.tab);
   const audioChannelsOpen = useAudioChannelsStore((state) => state.open);
+  const sourceChannelsOpen = useAudioChannelsStore((state) => state.sourceOpen);
   const keyframeEditorOpen = useUIStore((state) => state.keyframeEditorOpen);
   const setKeyframeEditorOpen = useUIStore((state) => state.setKeyframeEditorOpen);
   // Selection only matters here while the keyframe editor is open (or as a boolean for the
@@ -201,6 +209,9 @@ export const EditorInterface: React.FC = () => {
   const [selectedKeyframeIds, setSelectedKeyframeIds] = React.useState<string[]>([]);
   const [copiedKeyframes, setCopiedKeyframes] = React.useState<
     import("@openreel/core").Keyframe[]
+  >([]);
+  const [copiedKeyframeEffects, setCopiedKeyframeEffects] = React.useState<
+    { id: string; type: string }[]
   >([]);
 
   const selectedClip = React.useMemo(() => {
@@ -262,6 +273,39 @@ export const EditorInterface: React.FC = () => {
     [selectedClip, getEditableKeyframeClip, updateClipKeyframes],
   );
 
+  const handleApplySpatialInterpolation = React.useCallback(
+    (keyframeIds: string[], op: SpatialInterpolationOp) => {
+      if (!selectedClip || !keyframeIds.length) return;
+      applySpatialInterpolationToClip(selectedClip.id, keyframeIds, op);
+    },
+    [selectedClip],
+  );
+
+  /** One gesture over several keys is one undo step: each move carries its own time and value. */
+  const handleMoveKeyframes = React.useCallback(
+    (moves: { id: string; time: number; value: number }[]) => {
+      const clip = selectedClip && getEditableKeyframeClip(selectedClip.id);
+      if (!clip?.keyframes || !moves.length) return;
+      const byId = new Map(moves.map((move) => [move.id, move]));
+      let changed = false;
+      const keyframes = clip.keyframes.map((key) => {
+        const move = byId.get(key.id);
+        if (!move || (move.time === key.time && move.value === key.value)) return key;
+        changed = true;
+        return { ...key, time: move.time, value: move.value };
+      });
+      if (changed) updateClipKeyframes(clip.id, keyframes);
+    },
+    [selectedClip, getEditableKeyframeClip, updateClipKeyframes],
+  );
+
+  const handleSelectKeyframes = React.useCallback(
+    (keyframeIds: string[], addToSelection: boolean) => {
+      setSelectedKeyframeIds((prev) => (addToSelection ? Array.from(new Set([...prev, ...keyframeIds])) : keyframeIds));
+    },
+    [],
+  );
+
   const handleDeleteKeyframes = React.useCallback(
     (keyframeIds: string[]) => {
       const clip = selectedClip && getEditableKeyframeClip(selectedClip.id);
@@ -281,6 +325,7 @@ export const EditorInterface: React.FC = () => {
       const picked = selectedClip.keyframes.filter((kf) => keyframeIds.includes(kf.id));
       // Stored with times rebased to the earliest copied key so paste can land at the playhead.
       setCopiedKeyframes([...copyKeyframeSet(picked).keyframes]);
+      setCopiedKeyframeEffects(selectedClip.effects.map((effect) => ({ id: effect.id, type: effect.type })));
     },
     [selectedClip],
   );
@@ -289,7 +334,10 @@ export const EditorInterface: React.FC = () => {
     (clipId: string, time: number, targetProperty?: string) => {
       const targetClip = getEditableKeyframeClip(clipId);
       if (!targetClip || !copiedKeyframes.length) return;
-      const copied = copyKeyframeSet(copiedKeyframes);
+      // Effect keys are instance-keyed: move them onto the target's matching effect, drop the ambiguous ones.
+      const retargeted = retargetCopiedKeyframes(copiedKeyframes, copiedKeyframeEffects, targetClip.effects);
+      if (!retargeted.keyframes.length) return;
+      const copied = copyKeyframeSet(retargeted.keyframes);
       const merged = pasteKeyframeSet(targetClip.keyframes ?? [], copied, {
         time,
         targetProperty,
@@ -299,7 +347,7 @@ export const EditorInterface: React.FC = () => {
       // One setAll action: the whole paste is a single undo step.
       updateClipKeyframes(clipId, merged);
     },
-    [copiedKeyframes, getEditableKeyframeClip, updateClipKeyframes],
+    [copiedKeyframes, copiedKeyframeEffects, getEditableKeyframeClip, updateClipKeyframes],
   );
 
   const handleSelectKeyframe = React.useCallback(
@@ -669,6 +717,9 @@ export const EditorInterface: React.FC = () => {
                     disabled={keyframeExporting || keyframeOperationLocked || keyframeTrackLocked}
                     onUpdateKeyframes={handleUpdateKeyframes}
                     onApplyInterpolation={handleApplyInterpolation}
+                    onApplySpatialInterpolation={handleApplySpatialInterpolation}
+                    onMoveKeyframes={handleMoveKeyframes}
+                    onSelectKeyframes={handleSelectKeyframes}
                     onDeleteKeyframes={handleDeleteKeyframes}
                     onCopyKeyframes={handleCopyKeyframes}
                     onPasteKeyframes={handlePasteKeyframes}
@@ -720,6 +771,13 @@ export const EditorInterface: React.FC = () => {
           </React.Suspense>
         </PanelErrorBoundary>
       )}
+      {sourceChannelsOpen && (
+        <PanelErrorBoundary name="Source audio channels" silent>
+          <React.Suspense fallback={null}>
+            <SourceChannelsDialog />
+          </React.Suspense>
+        </PanelErrorBoundary>
+      )}
       <PanelErrorBoundary name="Multicam" silent>
         <React.Suspense fallback={null}>
           <MultiCameraDialog />
@@ -748,8 +806,7 @@ export const EditorInterface: React.FC = () => {
 
       <WorkspaceSaveDialog />
       <ClipSpeedDialog />
-      <SpotlightTour />
-      <MoGraphTour />
+      {tourHostWanted ? <React.Suspense fallback={null}><TourHost /></React.Suspense> : null}
     </div>
   );
 };

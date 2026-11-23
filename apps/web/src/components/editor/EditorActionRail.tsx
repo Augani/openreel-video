@@ -12,6 +12,8 @@ import {
   Bookmark,
   MessageCircle,
   History,
+  FolderSearch,
+  Tags,
 } from "lucide-react";
 import {
   Button,
@@ -36,6 +38,8 @@ const tools = [
   ["ai", "AI Generate", Sparkles],
   ["recipes", "Recipes", BookText],
   ["markers", "Markers", Bookmark],
+  ["browser", "Media Browser", FolderSearch],
+  ["metadata", "Metadata", Tags],
   ["comments", "Comments", MessageCircle],
   ["versions", "Versions", History],
 ] as const;

@@ -374,6 +374,131 @@ export function openTimelineGap(
   return { ...work, timeline: { ...work.timeline, markers, subtitles } };
 }
 
+/** Index of the first value in ascending `values` that is greater than `x`. */
+function upperBound(values: readonly number[], x: number): number {
+  let lo = 0,
+    hi = values.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (values[mid] <= x) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/**
+ * Several {@link removeTimelineSpan} calls (right to left over disjoint ranges)
+ * in one pass over markers and captions, O((markers + captions) log ranges).
+ */
+export function removeTimelineSpans(
+  work: Project,
+  ranges: readonly { start: number; stop: number }[],
+  moveCaptions = true,
+): Project {
+  if (!ranges.length) return work;
+  const asc = [...ranges].sort((a, b) => a.start - b.start);
+  const stops = asc.map((r) => r.stop - EPS);
+  const starts = asc.map((r) => r.start);
+  const prefix: number[] = [0];
+  for (const r of asc) prefix.push(prefix[prefix.length - 1] + (r.stop - r.start));
+  /** Ranges that end at or before `time` all shift it by their whole length. */
+  const mapTime = (time: number): number => {
+    const done = upperBound(stops, time); // ranges with stop - EPS <= time
+    const shift = prefix[done];
+    const next = asc[done];
+    if (next && time > next.start && time < next.stop - EPS) return next.start - shift;
+    return time - shift;
+  };
+  const markers = work.timeline.markers.flatMap((marker): Marker[] => {
+    // Ranges wholly left of the marker only shift it; the few that touch it
+    // are applied right to left with the single-range rule.
+    const left = upperBound(stops, marker.time);
+    const reach = upperBound(starts, marker.time + (marker.duration ?? 0) + EPS);
+    let current: Marker[] = [marker];
+    for (let i = reach - 1; i >= left; i--)
+      current = current.flatMap((m) => closeMarker(m, asc[i].start, asc[i].stop));
+    const shift = prefix[left];
+    return shift === 0 ? current : current.map((m) => ({ ...m, time: m.time - shift }));
+  });
+  const subtitles = !moveCaptions
+    ? work.timeline.subtitles
+    : work.timeline.subtitles.flatMap((subtitle) => {
+        const startTime = mapTime(subtitle.startTime),
+          endTime = mapTime(subtitle.endTime);
+        if (endTime - startTime <= EPS) return [];
+        if (startTime === subtitle.startTime && endTime === subtitle.endTime && !subtitle.words)
+          return [subtitle];
+        return [{ ...subtitle, startTime, endTime, ...remapWords(subtitle, mapTime) } as Subtitle];
+      });
+  return { ...work, timeline: { ...work.timeline, markers, subtitles } };
+}
+
+/**
+ * Several {@link openTimelineGap} calls (right to left over disjoint gaps).
+ * Markers and captions that do not straddle a gap are shifted in one pass; a
+ * caption that does straddle one is split, which keeps the sequential path.
+ */
+export function openTimelineGaps(
+  work: Project,
+  gaps: readonly { at: number; length: number }[],
+  operationId: string,
+  moveCaptions = true,
+): Project {
+  if (!gaps.length) return work;
+  const asc = [...gaps].sort((a, b) => a.at - b.at);
+  const ats = asc.map((g) => g.at);
+  const prefix: number[] = [0];
+  for (const g of asc) prefix.push(prefix[prefix.length - 1] + g.length);
+  const straddled =
+    moveCaptions &&
+    work.timeline.subtitles.some((subtitle) => {
+      // Any gap with subtitle.startTime < at - EPS and at < endTime - EPS splits it.
+      const first = upperBound(ats, subtitle.startTime + EPS);
+      return first < asc.length && asc[first].at < subtitle.endTime - EPS;
+    });
+  if (straddled) {
+    let sequential = work;
+    for (const g of [...asc].reverse())
+      sequential = openTimelineGap(sequential, g.at, g.length, operationId, moveCaptions);
+    return sequential;
+  }
+  const markers = work.timeline.markers.map((marker) => {
+    const shiftIndex = upperBound(ats, marker.time + EPS); // gaps with at <= time + EPS
+    const shift = prefix[shiftIndex];
+    let duration = marker.duration;
+    if (duration) {
+      // A range marker spanning gaps (at > time + EPS and at < end - EPS) stretches over them.
+      const stretched = upperBound(ats, marker.time + duration - EPS) - shiftIndex;
+      if (stretched > 0)
+        duration += prefix[shiftIndex + stretched] - prefix[shiftIndex];
+    }
+    return shift === 0 && duration === marker.duration
+      ? marker
+      : { ...marker, time: marker.time + shift, ...(duration !== undefined ? { duration } : {}) };
+  });
+  const subtitles = !moveCaptions
+    ? work.timeline.subtitles
+    : work.timeline.subtitles.map((subtitle) => {
+        const shift = prefix[upperBound(ats, subtitle.startTime + EPS)];
+        if (shift === 0) return subtitle;
+        return {
+          ...subtitle,
+          startTime: subtitle.startTime + shift,
+          endTime: subtitle.endTime + shift,
+          ...(subtitle.words
+            ? {
+                words: subtitle.words.map((word) => ({
+                  ...word,
+                  startTime: word.startTime + shift,
+                  endTime: word.endTime + shift,
+                })),
+              }
+            : {}),
+        };
+      });
+  return { ...work, timeline: { ...work.timeline, markers, subtitles } };
+}
+
 interface OwnedItem {
   id: string;
   clipId?: string;
@@ -442,55 +567,92 @@ export function shiftAfter(
   from: number,
   delta: number,
 ): Project {
+  return shiftAfterBatch(work, trackIds, [{ from, delta }]);
+}
+
+export interface ShiftStep {
+  from: number;
+  delta: number;
+}
+
+/**
+ * Several {@link shiftAfter} steps in one pass over the project. Each step
+ * moves everything starting at/after its `from` by its `delta`; `from` values
+ * are in the ORIGINAL timeline (before any step), and the steps must be
+ * disjoint ripples (every step's span lies before the next step's `from`), as
+ * a right-to-left sequence of ripple edits is. An item then moves by the sum
+ * of the deltas of all steps whose `from` is at or before its start. That is
+ * O(items log steps) instead of O(items x steps) for N sequential calls.
+ */
+export function shiftAfterBatch(
+  work: Project,
+  trackIds: readonly string[],
+  steps: readonly ShiftStep[],
+): Project {
   const tracks = new Set(trackIds);
-  const moves = (item: Timed) => item.startTime >= from - EPS;
-  const shifted = (value: number) => Math.max(0, value + delta);
-  const moved = new Set<string>();
+  const sorted = [...steps].sort((a, b) => a.from - b.from);
+  if (!sorted.length || !tracks.size) return work;
+  const froms = sorted.map((s) => s.from - EPS);
+  const prefix: number[] = [];
+  let sum = 0;
+  for (const step of sorted) prefix.push((sum += step.delta));
+  /** Offset for an item starting at `time`, or null when no step applies. */
+  const offsetAt = (time: number): number | null => {
+    let lo = 0,
+      hi = froms.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (froms[mid] <= time) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo === 0 ? null : prefix[lo - 1];
+  };
+  const moved = new Map<string, number>();
+  const shiftItem = <T extends Timed>(item: T): T => {
+    const offset = offsetAt(item.startTime);
+    if (offset === null) return item;
+    const startTime = Math.max(0, item.startTime + offset);
+    moved.set(item.id, offset);
+    return { ...item, startTime };
+  };
   const next: Mutable<Project> = {
     ...work,
     timeline: {
       ...work.timeline,
-      tracks: work.timeline.tracks.map((track) =>
-        !tracks.has(track.id)
-          ? track
-          : {
-              ...track,
-              clips: track.clips.map((clip) => {
-                if (!moves(clip)) return clip;
-                moved.add(clip.id);
-                return { ...clip, startTime: shifted(clip.startTime) };
-              }),
-            },
-      ),
+      tracks: work.timeline.tracks.map((track) => {
+        if (!tracks.has(track.id)) return track;
+        let changed = false;
+        const clips = track.clips.map((clip) => {
+          const result = shiftItem(clip);
+          if (result !== clip) changed = true;
+          return result;
+        });
+        return changed ? { ...track, clips } : track;
+      }),
     },
   };
   for (const field of Object.values(collections)) {
     const items = (work[field] ?? []) as unknown as Timed[];
-    if (
-      !items.some(
-        (item) => item.trackId && tracks.has(item.trackId) && moves(item),
-      )
-    )
-      continue;
-    Object.assign(next, {
-      [field]: items.map((item) => {
-        if (!item.trackId || !tracks.has(item.trackId) || !moves(item))
-          return item;
-        moved.add(item.id);
-        return { ...item, startTime: shifted(item.startTime) };
-      }),
+    if (!items.some((item) => item.trackId && tracks.has(item.trackId))) continue;
+    let changed = false;
+    const shifted = items.map((item) => {
+      if (!item.trackId || !tracks.has(item.trackId)) return item;
+      const result = shiftItem(item);
+      if (result !== item) changed = true;
+      return result;
     });
+    if (changed) Object.assign(next, { [field]: shifted });
   }
-  if (next.nestedInstances)
+  if (next.nestedInstances?.some((item) => moved.has(item.id)))
     next.nestedInstances = next.nestedInstances.map((item) =>
       moved.has(item.id)
-        ? { ...item, startTime: shifted(item.startTime) }
+        ? { ...item, startTime: Math.max(0, item.startTime + moved.get(item.id)!) }
         : item,
     );
-  if (next.particleEffects)
+  if (next.particleEffects?.some((effect) => moved.has(effect.clipId)))
     next.particleEffects = next.particleEffects.map((effect) =>
       moved.has(effect.clipId) && typeof effect.clipStartTime === "number"
-        ? { ...effect, clipStartTime: shifted(effect.clipStartTime) }
+        ? { ...effect, clipStartTime: Math.max(0, effect.clipStartTime + moved.get(effect.clipId)!) }
         : effect,
     );
   return next;

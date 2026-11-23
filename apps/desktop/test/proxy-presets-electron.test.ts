@@ -237,7 +237,7 @@ d("proxy presets and encoder choice in real Electron", () => {
     expect(videoOf(ref.path)).toMatchObject({ codec_name: "dnxhd", width: 640, height: 360 });
     expect(ref.previewPath).toBeTruthy();
     expect(videoOf(ref.previewPath)).toMatchObject({ codec_name: "h264", width: 640, height: 360 });
-    expect(await E(page, "h.project.getState().project.mediaLibrary.desktopIngest")).toEqual({ proxyProfile: { codec: "dnxhr-lb", size: "half" } });
+    expect(await E(page, "h.project.getState().project.mediaLibrary.desktopIngest")).toEqual({ proxyProfile: { codec: "dnxhr-lb", size: "half" }, proxyPresetId: "dnxhr-lb" });
 
     // Undo restores the previous profile (one undo step for the preset change).
     // Panel preset selector reflects and changes the saved preset.
@@ -245,7 +245,7 @@ d("proxy presets and encoder choice in real Electron", () => {
     await body.getByTestId("desktop-ingest-settings").getByRole("combobox", { name: "Proxy preset" }).click();
     await page.getByRole("option", { name: "H.264 1/4 resolution" }).click();
     await until("quarter profile saved", async () => (await E(page, "h.project.getState().project.mediaLibrary.desktopIngest")).proxyProfile?.size === "quarter");
-    expect(await E(page, "h.project.getState().project.mediaLibrary.desktopIngest")).toEqual({ proxyProfile: { codec: "h264", size: "quarter" } });
+    expect(await E(page, "h.project.getState().project.mediaLibrary.desktopIngest")).toEqual({ proxyProfile: { codec: "h264", size: "quarter" }, proxyPresetId: "h264-quarter" });
     await E(page, "h.project.getState().undo()");
     await until("undo restores DNxHR", async () => (await E(page, "h.project.getState().project.mediaLibrary.desktopIngest")).proxyProfile?.codec === "dnxhr-lb");
 

@@ -1,6 +1,7 @@
 import { framesToTimecode, secondsToFrames, timecodeToFrames, fpsOf } from "./timecode";
 import { edlLocLines } from "./marker-export";
 import type { Sequence, SeqClip, SeqTrack, SeqTransition } from "./model";
+import { TRANSITION_NAMES } from "./transition-names";
 
 /**
  * CMX3600 EDL for ONE video track. Column layout (1-based):
@@ -113,7 +114,11 @@ export function serializeEdl(seq: Sequence, trackIndex = 0, options: EdlOptions 
     const m2 = speedLine(clip, reel);
     if (m2) lines.push(m2);
     lines.push(`* TO CLIP NAME: ${clip.name}`);
-    if (tin && tin.kind !== "dissolve") lines.push(`* OPENREEL: ${tin.kind} transition exported as a dissolve`);
+    if (tin && (tin.kind !== "dissolve" || tin.type)) {
+      const named = tin.type ? TRANSITION_NAMES[tin.type]?.name : undefined;
+      lines.push(`* OPENREEL: ${named ?? tin.kind} transition exported as a dissolve`);
+      if (named) lines.push(`* EFFECT NAME: ${named.toUpperCase()}`);
+    }
     lines.push("");
   }
   const locs = edlLocLines(seq.markers, rate, startTimecode);

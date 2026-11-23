@@ -45,7 +45,7 @@ export { Transform3DSection } from "./Transform3DSection";
 export { MotionPresetsPanel } from "./MotionPresetsPanel";
 
 // Motion Paths
-export { MotionPathSection } from "./MotionPathSection";
+// MotionPathSection is not re-exported: it pulls gsap (~280 KB), so AnimateTab loads it lazily.
 
 // Emphasis Animation
 export { EmphasisAnimationSection } from "./EmphasisAnimationSection";

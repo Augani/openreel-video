@@ -50,15 +50,15 @@ describe("canonical speed controls", () => {
     fireEvent.click(screen.getByRole("button", { name: "Set speed to 0.5×" }));
     await waitFor(() => expect(state().getClip("video")?.speed).toBe(.5));
     expect(state().getClip("audio")?.speed).toBe(1);
-    fireEvent.click(screen.getByRole("switch", { name: "Smooth Slow Motion" }));
-    await waitFor(() => expect(state().getClip("video")?.smoothSlowMo).toBe(true));
+    await selectOption(screen.getByRole("combobox", { name: "Time Interpolation" }), "Optical Flow");
+    await waitFor(() => expect(state().getClip("video")?.timeInterpolation).toBe("opticalFlow"));
     await selectOption(screen.getByRole("combobox", { name: "Quality" }), "High (slower)");
     await waitFor(() => expect(state().getClip("video")?.interpolationQuality).toBe("high"));
     await act(async () => { await state().undo(); });
     expect(state().getClip("video")?.interpolationQuality).toBeUndefined();
-    expect(state().getClip("video")?.smoothSlowMo).toBe(true);
+    expect(state().getClip("video")?.timeInterpolation).toBe("opticalFlow");
     await act(async () => { await state().undo(); });
-    expect(state().getClip("video")?.smoothSlowMo).toBeUndefined();
+    expect(state().getClip("video")?.timeInterpolation).toBeUndefined();
     expect(state().getClip("video")?.speed).toBe(.5);
   });
 

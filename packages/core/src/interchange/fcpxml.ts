@@ -12,6 +12,7 @@ import type {
   SeqTransitionKind,
 } from "./model";
 import { transitionKindFromName } from "./xmeml";
+import { TRANSITION_NAMES } from "./transition-names";
 
 /**
  * Final Cut Pro X interchange (FCPXML 1.10). The bottom video track becomes
@@ -26,6 +27,16 @@ import { transitionKindFromName } from "./xmeml";
  */
 
 export const FCPXML_VERSION = "1.10";
+/** FCPXML names of a clip's output channels, by OpenReel clip channel format. */
+const FCP_OUT_CHANNELS = { mono: ["C"], stereo: ["L", "R"], "5.1": ["L", "R", "C", "LFE", "Ls", "Rs"] } as const;
+const FCP_OUT_TO_FORMAT = (outCh: readonly string[]): "mono" | "stereo" | "5.1" =>
+  outCh.some((name) => name === "LFE" || name === "Ls" || name === "Rs" || (name === "C" && outCh.length > 1))
+    ? "5.1"
+    : outCh.some((name) => name === "L" || name === "R")
+      ? "stereo"
+      : outCh.length <= 1
+        ? "mono"
+        : "stereo";
 const CROSS_DISSOLVE_UID = "FxPlug:4731E73A-8DAC-4113-9A30-AE85B1761265";
 
 const gcd = (a: number, b: number): number => (b === 0 ? Math.abs(a) : gcd(b, a % b));
@@ -233,7 +244,7 @@ export function serializeFcpxml(root: Sequence, report?: InterchangeReport): str
       }
       const tr = transitionBefore(clip);
       if (tr && spineClips.length) {
-        if (tr.kind !== "dissolve") warn(`Transition "${tr.kind}" is exported as a cross dissolve in FCPXML.`);
+        if (tr.kind !== "dissolve" || tr.type) warn(`Transition "${tr.type ? (TRANSITION_NAMES[tr.type]?.name ?? tr.type) : tr.kind}" is exported as a cross dissolve in FCPXML.`);
         spine.push({ transition: tr });
       }
       const item: SpineItem = {
@@ -307,6 +318,16 @@ export function serializeFcpxml(root: Sequence, report?: InterchangeReport): str
       }
       if (clip.opacity !== 1 && !audioOnly) w.empty("adjust-blend", { amount: Math.round(clip.opacity * 1e6) / 1e6 });
       if (clip.volume !== 1) w.empty("adjust-volume", { amount: dbOf(clip.volume) });
+      if (clip.audioChannels && source.element !== "mc-clip" && (audioOnly || track.kind === "audio" || clip.withAudio)) {
+        const mapped = clip.audioChannels.sources.map((entry, out) => ({ entry, out })).filter(({ entry }) => entry !== -1);
+        // MIX has no FCPXML form: every source channel is selected instead (reported as approximated).
+        const srcCh = mapped.some(({ entry }) => entry === -2)
+          ? Array.from({ length: clip.audioChannels.fileChannels }, (_, i) => i + 1)
+          : mapped.map(({ entry }) => entry + 1);
+        const outNames = FCP_OUT_CHANNELS[clip.audioChannels.format];
+        const outCh = mapped.some(({ entry }) => entry === -2) ? outNames : mapped.map(({ out }) => outNames[out]);
+        if (srcCh.length) w.empty("audio-channel-source", { srcCh: srcCh.join(", "), outCh: outCh.join(", ") });
+      }
       if (source.element === "mc-clip" && source.angleId) {
         w.empty("mc-source", { angleID: source.angleId, srcEnable: audioOnly ? "audio" : clip.withAudio ? "all" : "video" });
       }
@@ -415,7 +436,7 @@ export function serializeFcpxml(root: Sequence, report?: InterchangeReport): str
     if (fmt) attrs.format = fmt;
     if (media.hasVideo) attrs.videoSources = 1;
     if (media.hasAudio) {
-      attrs.audioSources = 1;
+      attrs.audioSources = media.audioStreams ?? 1;
       attrs.audioChannels = media.channels;
       attrs.audioRate = media.sampleRate;
     }
@@ -671,6 +692,25 @@ export function parseFcpxml(source: string): { sequence: Sequence; report: Inter
       return { startFrame, endFrame: Math.max(startFrame + 1, frameOf(offsetAbs + parseFcpTime(el.attrs.duration))) };
     };
 
+    /** <audio-channel-source srcCh="3" outCh="C">: which file channels the clip plays (1-based in the file). */
+    const audioChannelsOf = (el: XmlElement, asset: AssetInfo): SeqClip["audioChannels"] | undefined => {
+      const source = child(el, "audio-channel-source");
+      if (!source || !asset.hasAudio) return undefined;
+      const list = (value: string | undefined): string[] => (value ?? "").split(",").map((part) => part.trim()).filter(Boolean);
+      const src = list(source.attrs.srcCh).map((part) => Number(part) - 1);
+      const out = list(source.attrs.outCh);
+      if (!src.length || src.some((n) => !Number.isInteger(n) || n < 0)) return undefined;
+      const fileChannels = Math.max(asset.audioChannels, ...src.map((n) => n + 1));
+      const format = FCP_OUT_TO_FORMAT(out.length ? out : src.map(() => "X"));
+      const slots = FCP_OUT_CHANNELS[format];
+      const sources = slots.map((slot, index) => {
+        const at = out.indexOf(slot);
+        return at >= 0 ? src[at] : out.length ? -1 : (src[index] ?? -1);
+      });
+      const untouched = format === "stereo" && sources[0] === 0 && sources[1] === 1 && fileChannels === 2;
+      return untouched ? undefined : { format, sources, fileChannels };
+    };
+
     const placeAsset = (
       el: XmlElement,
       asset: AssetInfo,
@@ -699,6 +739,7 @@ export function parseFcpxml(source: string): { sequence: Sequence; report: Inter
         opacity: blend !== undefined && Number.isFinite(Number(blend)) ? Number(blend) : 1,
         volume: vol ?? 1,
         withAudio: isVideo && asset.hasAudio && srcEnable !== "video",
+        ...(audioChannelsOf(el, asset) ? { audioChannels: audioChannelsOf(el, asset) } : {}),
       };
       placed.push({ clip, key: String(lane), isVideo, lane });
       walkChildren(el, offsetAbs, parseFcpTime(el.attrs.start), lane);

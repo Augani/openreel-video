@@ -64,6 +64,15 @@ export function createTimelineItemSlice(
       );
       if (!mediaItem) return failure("INVALID_PARAMS", "Media item not found");
 
+      // A multichannel file (several audio streams or channel groups) places its picture plus one audio clip per enabled source
+      // patch, on free tracks, as one undo step. The module is loaded on first use: single-stream media never needs it.
+      const m = mediaItem.metadata;
+      if (mediaItem.type !== "image" && ((m.audioTrackCount ?? 1) > 1 || (m.channels ?? 2) > 2 || mediaItem.channelLayout)) {
+        const { addMultichannelMedia } = await import("../../services/premiere-edit-commands");
+        const placed = addMultichannelMedia(mediaItem, targetTrackId, startTime);
+        if (placed) return placed.success ? { success: true } : failure("INVALID_PARAMS", placed.message ?? "Could not place the media");
+      }
+
       const mediaLength = mediaDisplayDuration(mediaItem);
       const duration = mediaLength > 0 ? mediaLength : 5;
       const newTrackId = uuidv4();

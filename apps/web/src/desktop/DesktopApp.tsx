@@ -15,9 +15,9 @@ import {
 } from "./crash-reporting";
 import { useSettingsStore } from "../stores/settings-store";
 import { usePluginManagerStore } from "../stores/plugin-manager-store";
+import { useProjectManagerStore } from "../stores/project-manager-store";
 import { keyboardShortcuts } from "../services/keyboard-shortcuts";
 import { loadEditorModule } from "../editor-loader";
-import { warmAudioDevices } from "./audio-warmup";
 import { useOnboardingStore } from "../stores/onboarding-store";
 import { installOnboardingSync } from "../components/onboarding/shell/onboarding-sync";
 import { handleProjectOpenedOnWelcomeRoute, isWelcomeRoute } from "../components/onboarding/shell/agent-flip";
@@ -66,14 +66,17 @@ export function DesktopApp(): JSX.Element {
   );
   useEffect(() => {
     mark("openreel:desktop-app-mounted");
-    // After the welcome screen is committed: see audio-warmup.ts.
-    warmAudioDevices(navigator);
     // Warm the editor chunk and the engines (WebGPU adapter/device, audio,
     // playback, export: ~1.1 s measured in the real app) while the welcome
     // screen is showing, so "New project" does not wait for them. initialize()
     // is idempotent and the editor hook awaits an in-flight init.
     const warm = () => {
+      mark("openreel:warm-start");
       void loadEditorModule()
+        .then((module) => {
+          mark("openreel:warm-editor");
+          return module;
+        })
         .then(() => useEngineStore.getState().initialize())
         // The effects bridge (GPU context + shader compile, ~40 ms of main-thread work) is
         // otherwise the slowest step of editor init, after the click. The effects engine
@@ -84,7 +87,10 @@ export function DesktopApp(): JSX.Element {
         .catch((error) => {
           console.warn("[desktop] editor warm-up failed", error);
         })
-        .finally(resolveWarmupSettled);
+        .finally(() => {
+          mark("openreel:warm-done");
+          resolveWarmupSettled();
+        });
     };
     const useIdle = typeof window.requestIdleCallback === "function";
     const idle = useIdle
@@ -183,11 +189,30 @@ export function DesktopApp(): JSX.Element {
         case "collaborate":
           useCollabStore.getState().openDialog();
           break;
+        case "projectManager":
+          useProjectManagerStore.getState().setOpen(true);
+          break;
         case "managePlugins":
           usePluginManagerStore.getState().setOpen(true);
           break;
       }
     });
+  }, []);
+
+  // Files the OS opened with the app (double-click, Open With, a second launch with a file): a project opens, caption
+  // files are imported into the open project (or into the one the user picks). Loaded only when a file arrives.
+  useEffect(() => {
+    const api = window.openreel?.openFiles;
+    if (!api) return;
+    const deliver = (items: Array<{ kind: "project" | "captions"; path: string }>) => {
+      if (!items.length) return;
+      void import("../services/open-files")
+        .then((m) => m.handleOpenedFiles(items))
+        .catch((error: unknown) => reportRendererCrash({ type: "open-file-error", message: error instanceof Error ? error.message : String(error) }));
+    };
+    const off = api.onOpen(deliver);
+    void api.take().then(deliver).catch(() => undefined);
+    return off;
   }, []);
 
   // MCP clients can create or open a project while the start screen is shown.

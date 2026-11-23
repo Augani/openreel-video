@@ -106,8 +106,9 @@ export function isolateTrackStem(project: Project, trackId: string): Project | u
     void _o;
     return track.id === trackId ? { ...rest, solo: false } : { ...rest, muted: true, solo: false };
   });
-  const { masterAudioRack: _m, audioBuses: _b, ...timelineRest } = baked.timeline;
+  const { masterAudioRack: _m, masterPluginRack: _mp, audioBuses: _b, ...timelineRest } = baked.timeline;
   void _m;
+  void _mp;
   void _b;
   return { ...baked, timeline: { ...timelineRest, tracks } };
 }
@@ -122,8 +123,9 @@ export function isolateAudioTypeStem(project: Project, typeId: string): Project 
     clips: track.clips.filter((clip) => typeOf(clip) === typeId),
     solo: false,
   }));
-  const { masterAudioRack: _m, ...timelineRest } = baked.timeline;
+  const { masterAudioRack: _m, masterPluginRack: _mp, ...timelineRest } = baked.timeline;
   void _m;
+  void _mp;
   const audioBuses = baked.timeline.audioBuses?.map((bus) => ({ ...bus, solo: false }));
   return { ...baked, timeline: { ...timelineRest, tracks, ...(audioBuses ? { audioBuses } : {}) } };
 }

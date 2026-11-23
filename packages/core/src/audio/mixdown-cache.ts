@@ -2,6 +2,7 @@ import type { Project } from "../types/project";
 import type { Clip, Track } from "../types/timeline";
 import type { MixdownRenderer } from "./loudness/project-loudness";
 import { getAudioBuses, routingFingerprintInput } from "./audio-routing";
+import { rackForFingerprint } from "./native-plugin/native-plugin-rack";
 
 /**
  * Master-mix cache. The offline mixdown (`AudioEngine.renderAudio`) is a pure
@@ -82,7 +83,7 @@ function audioClipHash(clip: Clip): string {
 
 function trackLevelHash(track: Track): string {
   return hashOf(track, () => [
-    track.id, track.hidden, track.muted, track.solo, track.soloSafe, track.audioRack, track.transitions,
+    track.id, track.hidden, track.muted, track.solo, track.soloSafe, track.audioRack, rackForFingerprint(track.pluginRack), track.transitions,
     // Output assignment and sends decide where this track's signal goes.
     track.output, track.sends, track.surroundPan,
   ]);
@@ -92,10 +93,12 @@ function hasAudioProcessing(project: Project): boolean {
   const rackActive = (rack: { effects?: readonly unknown[] } | undefined): boolean =>
     Boolean(rack && rack.effects && rack.effects.length > 0);
   if (rackActive(project.timeline.masterAudioRack)) return true;
+  if (project.timeline.masterPluginRack?.plugins.length) return true;
   // Bus racks (and bus-fader automation) carry tails/history just like track racks.
-  for (const bus of getAudioBuses(project.timeline)) if (rackActive(bus.rack)) return true;
+  for (const bus of getAudioBuses(project.timeline)) if (rackActive(bus.rack) || bus.pluginRack?.plugins.length) return true;
   for (const track of project.timeline.tracks) {
     if (rackActive(track.audioRack)) return true;
+    if (track.pluginRack?.plugins.length) return true;
     for (const clip of track.clips) {
       if (clip.audioEffects.length > 0) return true;
     }
@@ -129,6 +132,8 @@ export function audioRangeFingerprint(project: Project, start: number, duration:
     ...(project.settings.channelLayout === "5.1" ? ["ly5.1"] : []),
     `w${start.toFixed(6)}+${duration.toFixed(6)}`,
     `m${project.timeline.masterAudioRack ? hashOf(project.timeline.masterAudioRack, () => project.timeline.masterAudioRack) : "none"}`,
+    // Hosted plugins on the master (plugin, state chunk, values, automation): any edit changes every window's key.
+    ...(project.timeline.masterPluginRack?.plugins.length ? [`mp${hashOf(project.timeline.masterPluginRack, () => rackForFingerprint(project.timeline.masterPluginRack))}`] : []),
   ];
   // Buses: only audio-relevant fields (rack, fader, mute/solo, output, automation), never names/colours.
   if ((project.timeline.audioBuses?.length ?? 0) > 0) {

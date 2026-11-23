@@ -58,10 +58,10 @@ export function mixChannelCount(settings: LayoutSettings | undefined, fallback =
  * the panner positions it later; asking ffmpeg for `-ac 6` would invent channels). A stereo
  * sequence returns undefined = the legacy stereo decode, unchanged.
  */
-export function fallbackDecodeChannels(layout: ChannelLayout, sourceChannels: number | undefined): number | undefined {
+export function fallbackDecodeChannels(layout: ChannelLayout, sourceChannels: number | undefined, cap: number = SURROUND_CHANNELS): number | undefined {
   if (layout !== "5.1") return undefined;
   const count = Math.floor(Number.isFinite(sourceChannels) ? (sourceChannels as number) : 2);
-  return Math.min(SURROUND_CHANNELS, Math.max(1, count || 2));
+  return Math.min(Math.max(SURROUND_CHANNELS, cap), Math.max(1, count || 2));
 }
 
 /** Settings patch for a layout change: layout and channel count always move together. */

@@ -106,6 +106,20 @@ jobs:
       - name: Build main + preload
         run: pnpm --filter @openreel/desktop build:main
 
+      # The macOS runner packages both architectures, so the Audio Unit helper is built for both.
+      - name: Build plugin helper (both macOS architectures)
+        if: runner.os == 'macOS'
+        run: node apps/desktop/scripts/build-plughost.mjs --all
+
+      # The VST3 helper is C++ against the MIT licensed Steinberg SDK (fetched at a pinned tag and checksum, never committed).
+      # It needs CMake 3.25 or newer (preinstalled on GitHub's macOS runners) and builds both architectures. If the fetch or
+      # the build fails the step fails: a release must not silently ship without VST3 hosting.
+      - name: Build VST3 helper (both macOS architectures)
+        if: runner.os == 'macOS'
+        run: node apps/desktop/scripts/build-vst3host.mjs --all
+        env:
+          OPENREEL_REQUIRE_VST3HOST: "1"
+
       - name: Package + upload (macOS)
         if: runner.os == 'macOS'
         working-directory: apps/desktop

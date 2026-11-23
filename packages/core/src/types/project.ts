@@ -10,6 +10,7 @@ import type { ShapeClip, SVGClip, StickerClip } from "../graphics/types";
 import type { AdjustmentLayer } from "../video/adjustment-layer-engine";
 import type { Mask } from "../video/mask-engine";
 import type { EffectPreset } from "../video/effect-presets";
+import type { DefaultTransition, TransitionPreset } from "../video/transition-presets";
 import type { MultiCamGroup } from "../video/multicam-engine";
 import type { MulticamSource } from "../multicam/source";
 import type {
@@ -55,6 +56,11 @@ export interface ProjectSettings {
   /** ACES mode only: the SDR Output Transform of the monitor and of SDR exports. Absent = sRGB. HDR exports pick the Rec.2020 PQ / HLG transforms. */
   readonly acesOutput?: import("../color/aces").AcesSdrOutput;
   /**
+   * OCIO mode (`colorManagement: "ocio"`): the loaded config text, its LUT files and the working space, default input
+   * space, display, view and looks chosen from it. See `color/ocio`.
+   */
+  readonly ocio?: import("../color/ocio/settings").OcioProjectSettings;
+  /**
    * HDR working mode only: the luminance, in nits, that the white of 8-bit graphics (titles, shapes, stickers,
    * subtitles, motion graphics) is placed at. Absent = 203 nits, ITU-R BT.2408 graphics white. 80 to 1000.
    */
@@ -70,6 +76,12 @@ export interface ProjectSettings {
   readonly pixelAspectRatio?: number;
   /** Sequence field order, used to pick which field a bob deinterlace keeps first. Absent = progressive. */
   readonly fieldOrder?: import("../media/interpretation").FieldOrder;
+  /**
+   * Immersive video (Premiere "VR Properties"): projection, frame layout and captured view of the sequence. Absent =
+   * a flat sequence. An equirectangular sequence is exported with spherical metadata so players and YouTube treat it
+   * as 360 (see export/spherical-export.ts).
+   */
+  readonly vr?: import("../vr/vr-properties").VrProperties;
 }
 
 /**
@@ -114,6 +126,10 @@ export interface Project {
   readonly masks?: Mask[];
   /** Saved effect presets (effects plus instance keyframes) reusable across clips. */
   readonly effectPresets?: EffectPreset[];
+  /** Saved custom transition presets (type, duration, parameters) reusable on any cut. */
+  readonly transitionPresets?: TransitionPreset[];
+  /** What Apply Default Transition uses; absent means Cross dissolve. */
+  readonly defaultTransition?: DefaultTransition;
   readonly particleEffects?: ParticleEffect[];
   readonly multicamGroups?: MultiCamGroup[];
   /**
@@ -174,14 +190,36 @@ export interface MediaLibrary {
 }
 
 /** Codec of a desktop (native ffmpeg) proxy: ProRes 422 Proxy or DNxHR LB in .mov, or H.264 in .mp4. */
-export type DesktopProxyCodec = "prores-proxy" | "h264" | "dnxhr-lb";
-/** Proxy frame size: half or quarter of the source, or a fixed height (never upscaled). */
-export type DesktopProxySize = "half" | "quarter" | "720p" | "1080p";
+export type DesktopProxyCodec = "prores-proxy" | "prores-lt" | "prores-422" | "h264" | "dnxhr-lb" | "dnxhr-sq";
+/**
+ * Proxy frame size: the source size ("full"), half or quarter of it, a fixed height (never upscaled),
+ * or a custom width in pixels (`DesktopProxyProfile.customWidth`, never upscaled, aspect kept).
+ */
+export type DesktopProxySize = "full" | "half" | "quarter" | "720p" | "1080p" | "custom";
+
+/** Where a proxy is written: the project's Proxies folder, a "Proxies" folder next to the media, or a chosen folder. */
+export type DesktopProxyDestinationMode = "project" | "media" | "custom";
+export interface DesktopProxyDestination {
+  readonly mode: DesktopProxyDestinationMode;
+  /** Absolute folder for "custom". */
+  readonly folder?: string;
+}
 
 export interface DesktopProxyProfile {
   readonly codec: DesktopProxyCodec;
   readonly size: DesktopProxySize;
+  /** Output width in pixels for size "custom" (even, 16..16384). */
+  readonly customWidth?: number;
+  /** "strip" writes a proxy with no audio. Absent = keep. Frame rate is always kept. */
+  readonly audio?: "keep" | "strip";
+  /** Burn the clip name and/or the source timecode into the picture (a viewing copy, never for delivery). */
+  readonly burnIn?: { readonly clipName?: boolean; readonly timecode?: boolean };
+  /** Absent = the project's Proxies folder (or the project's folder override). */
+  readonly destination?: DesktopProxyDestination;
 }
+
+/** Copy-ingest checksum: SHA-256 (default), MD5 or xxHash64. */
+export type IngestChecksumAlgorithm = "sha256" | "md5" | "xxh64";
 
 /** Per-project desktop ingest settings. Every field is optional. */
 export interface DesktopIngestConfig {
@@ -194,6 +232,10 @@ export interface DesktopIngestConfig {
   readonly concurrency?: 1 | 2;
   /** With the "copy" ingest preset: also build proxies for the copied media. */
   readonly proxiesWithCopy?: boolean;
+  /** Checksum used to verify a copy. Absent = SHA-256. */
+  readonly checksum?: IngestChecksumAlgorithm;
+  /** Id of the app-level preset the proxy profile was taken from (the profile itself is stored, so the project stays portable). */
+  readonly proxyPresetId?: string;
 }
 
 /** What import does with new video: nothing, build proxies, or (desktop) copy the media into the project. */
@@ -245,6 +287,11 @@ export interface MediaItem {
   readonly waveformData: Float32Array | null;
   /** Preferences > Default audio channels, stamped at import: clips of this file start with that channel format. Absent = use file. */
   readonly channelPreset?: import("../audio/channel-map").ChannelPreset;
+  /**
+   * Modify > Audio Channels on a project item: how the file's audio streams and channels group into audio clips
+   * (one per source patch indicator A1..An). Absent = use file (see audio/source-channels.ts).
+   */
+  readonly channelLayout?: readonly import("../audio/source-channels").SourceChannelGroup[];
   readonly filmstripThumbnails?: FilmstripThumbnail[];
   readonly isPlaceholder?: boolean;
   readonly originalUrl?: string;
@@ -265,7 +312,14 @@ export interface MediaItem {
   };
   readonly sourceFile?: { name: string; size: number; lastModified: number; folder?: string; /** Desktop: absolute path of the file on disk. */ path?: string };
   /** Desktop copy-to-project ingest: where the media was copied from (the original is never deleted). */
-  readonly copiedFrom?: { path: string; sha256: string; copiedAt: number };
+  readonly copiedFrom?: {
+    path: string;
+    /** SHA-256 of the verified copy; empty when a different algorithm was chosen (see `checksum`). */
+    sha256: string;
+    copiedAt: number;
+    /** Digest and algorithm the copy was verified with (absent on copies made before MD5 / xxHash64 were offered). */
+    checksum?: { algorithm: IngestChecksumAlgorithm; value: string };
+  };
   /** True while a background KieAI generation task is in progress */
   readonly isPending?: boolean;
   /** True when polling exhausted all retries — shows manual retry button */
@@ -278,6 +332,8 @@ export interface MediaItem {
   readonly colorInterpretation?: FootageColorPreset;
   /** "Interpret footage": frame rate / pixel aspect ratio / field order overrides. Absent means as the file says. */
   readonly interpretation?: FootageInterpretation;
+  /** Immersive video: the user's override of the file's VR properties (projection, layout, captured view). Absent means as the file says. */
+  readonly vrProperties?: import("../vr/vr-properties").VrProperties;
   /** Pixel aspect the stored thumbnail/filmstrip frames were stretched for; absent = square (legacy). */
   readonly thumbnailPixelAspect?: number;
   /**
@@ -298,6 +354,13 @@ export interface MediaItem {
   readonly shot?: string;
   readonly take?: string;
   readonly goodTake?: boolean;
+  /** XMP-style metadata (Dublin Core `dc:subject`, xmpDM `logComment` / `tapeName`); edited in the Metadata panel. */
+  readonly keywords?: string[];
+  readonly logComment?: string;
+  /** Reel / tape name (xmpDM:tapeName). */
+  readonly reel?: string;
+  /** Where the logging metadata was last read from at import: embedded XMP or a sidecar `.xmp`. */
+  readonly xmpSource?: "embedded" | "sidecar";
   /** Epoch ms the item entered the project. */
   readonly importedAt?: number;
   /**
@@ -378,6 +441,8 @@ export interface MediaMetadata {
   readonly fileSize: number;
   /** Number of audio tracks in the file (may be > 1 for multi-track video/audio files) */
   readonly audioTrackCount?: number;
+  /** Channels of each audio stream, in stream order. Absent for projects saved before per-stream widths were read: every stream then has `channels`. */
+  readonly audioStreamChannels?: readonly number[];
   /** Optional source-stream flags preserved by modern importers. */
   readonly hasVideo?: boolean;
   readonly hasAudio?: boolean;
@@ -391,6 +456,8 @@ export interface MediaMetadata {
   readonly pixelAspectRatio?: number;
   /** Field order the file reports. Absent = progressive. */
   readonly fieldOrder?: import("../media/interpretation").FieldOrder;
+  /** Immersive video detected on import: spherical metadata in the file (`source: "metadata"`) or a 2:1 picture (`source: "aspect"`, only a hint). */
+  readonly vr?: import("../vr/vr-properties").VrProperties;
 }
 
 export interface StockMediaSource {

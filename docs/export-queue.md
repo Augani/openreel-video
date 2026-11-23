@@ -45,6 +45,11 @@ lossy intra codec, so output is **not bit-exact** with a fresh render (measured
 about 50 dB PSNR per frame, visually lossless; see the e2e log). The setting
 applies to queued and direct exports.
 
+Render files survive restarts (see docs/render-cache.md), so a range rendered in an earlier session can feed an
+export once the project is reopened and its files are verified. With the "Full resolution" preview setting the cache
+frames are sequence-sized, which is what lets 4K exports match; with the default browser cap of 1920 wide they only
+match exports at or below that size.
+
 ## Audio mixdown cache
 
 `MixdownCache` (packages/core/src/audio/mixdown-cache.ts) caches the offline

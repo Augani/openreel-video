@@ -70,6 +70,7 @@ describe("caption agent tools", () => {
       "remove_filler_words",
       "remove_pauses",
       "rename_speaker",
+      "merge_speakers",
       "import_captions",
       "get_caption_transcript",
       "caption_qc",
@@ -196,6 +197,18 @@ describe("caption agent tools", () => {
     expect((await executeTool("rename_speaker", { from: "Nobody", to: "X" }, host)).ok).toBe(false);
   });
 
+  it("merge_speakers folds one speaker into another in one undo step", async () => {
+    const { host, history, undo } = setup();
+    const result = await executeTool("merge_speakers", { from: "Bob", into: "Ann" }, host);
+    expect(result.ok, result.summary).toBe(true);
+    expect(history.getUndoStackSize()).toBe(1);
+    expect(host.getProject().timeline.subtitles.map((s) => s.speaker)).toEqual(["Ann", "Ann", "Ann"]);
+    await undo();
+    expect(host.getProject().timeline.subtitles.map((s) => s.speaker)).toEqual(["Ann", "Ann", "Bob"]);
+    expect((await executeTool("merge_speakers", { from: "Bob", into: "Nobody" }, host)).ok).toBe(false);
+    expect((await executeTool("merge_speakers", { from: "Ann", into: "Ann" }, host)).ok).toBe(false);
+  });
+
   it("import_captions adds a translation track", async () => {
     const { host } = setup();
     const result = await executeTool(
@@ -210,5 +223,36 @@ describe("caption agent tools", () => {
     const exported = await executeTool("export_captions", { format: "vtt", captionTrackId: "fr" }, host);
     expect((exported.data as { content: string }).content).toContain("Bonjour");
     expect((exported.data as { content: string }).content).not.toContain("Hello");
+  });
+
+  it("imports MCC and SCC with a caption channel, reports what was not imported, and exports MCC", async () => {
+    const { MCC_HELLO, SCC_POSITIONED } = await import("@openreel/core/captions/fixtures");
+    const { host } = setup();
+    (host.getProject().timeline as { subtitles: Subtitle[] }).subtitles = [];
+    const mcc = await executeTool("import_captions", { content: MCC_HELLO }, host);
+    expect(mcc.ok, mcc.summary).toBe(true);
+    const data = mcc.data as { format: string; added: number; issues: Array<{ code: string; message: string }> };
+    expect(data.format).toBe("mcc");
+    expect(data.issues.map((i) => i.code)).toContain("cc-other-channel");
+    expect(host.getProject().timeline.subtitles.map((c) => c.text)).toEqual(["Hello"]);
+
+    (host.getProject().timeline as { subtitles: Subtitle[] }).subtitles = [];
+    const cc2 = await executeTool("import_captions", { content: SCC_POSITIONED, ccChannel: 2 }, host);
+    expect(cc2.ok, cc2.summary).toBe(true);
+    expect(host.getProject().timeline.subtitles.map((c) => c.text)).toEqual(["Channel two"]);
+
+    const exported = await executeTool("export_captions", { format: "mcc", dropFrame: false }, host);
+    expect(exported.ok, exported.summary).toBe(true);
+    expect((exported.data as { content: string }).content.startsWith("File Format=MacCaption_MCC V2.0")).toBe(true);
+    expect((await executeTool("import_captions", { content: "File Format=MacCaption_MCC V2.0\n\nnope" }, host)).ok).toBe(false);
+  });
+
+  it("imports a timed plain-text transcript", async () => {
+    const { host } = setup();
+    (host.getProject().timeline as { subtitles: Subtitle[] }).subtitles = [];
+    const r = await executeTool("import_captions", { content: "[00:00:01] Hello\n[00:00:03] World\n" }, host);
+    expect(r.ok, r.summary).toBe(true);
+    expect((r.data as { format: string }).format).toBe("txt");
+    expect(host.getProject().timeline.subtitles.map((c) => c.text)).toEqual(["Hello", "World"]);
   });
 });

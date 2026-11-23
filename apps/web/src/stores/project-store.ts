@@ -1,4 +1,4 @@
-import { lutToJson, lutFromJson, applySequenceSettings, applyTimelineToolEdits, reconcileMulticamAudio, validateTimelineToolEdits, invertTimelineToolEdits, type TimelineToolPlan } from "@openreel/core";
+import { lutToJson, lutFromJson, applySequenceSettings, applyTimelineToolEdits, reconcileMulticamAudio, validateTimelineToolEdits, clonePlain, type TimelineToolPlan } from "@openreel/core";
 import { readOnlyReason } from "../services/project-lock";
 import { cloneProjectForEdit } from "./project/clone-project-for-edit";
 import { create } from "zustand";
@@ -47,7 +47,7 @@ import {
   ActionHistory,
   ensureSequences,
   getTrackItems,
-  resolveTimelinePlacement,
+  createTimelinePlacementPlanner,
   syncActiveSequence,
   withUniversalTracksCapability,
 } from "@openreel/core";
@@ -117,6 +117,7 @@ import {
 } from "../motion/creation-camera-editing";
 import { planRecoverMotionScene3DLayer } from "../motion/creation-recovery";
 import type { LoopRangeChange } from "./project/range-history";
+import { notifyMorphCutProject } from "../services/morph-cut-hook";
 
 function requireEngineModules(): NonNullable<ReturnType<typeof getLoadedEngineModules>> {
   const engines = getLoadedEngineModules();
@@ -275,13 +276,17 @@ export interface ProjectState {
     targetTrackId?: string,
   ) => Promise<ActionResult>;
   removeClip: (clipId: string) => Promise<ActionResult>;
+  /** Remove many clips as one validation, one project rebuild and one undo step (see `clip/removeBatch`). */
+  removeClips: (clipIds: readonly string[]) => Promise<ActionResult>;
   moveClip: (
     clipId: string,
     startTime: number,
     trackId?: string,
   ) => Promise<ActionResult>;
+  /** One validation, one project rebuild and one history entry for the whole batch (see `clip/moveBatch`). */
   moveClips: (
     moves: Array<{ clipId: string; startTime: number; trackId?: string }>,
+    options?: { coalesceKey?: string },
   ) => Promise<ActionResult>;
   beginHistoryGroup: (description?: string) => void;
   endHistoryGroup: () => void;
@@ -820,22 +825,45 @@ export const useProjectStore = create<ProjectState>()(
       };
     };
 
-    const syncClipEffectsBridge = (project: Project, clipId: string): void => {
+    // Bulk callers (every clip of the project) pass one id index so the lookup is O(1), not a flatMap+find
+    // over all clips per clip (quadratic on a 1000-clip sequence).
+    type EffectsClipIndex = Map<string, { clip: Clip | TextClip | ShapeClip | SVGClip | StickerClip; timeline: boolean }>;
+    const buildEffectsClipIndex = (project: Project): EffectsClipIndex => {
+      const index: EffectsClipIndex = new Map();
+      for (const overlay of [
+        ...(project.textClips ?? []),
+        ...(project.shapeClips ?? []),
+        ...(project.svgClips ?? []),
+        ...(project.stickerClips ?? []),
+      ]) if (!index.has(overlay.id)) index.set(overlay.id, { clip: overlay, timeline: false });
+      for (const track of project.timeline.tracks)
+        for (const candidate of track.clips) index.set(candidate.id, { clip: candidate, timeline: true });
+      return index;
+    };
+
+    const syncClipEffectsBridge = (project: Project, clipId: string, index?: EffectsClipIndex): void => {
       const effectsBridge = getEffectsBridge();
       if (!effectsBridge.isInitialized()) {
         return;
       }
 
-      const timelineClip = project.timeline.tracks
-        .flatMap((track) => track.clips)
-        .find((candidate) => candidate.id === clipId);
-      const overlayClip = [
-        ...(project.textClips ?? []),
-        ...(project.shapeClips ?? []),
-        ...(project.svgClips ?? []),
-        ...(project.stickerClips ?? []),
-      ].find((candidate) => candidate.id === clipId);
-      const clip = timelineClip ?? overlayClip;
+      let found: { clip: Clip | TextClip | ShapeClip | SVGClip | StickerClip; timeline: boolean } | undefined;
+      if (index) {
+        found = index.get(clipId);
+      } else {
+        const timelineClip = project.timeline.tracks
+          .flatMap((track) => track.clips)
+          .find((candidate) => candidate.id === clipId);
+        const overlayClip = timelineClip ? undefined : [
+          ...(project.textClips ?? []),
+          ...(project.shapeClips ?? []),
+          ...(project.svgClips ?? []),
+          ...(project.stickerClips ?? []),
+        ].find((candidate) => candidate.id === clipId);
+        found = timelineClip ? { clip: timelineClip, timeline: true } : overlayClip ? { clip: overlayClip, timeline: false } : undefined;
+      }
+      const clip = found?.clip;
+      const timelineClip = found?.timeline ? (found.clip as Clip) : undefined;
 
       if (!clip) {
         effectsBridge.clearEffects(clipId);
@@ -876,8 +904,9 @@ export const useProjectStore = create<ProjectState>()(
         }
       }
 
+      const effectsClipIndex = buildEffectsClipIndex(nextProject);
       for (const clipId of nextClipIds) {
-        syncClipEffectsBridge(nextProject, clipId);
+        syncClipEffectsBridge(nextProject, clipId, effectsClipIndex);
       }
     };
 
@@ -899,7 +928,8 @@ export const useProjectStore = create<ProjectState>()(
         return;
       }
 
-      transitionBridge.setTransitionsForTrack(trackId, track.transitions);
+      transitionBridge.setTransitionsForTrack(trackId, track.transitions, project.settings.width);
+      notifyMorphCutProject(project);
     };
 
     const syncProjectTransitionsBridge = (
@@ -926,6 +956,7 @@ export const useProjectStore = create<ProjectState>()(
       for (const track of nextProject.timeline.tracks) {
         syncTrackTransitionsBridge(nextProject, track.id);
       }
+      notifyMorphCutProject(nextProject);
     };
 
     // Restore a full clip snapshot into the owning engine (used by undo/redo
@@ -2348,132 +2379,143 @@ export const useProjectStore = create<ProjectState>()(
           if (!copiedIds.has(id)) copiedIds.set(id, uuidv4());
           return copiedIds.get(id)!;
         };
+        // Placement is resolved for the whole clipboard in one pass against a running picture of the timeline (a paste of
+        // 2000 clips used to read and rebuild the project once per clip); the media clips then go in as ONE `clip/addBatch`.
+        const planner = createTimelinePlacementPlanner(get().project);
+        const mediaIds = new Set(get().project.mediaLibrary.items.map((media) => media.id));
+        const createdTracks: Array<{ id: string; position: number }> = [];
+        type PlannedPaste =
+          | { kind: "media"; clipId: string; resultIndex: number }
+          | { kind: "overlay"; item: Exclude<TimelineClipboardItem, { kind: "media" }>; startTime: number; trackId: string; resultIndex: number };
+        const planned: PlannedPaste[] = [];
+        const mediaEntries: Array<{ clipId: string; trackId: string; startTime: number; sourceClip: Clip }> = [];
+        for (const item of clipboard) {
+          const newStartTime = Math.max(
+            0,
+            startTime + item.clip.startTime - minStartTime,
+          );
+          const sourceTrack = planner.tracks.find((track) => track.id === item.clip.trackId);
+          const sourceIndex = projectTracks.findIndex((track) => track.id === item.clip.trackId);
+          const relativeIndex = preserveTrackSpacing && firstTrackIndex >= 0 && sourceIndex >= 0 && destinationIndex >= 0
+            ? destinationIndex + sourceIndex - firstTrackIndex : destinationIndex;
+          const relativeTrack = projectTracks[relativeIndex];
+          const destinationTrack =
+            planner.tracks.find((track) => track.id === relativeTrack?.id && !track.locked) ??
+            (sourceTrack && !sourceTrack.locked ? sourceTrack : undefined) ??
+            planner.tracks.find((track) => !track.locked);
+
+          if (!destinationTrack) {
+            results.push({
+              success: false,
+              error: {
+                code: "TRACK_NOT_FOUND",
+                message: `No compatible unlocked track for ${item.kind} clip`,
+              },
+            });
+            continue;
+          }
+          if (item.kind === "media" && !mediaIds.has(item.clip.mediaId)) {
+            results.push({
+              success: false,
+              error: { code: "INVALID_PARAMS", message: `Media with ID ${item.clip.mediaId} not found` },
+            });
+            continue;
+          }
+
+          const placement = planner.place({
+            targetTrackId: destinationTrack.id,
+            startTime: newStartTime,
+            duration: item.clip.duration,
+            policy: "stack-above",
+            newTrackId: uuidv4(),
+          });
+          if (!placement.ok) {
+            results.push({
+              success: false,
+              error: {
+                code:
+                  placement.reason === "track-locked"
+                    ? "TRACK_LOCKED"
+                    : placement.reason === "track-not-found"
+                      ? "TRACK_NOT_FOUND"
+                      : "OVERLAP_DETECTED",
+                message: `Could not place ${item.kind} clip`,
+              },
+            });
+            continue;
+          }
+          planner.reserve(placement, item.clip.duration);
+          if (placement.createdTrack) createdTracks.push(placement.createdTrack);
+
+          const resultIndex = results.length;
+          results.push({ success: true });
+          if (item.kind !== "media") {
+            planned.push({ kind: "overlay", item: item as Exclude<TimelineClipboardItem, { kind: "media" }>, startTime: placement.startTime, trackId: placement.trackId, resultIndex });
+            continue;
+          }
+          const clipId = copiedIds.get(item.clip.id)!;
+          planned.push({ kind: "media", clipId, resultIndex });
+          mediaEntries.push({
+            clipId,
+            trackId: placement.trackId,
+            startTime: placement.startTime,
+            sourceClip: { ...item.clip, metadata: {
+              ...item.clip.metadata,
+              ...(item.clip.metadata?.splitSourceClipId ? { splitSourceClipId: remapLink(item.clip.metadata.splitSourceClipId) } : {}),
+              ...(item.clip.metadata?.separatedFromClipId ? { separatedFromClipId: remapLink(item.clip.metadata.separatedFromClipId) } : {}),
+            } },
+          });
+        }
+
+        // The rows the paste needs, the media batch and the overlay pastes are one undo step.
         actionExecutor.getHistory().beginGroup("Paste timeline clips");
         try {
-          for (const item of clipboard) {
-            const currentProject = get().project;
-            const newStartTime = Math.max(
-              0,
-              startTime + item.clip.startTime - minStartTime,
-            );
-            const sourceTrack = currentProject.timeline.tracks.find(
-              (track) => track.id === item.clip.trackId,
-            );
-            const sourceIndex = projectTracks.findIndex((track) => track.id === item.clip.trackId);
-            const relativeIndex = preserveTrackSpacing && firstTrackIndex >= 0 && sourceIndex >= 0 && destinationIndex >= 0
-              ? destinationIndex + sourceIndex - firstTrackIndex : destinationIndex;
-            const relativeTrack = projectTracks[relativeIndex];
-            const destinationTrack =
-              currentProject.timeline.tracks.find(
-                (track) => track.id === relativeTrack?.id && !track.locked,
-              ) ??
-              (sourceTrack && !sourceTrack.locked ? sourceTrack : undefined) ??
-              currentProject.timeline.tracks.find((track) => !track.locked);
-
-            if (!destinationTrack) {
-              results.push({
-                success: false,
-                error: {
-                  code: "TRACK_NOT_FOUND",
-                  message: `No compatible unlocked track for ${item.kind} clip`,
+          const failedTracks = new Set<string>();
+          for (const created of createdTracks) {
+            const trackResult = await actionExecutor.execute(
+              {
+                type: "track/add",
+                id: uuidv4(),
+                timestamp: Date.now(),
+                params: {
+                  trackType: "video",
+                  trackId: created.id,
+                  position: created.position,
+                  mode: "standard",
                 },
-              });
-              continue;
-            }
-
-            const newTrackId = uuidv4();
-            const placement = resolveTimelinePlacement(currentProject, {
-              targetTrackId: destinationTrack.id,
-              startTime: newStartTime,
-              duration: item.clip.duration,
-              policy: "stack-above",
-              newTrackId,
-            });
-            if (!placement.ok) {
-              results.push({
-                success: false,
-                error: {
-                  code:
-                    placement.reason === "track-locked"
-                      ? "TRACK_LOCKED"
-                      : placement.reason === "track-not-found"
-                        ? "TRACK_NOT_FOUND"
-                        : "OVERLAP_DETECTED",
-                  message: `Could not place ${item.kind} clip`,
-                },
-              });
-              continue;
-            }
-            if (placement.createdTrack) {
-              const trackResult = await actionExecutor.execute(
-                {
-                  type: "track/add",
-                  id: uuidv4(),
-                  timestamp: Date.now(),
-                  params: {
-                    trackType: "video",
-                    trackId: placement.createdTrack.id,
-                    position: placement.createdTrack.position,
-                    mode: "standard",
-                  },
-                },
-                currentProject,
-              );
-              if (!trackResult.success) {
-                results.push(trackResult);
-                continue;
-              }
-            }
-
-            if (item.kind !== "media") {
-              const pasted = get().pasteOverlayClip(
-                item.kind,
-                item.clip,
-                placement.startTime,
-                placement.trackId,
-              );
-              if (pasted) {
-                results.push({ success: true });
-                pastedIds.push(pasted.id);
-              } else {
-                results.push({
-                  success: false,
-                  error: {
-                    code: "INVALID_PARAMS",
-                    message: `Failed to paste ${item.kind} clip`,
-                  },
-                });
-              }
-              continue;
-            }
-
-            const placedTrack = currentProject.timeline.tracks.find(
-              (track) => track.id === placement.trackId,
-            );
-            const beforeIds = new Set(placedTrack?.clips.map((clip) => clip.id));
-            const action: Action = {
-              type: "clip/add",
-              id: uuidv4(),
-              timestamp: Date.now(),
-              params: {
-                clipId: copiedIds.get(item.clip.id)!,
-                trackId: placement.trackId,
-                mediaId: item.clip.mediaId,
-                startTime: placement.startTime,
-                sourceClip: { ...item.clip, metadata: {
-                  ...item.clip.metadata,
-                  ...(item.clip.metadata?.splitSourceClipId ? { splitSourceClipId: remapLink(item.clip.metadata.splitSourceClipId) } : {}),
-                  ...(item.clip.metadata?.separatedFromClipId ? { separatedFromClipId: remapLink(item.clip.metadata.separatedFromClipId) } : {}),
-                } },
               },
-            };
-            const result = await actionExecutor.execute(action, currentProject);
-            results.push(result);
-            if (result.success) {
-              const pasted = placedTrack?.clips.find(
-                (clip) => !beforeIds.has(clip.id),
+              get().project,
+            );
+            if (!trackResult.success) failedTracks.add(created.id);
+          }
+          const placeable = mediaEntries.filter((entry) => !failedTracks.has(entry.trackId));
+          const batchResult: ActionResult | null = placeable.length === 0
+            ? null
+            : await actionExecutor.execute(
+                { type: "clip/addBatch", id: uuidv4(), timestamp: Date.now(), params: { clips: placeable } },
+                get().project,
               );
-              if (pasted) pastedIds.push(pasted.id);
+          const addedMedia = new Set(batchResult?.success ? placeable.map((entry) => entry.clipId) : []);
+          const overlayIds = new Map<number, string>();
+          for (const plan of planned) {
+            if (plan.kind === "media") {
+              if (!addedMedia.has(plan.clipId)) results[plan.resultIndex] = batchResult && !batchResult.success ? batchResult : { success: false, error: { code: "TRACK_NOT_FOUND", message: "Could not create the track for the pasted clip" } };
+              continue;
+            }
+            if (failedTracks.has(plan.trackId)) {
+              results[plan.resultIndex] = { success: false, error: { code: "TRACK_NOT_FOUND", message: "Could not create the track for the pasted clip" } };
+              continue;
+            }
+            const pasted = get().pasteOverlayClip(plan.item.kind, plan.item.clip, plan.startTime, plan.trackId);
+            if (pasted) overlayIds.set(plan.resultIndex, pasted.id);
+            else results[plan.resultIndex] = { success: false, error: { code: "INVALID_PARAMS", message: `Failed to paste ${plan.item.kind} clip` } };
+          }
+          for (const plan of planned) {
+            if (plan.kind === "media") {
+              if (addedMedia.has(plan.clipId)) pastedIds.push(plan.clipId);
+            } else {
+              const id = overlayIds.get(plan.resultIndex);
+              if (id) pastedIds.push(id);
             }
           }
         } finally {
@@ -2911,15 +2953,20 @@ export const useProjectStore = create<ProjectState>()(
         if (!plan.edits.length) return { success: true };
         try {
           const previous = state.getFullProject();
-          const edits = structuredClone(plan.edits);
-          validateTimelineToolEdits(previous, edits);
+          // Validate the plan as built (its `before` items are the project's own objects: an identity check, not a
+          // serialisation per item), then own a copy of it for the history entry.
+          validateTimelineToolEdits(previous, plan.edits);
+          // Only the NEW items need copying: a plan's `before` items are the previous project's own objects, which the new
+          // project no longer holds, so nothing can change them behind the history entry. (Copying both halves of a
+          // 3000-clip ripple was the largest single cost of the commit, and a second copy was made for the inverse.)
+          const edits = plan.edits.map((edit) => (edit.after ? { ...edit, after: clonePlain(edit.after) } : edit));
           // Fixed-angle multicam audio is derived from the picture clips: re-derive it with the edit
           // (the executor does the same for every other action, undo and redo).
           const project = reconcileMulticamAudio(applyTimelineToolEdits(previous, edits));
           const action: Action = { type: "timeline/toolEdit", id: uuidv4(), timestamp: Date.now(), params: { edits, label: plan.label, ...(options?.burstKey ? { burstKey: options.burstKey } : {}), ...(options?.loopRange ? { loopRange: structuredClone(options.loopRange) } : {}) } };
           // Canonical data and one bounded history entry are published in one stack.
           // No async completion can restore an older project or discard a rename.
-          const inverse: Action = { type: "timeline/toolEdit", id: `inverse-${action.id}`, timestamp: action.timestamp, params: { edits: invertTimelineToolEdits(edits), ...(options?.loopRange ? { loopRange: { before: options.loopRange.after, after: options.loopRange.before } } : {}) } };
+          const inverse: Action = { type: "timeline/toolEdit", id: `inverse-${action.id}`, timestamp: action.timestamp, params: { edits: edits.map((edit) => ({ ...edit, before: edit.after, after: edit.before })), ...(options?.loopRange ? { loopRange: { before: options.loopRange.after, after: options.loopRange.before } } : {}) } };
           try {
             syncOverlayEnginesFromProject(project);
             syncProjectEffectsBridge(project, previous);
@@ -3879,7 +3926,10 @@ export const useProjectStore = create<ProjectState>()(
         const { project, actionExecutor } = get();
         const effectId = `effect-${uuidv4()}`;
         // Effects stored with {} resolve to neutral (a no-op): seed visible defaults.
+        const givenParams = params;
         params = requireEngineModules().withEffectDefaults(effectType, params);
+        // A VR effect added to a VR sequence takes the sequence's frame layout (monoscopic / over-under / side by side).
+        params = requireEngineModules().withVrSequenceLayout(effectType, givenParams, params, project.settings.vr);
         if (findOverlayEffectOwner(project, clipId)) {
           updateOverlayEffectOwner(clipId, (effects) => [
             ...effects,

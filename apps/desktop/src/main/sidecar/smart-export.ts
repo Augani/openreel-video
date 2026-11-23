@@ -18,6 +18,7 @@ import { promises as fs } from "node:fs";
 import { resolveFfmpegPath } from "./ffmpeg-path";
 import { captionMuxArgs, parseProgressBlock, threadQueueSize, type ExportArgs } from "./export-job";
 import { videoEncodeArgs } from "./encode-args";
+import { joinPcmTrack, validateAudioPlan, writeAacCopy, writePcmCopy, type SmartAudioCopyPlan } from "./smart-audio";
 
 /** Added to every run's timestamps so negative DTS (B-frame delay) never reaches the TS muxer. */
 export const TS_BASE_SECONDS = 2;
@@ -271,6 +272,8 @@ export function buildCopyRunArgs(run: CopyRunArgs): string[] {
 export interface AssembleArgs {
   videoPath: string;
   audioWavPath: string;
+  /** Smart audio copy: the audio input (instead of the rendered WAV) and how it is written. */
+  audioInput?: { inputArgs: string[]; codecArgs: string[] };
   outputPath: string;
   frameRate: number;
   codec: "avc" | "hevc" | "prores";
@@ -293,13 +296,15 @@ export function buildAssembleArgs(a: AssembleArgs): string[] {
     "-y",
     ...(a.concatList ? ["-f", "concat", "-safe", "0"] : []),
     "-i", a.videoPath,
-    "-i", a.audioWavPath,
+    ...(a.audioInput ? a.audioInput.inputArgs : ["-i", a.audioWavPath]),
     ...captions.inputs,
     ...(captions.outputs.length ? captions.outputs : ["-map", "0:v:0", "-map", "1:a:0"]),
     "-c:v", "copy",
     ...(a.codec === "hevc" ? ["-tag:v", "hvc1"] : []),
     ...(a.dolby
       ? dolbyTrackArgs(a.dolby)
+      : a.audioInput
+      ? a.audioInput.codecArgs
       : [
           "-c:a", a.audioCodec,
           ...(a.audioBitrateKbps !== undefined ? ["-b:a", `${Math.max(32, Math.min(512, Math.round(a.audioBitrateKbps)))}k`] : []),
@@ -343,6 +348,9 @@ export class SmartExportSession {
   private cancelled = false;
   private framesOut = 0;
   private chain: Promise<unknown> = Promise.resolve();
+
+  /** Audio copy: the accepted plan and the files prepared for it (see prepareAudio). */
+  private audio: { plan: SmartAudioCopyPlan; aacFile?: string; copyFiles: Map<number, string> } | null = null;
 
   /** ProRes: one MOV file per run, joined by the concat demuxer (TS cannot carry ProRes). */
   private readonly runFiles: string[] = [];
@@ -494,6 +502,58 @@ export class SmartExportSession {
     });
   }
 
+  /** True when the audio is built from source files instead of only the rendered mixdown. */
+  get audioCopyPlan(): SmartAudioCopyPlan | null {
+    return this.audio?.plan ?? null;
+  }
+
+  /**
+   * Prepare the audio copy before any frame is encoded: write the AAC packets (and prove the cut decodes like the source) or
+   * extract the PCM spans. Resolves to null when the plan is accepted, else why the audio has to be rendered and encoded instead.
+   */
+  async prepareAudio(plan: SmartAudioCopyPlan): Promise<string | null> {
+    const invalid = validateAudioPlan(plan);
+    if (invalid) return invalid;
+    const copyFiles = new Map<number, string>();
+    const audio = { plan, copyFiles } as NonNullable<SmartExportSession["audio"]>;
+    this.audio = audio;
+    try {
+      for (const [index, segment] of plan.segments.entries()) {
+        if (segment.kind !== "copy") continue;
+        const file = `${this.videoPath}.audio.${plan.codec === "aac" ? "m4a" : `${index}.raw`}`;
+        if (plan.codec === "aac") audio.aacFile = file;
+        else copyFiles.set(index, file);
+        const reason = plan.codec === "aac" ? await writeAacCopy(segment, plan.sampleRate, file) : await writePcmCopy(segment, file);
+        if (reason) {
+          await this.removeAudioFiles();
+          this.audio = null;
+          return reason;
+        }
+      }
+      return null;
+    } catch (error) {
+      await this.removeAudioFiles();
+      this.audio = null;
+      return error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  private async audioInputFor(wavPath: string): Promise<AssembleArgs["audioInput"] | undefined> {
+    const audio = this.audio;
+    if (!audio) return undefined;
+    const { plan } = audio;
+    if (plan.codec === "aac") return { inputArgs: ["-i", audio.aacFile!], codecArgs: ["-c:a", "copy"] };
+    const hasEncoded = plan.segments.some((segment) => segment.kind === "encode");
+    const track = `${this.videoPath}.audio.s24`;
+    await joinPcmTrack(plan, audio.copyFiles, hasEncoded ? wavPath : null, track);
+    return { inputArgs: ["-f", "s24le", "-ar", String(plan.sampleRate), "-ac", String(plan.channels), "-i", track], codecArgs: ["-c:a", "pcm_s24le"] };
+  }
+
+  private async removeAudioFiles(): Promise<void> {
+    const files = [`${this.videoPath}.audio.m4a`, `${this.videoPath}.audio.s24`, ...[...(this.audio?.copyFiles.values() ?? [])]];
+    await Promise.all(files.map((file) => fs.rm(file, { force: true }).catch(() => undefined)));
+  }
+
   /** Join and mux: closes the video file, then writes `outputPath` from it and the audio. */
   async assemble(assemble: Omit<AssembleArgs, "videoPath" | "frameRate" | "codec">, onProgress?: (frame: number) => void): Promise<void> {
     await this.chain;
@@ -508,8 +568,10 @@ export class SmartExportSession {
       videoPath = `${this.videoPath}.concat.txt`;
       await fs.writeFile(videoPath, concatListFor(this.runFiles), "utf8");
     }
+    const audioInput = await this.audioInputFor(assemble.audioWavPath);
     const args = buildAssembleArgs({
       ...assemble,
+      ...(audioInput ? { audioInput } : {}),
       concatList: this.filePerRun,
       videoPath,
       frameRate: this.opts.args.frameRate,
@@ -546,12 +608,14 @@ export class SmartExportSession {
     }
     this.sink.destroy();
     void this.removeRunFiles();
+    void this.removeAudioFiles();
   }
 
   /** Close the sink and delete the temp video. */
   async dispose(): Promise<void> {
     this.sink.destroy();
     await this.removeRunFiles();
+    await this.removeAudioFiles();
     await fs.rm(this.videoPath, { force: true }).catch(() => undefined);
   }
 

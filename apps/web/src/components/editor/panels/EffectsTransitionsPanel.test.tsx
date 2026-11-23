@@ -190,3 +190,46 @@ describe("transition library", () => {
     expect(useEditorWorkspaceStore.getState().transitionDuration).toBe(1);
   });
 });
+
+describe("custom transition presets", () => {
+  it("lists the new built-in transitions under their categories", () => {
+    render(<TransitionsPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Wipe", pressed: false }));
+    for (const name of ["Iris Box", "Iris Cross", "Band Wipe", "Barn Door", "Clock Wipe", "Gradient Wipe"]) {
+      expect(screen.getByRole("button", { name: new RegExp(`^${name}\\. Drag`) })).toBeInTheDocument();
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Dissolve", pressed: false }));
+    expect(screen.getByRole("button", { name: /^Film Dissolve\. Drag/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Additive Dissolve\. Drag/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Slide", pressed: false }));
+    expect(screen.getByRole("button", { name: /^Cube Spin Left\. Drag/ })).toBeInTheDocument();
+  });
+
+  it("shows saved presets under Presets, carries their duration in the drag payload, and sets the default", async () => {
+    const project = useProjectStore.getState().project;
+    useProjectStore.setState({
+      project: {
+        ...project,
+        transitionPresets: [
+          { id: "tp1", name: "Green box", type: "irisBox", duration: 1.25, params: { feather: 0.25, borderWidth: 10, borderColor: "#00ff00" }, createdAt: 1 },
+        ],
+      },
+    });
+    render(<TransitionsPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Presets", pressed: false }));
+    const card = screen.getByRole("button", { name: /^Green box\. Drag/ });
+    const data: Record<string, string> = {};
+    fireEvent.dragStart(card, { dataTransfer: { effectAllowed: "", setData: (type: string, value: string) => { data[type] = value; } } });
+    expect(JSON.parse(data["application/x-openreel-transition"]!)).toMatchObject({
+      transitionType: "irisBox",
+      transitionDuration: 1.25,
+      transitionParams: { feather: 0.25, borderColor: "#00ff00" },
+    });
+    expect(screen.getByText(/Default: Cross dissolve/)).toBeInTheDocument();
+    fireEvent.click(card);
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Set Green box as default transition" })));
+    await vi.waitFor(() => expect(useProjectStore.getState().project.defaultTransition).toMatchObject({ type: "irisBox", duration: 1.25, label: "Green box", presetId: "tp1" }));
+    await vi.waitFor(() => expect(screen.getByText(/Default: Green box/)).toBeInTheDocument());
+  });
+});
+

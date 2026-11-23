@@ -64,6 +64,8 @@ import {
   selectedGraphicInstance,
 } from "../../../services/graphic-commands";
 import { GraphicTemplateThumb, templateCaption } from "./GraphicTemplateThumb";
+import { MogrtImportReportPanel } from "./MogrtImportReport";
+import type { MogrtImportReport } from "@openreel/core";
 
 const KIND_PROPERTIES: Record<GraphicLayer["kind"], Array<{ property: GraphicParamProperty; label: string }>> = {
   text: [
@@ -143,6 +145,7 @@ const BrowseTab: React.FC = () => {
   const removeUserTemplate = useGraphicTemplatesStore((state) => state.remove);
   const [category, setCategory] = useState<string>("all");
   const fileInput = useRef<HTMLInputElement>(null);
+  const [mogrt, setMogrt] = useState<{ report: MogrtImportReport; failure?: string } | null>(null);
   const hasProject = useProjectStore((state) => state.hasOpenProject);
   const project = useProjectStore((state) => state.project);
   const selectedItems = useUIStore((state) => state.selectedItems);
@@ -160,7 +163,8 @@ const BrowseTab: React.FC = () => {
   const importFile = async (file: File | undefined) => {
     if (!file) return;
     const result = await importGraphicTemplateFile(file);
-    if (result.ok) toast.success("Template imported", `"${result.template.name}" is under My templates.`);
+    setMogrt(result.mogrtReport ? { report: result.mogrtReport, ...(result.ok ? {} : { failure: result.message }) } : null);
+    if (result.ok) toast.success("Template imported", `"${result.template.name}" is under My templates.${result.mogrtReport && (result.mogrtReport.dropped || result.mogrtReport.approximated) ? " See the import report for what changed." : ""}`);
     else toast.error("Template not imported", result.message);
   };
 
@@ -239,7 +243,7 @@ const BrowseTab: React.FC = () => {
         <input
           ref={fileInput}
           type="file"
-          accept=".openreel-template,application/json"
+          accept=".openreel-template,.mogrt,application/json"
           hidden
           data-testid="graphic-template-import"
           onChange={(event) => {
@@ -250,6 +254,8 @@ const BrowseTab: React.FC = () => {
         <Button variant="outline" size="sm" className="justify-start gap-1.5" onClick={() => fileInput.current?.click()}>
           <Upload size={13} aria-hidden /> Import template…
         </Button>
+        <p className="text-[10px] text-fg-muted">OpenReel templates (.openreel-template) and Premiere Motion Graphics Templates (.mogrt).</p>
+        {mogrt && <MogrtImportReportPanel report={mogrt.report} failure={mogrt.failure} onDismiss={() => setMogrt(null)} />}
       </div>
     </div>
   );

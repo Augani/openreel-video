@@ -20,6 +20,7 @@ import { normalizeMotionTracks } from "../motion/motion-tracking";
 import { normalizeCreationState } from "../creation";
 import { normalizeProjectIrisAnimations } from "../video/clip-iris";
 import { normalizeProjectEffectKeyframes } from "../video/effect-instance-keyframes";
+import { normalizeProjectKeyframeEasings } from "../animation/keyframe-migration";
 import { normalizeProjectAudioRacks } from "../audio/track-audio-rack";
 import { normalizeProjectAudioRouting } from "../audio/audio-routing";
 import { ensureSequences, syncActiveSequence } from "../timeline/sequences";
@@ -300,9 +301,9 @@ export function normalizeProjectTextStyles(project: Project): Project {
 // effect.hsl-secondary.*) are rewritten onto effect instances (fx:<id>:<param>)
 // on load; every writer now emits instance ids. Idempotent.
 export function normalizeProjectStoredFields(project: Project): Project {
-  return ensureSequences(normalizeProjectSmartBins(normalizeProjectBins(normalizeProjectAudioRouting(normalizeProjectAudioRacks(normalizeProjectEffectKeyframes(normalizeProjectIrisAnimations(normalizeProjectGeneratedShaderFields(
+  return ensureSequences(normalizeProjectSmartBins(normalizeProjectBins(normalizeProjectAudioRouting(normalizeProjectAudioRacks(normalizeProjectKeyframeEasings(normalizeProjectEffectKeyframes(normalizeProjectIrisAnimations(normalizeProjectGeneratedShaderFields(
     normalizeProjectCreationFields(normalizeProjectMotionFields(normalizeProjectTextStyles(project))),
-  ))))))));
+  )))))))));
 }
 
 export class ProjectSerializer {

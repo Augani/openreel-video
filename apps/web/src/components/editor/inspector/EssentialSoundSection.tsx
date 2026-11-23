@@ -10,6 +10,7 @@ import {
 import { Button, cn } from "@openreel/ui";
 import { ChevronDown, Loader2, Mic, Music, Waves, Zap } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
+import { buildClipIndex } from "../../../utils/clip-index";
 import {
   applyEssentialSound,
   clearEssentialSound,
@@ -93,26 +94,25 @@ const progressLabel = (progress: EssentialProgress | null): string | null => {
 
 export const EssentialSoundSection: React.FC<EssentialSoundSectionProps> = ({ clipIds }) => {
   const project = useProjectStore((state) => state.project);
+  const index = useMemo(() => buildClipIndex(project.timeline.tracks), [project]);
   const targets = useMemo(
-    () => clipIds.map((id) => project.timeline.tracks.flatMap((t) => t.clips).find((c) => c.id === id)).filter((c) => !!c),
-    [clipIds, project],
+    () => clipIds.map((id) => index.clips.get(id)).filter((c) => !!c),
+    [clipIds, index],
   );
   const lead = useMemo(() => {
     const first = clipIds[0] ? essentialTarget(clipIds[0]) : null;
-    return first ? (project.timeline.tracks.flatMap((t) => t.clips).find((c) => c.id === first.id) ?? null) : null;
-    // `project` identity changes on every edit, which is when the status must refresh.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clipIds, project]);
+    return first ? (index.clips.get(first.id) ?? null) : null;
+  }, [clipIds, index]);
   const status = useMemo(() => essentialSoundStatus(lead, project), [lead, project]);
   const options = useMemo(() => essentialOptionsOf(lead), [lead]);
   const audioType = status.audioType;
   const lockedTrack = useMemo(() => {
     for (const clip of targets) {
-      const track = project.timeline.tracks.find((t) => t.id === clip.trackId);
+      const track = index.tracks.get(clip.trackId);
       if (track?.locked) return track.name;
     }
     return null;
-  }, [targets, project]);
+  }, [targets, index]);
 
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<EssentialProgress | null>(null);

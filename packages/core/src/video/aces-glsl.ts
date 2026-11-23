@@ -169,7 +169,7 @@ vec3 acesSrgbOetf(vec3 y) {
   );
 }
 
-vec3 acesSdrDisplay(vec3 ap0, bool srgb) {
+vec3 acesSdrXyz(vec3 ap0) {
   vec3 pre = acesRrtSweeteners(ap0);
   vec3 rrt = vec3(acesRrtSpline(pre.r), acesRrtSpline(pre.g), acesRrtSpline(pre.b));
   vec3 oces = ACES_AP1_TO_AP0 * rrt;
@@ -185,19 +185,30 @@ vec3 acesSdrDisplay(vec3 ap0, bool srgb) {
   vec3 dim = ACES_XYZ_TO_AP1 * vec3(xy.x * Y / yy, Y, (1.0 - xy.x - xy.y) * Y / yy);
   vec3 sat = ACES_ODT_SAT * dim;
   vec3 xyz = ACES_D60_TO_D65 * (ACES_AP1_TO_XYZ * sat);
-  vec3 display = clamp(ACES_XYZ_TO_REC709 * xyz, 0.0, 1.0);
+  return xyz;
+}
+
+vec3 acesSdrLinear(vec3 ap0) {
+  return clamp(ACES_XYZ_TO_REC709 * acesSdrXyz(ap0), 0.0, 1.0);
+}
+
+vec3 acesSdrDisplay(vec3 ap0, bool srgb) {
+  vec3 display = acesSdrLinear(ap0);
   return srgb ? acesSrgbOetf(display) : pow(display, vec3(1.0 / 2.4));
 }
 
-vec3 acesHdrNits(vec3 ap0) {
+vec3 acesHdrXyz(vec3 ap0) {
   vec3 pre = acesRrtSweeteners(ap0);
   vec3 tone = vec3(acesHdrSpline(pre.r), acesHdrSpline(pre.g), acesHdrSpline(pre.b));
   vec3 lin = (tone - ${glf(HDR_1000_Y_MIN)}) / ${glf(HDR_1000_Y_MAX - HDR_1000_Y_MIN)};
   vec3 xyz = ACES_AP1_TO_XYZ * lin;
   vec3 limited = clamp(ACES_XYZ_TO_REC2020 * xyz, 0.0, 1.0);
   vec3 xyzLimited = ACES_REC2020_TO_XYZ * limited;
-  vec3 xyzD65 = ACES_D60_TO_D65 * xyzLimited;
-  return clamp(ACES_XYZ_TO_REC2020 * xyzD65, 0.0, HALF_MAX) * ${glf(HDR_1000_Y_MAX)};
+  return ACES_D60_TO_D65 * xyzLimited;
+}
+
+vec3 acesHdrNits(vec3 ap0) {
+  return clamp(ACES_XYZ_TO_REC2020 * acesHdrXyz(ap0), 0.0, HALF_MAX) * ${glf(HDR_1000_Y_MAX)};
 }
 
 float acesHlgOetf1(float e) {
@@ -216,4 +227,12 @@ vec3 acesOutputV(vec3 acescg, int outId) {
   return vec3(acesHlgOetf1(scene.r), acesHlgOetf1(scene.g), acesHlgOetf1(scene.b));
 }
 `;
+}
+
+/**
+ * The Output Transform without the encodings (everything up to `acesHdrNits`): `acesSdrLinear(ap0)` and
+ * `acesHdrNits(ap0)`, for the OCIO runtime, whose view transforms apply their own display encoding afterwards.
+ */
+export function acesGlslCore(): string {
+  return acesGlsl().split("float acesHlgOetf1")[0];
 }

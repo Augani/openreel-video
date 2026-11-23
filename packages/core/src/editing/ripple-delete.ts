@@ -2,9 +2,11 @@ import type { Clip, Project } from "../types";
 import {
   diffPlan,
   pruneTransitions,
-  removeTimelineSpan,
+  removeTimelineSpans,
   shiftAfter,
+  shiftAfterBatch,
   splitAt,
+  type ShiftStep,
 } from "./premiere-edits";
 import {
   assertRangeEmptyOnTracks,
@@ -111,22 +113,29 @@ function rippleDeleteWork(project: Project, clipIds: readonly string[]): Project
     if (followers.length)
       assertRangeEmptyOnTracks(work, followers, interval.start, interval.end);
   }
-  const byStart = [...clips].sort((a, b) => b.startTime - a.startTime);
-  for (const clip of byStart) {
-    work = removeClipsById(work, new Set([clip.id]));
-    work = shiftAfter(work, [trackOf.get(clip.id)!], end(clip), -clip.duration);
+  // One sweep per track instead of one per deleted clip (O(n log n), not
+  // O(n^2) for n deleted clips): remove every doomed clip at once, then shift
+  // each own track by all the deleted lengths before it.
+  work = removeClipsById(work, new Set(clips.map((clip) => clip.id)));
+  const ownSteps = new Map<string, ShiftStep[]>();
+  for (const clip of clips) {
+    const steps = ownSteps.get(trackOf.get(clip.id)!) ?? [];
+    steps.push({ from: end(clip), delta: -clip.duration });
+    ownSteps.set(trackOf.get(clip.id)!, steps);
   }
-  for (const interval of intervals)
-    work = shiftAfter(
-      work,
-      followers,
-      interval.end,
-      -(interval.end - interval.start),
-    );
+  for (const [trackId, steps] of ownSteps) work = shiftAfterBatch(work, [trackId], steps);
+  work = shiftAfterBatch(
+    work,
+    followers,
+    intervals.map((interval) => ({ from: interval.end, delta: -(interval.end - interval.start) })),
+  );
   // Sequence markers ripple with the edit (range markers are trimmed, shortened
   // or dropped like in an extract). Captions stay where they are.
-  for (const interval of intervals)
-    work = removeTimelineSpan(work, interval.start, interval.end, false);
+  work = removeTimelineSpans(
+    work,
+    intervals.map((interval) => ({ start: interval.start, stop: interval.end })),
+    false,
+  );
   return pruneTransitions(work, project);
 }
 

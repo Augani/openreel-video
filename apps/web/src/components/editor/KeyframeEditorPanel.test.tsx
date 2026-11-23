@@ -12,7 +12,7 @@ const clip = { id: "video", duration: 4, keyframes: keys } as Clip;
 const callbacks = () => ({ onClose: vi.fn(), onUpdateKeyframes: vi.fn(), onDeleteKeyframes: vi.fn(),
   onCopyKeyframes: vi.fn(), onPasteKeyframes: vi.fn(), onSelectKeyframe: vi.fn() });
 const context = { scale: vi.fn(), fillRect: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), stroke: vi.fn(),
-  fillText: vi.fn(), save: vi.fn(), translate: vi.fn(), rotate: vi.fn(), strokeRect: vi.fn(), restore: vi.fn() };
+  fillText: vi.fn(), save: vi.fn(), translate: vi.fn(), rotate: vi.fn(), strokeRect: vi.fn(), restore: vi.fn(), setLineDash: vi.fn() };
 const originalResizeObserver = globalThis.ResizeObserver;
 beforeEach(() => {
   globalThis.ResizeObserver = class {
@@ -173,5 +173,111 @@ describe("graph editor: handles, presets, overlay, speed, paste", () => {
     await selectOption(screen.getByRole("combobox", { name: "Interpolation side" }), "Out only");
     await selectOption(screen.getByRole("combobox", { name: "Interpolation" }), "Linear");
     expect(onApplyInterpolation).toHaveBeenCalledWith(["a"], "linear", "out");
+  });
+});
+
+describe("graph editor: box select, multi-drag, speed handles, spatial menu", () => {
+  const linearKeys: Keyframe[] = [
+    { id: "a", property: "opacity", time: 0, value: 0, easing: "linear" },
+    { id: "b", property: "opacity", time: 2, value: 1, easing: "linear" },
+    { id: "c", property: "opacity", time: 4, value: 0.5, easing: "linear" },
+  ];
+  const lin = { id: "lin", duration: 4, keyframes: linearKeys } as Clip;
+  const frame = (canvas: HTMLCanvasElement) => vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({ left: 0, top: 0, width: 600, height: 200 } as DOMRect);
+
+  it("box-selects the keys inside the rectangle (Shift adds) and clears on an empty click", () => {
+    const onSelectKeyframes = vi.fn();
+    const { container } = mount({ clip: lin, onSelectKeyframes });
+    const canvas = container.querySelector("canvas")!;
+    frame(canvas);
+    // Keys sit at x = 40 (t=0), 300 (t=2), 560 (t=4); drag a box around the first two, away from any key.
+    fireEvent.pointerDown(canvas, { clientX: 20, clientY: 190 });
+    fireEvent.pointerMove(canvas, { clientX: 320, clientY: 20 });
+    fireEvent.pointerUp(window);
+    expect(onSelectKeyframes).toHaveBeenCalledWith(["a", "b"], false);
+    onSelectKeyframes.mockClear();
+    fireEvent.pointerDown(canvas, { clientX: 400, clientY: 190, shiftKey: true });
+    fireEvent.pointerMove(canvas, { clientX: 590, clientY: 20 });
+    fireEvent.pointerUp(window);
+    expect(onSelectKeyframes).toHaveBeenCalledWith(["c"], true);
+    onSelectKeyframes.mockClear();
+    fireEvent.pointerDown(canvas, { clientX: 420, clientY: 195 });
+    fireEvent.pointerUp(window);
+    expect(onSelectKeyframes).toHaveBeenCalledWith([], false);
+  });
+
+  it("dragging a selected key moves the whole selection by one time offset in one update", () => {
+    const onMoveKeyframes = vi.fn();
+    const { container, props } = mount({ clip: lin, selectedKeyframeIds: ["b", "c"], onMoveKeyframes });
+    const canvas = container.querySelector("canvas")!;
+    frame(canvas);
+    // Key b at t=2 -> x=300; drag right-less by 130px = 1s earlier (520px = 4s).
+    const y = 40 + (1 - (1 - -0.1) / 1.2) * 120; // value range pads 10% around 0..1
+    fireEvent.pointerDown(canvas, { clientX: 300, clientY: y });
+    fireEvent.pointerMove(canvas, { clientX: 170, clientY: y });
+    fireEvent.pointerUp(window);
+    expect(props.onUpdateKeyframes).not.toHaveBeenCalled();
+    expect(onMoveKeyframes).toHaveBeenCalledOnce();
+    const moves = onMoveKeyframes.mock.calls[0][0] as { id: string; time: number; value: number }[];
+    expect(moves.map(m => m.id).sort()).toEqual(["b", "c"]);
+    expect(moves.find(m => m.id === "b")!.time).toBeCloseTo(1, 6);
+    expect(moves.find(m => m.id === "c")!.time).toBeCloseTo(3, 6);
+    expect(moves.find(m => m.id === "c")!.value).toBeCloseTo(0.5, 9); // value delta is zero for a pure horizontal drag
+  });
+
+  it("never moves a group past time zero", () => {
+    const onMoveKeyframes = vi.fn();
+    const { container } = mount({ clip: lin, selectedKeyframeIds: ["a", "b"], onMoveKeyframes });
+    const canvas = container.querySelector("canvas")!;
+    frame(canvas);
+    const y = 40 + (1 - (1 - -0.1) / 1.2) * 120;
+    fireEvent.pointerDown(canvas, { clientX: 300, clientY: y });
+    fireEvent.pointerMove(canvas, { clientX: 10, clientY: y });
+    fireEvent.pointerUp(window);
+    const moves = onMoveKeyframes.mock.calls[0][0] as { id: string; time: number }[];
+    expect(moves.find(m => m.id === "a")!.time).toBe(0);
+    expect(moves.find(m => m.id === "b")!.time).toBeCloseTo(2, 6);
+  });
+
+  it("drags a speed-graph handle: sideways sets influence, vertical sets speed, one bezier update", () => {
+    const easeOut: Keyframe[] = [
+      { id: "a", property: "opacity", time: 0, value: 0, easing: "ease-out" },
+      { id: "b", property: "opacity", time: 4, value: 1, easing: "linear" },
+    ];
+    const { container, props } = mount({ clip: { ...clip, keyframes: easeOut }, selectedKeyframeIds: ["a"] });
+    fireEvent.click(screen.getByRole("button", { name: "Speed graph" }));
+    const canvas = container.querySelector("canvas")!;
+    frame(canvas);
+    // ease-out leaves "a" at 0.5 units/s with a handle spanning 1/3 of the segment (t = 4/3); the axis tops out at 0.55.
+    const hx = 40 + (4 / 3) / 4 * 520, hy = 40 + (1 - 0.5 / 0.55) * 120;
+    fireEvent.pointerDown(canvas, { clientX: hx, clientY: hy });
+    // Move to influence 0.5 (t=2 -> x=300) at speed 0.25 (y = 40 + (1 - 0.25/0.55) * 120).
+    fireEvent.pointerMove(canvas, { clientX: 300, clientY: 40 + (1 - 0.25 / 0.55) * 120 });
+    expect(props.onUpdateKeyframes).not.toHaveBeenCalled();
+    fireEvent.pointerUp(window);
+    expect(props.onUpdateKeyframes).toHaveBeenCalledOnce();
+    const [ids, update] = vi.mocked(props.onUpdateKeyframes).mock.calls[0] as [string[], any];
+    expect(ids).toEqual(["a"]);
+    expect(update.easing).toBe("bezier");
+    expect(update.bezierHandles.in.x).toBeCloseTo(0.5, 6);
+    expect(update.bezierHandles.in.y).toBeCloseTo(0.5, 6); // speed 0.25 * influence 0.5 * 4 s / 1 unit
+    expect(update.bezierHandles.out).toEqual({ x: 2 / 3, y: 1 });
+  });
+
+  it("offers spatial interpolation on position keys that line up and sends the chosen type", async () => {
+    const path: Keyframe[] = [
+      { id: "x0", property: "position.x", time: 0, value: 0, easing: "linear" },
+      { id: "x1", property: "position.x", time: 2, value: 100, easing: "linear", spatialMode: "auto-bezier" },
+      { id: "y0", property: "position.y", time: 0, value: 0, easing: "linear" },
+      { id: "y1", property: "position.y", time: 2, value: 50, easing: "linear" },
+    ];
+    const onApplySpatialInterpolation = vi.fn();
+    mount({ clip: { ...clip, keyframes: path }, selectedKeyframeIds: [], onApplyInterpolation: vi.fn(), onApplySpatialInterpolation });
+    const row = screen.getByRole("button", { name: /Keyframe at 2.000s.*Path Auto Bezier/ });
+    fireEvent.contextMenu(row);
+    const item = await screen.findByRole("menuitemcheckbox", { name: "Spatial Continuous Bezier" });
+    expect(screen.getByRole("menuitemcheckbox", { name: "Spatial Auto Bezier" })).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(item);
+    expect(onApplySpatialInterpolation).toHaveBeenCalledWith(["x1"], "continuous-bezier");
   });
 });

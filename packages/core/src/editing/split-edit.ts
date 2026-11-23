@@ -608,16 +608,20 @@ function couldBeLinked(
 export function findLinkedPartners(
   clip: Clip,
   tracks: readonly Track[],
+  index?: LinkIndex,
 ): Array<{ clip: Clip; track: Track }> {
   const own = tracks.find((t) => t.id === clip.trackId);
   if (!own) return [];
   const result: Array<{ clip: Clip; track: Track }> = [];
+  const lanes = index ?? buildLinkIndex(tracks);
+  const ownLane = lanes.get(own.id)!;
   for (const track of tracks) {
     if (track.id === clip.trackId) continue;
-    for (const other of track.clips) {
+    for (const other of overlapping(lanes.get(track.id)!, clip)) {
       if (!couldBeLinked(clip, own, other, track)) continue;
       const mine = overlapOf(clip, other);
-      const rival = own.clips.some(
+      // A rival must overlap `other` by more than `mine`, so it overlaps it.
+      const rival = overlapping(ownLane, other).some(
         (c) =>
           c.id !== clip.id &&
           overlapOf(other, c) > mine + EPS &&
@@ -627,6 +631,63 @@ export function findLinkedPartners(
     }
   }
   return result;
+}
+
+export interface LinkLane {
+  /** Clips by start time. */
+  sorted: Clip[];
+  /** Original position of each sorted clip, to keep results in track order. */
+  order: number[];
+  /** Running maximum of the clip ends: nothing before the first index whose value exceeds t can overlap t. */
+  maxEnd: number[];
+}
+/** Per-track time index so partner lookups for many clips are not O(n) each. */
+export type LinkIndex = Map<string, LinkLane>;
+
+/**
+ * A lane's index is a pure function of its clip list. The same lane is indexed again by every
+ * findLinkedPartners / splitEditOffsets call that is not handed an index (one per visible clip
+ * per commit in the timeline), so keep the last one per clip array. A hit is validated against the
+ * clips themselves (same length, same objects in the same slots), so an array edited in place is
+ * simply rebuilt.
+ */
+const laneCache = new WeakMap<readonly Clip[], { source: Clip[]; lane: LinkLane }>();
+
+function buildLane(clips: readonly Clip[]): LinkLane {
+  const cached = laneCache.get(clips);
+  if (cached && cached.source.length === clips.length && cached.source.every((clip, i) => clip === clips[i])) {
+    return cached.lane;
+  }
+  const order = clips.map((_, i) => i).sort((a, b) => clips[a].startTime - clips[b].startTime || a - b);
+  const sorted = order.map((i) => clips[i]);
+  const maxEnd: number[] = [];
+  let run = -Infinity;
+  for (const c of sorted) maxEnd.push((run = Math.max(run, c.startTime + c.duration)));
+  const lane = { sorted, order, maxEnd };
+  laneCache.set(clips, { source: [...clips], lane });
+  return lane;
+}
+
+export function buildLinkIndex(tracks: readonly Track[]): LinkIndex {
+  const index: LinkIndex = new Map();
+  for (const track of tracks) index.set(track.id, buildLane(track.clips));
+  return index;
+}
+
+/** Clips of a lane that may overlap `clip` by more than LINK_EPS, in track order. */
+function overlapping(lane: LinkLane, clip: Clip): Clip[] {
+  const from = clip.startTime + LINK_EPS;
+  const to = clip.startTime + clip.duration - LINK_EPS;
+  let lo = 0,
+    hi = lane.maxEnd.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (lane.maxEnd[mid] > from) hi = mid;
+    else lo = mid + 1;
+  }
+  const hits: number[] = [];
+  for (let i = lo; i < lane.sorted.length && lane.sorted[i].startTime < to; i++) hits.push(i);
+  return hits.sort((a, b) => lane.order[a] - lane.order[b]).map((i) => lane.sorted[i]);
 }
 
 /**

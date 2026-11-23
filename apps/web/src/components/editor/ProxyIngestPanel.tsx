@@ -1,24 +1,27 @@
-import React, { useMemo, useState } from "react";
+import React, { Suspense, lazy, useMemo, useState } from "react";
 import { Button, Popover, PopoverContent, PopoverTrigger, Progress, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@openreel/ui";
 import { ChevronDown, ChevronRight } from "@/icons/lucide-compat";
 import {
-  DESKTOP_PROXY_CODECS,
-  DESKTOP_PROXY_SIZES,
-  PROXY_PRESETS,
-  proxyPresetForProfile,
+  INGEST_CHECKSUMS,
+  INGEST_MODES,
   PROXY_STATE_LABEL,
+  allIngestPresets,
   formatProxyCounts,
+  ingestModeOf,
+  presetMatchingProfile,
+  describeDesktopProxyProfile,
   proxyDisplayState,
+  resolveDesktopChecksum,
   resolveDesktopConcurrency,
   resolveDesktopProxyProfile,
   summarizeProxyStates,
-  type DesktopProxyCodec,
-  type ProxyPresetId,
-  type DesktopProxySize,
-  type IngestPreset,
+  type DesktopProxyProfile,
+  type IngestChecksumAlgorithm,
+  type IngestMode,
   type MediaItem,
   type ProxyDisplayState,
 } from "@openreel/core";
+import { useIngestPresetsStore } from "../../services/ingest-presets-store";
 import { CreateProxiesDialog } from "./CreateProxiesDialog";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
@@ -31,15 +34,17 @@ import {
   detachProxies,
   queueProxies,
   setImportOverride,
-  setProjectIngestPreset,
+  setProjectIngestMode,
   setProxiesOn,
   setProxyQuality,
   useProxyIngestStore,
 } from "../../services/proxy-ingest";
 import { toast } from "../../stores/notification-store";
 import {
+  cancelDesktopCopy,
   cancelDesktopJob,
   chooseIngestFolder,
+  describeChecksum,
   desktopIngestAvailable,
   relinkFromFolder,
   retryFailedDesktopProxies,
@@ -55,14 +60,18 @@ const QUALITY_LABELS: Record<PreviewProxyPreset, string> = {
   high: "Up to 1080p · Clearer",
 };
 
-const PRESET_LABELS: Record<IngestPreset, string> = {
-  none: "None",
-  proxies: "Create proxies",
-  copy: "Copy media to project",
+const ProxyPresetsDialog = lazy(() => import("./ProxyPresetsDialog"));
+
+/** Copying needs a file on disk to copy, so only desktop offers it. */
+const presetEntries = (desktop: boolean): Array<[string, string]> => INGEST_MODES.filter((mode) => desktop || !mode.desktopOnly).map((mode) => [mode.id, mode.label]);
+const PATTERN_KEY = "openreel:proxy-attach-pattern";
+const readPattern = (): string => {
+  try {
+    return localStorage.getItem(PATTERN_KEY) ?? "";
+  } catch {
+    return "";
+  }
 };
-/** Copy-to-project needs a file on disk to copy, so only desktop offers it. */
-const presetEntries = (desktop: boolean): Array<[string, string]> =>
-  Object.entries(PRESET_LABELS).filter(([value]) => desktop || value !== "copy");
 
 export interface ProxyRow {
   item: MediaItem;
@@ -131,8 +140,15 @@ export const ProxyIngestPanel: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [managerOpen, setManagerOpen] = useState(false);
+  const [pattern, setPattern] = useState(readPattern);
+  const userPresets = useIngestPresetsStore((s) => s.presets);
   const desktop = desktopIngestAvailable();
-  const preset = useProjectStore((s) => s.project.mediaLibrary.ingestPreset ?? "none");
+  const mode = useProjectStore((s) => ingestModeOf(s.project));
+  const lastRelink = useDesktopIngestStore((s) => s.lastRelink);
+  const lastCopy = useDesktopIngestStore((s) => s.lastCopy);
+  const copyJobs = useDesktopIngestStore((s) => s.copyJobs);
+  const mediaItems = useProjectStore((s) => s.project.mediaLibrary.items);
   const ingestConfig = useProjectStore((s) => s.project.mediaLibrary.desktopIngest);
   const offlineCount = useProjectStore((s) => s.project.mediaLibrary.items.filter((item) => item.isPlaceholder && !item.isPending).length);
   const folders = useDesktopIngestStore((s) => s.folders);
@@ -155,12 +171,23 @@ export const ProxyIngestPanel: React.FC = () => {
   const createTargets = (targets.length ? targets : rows).filter((row) => row.state === "none" || row.state === "failed" || row.state === "missing-proxy");
   const attention = rows.filter((row) => (row.state !== "none" && row.state !== "ready") || row.external);
   const summary = formatProxyCounts(counts);
-  const copyingCount = Object.keys(copying).length;
+  const copyJobList = Object.values(copyJobs);
+  const copyingCount = Object.keys(copying).length + copyJobList.length;
+  const checksum = resolveDesktopChecksum({ mediaLibrary: { items: [], desktopIngest: ingestConfig } });
+  const matched = presetMatchingProfile(userPresets, profile, ingestConfig?.proxyPresetId);
+  const attachRelink = (): void => {
+    try {
+      localStorage.setItem(PATTERN_KEY, pattern);
+    } catch {
+      // The pattern is only remembered for this session.
+    }
+    void relinkFromFolder("proxy", undefined, { pattern });
+  };
   // Nothing to report: shrink to a quiet one-line entry point so it never crowds the media grid.
-  const quiet = !summary && attention.length === 0 && offlineCount === 0 && preset === "none" && copyingCount === 0;
+  const quiet = !summary && attention.length === 0 && offlineCount === 0 && mode === "none" && copyingCount === 0;
 
-  const create = () => {
-    const result = queueProxies(createTargets.map((row) => row.item.id), quality, true);
+  const create = (batchProfile?: DesktopProxyProfile | null) => {
+    const result = queueProxies(createTargets.map((row) => row.item.id), quality, true, batchProfile);
     if (!result.queued.length) toast.info("No proxies to create", result.skipped[0]?.reason ?? "Every video already has a proxy.");
   };
 
@@ -214,8 +241,8 @@ export const ProxyIngestPanel: React.FC = () => {
         <span className="min-w-0 flex-1 truncate text-fg-muted" data-testid="proxy-summary">{summary}</span>
         {attention.length > 0 && <span className="shrink-0 rounded bg-yellow-500/20 px-1 text-[10px] text-yellow-500" data-testid="proxy-attention">{attention.length} need attention</span>}
         {offlineCount > 0 && <span className="shrink-0 rounded bg-yellow-500/20 px-1 text-[10px] text-yellow-500" data-testid="offline-count">{offlineCount} offline</span>}
-        {preset === "proxies" && <span className="shrink-0 rounded bg-accent-soft px-1 text-[10px] text-accent">Ingest on</span>}
-        {preset === "copy" && desktop && <span className="shrink-0 rounded bg-accent-soft px-1 text-[10px] text-accent">Copy on</span>}
+        {mode === "proxies" && <span className="shrink-0 rounded bg-accent-soft px-1 text-[10px] text-accent">Ingest on</span>}
+        {(mode === "copy" || mode === "copy-proxies") && desktop && <span className="shrink-0 rounded bg-accent-soft px-1 text-[10px] text-accent">{mode === "copy" ? "Copy on" : "Copy + proxies"}</span>}
       </button>
       </PopoverTrigger>
       <PopoverContent side="right" align="start" collisionPadding={8} className="w-[22rem] max-w-[calc(100vw-1rem)] border-border bg-bg-2 p-0 text-[11px]" aria-label="Proxies and ingest settings">
@@ -231,7 +258,7 @@ export const ProxyIngestPanel: React.FC = () => {
           <div className="grid grid-cols-2 gap-2">
             <label className="min-w-0 text-fg-muted">
               Ingest preset
-              <Select value={preset === "copy" && !desktop ? "none" : preset} onValueChange={(value) => void setProjectIngestPreset(value as IngestPreset)}>
+              <Select value={!desktop && (mode === "copy" || mode === "copy-proxies") ? "none" : mode} onValueChange={(value) => void setProjectIngestMode(value as IngestMode)}>
                 <SelectTrigger aria-label="Ingest preset" className="mt-1 h-8 min-w-0 text-[11px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {presetEntries(desktop).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
@@ -240,7 +267,7 @@ export const ProxyIngestPanel: React.FC = () => {
             </label>
             <label className="min-w-0 text-fg-muted">
               This import
-              <Select value={override ?? "default"} onValueChange={(value) => setImportOverride(value === "default" ? null : (value as IngestPreset))}>
+              <Select value={override ?? "default"} onValueChange={(value) => setImportOverride(value === "default" ? null : (value as IngestMode))}>
                 <SelectTrigger aria-label="Ingest for this import" className="mt-1 h-8 min-w-0 text-[11px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="default">Project default</SelectItem>
@@ -254,39 +281,30 @@ export const ProxyIngestPanel: React.FC = () => {
               <label className="block min-w-0 text-fg-muted">
                 Proxy preset
                 <Select
-                  value={proxyPresetForProfile(profile) ?? "custom"}
+                  value={matched?.id ?? "custom"}
                   onValueChange={(value) => {
-                    const chosen = PROXY_PRESETS.find((entry) => entry.id === (value as ProxyPresetId));
-                    if (chosen) void setDesktopProxyProfile(chosen.profile);
+                    const chosen = allIngestPresets(userPresets).find((entry) => entry.id === value);
+                    if (chosen) void setDesktopProxyProfile(chosen.profile, chosen.id);
                   }}
                 >
                   <SelectTrigger aria-label="Proxy preset" className="mt-1 h-8 min-w-0 text-[11px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {PROXY_PRESETS.map((entry) => <SelectItem key={entry.id} value={entry.id}>{entry.label}</SelectItem>)}
-                    {proxyPresetForProfile(profile) === null && <SelectItem value="custom" disabled>Custom</SelectItem>}
+                    {allIngestPresets(userPresets).map((entry) => <SelectItem key={entry.id} value={entry.id}>{entry.name}</SelectItem>)}
+                    {!matched && <SelectItem value="custom" disabled>Custom</SelectItem>}
                   </SelectContent>
                 </Select>
               </label>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="min-w-0 text-fg-muted">
-                  Proxy format
-                  <Select value={profile.codec} onValueChange={(value) => void setDesktopProxyProfile({ ...profile, codec: value as DesktopProxyCodec })}>
-                    <SelectTrigger aria-label="Proxy format" className="mt-1 h-8 min-w-0 text-[11px]"><SelectValue>{profile.codec === "prores-proxy" ? "ProRes Proxy" : profile.codec === "dnxhr-lb" ? "DNxHR LB" : "H.264"}</SelectValue></SelectTrigger>
-                    <SelectContent>
-                      {DESKTOP_PROXY_CODECS.map((codec) => <SelectItem key={codec.id} value={codec.id}>{codec.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </label>
-                <label className="min-w-0 text-fg-muted">
-                  Proxy size
-                  <Select value={profile.size} onValueChange={(value) => void setDesktopProxyProfile({ ...profile, size: value as DesktopProxySize })}>
-                    <SelectTrigger aria-label="Proxy size" className="mt-1 h-8 min-w-0 text-[11px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {DESKTOP_PROXY_SIZES.map((size) => <SelectItem key={size.id} value={size.id}>{size.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </label>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span className="min-w-0 flex-1 truncate text-fg-muted" data-testid="proxy-profile-summary" title={describeDesktopProxyProfile(profile)}>{describeDesktopProxyProfile(profile)}</span>
+                <Button type="button" variant="secondary" className={smallButton} onClick={() => setManagerOpen(true)} aria-label="Manage proxy presets">Manage presets…</Button>
               </div>
+              <label className="block min-w-0 text-fg-muted">
+                Copy checksum
+                <Select value={checksum} onValueChange={(value) => void updateDesktopIngestConfig({ checksum: value as IngestChecksumAlgorithm }, "Set copy checksum")}>
+                  <SelectTrigger aria-label="Copy checksum" className="mt-1 h-8 min-w-0 text-[11px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>{INGEST_CHECKSUMS.map((entry) => <SelectItem key={entry.id} value={entry.id}>{entry.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </label>
               <button
                 type="button"
                 aria-expanded={moreOpen}
@@ -299,7 +317,7 @@ export const ProxyIngestPanel: React.FC = () => {
                 <span className="min-w-0 flex-1 truncate text-right text-[10px]">{concurrency} at once</span>
               </button>
               {moreOpen && (<>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2">
                 <label className="min-w-0 text-fg-muted">
                   Build at once
                   <Select value={String(concurrency)} onValueChange={(value) => void updateDesktopIngestConfig({ concurrency: Number(value) === 2 ? 2 : 1 }, "Set proxy jobs at once")}>
@@ -309,15 +327,6 @@ export const ProxyIngestPanel: React.FC = () => {
                       <SelectItem value="2">2 jobs</SelectItem>
                     </SelectContent>
                   </Select>
-                </label>
-                <label className="flex min-w-0 items-end gap-1.5 pb-1.5 text-fg-muted">
-                  <input
-                    type="checkbox"
-                    aria-label="Also create proxies when copying"
-                    checked={ingestConfig?.proxiesWithCopy === true}
-                    onChange={(event) => void updateDesktopIngestConfig({ proxiesWithCopy: event.target.checked }, "Set copy and proxies")}
-                  />
-                  <span className="min-w-0 leading-tight">Proxies with copy</span>
                 </label>
               </div>
               {(["proxy", "media"] as const).map((kind) => {
@@ -349,7 +358,7 @@ export const ProxyIngestPanel: React.FC = () => {
             </label>
           )}
           <div className="flex flex-wrap gap-1.5">
-            <Button type="button" variant="secondary" className={smallButton} onClick={create} disabled={!createTargets.length} aria-label="Create proxies">
+            <Button type="button" variant="secondary" className={smallButton} onClick={() => create()} disabled={!createTargets.length} aria-label="Create proxies">
               {targets.length ? "Create for selected" : "Create proxies"}
             </Button>
             {desktop && (
@@ -364,7 +373,7 @@ export const ProxyIngestPanel: React.FC = () => {
               Attach proxies…
             </Button>
             {desktop && (
-              <Button type="button" variant="secondary" className={smallButton} onClick={() => void relinkFromFolder("proxy")} aria-label="Search a folder for proxies">
+              <Button type="button" variant="secondary" className={smallButton} onClick={attachRelink} aria-label="Search a folder for proxies">
                 Find proxies…
               </Button>
             )}
@@ -372,6 +381,61 @@ export const ProxyIngestPanel: React.FC = () => {
               Proxies {proxiesOn ? "on" : "off"}
             </Button>
           </div>
+          {desktop && (
+            <label className="block min-w-0 text-fg-muted">
+              Existing proxies are named
+              <input
+                aria-label="Proxy name pattern"
+                data-testid="proxy-pattern"
+                className="mt-1 h-8 w-full min-w-0 rounded border border-border bg-bg-1 px-2 text-[11px] text-fg-2"
+                placeholder="{name}_proxy  (blank: _proxy, -prx, _lowres)"
+                value={pattern}
+                onChange={(event) => setPattern(event.target.value)}
+                maxLength={120}
+              />
+              <span className="mt-0.5 block text-[10px] leading-snug">Find proxies matches name, duration and frame rate, and reports what does not fit.</span>
+            </label>
+          )}
+          {desktop && lastRelink?.kind === "proxy" && (
+            <div className="min-w-0 space-y-1 rounded border border-border bg-bg-1 p-1.5" data-testid="attach-report">
+              <div className="text-fg-2">
+                {lastRelink.linked.length} attached{lastRelink.mismatched.length ? ` · ${lastRelink.mismatched.length} mismatched` : ""}{lastRelink.ambiguous.length ? ` · ${lastRelink.ambiguous.length} ambiguous` : ""}{lastRelink.notFound.length ? ` · ${lastRelink.notFound.length} not found` : ""}
+              </div>
+              {lastRelink.mismatched.map((entry) => (
+                <p key={`${entry.name}:${entry.file}`} className="break-words text-status-warning" data-testid="attach-mismatch"><strong>{entry.name}</strong> / {entry.file}: {entry.reasons.join(" ")}</p>
+              ))}
+              {lastRelink.ambiguous.map((entry) => <p key={entry.name} className="break-words text-status-warning">{entry.name}: {entry.candidates.length} files fit equally well. Nothing was attached.</p>)}
+              {lastRelink.notFound.length > 0 && <p className="break-words text-fg-muted">Not found: {lastRelink.notFound.slice(0, 6).join(", ")}{lastRelink.notFound.length > 6 ? ", ..." : ""}</p>}
+            </div>
+          )}
+          {desktop && copyJobList.length > 0 && (
+            <ul className="space-y-1.5" aria-label="Copy jobs" data-testid="copy-jobs">
+              {copyJobList.map((job) => {
+                const name = mediaItems.find((candidate) => candidate.id === job.mediaId)?.name ?? job.name ?? job.mediaId;
+                return (
+                  <li key={job.id} data-testid="copy-row" data-state={job.status} className="min-w-0 rounded border border-border bg-bg-1 p-1.5">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <span className="min-w-0 flex-1 truncate text-fg-2" title={name}>Copy: {name}</span>
+                      <span className="shrink-0 text-fg-muted">{job.status === "running" ? `${Math.round(job.progress * 100)}%` : job.status === "failed" ? "Failed" : "Waiting"}</span>
+                    </div>
+                    {job.status === "running" && <Progress aria-label={`Copy progress for ${name}`} value={job.progress * 100} className="mt-1 h-1.5" />}
+                    {job.error && <p className="mt-1 break-words text-status-warning">{job.error}</p>}
+                    <div className="mt-1 flex gap-1">
+                      {job.status === "failed" && <Button type="button" variant="secondary" className={smallButton} onClick={() => void retryFailedDesktopProxies()}>Retry</Button>}
+                      <Button type="button" variant="secondary" className={smallButton} onClick={() => cancelDesktopCopy(job.mediaId)} aria-label={`Cancel copy of ${name}`}>Cancel</Button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {desktop && lastCopy && (lastCopy.copied.length > 0 || lastCopy.skipped.length > 0) && copyJobList.length === 0 && (
+            <div className="min-w-0 space-y-1 rounded border border-border bg-bg-1 p-1.5" data-testid="copy-report">
+              <div className="text-fg-2">{lastCopy.copied.length} copied{lastCopy.copied[0] ? ` and verified (${describeChecksum(lastCopy.copied[0].algorithm)})` : ""}{lastCopy.skipped.length ? ` · ${lastCopy.skipped.length} not copied` : ""}</div>
+              {lastCopy.copied.slice(0, 8).map((entry) => <p key={entry.mediaId} className="break-all font-mono text-[10px] text-fg-muted" title={entry.path}>{entry.name} {entry.checksum.slice(0, 16)}</p>)}
+              {lastCopy.skipped.map((entry) => <p key={entry.name} className="break-words text-status-warning">{entry.name}: {entry.reason}</p>)}
+            </div>
+          )}
           {desktop && offlineCount > 0 && (
             <div className="flex min-w-0 items-center gap-1.5 rounded border border-yellow-500/40 bg-yellow-500/5 p-1.5" data-testid="offline-media-row">
               <span className="min-w-0 flex-1 text-yellow-500">{offlineCount} media file{offlineCount === 1 ? " is" : "s are"} offline</span>
@@ -423,7 +487,16 @@ export const ProxyIngestPanel: React.FC = () => {
           count={createTargets.length}
           scopeLabel={targets.length ? "selected" : "without a proxy"}
           onCreate={create}
+          onManage={() => {
+            setDialogOpen(false);
+            setManagerOpen(true);
+          }}
         />
+      )}
+      {desktop && managerOpen && (
+        <Suspense fallback={null}>
+          <ProxyPresetsDialog open={managerOpen} onOpenChange={setManagerOpen} initialId={matched?.id} />
+        </Suspense>
       )}
     </section>
   );

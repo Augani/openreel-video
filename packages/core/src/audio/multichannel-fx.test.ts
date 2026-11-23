@@ -133,6 +133,8 @@ describe("fallback decode channels", () => {
     expect(fallbackDecodeChannels("5.1", 2)).toBe(2); // a stereo source is not upmixed by ffmpeg
     expect(fallbackDecodeChannels("5.1", 1)).toBe(1);
     expect(fallbackDecodeChannels("5.1", 8)).toBe(6); // wider sources fold to 5.1
+    expect(fallbackDecodeChannels("5.1", 8, 8)).toBe(8); // unless a mapped clip reads them (multichannel source patching)
+    expect(fallbackDecodeChannels("5.1", 8, 2)).toBe(6);
     expect(fallbackDecodeChannels("5.1", undefined)).toBe(2);
     expect(fallbackDecodeChannels("5.1", 0)).toBe(2);
   });

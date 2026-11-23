@@ -5,6 +5,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { resolveFfmpegPath } from "./ffmpeg-path";
 import { isBroadcastExportCodec, supportsTwoPass, videoEncodeArgs, withTopFieldFirst, type BroadcastScan, type DnxhrProfile, type EncodeMode, type ExportCodec } from "./encode-args";
 import { dolbyTrackArgs, type DolbyAudioPlan } from "./dolby-args";
+import { addSphericalMetadataToFile, type SphericalExportFields } from "./spherical-file";
 import { colorFilterArgs, colorTagArgs, rawInputPixelFormat, type NativeColorOutput } from "./color-output-args";
 
 export interface ExportArgs {
@@ -50,6 +51,8 @@ export interface ExportArgs {
   audioTrackCount?: number;
   /** File start timecode, `HH:MM:SS:FF` or `HH:MM:SS;FF` (drop frame). MOV gets a timecode track, MXF a timecode component. */
   startTimecode?: string;
+  /** VR sequence in MP4 / MOV: spherical metadata is written into the finished file (st3d / sv3d). */
+  vr?: SphericalExportFields;
 }
 
 export interface CaptionInput {
@@ -394,7 +397,16 @@ export class ExportJob {
         this.stderrTail = "";
         this.spawnStage(2);
       } else if (code === 0) {
-        this.report(() => this.onDone());
+        const vr = this.args.vr;
+        if (vr && (this.args.format === "mp4" || this.args.format === "mov")) {
+          // ffmpeg cannot write spherical side data from the command line: patch the finished file's movie header.
+          void addSphericalMetadataToFile(this.args.outputPath, vr).then(
+            () => this.report(() => this.onDone()),
+            (error: unknown) => this.report(() => this.onError(`Spherical metadata could not be written: ${error instanceof Error ? error.message : String(error)}`)),
+          );
+        } else {
+          this.report(() => this.onDone());
+        }
       } else {
         const detail = this.stderrTail.trim();
         this.report(() =>

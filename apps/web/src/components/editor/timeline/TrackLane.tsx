@@ -2,6 +2,7 @@ import { useTimelineToolGesture } from "./useTimelineToolGesture";
 import { TimelineToolGhost } from "./TimelineToolGhost";
 import React, { useRef, useCallback, useEffect, useState, useMemo } from "react";
 import type {
+  Clip,
   GraphicInstance,
   Track,
   TextClip,
@@ -37,6 +38,9 @@ import { phoneTrackLayout } from "../mobile/mobile-timeline-layout";
 import { placeSequenceOnTimeline } from "../../../services/sequence-commands";
 
 const CLIP_SCROLL_BUCKET = 96;
+/** Must match the Timeline, which quantises the scroll position it hands to each lane. */
+export const LANE_SCROLL_BUCKET = 256;
+const HANDLE_MARGIN = 48;
 
 type GraphicClipUnion = ShapeClip | SVGClip | StickerClip;
 
@@ -361,6 +365,12 @@ export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane
 
   // Offscreen clips (and their waveform/filmstrip canvases) are not mounted:
   // a zoomed-out 400-clip project otherwise re-renders every clip per scroll.
+  // `scrollX` arrives quantised to LANE_SCROLL_BUCKET by the Timeline (so the lane only re-renders when the
+  // culled window can change); the window is widened by one bucket so it stays a superset of the real viewport.
+  // The overscan shrinks by half a bucket per side in exchange, so the mounted width stays 2 x viewport.
+  const cullViewportWidth = viewportWidth > 0 ? viewportWidth + LANE_SCROLL_BUCKET : viewportWidth;
+  const cullOverscan = Math.max(0, viewportWidth / 2 - LANE_SCROLL_BUCKET / 2);
+  const previousVisible = useRef<Clip[]>([]);
   const visibleClips = useMemo(() => {
     const overlayIds = new Set<string>();
     for (const tc of textClips) overlayIds.add(tc.id);
@@ -368,8 +378,12 @@ export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane
     const media = overlayIds.size === 0
       ? track.clips
       : track.clips.filter((clip) => !overlayIds.has(clip.id));
-    return getVisibleClips(media, scrollX, viewportWidth, pixelsPerSecond, selectedClipIds);
-  }, [track.clips, textClips, shapeClips, scrollX, viewportWidth, pixelsPerSecond, selectedClipIds]);
+    const next = getVisibleClips(media, scrollX, cullViewportWidth, pixelsPerSecond, selectedClipIds, cullOverscan);
+    // Same clips as before: hand back the same array so everything derived from it (lane infos, props) is reused.
+    const prev = previousVisible.current;
+    return prev.length === next.length && next.every((clip, i) => clip === prev[i]) ? prev : next;
+  }, [track.clips, textClips, shapeClips, scrollX, cullViewportWidth, cullOverscan, pixelsPerSecond, selectedClipIds]);
+  previousVisible.current = visibleClips;
 
   // Clips only use the scroll position to cull thumbnails/waveform bars (120px lookahead).
   // Quantising it (and widening the viewport by the same amount) keeps that cull a superset
@@ -380,27 +394,59 @@ export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane
   // Cross-clip derived state (linked audio, J/L offsets, neighbour transitions, lane badge) is
   // folded into primitives once per commit, with identity preserved per clip when unchanged, so
   // a one-clip move re-renders O(changed) clips rather than every mounted clip.
-  const laneInfoCache = useRef<ReadonlyMap<string, ClipLaneInfo>>(new Map());
+  const laneInfoCache = useRef<{
+    inputs: readonly unknown[];
+    infos: ReadonlyMap<string, ClipLaneInfo>;
+  }>({ inputs: [], infos: new Map() });
   const laneInfos = useMemo(() => {
+    const inputs = [track, allTracks, frameRate, mediaItems] as const;
+    const cached = laneInfoCache.current;
+    const sameInputs = cached.inputs.length === inputs.length && inputs.every((x, i) => x === cached.inputs[i]);
     const mediaById = new Map(mediaItems.map((item) => [item.id, item] as const));
-    const next = computeLaneInfos(
-      visibleClips,
-      {
-        track,
-        allTracks,
-        frameRate,
-        mediaTypeOf: (clip) => (track.type === "audio" ? "audio" : mediaById.get(clip.mediaId)?.type ?? track.type),
-      },
-      laneInfoCache.current,
-    );
+    const input = {
+      track,
+      allTracks,
+      frameRate,
+      mediaTypeOf: (clip: Clip) => (track.type === "audio" ? "audio" : mediaById.get(clip.mediaId)?.type ?? track.type),
+    };
+    // Scrolling changes only which clips are visible: reuse the infos of clips that were already computed for
+    // the same tracks and compute just the ones that scrolled into view (each is an O(clips) partner search).
+    const missing = sameInputs ? visibleClips.filter((clip) => !cached.infos.has(clip.id)) : visibleClips;
+    const computed = computeLaneInfos(missing, input, sameInputs ? undefined : cached.infos);
+    const next = new Map<string, ClipLaneInfo>();
+    for (const clip of visibleClips) {
+      const info = computed.get(clip.id) ?? cached.infos.get(clip.id);
+      if (info) next.set(clip.id, info);
+    }
+    laneInfoCache.current = { inputs, infos: next };
     return next;
   }, [visibleClips, track, allTracks, frameRate, mediaItems]);
-  laneInfoCache.current = laneInfos;
 
   // Gesture-time reads (drag snapping, target lane) get the latest tracks through a stable getter.
   const allTracksRef = useRef(allTracks);
   allTracksRef.current = allTracks;
   const getAllTracks = useCallback(() => allTracksRef.current, []);
+
+  // Transition handles are virtualised like clips: a 1000-clip lane has ~1000 adjacent-pair handles, each a
+  // Radix tooltip/popover tree, and only the ones near the viewport (or the selected one) need to exist.
+  const previousHandles = useRef<typeof transitionHandles>([]);
+  const visibleHandles = useMemo(() => {
+    const overscan = cullOverscan;
+    const from = scrollX - overscan - HANDLE_MARGIN;
+    const to = scrollX + cullViewportWidth + overscan + HANDLE_MARGIN;
+    const next = cullViewportWidth <= 0
+      ? transitionHandles
+      : transitionHandles.filter(
+          (handle) =>
+            (handle.centerX >= from && handle.centerX <= to) ||
+            (selectedTransitionId !== null && handle.transition?.id === selectedTransitionId),
+        );
+    const prev = previousHandles.current;
+    return prev.length === next.length && next.every((h, i) => h === prev[i]) ? prev : next;
+  }, [transitionHandles, scrollX, cullViewportWidth, cullOverscan, selectedTransitionId]);
+  previousHandles.current = visibleHandles;
+
+  const selectedClipSet = useMemo(() => new Set(selectedClipIds), [selectedClipIds]);
 
   const toolGesture = useTimelineToolGesture(laneRef, pixelsPerSecond, onSelectClip);
 
@@ -446,7 +492,7 @@ export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane
               pixelsPerSecond={pixelsPerSecond}
               scrollX={clipScrollX}
               viewportWidth={clipViewportWidth}
-              isSelected={selectedClipIds.includes(clip.id)}
+              isSelected={selectedClipSet.has(clip.id)}
               trackHeights={trackHeights}
               rowHeights={rowHeights}
               timelineRef={timelineRef}
@@ -517,7 +563,7 @@ export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane
             />
           );
         })}
-        {transitionHandles.map((handle) => (
+        {visibleHandles.map((handle) => (
             <TransitionHandle
               key={
                 handle.clipB

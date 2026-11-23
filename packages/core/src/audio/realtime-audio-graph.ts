@@ -19,6 +19,15 @@ import { StretchCache, getSharedStretchCache, type StretchRequest, type StretchR
 import { SpectralRepairCache, getSharedSpectralRepairCache, type SpectralRepairRequest } from "./spectral/spectral-repair-cache";
 import { SPECTRAL_REPAIR_EFFECT_TYPE, getSpectralRepairRegions, spectralRegionsKey } from "./spectral/spectral-regions";
 import type { SpectralBackend } from "./spectral/spectral-worker-client";
+import { ENHANCE_SPEECH_EFFECT_TYPE, getEnhanceSpeechBalance, getEnhanceSpeechMix, withoutEnhanceSpeech } from "./enhance/enhance-effect";
+import { REDUCE_REVERB_EFFECT_TYPE, getReduceReverbParams, withoutReduceReverb } from "./reverb/reverb-effect";
+import { ReduceReverbCache, getSharedReduceReverbCache } from "./reverb/reverb-cache";
+import type { ReverbBackend } from "./reverb/reverb-worker-client";
+import { EnhanceSpeechCache, getSharedEnhanceSpeechCache } from "./enhance/enhance-cache";
+import type { EnhanceBackend } from "./enhance/enhance-worker-client";
+import { NATIVE_PLUGIN_EFFECT_TYPE, hasNativePlugins, nativePluginSteps, withoutNativePlugins } from "./native-plugin/native-plugin-effect";
+import { NativePluginRenderCache, getSharedNativePluginCache } from "./native-plugin/native-plugin-cache";
+import type { NativePluginBackend } from "./native-plugin/native-plugin-types";
 import { createRackBus, rackPan, rackVolume, type RackBusLike } from "./track-audio-rack";
 import { createLinkedCompressorStage, createMultichannelConvolver, needsMultichannelNodes, pinChannels } from "./multichannel-fx";
 import { mapAudioBuffer, type ClipChannelMap } from "./channel-map";
@@ -80,6 +89,12 @@ interface ScheduledSource {
   retire: (seconds: number) => void;
   /** Spectral repair: the original schedule while the source plays the unrepaired audio, until the cached repair is ready. */
   spectralWait?: AudioClipSchedule;
+  /** Enhance Speech: the (post-spectral) source buffer whose enhancement this source is still waiting for; `spectralWait` holds the schedule to rebuild. */
+  enhanceWaitFor?: AudioBuffer;
+  /** Reduce Reverb: the (post-spectral) source buffer whose dereverberation this source is still waiting for; `spectralWait` holds the schedule to rebuild. */
+  reverbWaitFor?: AudioBuffer;
+  /** Hosted plugins: the (post-enhance) source buffer whose plugin render this source is still waiting for; `spectralWait` holds the schedule to rebuild. */
+  nativeWaitFor?: AudioBuffer;
 }
 
 /** Click-free hand-over between a resampled source and its pitch-preserving replacement. */
@@ -126,10 +141,32 @@ interface TrackNodes {
 /** How far ahead of "now" a clip that is already playing is started (see scheduleClip). */
 export const SCHEDULE_START_LOOKAHEAD_SECONDS = 0.02;
 
+export type LiveInsertKind = "track" | "bus" | "master";
+export const MASTER_LIVE_ID = "__master__";
+const safeDisconnect = (from: AudioNode, to: AudioNode): void => {
+  try {
+    from.disconnect(to);
+  } catch {
+    /* not connected (the track was rebuilt in between) */
+  }
+};
+const liveInsertKey = (kind: LiveInsertKind, id: string): string => `${kind}:${id}`;
+
+/** A live insert as the graph sees it: where the signal goes in and comes out, and how late it is (read on every re-plan). */
+export interface LiveInsertSlot {
+  readonly input: AudioNode;
+  readonly output: AudioNode;
+  readonly latencySeconds: number;
+}
+
 export class RealtimeAudioGraph {
   private audioContext: AudioContext;
   private masterClock: MasterTimelineClock;
   private masterGain: GainNode;
+  /** What the routing graph plays into; feeds `masterGain` directly or through the master's live plugin insert. */
+  private masterPre: GainNode;
+  /** Live plugin inserts by `kind:id` (see setLiveInsert). */
+  private liveInserts = new Map<string, LiveInsertSlot>();
   /** Post-master-rack unity node; the destination feed and the metering tap. */
   private masterOutput: GainNode;
   private masterBus: RackBusLike;
@@ -168,6 +205,8 @@ export class RealtimeAudioGraph {
     // Repair effects (DeHum, DeClick, ...) run in a worklet; start loading it up front.
     void ensureRepairWorklet(this.audioContext);
     this.masterGain = this.audioContext.createGain();
+    this.masterPre = this.audioContext.createGain();
+    this.masterPre.connect(this.masterGain);
     this.masterOutput = this.audioContext.createGain();
     this.masterBus = createRackBus(this.audioContext, undefined, { live: true });
     this.masterGain.connect(this.masterBus.input);
@@ -175,7 +214,7 @@ export class RealtimeAudioGraph {
     this.masterOutput.connect(this.audioContext.destination);
     // Monitor device chosen in Preferences / the mixer (no-op until one is picked).
     getAudioOutputRouter().attach(this.audioContext, this.masterOutput);
-    this.routing = new AudioRoutingGraph(this.audioContext, this.masterGain, {
+    this.routing = new AudioRoutingGraph(this.audioContext, this.masterPre, {
       live: true,
       getTimelineTime: () => this.masterClock.currentTime,
       getHorizon: () => this.routingHorizon,
@@ -211,7 +250,7 @@ export class RealtimeAudioGraph {
     this.masterGain.connect(this.masterBus.input);
     this.masterBus.output.connect(this.masterOutput);
     this.routing.dispose();
-    this.routing = new AudioRoutingGraph(this.audioContext, this.masterGain, {
+    this.routing = new AudioRoutingGraph(this.audioContext, this.masterPre, {
       live: true,
       surround,
       getTimelineTime: () => this.masterClock.currentTime,
@@ -275,11 +314,75 @@ export class RealtimeAudioGraph {
     const rate = this.audioContext.sampleRate || 48000;
     const latencies = new Map<string, number>();
     for (const [trackId, config] of this.trackConfigs) {
-      const seconds = (effectChainLatencySamples(config.effects, rate) + rackLatencySamples(this.trackRacks.get(trackId), rate)) / rate;
+      const seconds = (effectChainLatencySamples(config.effects, rate) + rackLatencySamples(this.trackRacks.get(trackId), rate)) / rate + this.liveLatency("track", trackId);
       latencies.set(trackId, seconds);
       this.trackLatencySeconds.set(trackId, seconds);
     }
-    this.routing.setLatencies(latencies, rackLatencySamples(this.masterRack, rate) / rate);
+    const busLatencies = new Map<string, number>();
+    for (const key of this.liveInserts.keys()) if (key.startsWith("bus:")) busLatencies.set(key.slice(4), this.liveLatency("bus", key.slice(4)));
+    this.routing.setLatencies(latencies, rackLatencySamples(this.masterRack, rate) / rate + this.liveLatency("master", MASTER_LIVE_ID), busLatencies);
+  }
+
+  private transportListeners = new Set<(event: { playing: boolean; time: number }) => void>();
+
+  /** Playback started, the playhead moved, or playback stopped (what streaming nodes such as live plugin inserts restart on). */
+  onTransport(listener: (event: { playing: boolean; time: number }) => void): () => void {
+    this.transportListeners.add(listener);
+    return () => this.transportListeners.delete(listener);
+  }
+
+  private emitTransport(playing: boolean, time: number): void {
+    for (const listener of [...this.transportListeners]) {
+      try {
+        listener({ playing, time });
+      } catch (error) {
+        console.warn("[audio-graph] a transport listener threw", error);
+      }
+    }
+  }
+
+  private liveLatency(kind: LiveInsertKind, id: string): number {
+    return this.liveInserts.get(liveInsertKey(kind, id))?.latencySeconds ?? 0;
+  }
+
+  /**
+   * Plugs a live plugin insert (a streaming node pair whose processing happens in the plugin host) into a track, bus or the master,
+   * in front of that target's built-in rack, where hosted plugins sit; null removes it. Its latency joins the plugin delay
+   * compensation, so every other path is delayed to stay aligned. Survives track and routing rebuilds. The master id is
+   * {@link MASTER_LIVE_ID}.
+   */
+  setLiveInsert(kind: LiveInsertKind, id: string, slot: LiveInsertSlot | null): void {
+    const key = liveInsertKey(kind, id);
+    const previous = this.liveInserts.get(key);
+    if (previous === slot || (!previous && !slot)) return;
+    if (slot) this.liveInserts.set(key, slot);
+    else this.liveInserts.delete(key);
+    if (kind === "track") {
+      const nodes = this.trackNodes.get(id);
+      if (nodes) {
+        safeDisconnect(nodes.effectChainOutput, previous ? previous.input : nodes.rackBus.input);
+        if (previous) safeDisconnect(previous.output, nodes.rackBus.input);
+        if (slot) {
+          nodes.effectChainOutput.connect(slot.input);
+          slot.output.connect(nodes.rackBus.input);
+        } else nodes.effectChainOutput.connect(nodes.rackBus.input);
+      }
+    } else if (kind === "bus") {
+      this.routing.setBusLiveInsert(id, slot);
+    } else {
+      this.masterPre.disconnect();
+      if (previous) safeDisconnect(previous.output, this.masterGain);
+      if (slot) {
+        this.masterPre.connect(slot.input);
+        slot.output.connect(this.masterGain);
+      } else this.masterPre.connect(this.masterGain);
+    }
+    this.refreshLatency();
+  }
+
+  /** The reported latency of an insert changed (the plugin chain reported a different latency): re-plan the delay compensation. */
+  refreshLiveLatency(): void {
+    this.refreshLatency();
   }
 
   /**
@@ -442,7 +545,11 @@ export class RealtimeAudioGraph {
 
     const rackBus = createRackBus(this.audioContext, this.trackRacks.get(config.trackId), { live: true, surround: this.surround });
     inputGain.connect(effectChainInput);
-    effectChainOutput.connect(rackBus.input);
+    const trackInsert = this.liveInserts.get(liveInsertKey("track", config.trackId));
+    if (trackInsert) {
+      effectChainOutput.connect(trackInsert.input);
+      trackInsert.output.connect(rackBus.input);
+    } else effectChainOutput.connect(rackBus.input);
     const preFaderGate = this.audioContext.createGain();
     rackBus.output.connect(panNode);
     panNode.connect(outputGain);
@@ -1057,6 +1164,241 @@ export class RealtimeAudioGraph {
     return { buffer: repaired, effects: effects.filter((effect) => effect.type !== SPECTRAL_REPAIR_EFFECT_TYPE), key: spectralRegionsKey(regions) };
   }
 
+  private enhanceCache: EnhanceSpeechCache | null = null;
+  private enhanceBackend: EnhanceBackend | undefined;
+  private enhanceUnsubscribe: (() => void) | null = null;
+
+  /** Test / host hook: replaces where speech enhancement is computed (default: a Web Worker). */
+  setEnhanceBackend(backend: EnhanceBackend | undefined): void {
+    this.enhanceBackend = backend;
+    this.enhanceUnsubscribe?.();
+    this.enhanceUnsubscribe = null;
+    this.enhanceCache = null;
+  }
+
+  /** The cache Enhance Speech jobs run through (private to this graph when a backend was injected, else the process-wide one the export shares). */
+  getEnhanceSpeechCache(): EnhanceSpeechCache {
+    if (!this.enhanceCache) {
+      const makeBuffer = (channels: Float32Array[], sampleRate: number): AudioBuffer => {
+        const out = this.audioContext.createBuffer(channels.length, Math.max(1, channels[0]?.length ?? 1), sampleRate);
+        channels.forEach((data, c) => out.getChannelData(c).set(data));
+        return out;
+      };
+      this.enhanceCache = this.enhanceBackend
+        ? new EnhanceSpeechCache({ backend: this.enhanceBackend, makeBuffer })
+        : getSharedEnhanceSpeechCache(makeBuffer);
+      this.enhanceUnsubscribe = this.enhanceCache.onReady(() => this.swapToEnhanced());
+    }
+    return this.enhanceCache;
+  }
+
+  /**
+   * The schedule with the clip's Enhance Speech applied to its source buffer (after spectral repair and Reduce Reverb, before the channel
+   * map, stretch and offsets). The enhancement is computed once off the main thread; until it is ready the clip plays
+   * the original audio and `swapToEnhanced` replaces it.
+   */
+  private withEnhanceSpeech(schedule: AudioClipSchedule): { schedule: AudioClipSchedule; waitingFor: AudioBuffer | null } {
+    if (!schedule.effects.some((effect) => effect.type === ENHANCE_SPEECH_EFFECT_TYPE)) return { schedule, waitingFor: null };
+    const mix = getEnhanceSpeechMix(schedule.effects);
+    const balance = getEnhanceSpeechBalance(schedule.effects);
+    const effects = withoutEnhanceSpeech(schedule.effects);
+    if (mix <= 0) return { schedule: { ...schedule, effects }, waitingFor: null };
+    const cache = this.getEnhanceSpeechCache();
+    const ready = cache.peek({ buffer: schedule.audioBuffer, mix, balance });
+    if (ready) return { schedule: { ...schedule, audioBuffer: ready, effects }, waitingFor: null };
+    void cache.request({ buffer: schedule.audioBuffer, mix, balance });
+    return { schedule: { ...schedule, effects }, waitingFor: schedule.audioBuffer };
+  }
+
+  /**
+   * The source buffer with these clip effects' Enhance Speech applied (awaiting the cached, off-thread job) and the
+   * effects without the entry, so a preview can schedule the enhanced audio straight away. `key` identifies what was applied
+   * ("" when nothing, or when the enhancement could not be computed and the graph falls back to the original).
+   */
+  async prepareEnhanceSpeech(buffer: AudioBuffer, effects: readonly Effect[], options: { onProgress?: (fraction: number) => void } = {}): Promise<{ buffer: AudioBuffer; effects: Effect[]; key: string }> {
+    if (!effects.some((effect) => effect.type === ENHANCE_SPEECH_EFFECT_TYPE)) return { buffer, effects: [...effects], key: "" };
+    const mix = getEnhanceSpeechMix(effects);
+    const stripped = withoutEnhanceSpeech(effects);
+    if (mix <= 0) return { buffer, effects: stripped, key: "" };
+    const balance = getEnhanceSpeechBalance(effects);
+    const enhanced = await this.getEnhanceSpeechCache().request({ buffer, mix, balance }, options);
+    if (!enhanced) return { buffer, effects: stripped, key: "" };
+    return { buffer: enhanced, effects: stripped, key: balance < 100 ? `enhance:${mix}:b${balance}` : `enhance:${mix}` };
+  }
+
+  private reverbCache: ReduceReverbCache | null = null;
+  private reverbBackend: ReverbBackend | undefined;
+  private reverbUnsubscribe: (() => void) | null = null;
+
+  /** Test / host hook: replaces where Reduce Reverb is computed (default: a Web Worker). */
+  setReverbBackend(backend: ReverbBackend | undefined): void {
+    this.reverbBackend = backend;
+    this.reverbUnsubscribe?.();
+    this.reverbUnsubscribe = null;
+    this.reverbCache = null;
+  }
+
+  /** The cache Reduce Reverb jobs run through (private to this graph when a backend was injected, else the process-wide one the export shares). */
+  getReduceReverbCache(): ReduceReverbCache {
+    if (!this.reverbCache) {
+      const makeBuffer = (channels: Float32Array[], sampleRate: number): AudioBuffer => {
+        const out = this.audioContext.createBuffer(channels.length, Math.max(1, channels[0]?.length ?? 1), sampleRate);
+        channels.forEach((data, c) => out.getChannelData(c).set(data));
+        return out;
+      };
+      this.reverbCache = this.reverbBackend
+        ? new ReduceReverbCache({ backend: this.reverbBackend, makeBuffer })
+        : getSharedReduceReverbCache(makeBuffer);
+      this.reverbUnsubscribe = this.reverbCache.onReady(() => this.swapToReverb());
+    }
+    return this.reverbCache;
+  }
+
+  /**
+   * The schedule with the clip's Reduce Reverb applied to its source buffer (after spectral repair, before Enhance Speech, hosted
+   * plugins, the channel map, stretch and offsets). Computed once off the main thread; until it is ready the clip plays the
+   * unprocessed audio and `swapToReverb` replaces it.
+   */
+  private withReduceReverb(schedule: AudioClipSchedule): { schedule: AudioClipSchedule; waitingFor: AudioBuffer | null } {
+    if (!schedule.effects.some((effect) => effect.type === REDUCE_REVERB_EFFECT_TYPE)) return { schedule, waitingFor: null };
+    const params = getReduceReverbParams(schedule.effects);
+    const effects = withoutReduceReverb(schedule.effects);
+    if (!params) return { schedule: { ...schedule, effects }, waitingFor: null };
+    const cache = this.getReduceReverbCache();
+    const ready = cache.peek({ buffer: schedule.audioBuffer, params });
+    if (ready) return { schedule: { ...schedule, audioBuffer: ready, effects }, waitingFor: null };
+    void cache.request({ buffer: schedule.audioBuffer, params });
+    return { schedule: { ...schedule, effects }, waitingFor: schedule.audioBuffer };
+  }
+
+  /** The source with these clip effects' Reduce Reverb applied (awaiting the cached, off-thread job) and the effects without it. `key` is "" when nothing was applied or it could not be computed. */
+  async prepareReduceReverb(buffer: AudioBuffer, effects: readonly Effect[], options: { onProgress?: (fraction: number) => void } = {}): Promise<{ buffer: AudioBuffer; effects: Effect[]; key: string }> {
+    if (!effects.some((effect) => effect.type === REDUCE_REVERB_EFFECT_TYPE)) return { buffer, effects: [...effects], key: "" };
+    const params = getReduceReverbParams(effects);
+    const stripped = withoutReduceReverb(effects);
+    if (!params) return { buffer, effects: stripped, key: "" };
+    const processed = await this.getReduceReverbCache().request({ buffer, params }, options);
+    if (!processed) return { buffer, effects: stripped, key: "" };
+    return { buffer: processed, effects: stripped, key: `reverb:${params.amount}:${params.sensitivity}` };
+  }
+
+  /** A Reduce Reverb job finished: rebuild every source still playing that clip unprocessed, with a short crossfade. */
+  private swapToReverb(): void {
+    if (!this.isPlaying || !this.masterClock.isPlaying) return;
+    const cache = this.getReduceReverbCache();
+    const rebuild: AudioClipSchedule[] = [];
+    for (const sources of this.scheduledSources.values()) {
+      for (const scheduled of [...sources]) {
+        const waiting = scheduled.spectralWait;
+        const waitFor = scheduled.reverbWaitFor;
+        const params = waiting ? getReduceReverbParams(waiting.effects) : null;
+        if (!waiting || !waitFor || !params) continue;
+        if (!cache.peek({ buffer: waitFor, params })) continue;
+        scheduled.retire(STRETCH_SWAP_FADE_SECONDS);
+        rebuild.push(waiting);
+      }
+    }
+    this.scheduleBatch(() => { for (const schedule of rebuild) this.scheduleClip(schedule, { fadeInSeconds: STRETCH_SWAP_FADE_SECONDS }); });
+  }
+
+  private nativeCache: NativePluginRenderCache | null = null;
+  private nativeBackend: NativePluginBackend | undefined;
+  private nativeUnsubscribe: (() => void) | null = null;
+
+  /** Test / host hook: replaces where hosted plugins are rendered (default: the process-wide backend the desktop app installs). */
+  setNativePluginBackend(backend: NativePluginBackend | undefined): void {
+    this.nativeBackend = backend;
+    this.nativeUnsubscribe?.();
+    this.nativeUnsubscribe = null;
+    this.nativeCache = null;
+  }
+
+  /** The cache plugin renders run through (private to this graph when a backend was injected, else the process-wide one the export shares). */
+  getNativePluginCache(): NativePluginRenderCache {
+    if (!this.nativeCache) {
+      const makeBuffer = (channels: Float32Array[], sampleRate: number): AudioBuffer => {
+        const out = this.audioContext.createBuffer(channels.length, Math.max(1, channels[0]?.length ?? 1), sampleRate);
+        channels.forEach((data, c) => out.getChannelData(c).set(data));
+        return out;
+      };
+      this.nativeCache = this.nativeBackend
+        ? new NativePluginRenderCache({ backend: this.nativeBackend, makeBuffer })
+        : getSharedNativePluginCache(makeBuffer);
+      this.nativeUnsubscribe = this.nativeCache.onReady(() => this.swapToNative());
+    }
+    return this.nativeCache;
+  }
+
+  /**
+   * The schedule with the clip's hosted plugins applied to its source buffer (after spectral repair and Enhance Speech, before
+   * the channel map, stretch and offsets). The render happens once, off the main thread; until it is ready the clip plays the
+   * unprocessed audio and `swapToNative` replaces it. A step that cannot run is bypassed (and reported by the cache).
+   */
+  private withNativePlugins(schedule: AudioClipSchedule): { schedule: AudioClipSchedule; waitingFor: AudioBuffer | null } {
+    if (!schedule.effects.some((effect) => effect.type === NATIVE_PLUGIN_EFFECT_TYPE)) return { schedule, waitingFor: null };
+    const steps = hasNativePlugins(schedule.effects) ? nativePluginSteps(schedule.effects) : [];
+    const effects = withoutNativePlugins(schedule.effects);
+    if (steps.length === 0) return { schedule: { ...schedule, effects }, waitingFor: null };
+    const cache = this.getNativePluginCache();
+    const ready = cache.peek(schedule.audioBuffer, steps);
+    if (ready) return { schedule: { ...schedule, audioBuffer: ready, effects }, waitingFor: null };
+    void cache.request(schedule.audioBuffer, steps).catch(() => undefined);
+    return { schedule: { ...schedule, effects }, waitingFor: schedule.audioBuffer };
+  }
+
+  /**
+   * The source buffer rendered through these clip effects' hosted plugins (awaiting the cached, off-thread job) and the
+   * effects without them, so a preview can schedule the processed audio straight away. `key` is "" when nothing was applied
+   * or the render failed (the graph then plays the unprocessed source).
+   */
+  async prepareNativePlugins(buffer: AudioBuffer, effects: readonly Effect[], options: { onProgress?: (fraction: number) => void } = {}): Promise<{ buffer: AudioBuffer; effects: Effect[]; key: string; bypassed: ReadonlyMap<string, string> }> {
+    const stripped = withoutNativePlugins(effects);
+    const steps = hasNativePlugins(effects) ? nativePluginSteps(effects) : [];
+    if (steps.length === 0) return { buffer, effects: stripped, key: "", bypassed: new Map() };
+    try {
+      const result = await this.getNativePluginCache().request(buffer, steps, options);
+      return { buffer: result.buffer, effects: stripped, key: `native:${steps.map((step) => step.effectId).join(",")}`, bypassed: result.bypassed };
+    } catch {
+      return { buffer, effects: stripped, key: "", bypassed: new Map() };
+    }
+  }
+
+  /** A plugin render finished: rebuild every source still playing that clip unprocessed, with a short crossfade. */
+  private swapToNative(): void {
+    if (!this.isPlaying || !this.masterClock.isPlaying) return;
+    const cache = this.getNativePluginCache();
+    const rebuild: AudioClipSchedule[] = [];
+    for (const sources of this.scheduledSources.values()) {
+      for (const scheduled of [...sources]) {
+        const waiting = scheduled.spectralWait;
+        const waitFor = scheduled.nativeWaitFor;
+        if (!waiting || !waitFor) continue;
+        if (!cache.peek(waitFor, nativePluginSteps(waiting.effects))) continue;
+        scheduled.retire(STRETCH_SWAP_FADE_SECONDS);
+        rebuild.push(waiting);
+      }
+    }
+    this.scheduleBatch(() => { for (const schedule of rebuild) this.scheduleClip(schedule, { fadeInSeconds: STRETCH_SWAP_FADE_SECONDS }); });
+  }
+
+  /** An enhancement finished: rebuild every source still playing that clip un-enhanced, with a short crossfade. */
+  private swapToEnhanced(): void {
+    if (!this.isPlaying || !this.masterClock.isPlaying) return;
+    const cache = this.getEnhanceSpeechCache();
+    const rebuild: AudioClipSchedule[] = [];
+    for (const sources of this.scheduledSources.values()) {
+      for (const scheduled of [...sources]) {
+        const waiting = scheduled.spectralWait;
+        const waitFor = scheduled.enhanceWaitFor;
+        if (!waiting || !waitFor) continue;
+        if (!cache.peek({ buffer: waitFor, mix: getEnhanceSpeechMix(waiting.effects), balance: getEnhanceSpeechBalance(waiting.effects) })) continue;
+        scheduled.retire(STRETCH_SWAP_FADE_SECONDS);
+        rebuild.push(waiting);
+      }
+    }
+    this.scheduleBatch(() => { for (const schedule of rebuild) this.scheduleClip(schedule, { fadeInSeconds: STRETCH_SWAP_FADE_SECONDS }); });
+  }
+
   /** A repair finished: rebuild every source still playing that clip unrepaired, with a short crossfade. */
   private swapToSpectral(request: SpectralRepairRequest): void {
     if (!this.isPlaying || !this.masterClock.isPlaying) return;
@@ -1064,7 +1406,7 @@ export class RealtimeAudioGraph {
     const rebuild: AudioClipSchedule[] = [];
     for (const sources of this.scheduledSources.values()) {
       for (const scheduled of [...sources]) {
-        const waiting = scheduled.spectralWait;
+        const waiting = scheduled.enhanceWaitFor || scheduled.reverbWaitFor || scheduled.nativeWaitFor ? undefined : scheduled.spectralWait;
         if (!waiting || waiting.audioBuffer !== request.buffer || spectralRegionsKey(getSpectralRepairRegions(waiting.effects)) !== key) continue;
         scheduled.retire(STRETCH_SWAP_FADE_SECONDS);
         rebuild.push(waiting);
@@ -1075,7 +1417,14 @@ export class RealtimeAudioGraph {
 
   scheduleClip(rawSchedule: AudioClipSchedule, options: { fadeInSeconds?: number } = {}): void {
     const spectral = this.withSpectralRepair(rawSchedule);
-    const schedule = this.withChannelMap(spectral.schedule);
+    // Reduce Reverb needs the repaired source; while spectral repair is still computing, the clip plays the original and is rebuilt.
+    const reverb = spectral.waiting ? { schedule: spectral.schedule, waitingFor: null } : this.withReduceReverb(spectral.schedule);
+    // Enhance Speech runs on the repaired, dereverberated source (dereverberation first: the denoiser is not linear, and the
+    // dereverberation relies on the reverb still being a linear smear of the voice).
+    const enhanced = spectral.waiting || reverb.waitingFor ? { schedule: reverb.schedule, waitingFor: null } : this.withEnhanceSpeech(reverb.schedule);
+    // Hosted plugins run on the repaired, dereverberated, enhanced source; while any is still computing the clip plays the original and is rebuilt.
+    const native = spectral.waiting || reverb.waitingFor || enhanced.waitingFor ? { schedule: enhanced.schedule, waitingFor: null } : this.withNativePlugins(enhanced.schedule);
+    const schedule = this.withChannelMap(native.schedule);
     if (!this.trackNodes.has(schedule.trackId)) {
       this.createTrack({ trackId: schedule.trackId, volume: 1, pan: 0, muted: false, solo: false, effects: [] });
     }
@@ -1086,7 +1435,7 @@ export class RealtimeAudioGraph {
     const stretched = stretchRequest ? this.getStretchedBuffer(stretchRequest) : null;
     const clipBuffer = stretched ?? schedule.audioBuffer;
     const enabledEffects = schedule.effects.filter((effect) => effect.enabled);
-    const processingEffects = enabledEffects.filter((effect) => effect.type !== "pan" && effect.type !== "fadeIn" && effect.type !== "fadeOut" && effect.type !== SPECTRAL_REPAIR_EFFECT_TYPE);
+    const processingEffects = enabledEffects.filter((effect) => effect.type !== "pan" && effect.type !== "fadeIn" && effect.type !== "fadeOut" && effect.type !== SPECTRAL_REPAIR_EFFECT_TYPE && effect.type !== ENHANCE_SPEECH_EFFECT_TYPE && effect.type !== REDUCE_REVERB_EFFECT_TYPE && effect.type !== NATIVE_PLUGIN_EFFECT_TYPE);
     const chain = processingEffects.length > 0 ? this.buildEffectChain(processingEffects, Math.max(1, clipBuffer.numberOfChannels)) : null;
     const source = this.audioContext.createBufferSource();
     source.buffer = clipBuffer;
@@ -1177,7 +1526,7 @@ export class RealtimeAudioGraph {
       source.onended = onSourceEnded;
     };
     scheduled = { clipId: schedule.clipId, trackId: schedule.trackId, panner, source, startedAt: schedule.startTime, duration: playbackDuration, release,
-      schedule, stretched: !!stretched, retire, ...(spectral.waiting ? { spectralWait: rawSchedule } : {}) };
+      schedule, stretched: !!stretched, retire, ...(spectral.waiting || enhanced.waitingFor || reverb.waitingFor || native.waitingFor ? { spectralWait: rawSchedule } : {}), ...(enhanced.waitingFor ? { enhanceWaitFor: enhanced.waitingFor } : {}), ...(reverb.waitingFor ? { reverbWaitFor: reverb.waitingFor } : {}), ...(native.waitingFor ? { nativeWaitFor: native.waitingFor } : {}) };
     const sources = this.scheduledSources.get(schedule.trackId) ?? [];
     sources.push(scheduled); this.scheduledSources.set(schedule.trackId, sources);
     source.onended = onSourceEnded;
@@ -1298,6 +1647,7 @@ export class RealtimeAudioGraph {
     }
     this.seekPending = false;
     this.syncRoutingAutomation();
+    this.emitTransport(true, this.lastScheduledTime);
 
     const scheduleAudio = () => {
       if (!this.isPlaying || !this.masterClock.isPlaying) return;
@@ -1339,6 +1689,7 @@ export class RealtimeAudioGraph {
       this.schedulerIntervalId = null;
     }
     this.stopAllClips();
+    this.emitTransport(false, this.masterClock.currentTime);
   }
 
   seekTo(time: number): void {
@@ -1347,6 +1698,7 @@ export class RealtimeAudioGraph {
     this.syncTrackAutomation(true, time);
     this.lastScheduledTime = time;
     this.seekPending = true;
+    this.emitTransport(this.isPlaying, time);
     if (this.isPlaying && this.masterClock.isPlaying && this.scheduleAudioNow) {
       // Loop wraps and playing seeks must replace stopped sources immediately,
       // rather than leaving silence until the next 100 ms scheduler tick.
@@ -1363,6 +1715,15 @@ export class RealtimeAudioGraph {
     this.spectralUnsubscribe?.();
     this.spectralUnsubscribe = null;
     this.spectralCache = null;
+    this.enhanceUnsubscribe?.();
+    this.enhanceUnsubscribe = null;
+    this.enhanceCache = null;
+    this.reverbUnsubscribe?.();
+    this.reverbUnsubscribe = null;
+    this.reverbCache = null;
+    this.nativeUnsubscribe?.();
+    this.nativeUnsubscribe = null;
+    this.nativeCache = null;
     this.stopScheduler();
     for (const trackId of Array.from(this.trackNodes.keys())) {
       this.removeTrack(trackId);
@@ -1370,6 +1731,7 @@ export class RealtimeAudioGraph {
     this.impulseResponseCache.clear();
     this.routing.dispose();
     this.masterBus.dispose();
+    this.masterPre.disconnect();
     this.masterGain.disconnect();
     this.masterOutput.disconnect();
     getAudioOutputRouter().detach(this.audioContext);

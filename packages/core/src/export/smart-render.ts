@@ -1,7 +1,8 @@
-import type { Clip, Project, Transition } from "../types";
+import type { Clip, MediaItem, Project, Transition } from "../types";
 import { frameConformFor } from "../media/interpretation";
 import { getCompoundClipId, getMediaItemCapabilities, getTimelineItems } from "../timeline/timeline-items";
 import type { VideoExportSettings } from "./types";
+import { effectiveTimeInterpolation } from "../video/time-interpolation/types";
 
 /**
  * Smart rendering: an export segment that is an untouched, contiguous run of
@@ -82,6 +83,11 @@ export type SmartRenderSegment =
       /** Source time of the first copied frame (a key frame) and the end of the last. */
       readonly sourceStart: number;
       readonly sourceEnd: number;
+      /**
+       * Exclusive output frame up to which this copy could run into the partial GOP after its last whole GOP,
+       * if the frames there can be cut cleanly (see `extendCopyTails`). Absent when the copy already ends at the limit.
+       */
+      readonly tailLimitFrame?: number;
     };
 
 /** Stream parameters the re-encoded runs must reproduce so they join the copied runs seamlessly. */
@@ -149,6 +155,17 @@ const isNeutralTransform = (clip: Clip): boolean => {
   );
 };
 
+/**
+ * A media clip that draws nothing: fully transparent with no opacity keyframes. The sound clips of a video source placed
+ * on audio tracks (multichannel source patching, a source patch to an audio track, Break out audio) are made this way,
+ * so they must not count as picture over the clip that really shows the frames.
+ */
+const isInvisibleMediaClip = (item: { kind: string; item: unknown }): boolean => {
+  if (item.kind !== "media") return false;
+  const clip = item.item as Clip;
+  return clip.transform?.opacity === 0 && !clip.keyframes?.some((frame) => frame.property === "opacity");
+};
+
 /** Why this clip cannot be stream-copied, or null when it is untouched. */
 export function clipTouchedReason(project: Project, clip: Clip): string | null {
   if (getCompoundClipId(clip)) return "nested sequence";
@@ -164,6 +181,7 @@ export function clipTouchedReason(project: Project, clip: Clip): string | null {
   if (clip.stabilization?.enabled) return "stabilization";
   if (clip.chromaKey?.enabled) return "chroma key";
   if (clip.emphasisAnimation) return "emphasis animation";
+  if (effectiveTimeInterpolation(clip) !== "frameSampling") return "time interpolation";
   if (clip.smoothSlowMo) return "slow motion";
   const media = project.mediaLibrary.items.find((item) => item.id === clip.mediaId);
   if (media && media.type === "video" && frameConformFor(media)) return "pixel aspect ratio / field order";
@@ -411,15 +429,27 @@ export function planSmartRender(input: SmartRenderPlanInput): SmartRenderPlan {
   const visualItems = items.filter((item) => {
     if (hiddenTracks.has(item.trackId)) return false;
     if (item.kind !== "media") return true;
+    if (isInvisibleMediaClip(item)) return false;
     if (getCompoundClipId(item.item)) return true;
     return !item.mediaItem || getMediaItemCapabilities(item.mediaItem).visual;
   });
 
   const reasons: string[] = [];
   const copies: Extract<SmartRenderSegment, { kind: "copy" }>[] = [];
+  interface SmartCandidate {
+    readonly trackId: string;
+    readonly clipId: string;
+    readonly media: MediaItem;
+    readonly source: SmartRenderSourceInfo;
+    /** source time = output time + offset */
+    readonly offset: number;
+    readonly outputFrameOf: (sourceTime: number) => number;
+    readonly span: Interval;
+  }
+  const candidates: SmartCandidate[] = [];
 
   for (const item of items) {
-    if (item.kind !== "media" || hiddenTracks.has(item.trackId)) continue;
+    if (item.kind !== "media" || hiddenTracks.has(item.trackId) || isInvisibleMediaClip(item)) continue;
     const clip = item.item;
     const media = item.mediaItem;
     if (!media || media.type !== "video" || !media.blob || !getMediaItemCapabilities(media).visual) continue;
@@ -465,9 +495,36 @@ export function planSmartRender(input: SmartRenderPlanInput): SmartRenderPlan {
       b: Math.min(clip.startTime + clip.duration + gridSlack, exportEnd, clip.startTime + (source.endTime - clip.inPoint) + gridSlack),
     };
     if (span.b - span.a < EPS) continue;
+    candidates.push({ trackId: item.trackId, clipId: clip.id, media, source, offset, outputFrameOf, span });
+  }
+
+  // A razor cut inside one source leaves two clips that play it back to back (same track, same source, same
+  // offset between timeline and source). Nothing changed at the cut, so they are one run: merge them, or the
+  // GOP around every such cut would be re-encoded for no reason.
+  candidates.sort((x, y) => x.span.a - y.span.a);
+  const groups: Array<{ first: SmartCandidate; ids: Set<string>; span: Interval }> = [];
+  for (const candidate of candidates) {
+    const group = groups.find(
+      (g) =>
+        g.first.trackId === candidate.trackId &&
+        g.first.media.id === candidate.media.id &&
+        Math.abs(g.first.offset - candidate.offset) < 1e-6 &&
+        candidate.span.a <= g.span.b + gridToleranceFrames(fps) / fps + EPS,
+    );
+    if (group) {
+      group.ids.add(candidate.clipId);
+      group.span = { a: group.span.a, b: Math.max(group.span.b, candidate.span.b) };
+    } else {
+      groups.push({ first: candidate, ids: new Set([candidate.clipId]), span: candidate.span });
+    }
+  }
+
+  for (const group of groups) {
+    const { media, source, outputFrameOf } = group.first;
+    const span = group.span;
     const covers: Interval[] = [
       ...visualItems
-        .filter((other) => other.id !== clip.id && other.startTime < span.b - EPS && other.startTime + other.duration > span.a + EPS)
+        .filter((other) => !group.ids.has(other.id) && other.startTime < span.b - EPS && other.startTime + other.duration > span.a + EPS)
         .map((other) => ({ a: other.startTime, b: other.startTime + other.duration })),
       // Burned-in captions are drawn over the picture while they are on screen.
       ...(project.timeline.subtitles ?? [])
@@ -488,7 +545,18 @@ export function planSmartRender(input: SmartRenderPlanInput): SmartRenderPlan {
       const startFrame = outputFrameOf(keyA);
       const endFrame = outputFrameOf(keyB);
       if (endFrame - startFrame < MIN_COPY_FRAMES) continue;
-      copies.push({ kind: "copy", startFrame, endFrame, mediaId: media.id, sourceStart: keyA, sourceEnd: keyB });
+      // The partial GOP after the last whole one is copyable up to the cut when its frames form a clean prefix of the
+      // GOP (the native muxer asks ffmpeg for the picture types and calls `extendCopyTails`).
+      const tailLimitFrame = Math.min(lastFrame, outputFrameOf(source.endTime));
+      copies.push({
+        kind: "copy",
+        startFrame,
+        endFrame,
+        mediaId: media.id,
+        sourceStart: keyA,
+        sourceEnd: keyB,
+        ...(engine === "native" && !source.allIntra && tailLimitFrame > endFrame ? { tailLimitFrame } : {}),
+      });
     }
   }
 
@@ -552,4 +620,64 @@ export function planSmartRender(input: SmartRenderPlanInput): SmartRenderPlan {
 export function formatSmartRenderSummary(copiedFrames: number, totalFrames: number): string {
   const percent = totalFrames > 0 ? Math.round((copiedFrames / totalFrames) * 100) : 0;
   return `Smart render: ${percent}% copied`;
+}
+
+/**
+ * Smart cut: how many frames of the partial GOP after a copy's last whole GOP can be stream-copied as well.
+ * `types` are the picture types ("I", "P", "B") of that GOP in display order, starting at the key frame the copy
+ * stops before, and `limit` the number of frames available before the edit. A prefix of the GOP in display order is
+ * a prefix of it in decode order, and decodes without any frame beyond it, exactly when its last frame is an
+ * anchor (I or P): every B-frame before an anchor references only that anchor or earlier ones. Returns 0 when no
+ * clean prefix exists (the frames are then re-encoded, as before).
+ */
+export function cleanTailFrames(types: string, limit: number): number {
+  if (types.length === 0 || types[0] !== "I") return 0;
+  for (let n = Math.min(limit, types.length); n >= 1; n--) {
+    const type = types[n - 1];
+    if (type === "I" || type === "P") return n;
+  }
+  return 0;
+}
+
+/** Longest GOP tail a probe has to look at: past this many frames the saving is not worth the decode. */
+export const MAX_TAIL_PROBE_FRAMES = 600;
+
+/**
+ * Lengthen each copy by the clean prefix of the partial GOP that follows it and shorten the re-encoded run
+ * behind it by the same frames. `extensions` maps a segment index to the frames wanted for that copy; what is
+ * actually taken is bounded by the copy's `tailLimitFrame` and by the length of the encode run behind it.
+ */
+export function extendCopyTails(plan: SmartRenderPlan, frameRate: number, extensions: ReadonlyMap<number, number>): SmartRenderPlan {
+  if (!plan.eligible || extensions.size === 0) return plan;
+  const fps = snapFrameRate(frameRate);
+  const taken = new Map<number, number>();
+  plan.segments.forEach((segment, index) => {
+    const next = plan.segments[index + 1];
+    if (segment.kind !== "copy" || !next || next.kind !== "encode" || segment.tailLimitFrame === undefined) return;
+    const frames = Math.min(extensions.get(index) ?? 0, segment.tailLimitFrame - segment.endFrame, next.endFrame - next.startFrame);
+    if (frames > 0) taken.set(index, frames);
+  });
+  if (taken.size === 0) return plan;
+  const segments: SmartRenderSegment[] = [];
+  let added = 0;
+  plan.segments.forEach((segment, index) => {
+    if (segment.kind === "copy") {
+      const frames = taken.get(index) ?? 0;
+      added += frames;
+      const { tailLimitFrame: _limit, ...rest } = segment;
+      void _limit;
+      segments.push({ ...rest, endFrame: segment.endFrame + frames, sourceEnd: segment.sourceEnd + frames / fps });
+      return;
+    }
+    const start = segment.startFrame + (taken.get(index - 1) ?? 0);
+    if (start < segment.endFrame) segments.push({ ...segment, startFrame: start });
+  });
+  const copiedFrames = plan.copiedFrames + added;
+  return {
+    ...plan,
+    segments,
+    copiedFrames,
+    reencodedFrames: plan.totalFrames - copiedFrames,
+    copiedPercent: (copiedFrames / plan.totalFrames) * 100,
+  };
 }

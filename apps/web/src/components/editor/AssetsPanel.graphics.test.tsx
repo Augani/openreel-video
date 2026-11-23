@@ -36,8 +36,9 @@ describe("AssetsPanel graphics workflow", () => {
     render(<><EditorActionRail /><AssetsPanel /></>);
     fireEvent.click(screen.getByRole("button", { name: "Graphics" }));
 
+    // the graphics panel is a lazy chunk
     expect(
-      screen.getByRole("button", { name: "Import & Add Sticker" }),
+      await screen.findByRole("button", { name: "Import & Add Sticker" }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Rectangle" }));
 

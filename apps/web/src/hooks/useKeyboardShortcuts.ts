@@ -92,6 +92,9 @@ import {
   nudgeSelectedEditSide,
 } from "../services/split-edit-commands";
 
+/** Deleting at least this many media clips at once uses the batched store action. */
+const BATCH_DELETE_MIN = 16;
+
 export function useKeyboardShortcuts() {
   const [showShortcutsOverlay, setShowShortcutsOverlay] = useState(false);
 
@@ -190,7 +193,19 @@ export function useKeyboardShortcuts() {
           const rest = new Set(graphics.remaining);
           for (const id of ids) if (!rest.has(id)) removed.add(id);
         }
-        for (const id of graphics.handled ? graphics.remaining : ids) {
+        let remaining = graphics.handled ? graphics.remaining : ids;
+        if (remaining.length >= BATCH_DELETE_MIN) {
+          // A big selection (select all) goes through one batched action; one removal per clip is O(clips) each.
+          const mediaIds = new Set<string>();
+          for (const track of useProjectStore.getState().project.timeline.tracks) for (const c of track.clips) mediaIds.add(c.id);
+          const batch = remaining.filter((id) => mediaIds.has(id));
+          if (batch.length >= BATCH_DELETE_MIN && (await useProjectStore.getState().removeClips(batch)).success) {
+            for (const id of batch) removed.add(id);
+            const done = new Set(batch);
+            remaining = remaining.filter((id) => !done.has(id));
+          }
+        }
+        for (const id of remaining) {
           if (await deleteTimelineItem(useProjectStore.getState(), id)) removed.add(id);
         }
         const currentUI = useUIStore.getState();
@@ -463,6 +478,13 @@ export function useKeyboardShortcuts() {
       ["editing.lCut", () => runWithToast("L-cut", () => makeSplitEdit("l"))],
       ["editing.addEditAllTracks", () => runWithToast("Add edit", addEditToAllTracks)],
       ["editing.addEdit", () => runWithToast("Add edit", addEditToTargetedTracks)],
+      ["editing.applyDefaultTransition", () => void runEdit("Apply default transition", async () => {
+        // Lazy: the transition engine and preset service stay out of the entry chunk.
+        const { applyDefaultTransition } = await import("../services/transition-presets");
+        const outcome = await applyDefaultTransition();
+        if (outcome.ok) toast.success("Transition applied", outcome.message);
+        else toast.warning("Apply default transition", outcome.error);
+      })],
       ["tracks.toggleTarget", () => runWithToast("Track target", toggleTargetOnSelectedTrack)],
       ["tracks.toggleSyncLock", () => void toggleSyncLockOnSelectedTrack().then((outcome) => {
         if (!outcome.success) toast.warning("Sync Lock", outcome.message);
@@ -496,6 +518,7 @@ export function useKeyboardShortcuts() {
       ["timeline.zoomOut", () => useTimelineStore.getState().zoomOut()],
       ["timeline.fitTimeline", () => useTimelineStore.getState().zoomToFit(timelineEnd() || 60)],
       ["sequence.renderInToOut", () => void renderCacheService.renderInToOut()],
+      ["sequence.renderEffectsInToOut", () => void renderCacheService.renderEffectsInToOut()],
       ["view.toggleScopes", () => useUIStore.getState().toggleScopes()],
       ["view.toggleProxies", () => { void import("../components/editor/preview/ProxyToggleButton").then((m) => m.toggleProxiesWithFeedback()); }],
       ["view.toggleComparison", () => useColorMonitorStore.getState().toggleComparison()],

@@ -1,4 +1,4 @@
-import { SPEED_MIN, SPEED_MAX, type Clip } from "@openreel/core";
+import { SPEED_MIN, SPEED_MAX, effectiveTimeInterpolation, isTimeInterpolation, type Clip, type TimeInterpolation } from "@openreel/core";
 import { useProjectStore } from "../stores/project-store";
 import { useUIStore } from "../stores/ui-store";
 import { useTimelineStore } from "../stores/timeline-store";
@@ -9,7 +9,7 @@ import { toast } from "../stores/notification-store";
 export type ClipSpeedChange =
   | { speed: number }
   | { reversed: boolean }
-  | { smoothSlowMo: boolean }
+  | { timeInterpolation: TimeInterpolation }
   | { interpolationQuality: NonNullable<Clip["interpolationQuality"]> };
 
 export function linkedSpeedClipIds(clipId: string): string[] {
@@ -23,12 +23,14 @@ export async function editClipSpeed(projectId: string, clipId: string, changes: 
     || useUIStore.getState().exportState.isExporting || useTimelineStore.getState().playbackLockedReason) return false;
   if ("speed" in changes && (!Number.isFinite(changes.speed) || changes.speed < SPEED_MIN || changes.speed > SPEED_MAX)) return false;
   if ("interpolationQuality" in changes && !["low", "medium", "high"].includes(changes.interpolationQuality)) return false;
+  if ("timeInterpolation" in changes && !isTimeInterpolation(changes.timeInterpolation)) return false;
   const streamEdit = "speed" in changes || "reversed" in changes;
   const ids = affectAudio && streamEdit ? linkedSpeedClipIds(clipId) : [clipId];
   if (ids.some(id => !state.project.timeline.tracks.some(track => !track.locked && track.clips.some(clip => clip.id === id)))) return false;
   const changed = ids.some(id => {
     const clip = state.getClip(id)!;
-    return Object.entries(changes).some(([field, value]) => (field === "speed" ? clip.speed ?? 1 : field === "reversed" ? clip.reversed ?? false : clip[field as keyof Clip]) !== value);
+    return Object.entries(changes).some(([field, value]) => (field === "speed" ? clip.speed ?? 1 : field === "reversed" ? clip.reversed ?? false
+      : field === "timeInterpolation" ? effectiveTimeInterpolation(clip) : clip[field as keyof Clip]) !== value);
   });
   if (!changed) return false;
   const session = new EditingSession();
@@ -43,15 +45,15 @@ export async function editClipSpeed(projectId: string, clipId: string, changes: 
         if (!result.success) throw new Error(result.error?.message ?? "The clip could not be edited.");
       }
     } else {
-      const draft = session.getProject();
-      session.replaceDraft({ ...draft, timeline: { ...draft.timeline, tracks: draft.timeline.tracks.map(track => ({
-        ...track, clips: track.clips.map(clip => clip.id === clipId ? { ...clip, ...changes } : clip),
-      })) } });
+      const result = await session.applyAction("timeInterpolation" in changes
+        ? { type: "clip/setTimeInterpolation", id: crypto.randomUUID(), timestamp: Date.now(), params: { clipId, timeInterpolation: changes.timeInterpolation } }
+        : { type: "clip/setInterpolationQuality", id: crypto.randomUUID(), timestamp: Date.now(), params: { clipId, interpolationQuality: changes.interpolationQuality } });
+      if (!result.success) throw new Error(result.error?.message ?? "The clip could not be edited.");
     }
     // A lock/export can start while the draft is preparing without changing
     // project data. Revalidate the editing session before publishing it.
     if (useUIStore.getState().exportState.isExporting || useTimelineStore.getState().playbackLockedReason) return false;
-    await session.commitTransaction(transaction, "Edit speed and direction");
+    await session.commitTransaction(transaction, streamEdit ? "Edit speed and direction" : "timeInterpolation" in changes ? "Set time interpolation" : "Set interpolation quality");
     return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Please try again.";

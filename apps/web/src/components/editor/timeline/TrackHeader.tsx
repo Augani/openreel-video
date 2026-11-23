@@ -9,6 +9,8 @@ import {
 } from "@openreel/ui";
 import type { Track } from "@openreel/core";
 import {
+  patchLabel,
+  resolveSourceChannelGroups,
   getTrackItems,
   isSyncLocked,
   trackHasAudioItems,
@@ -18,6 +20,7 @@ import { useProjectStore } from "../../../stores/project-store";
 import { toast } from "../../../stores/notification-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { useEditorWorkspaceStore } from "../../../stores/editor-workspace-store";
+import { useSourceMonitorStore } from "../../../stores/source-monitor-store";
 import { useCompactEditor } from "../../../hooks/useCompactEditor";
 import { getTrackInfo } from "./utils";
 import { getTrackBadge } from "./track-badge";
@@ -55,7 +58,6 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
     consolidateTrack,
     groupTracks,
     setTrackSyncLock,
-    project,
   } = useProjectStore(useShallow((state) => ({
     lockTrack: state.lockTrack,
     hideTrack: state.hideTrack,
@@ -66,8 +68,42 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
     consolidateTrack: state.consolidateTrack,
     groupTracks: state.groupTracks,
     setTrackSyncLock: state.setTrackSyncLock,
-    project: state.project,
   })));
+  // Everything the header derives from the rest of the project, folded into primitives so an
+  // edit to another track's clip does not re-render every header (the whole project used to be
+  // subscribed, so each edit rebuilt N headers and their Radix menus).
+  const {
+    outputBus, badge, isVisual, isAudio, hasSoloedAudioTrack, hasGaps, groupCandidateKey,
+  } = useProjectStore(useShallow((state) => {
+    const project = state.project;
+    const tracks = project.timeline.tracks;
+    const audio = track.type === "audio" || trackHasAudioItems(project, track.id);
+    const sorted = getTrackItems(project, track.id);
+    let gaps = sorted.length > 0 && sorted[0].startTime > 0.0001;
+    for (let i = 1; !gaps && i < sorted.length; i++) {
+      gaps = sorted[i].startTime - (sorted[i - 1].startTime + sorted[i - 1].duration) > 0.0001;
+    }
+    return {
+      // Audio Track Mixer routing: a track playing into a bus shows where its signal goes.
+      outputBus: track.output ? project.timeline.audioBuses?.find((bus) => bus.id === track.output) : undefined,
+      badge: getTrackBadge(tracks, track.id),
+      isVisual: track.type !== "audio" || trackHasVisualItems(project, track.id),
+      isAudio: audio,
+      hasSoloedAudioTrack: tracks.some((candidate) => candidate.solo && trackHasAudioItems(project, candidate.id)),
+      hasGaps: gaps,
+      groupCandidateKey: tracks
+        .filter((candidate) => candidate.id !== track.id && (!track.groupId || candidate.groupId !== track.groupId))
+        .map((candidate) => `${candidate.id}\u0001${candidate.name}`)
+        .join("\u0002"),
+    };
+  }));
+  const groupCandidates = React.useMemo(
+    () => (groupCandidateKey ? groupCandidateKey.split("\u0002").map((entry) => {
+      const [id, ...name] = entry.split("\u0001");
+      return { id, name: name.join("\u0001") };
+    }) : []),
+    [groupCandidateKey],
+  );
   const trackHeight = useTimelineStore((state) => {
     const height = state.getTrackHeight(track.id, track.type, track.name);
     return compact ? Math.max(48, height) : height;
@@ -78,6 +114,21 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
   const isTarget = useEditorWorkspaceStore((state) => targetKind !== null && state.targetTracks[targetKind] === track.id);
   const setTargetTrack = useEditorWorkspaceStore((state) => state.setTargetTrack);
   const toggleTarget = () => { if (targetKind) setTargetTrack(targetKind, isTarget ? null : track.id); };
+  // Multichannel source patching: with a multichannel clip in the Source monitor an audio track shows which of its
+  // audio channels (A1..An) is patched to it, and a menu to patch any channel here.
+  const sourceMediaId = useSourceMonitorStore((state) => (track.type === "audio" ? state.mediaId : null));
+  const channelCount = useProjectStore((state) =>
+    sourceMediaId ? resolveSourceChannelGroups(state.project.mediaLibrary.items.find((item) => item.id === sourceMediaId)).length : 0,
+  );
+  const patchedChannel = useEditorWorkspaceStore((state) => {
+    if (channelCount < 2) return -1;
+    if (state.targetTracks.audio === track.id) return 0;
+    const entry = Object.entries(state.channelPatches).find(([, id]) => id === track.id);
+    return entry ? Number(entry[0]) : -1;
+  });
+  const disabledChannels = useEditorWorkspaceStore((state) => state.disabledChannels);
+  const setChannelPatch = useEditorWorkspaceStore((state) => state.setChannelPatch);
+  const setChannelEnabled = useEditorWorkspaceStore((state) => state.setChannelEnabled);
   // Premiere track targeting (the V1/A1 toggles): Extract, Lift, Add Edit, Paste
   // and Match Frame act on the targeted tracks.
   const isTargeted = useEditorWorkspaceStore((state) => state.targetedTrackIds.includes(track.id));
@@ -94,25 +145,11 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
   const renameSession = useRef<{ projectId: string; name: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Audio Track Mixer routing: a track playing into a bus shows where its signal goes.
-  const outputBus = track.output ? project.timeline.audioBuses?.find((bus) => bus.id === track.output) : undefined;
   const sendCount = track.sends?.length ?? 0;
 
   const trackInfo = getTrackInfo(track, index);
-  const badge = getTrackBadge(project.timeline.tracks, track.id);
-  const isVisual = track.type !== "audio" || trackHasVisualItems(project, track.id);
-  const isAudio = track.type === "audio" || trackHasAudioItems(project, track.id);
-  const hasSoloedAudioTrack = project.timeline.tracks.some(
-    (candidate) =>
-      trackHasAudioItems(project, candidate.id) && candidate.solo,
-  );
   const effectivelyMuted =
     isAudio && (track.muted || (hasSoloedAudioTrack && !track.solo));
-  const groupCandidates = project.timeline.tracks.filter(
-    (candidate) =>
-      candidate.id !== track.id &&
-      (!track.groupId || candidate.groupId !== track.groupId),
-  );
 
   const handleRemoveTrack = async () => {
     await removeTrack(track.id);
@@ -123,20 +160,8 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
     if (!result.success) toast.warning("Remove Gaps", result.error?.message ?? "The gaps could not be removed.");
   };
 
-  // Only enable "Remove Gaps" if there's actually a gap on this track.
-  const hasGaps = React.useMemo(() => {
-    const sorted = getTrackItems(project, track.id);
-    if (sorted.length === 0) return false;
-    if (sorted[0].startTime > 0.0001) return true;
-    for (let i = 1; i < sorted.length; i++) {
-      const prevEnd = sorted[i - 1].startTime + sorted[i - 1].duration;
-      if (sorted[i].startTime - prevEnd > 0.0001) return true;
-    }
-    return false;
-  }, [project, track.id]);
-
   const startRename = () => {
-    renameSession.current = { projectId: project.id, name: track.name };
+    renameSession.current = { projectId: useProjectStore.getState().project.id, name: track.name };
     setRenameValue(track.name);
     setIsRenaming(true);
   };
@@ -297,7 +322,40 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
                 aria-label="Track is grouped"
               />
             )}
-            {targetKind && (
+            {targetKind === "audio" && channelCount >= 2 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm"
+                    type="button"
+                    data-track-target={patchedChannel >= 0 ? "true" : undefined}
+                    data-source-patch-channel={patchedChannel >= 0 ? patchedChannel : undefined}
+                    aria-label={`Source patch ${track.name}`}
+                    title={patchedChannel >= 0 ? `Source ${patchLabel(patchedChannel)} is patched to this track` : "Patch a source audio channel (A1..An) to this track"}
+                    className={`flex h-[18px] min-w-[18px] items-center justify-center rounded px-1 py-0 text-[9px] leading-[1.4] font-black transition-colors ${
+                      patchedChannel >= 0 ? "bg-accent text-accent-fg" : "text-fg-muted hover:bg-hover hover:text-fg-2"
+                    }`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {patchedChannel >= 0 ? patchLabel(patchedChannel) : "A"}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-[200px] [&_[role=menuitem]]:text-xs" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenuLabel>Patch source audio to {track.name}</DropdownMenuLabel>
+                  {Array.from({ length: channelCount }, (_, channel) => (
+                    <DropdownMenuItem key={channel} data-testid={`track-patch-channel-${channel}`} disabled={track.locked || disabledChannels.includes(channel)} onSelect={() => setChannelPatch(channel, channel === patchedChannel ? null : track.id)}>
+                      {patchedChannel === channel ? "Unpatch" : "Patch"} {patchLabel(channel)}{disabledChannels.includes(channel) ? " (off)" : ""}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  {Array.from({ length: channelCount }, (_, channel) => (
+                    <DropdownMenuItem key={`t${channel}`} data-testid={`track-toggle-channel-${channel}`} onSelect={() => setChannelEnabled(channel, disabledChannels.includes(channel))}>
+                      {disabledChannels.includes(channel) ? "Switch on" : "Switch off"} {patchLabel(channel)}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            {targetKind && !(targetKind === "audio" && channelCount >= 2) && (
               <Button variant="ghost" size="sm"
                 type="button"
                 data-track-target={isTarget ? "true" : undefined}

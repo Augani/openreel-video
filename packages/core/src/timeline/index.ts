@@ -32,7 +32,7 @@ export {
   type ResolvedTimelineItem,
 } from "./timeline-items";
 
-export { resolveTimelinePlacement } from "./timeline-placement";
+export { resolveTimelinePlacement, createTimelinePlacementPlanner, type TimelinePlacementPlanner } from "./timeline-placement";
 
 export {
   MAIN_SEQUENCE_ID,

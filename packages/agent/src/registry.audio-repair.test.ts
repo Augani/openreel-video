@@ -33,6 +33,50 @@ function setup() {
 
 const effectsOf = (host: HeadlessHost) => host.getProject().timeline.tracks[0].clips[0].audioEffects ?? [];
 
+describe("enhance_speech agent tool", () => {
+  const mixOf = (host: HeadlessHost) => (effectsOf(host).find((e) => e.type === "enhanceSpeech")?.params as { mix?: number } | undefined)?.mix;
+
+  it("adds the effect at 100 by default as ONE undo step, updates it, and removes it", async () => {
+    const { host, history } = setup();
+    expect(getTool("enhance_speech")?.readOnly).toBe(false);
+    const before = history.getDisplayHistory().length;
+    const added = await executeTool("enhance_speech", { clipId: "c1" }, host);
+    expect(added.ok).toBe(true);
+    expect(mixOf(host)).toBe(100);
+    expect(history.getDisplayHistory().length).toBe(before + 1);
+    expect(added.data).toEqual({ clipIds: ["c1"], mix: 100 });
+
+    const updated = await executeTool("enhance_speech", { clipIds: ["c1"], mix: 40 }, host);
+    expect(updated.ok).toBe(true);
+    expect(mixOf(host)).toBe(40);
+    expect(effectsOf(host).filter((e) => e.type === "enhanceSpeech")).toHaveLength(1);
+
+    const steps = history.getDisplayHistory().length;
+    expect((await executeTool("enhance_speech", { clipId: "c1", mix: 40 }, host)).ok).toBe(true);
+    expect(history.getDisplayHistory().length, "an unchanged mix is not an undo step").toBe(steps);
+
+    const removed = await executeTool("enhance_speech", { clipId: "c1", remove: true }, host);
+    expect(removed.ok).toBe(true);
+    expect(mixOf(host)).toBeUndefined();
+  });
+
+  it("clamps mix and rejects bad input and unknown clips", async () => {
+    const { host } = setup();
+    expect((await executeTool("enhance_speech", {}, host)).ok).toBe(false);
+    expect((await executeTool("enhance_speech", { clipId: "nope" }, host)).error?.code).toBe("CLIP_NOT_FOUND");
+    expect((await executeTool("enhance_speech", { clipId: "c1", mix: "loud" }, host)).error?.code).toBe("INVALID_PARAMS");
+    await executeTool("enhance_speech", { clipId: "c1", mix: 900 }, host);
+    expect(mixOf(host)).toBe(100);
+  });
+
+  it("is accepted by add_audio_effect's type list", async () => {
+    const { host } = setup();
+    const result = await executeTool("add_audio_effect", { clipId: "c1", effectType: "enhanceSpeech", params: { mix: 70 } }, host);
+    expect(result.ok).toBe(true);
+    expect(mixOf(host)).toBe(70);
+  });
+});
+
 describe("audio repair agent tools", () => {
   it("registers the three tools", () => {
     for (const name of ["analyze_audio_issues", "add_audio_repair", "queue_stems_export"]) expect(getTool(name)).toBeDefined();

@@ -15,7 +15,7 @@ import {
 import type { ProjectState } from "../project-store";
 import type { ClipHistoryEntryType } from "./index";
 import { useEngineStore } from "../engine-store";
-import { whenEngineModulesLoaded } from "../../services/lazy-engines";
+import { getLoadedOptionalEngineModules, loadOptionalEngineModules, whenEngineModulesLoaded } from "../../services/lazy-engines";
 
 type Get = StoreApi<ProjectState>["getState"];
 type Set = StoreApi<ProjectState>["setState"];
@@ -274,7 +274,14 @@ export function createProjectStoreHelpers(
         .getMaskEngine()
         .then((engine) => engine.loadMasks(project.masks ?? []));
     }
-    engines.multicamEngine.loadGroups(project.multicamGroups ?? []);
+    // Multicam is not a first-paint feature: its engine is only loaded for a project that has groups (or once it was
+    // loaded earlier in the session, so switching to a project without groups clears the old ones).
+    const multicamGroups = project.multicamGroups ?? [];
+    const loadedOptional = getLoadedOptionalEngineModules();
+    if (loadedOptional) loadedOptional.multicamEngine.loadGroups(multicamGroups);
+    else if (multicamGroups.length > 0) {
+      void loadOptionalEngineModules().then((optional) => optional.multicamEngine.loadGroups(multicamGroups));
+    }
     if (project.compoundClips || project.nestedInstances) {
       engines.getNestedSequenceEngine().loadState(
         project.compoundClips ?? [],

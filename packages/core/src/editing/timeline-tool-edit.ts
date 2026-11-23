@@ -1,3 +1,4 @@
+import { clonePlain } from "./clone-plain";
 import { reconcileGraphicInstances } from "../graphic-templates/instances";
 import { mediaTrimBounds } from "../media/bins";
 import { prepareTrimToolEdit } from "./timeline-trim-tools";
@@ -182,6 +183,96 @@ function captionIntervals(items: Entry[]) {
 }
 
 /** Prepare once at pointer-down; previewing a frame never walks the project or copies media. */
+/** What the ripple planners need to know about the media behind a clip (shared by the single and the batched planner). */
+export interface RippleContext {
+  trimFloor(clip: Clip): number;
+  limit(clip: Clip): number;
+  isGenerated(item: Item): boolean;
+}
+
+export function createRippleContext(
+  mediaById: ReadonlyMap<string, Project["mediaLibrary"]["items"][number]>,
+  compoundsById: ReadonlyMap<string, { content: { duration: number } }>,
+): RippleContext {
+  const trimFloor = (clip: Clip) => mediaTrimBounds(mediaById.get(clip.mediaId))?.min ?? 0;
+  const limit = (clip: Clip) => {
+    const compoundId = getCompoundClipId(clip);
+    const duration =
+      (compoundId
+        ? compoundsById.get(compoundId)?.content.duration
+        : undefined) ?? mediaById.get(clip.mediaId)?.metadata.duration;
+    const full =
+      typeof duration === "number" && Number.isFinite(duration) && duration > 0
+        ? duration
+        : clip.outPoint;
+    const bounds = mediaTrimBounds(mediaById.get(clip.mediaId));
+    return bounds ? Math.min(full, bounds.max) : full;
+  };
+  const isGenerated = (item: Item) =>
+    mediaById.get((item as Clip).mediaId)?.type === "image" ||
+    Boolean((item as Clip).metadata?.motionClip);
+  return { trimFloor, limit, isGenerated };
+}
+
+/** Narrows the allowed ripple delta by one edit item (the non-slip branch of the bounds loop). */
+export function narrowRippleBounds(
+  bounds: { minimum: number; maximum: number },
+  item: Item,
+  kind: TimelineItemKind,
+  edge: "left" | "right",
+  frame: number,
+  ctx: RippleContext,
+): void {
+  if (edge === "left") bounds.maximum = Math.min(bounds.maximum, item.duration - frame);
+  else bounds.minimum = Math.max(bounds.minimum, frame - item.duration);
+  if (kind === "media" && !ctx.isGenerated(item)) {
+    const clip = item as Clip,
+      rate = speed(clip),
+      available = Math.max(0, ctx.limit(clip) - clip.outPoint);
+    if (edge === "left")
+      bounds.minimum = Math.max(
+        bounds.minimum,
+        -(clip.reversed ? available : clip.inPoint - ctx.trimFloor(clip)) / rate,
+      );
+    else
+      bounds.maximum = Math.min(
+        bounds.maximum,
+        (clip.reversed ? clip.inPoint - ctx.trimFloor(clip) : available) / rate,
+      );
+  }
+}
+
+/** The ripple-trimmed copy of one edit item (`item` is the current item, which is also the one the trim is read from). */
+export function rippleResizeItem(
+  item: Item,
+  kind: TimelineItemKind,
+  edge: "left" | "right",
+  delta: number,
+  durationDelta: number,
+  ctx: RippleContext,
+): Item {
+  let next = resizeKeys(item, item.duration + durationDelta);
+  if (kind === "media") {
+    const clip = next as Clip,
+      original = item as Clip,
+      shift = delta * speed(original);
+    if (ctx.isGenerated(next))
+      next = {
+        ...clip,
+        outPoint: original.inPoint + clip.duration * speed(original),
+      };
+    else if (edge === "left")
+      next = original.reversed
+        ? { ...clip, outPoint: original.outPoint - shift }
+        : { ...clip, inPoint: original.inPoint + shift };
+    else
+      next = original.reversed
+        ? { ...clip, inPoint: original.inPoint - shift }
+        : { ...clip, outPoint: original.outPoint + shift };
+  }
+  return next;
+}
+
 export function prepareTimelineToolEdit(
   project: Project,
   options: {
@@ -229,20 +320,8 @@ function prepareBaseToolEdit(
   const compoundsById = new Map(
     (project.compoundClips ?? []).map((compound) => [compound.id, compound]),
   );
-  const trimFloor = (clip: Clip) => mediaTrimBounds(mediaById.get(clip.mediaId))?.min ?? 0;
-  const limit = (clip: Clip) => {
-    const compoundId = getCompoundClipId(clip);
-    const duration =
-      (compoundId
-        ? compoundsById.get(compoundId)?.content.duration
-        : undefined) ?? mediaById.get(clip.mediaId)?.metadata.duration;
-    const full =
-      typeof duration === "number" && Number.isFinite(duration) && duration > 0
-        ? duration
-        : clip.outPoint;
-    const bounds = mediaTrimBounds(mediaById.get(clip.mediaId));
-    return bounds ? Math.min(full, bounds.max) : full;
-  };
+  const ctx = createRippleContext(mediaById, compoundsById);
+  const { trimFloor, limit, isGenerated } = ctx;
   const primary = byId.get(options.itemId);
   if (!primary) throw new Error("This timeline item is no longer available.");
   const linked = [
@@ -285,9 +364,6 @@ function prepareBaseToolEdit(
         ? project.settings.frameRate
         : 30),
   );
-  const isGenerated = (item: Item) =>
-    mediaById.get((item as Clip).mediaId)?.type === "image" ||
-    Boolean((item as Clip).metadata?.motionClip);
   const primaryGenerated =
     primary.kind === "media" && isGenerated(primary.item);
   const primaryRate =
@@ -346,23 +422,9 @@ function prepareBaseToolEdit(
           "The linked edit points differ. Align them or turn off Linked selection before ripple trimming.",
         );
       }
-      if (edge === "left") maximum = Math.min(maximum, item.duration - frame);
-      else minimum = Math.max(minimum, frame - item.duration);
-      if (entry.kind === "media" && !isGenerated(item)) {
-        const clip = item as Clip,
-          rate = speed(clip),
-          available = Math.max(0, limit(clip) - clip.outPoint);
-        if (edge === "left")
-          minimum = Math.max(
-            minimum,
-            -(clip.reversed ? available : clip.inPoint - trimFloor(clip)) / rate,
-          );
-        else
-          maximum = Math.min(
-            maximum,
-            (clip.reversed ? clip.inPoint - trimFloor(clip) : available) / rate,
-          );
-      }
+      const bounds = { minimum, maximum };
+      narrowRippleBounds(bounds, item, entry.kind, edge, frame, ctx);
+      ({ minimum, maximum } = bounds);
     }
   }
   if (minimum > EPS || maximum < -EPS || minimum > maximum + EPS)
@@ -431,30 +493,16 @@ function prepareBaseToolEdit(
       for (const entry of selected) {
         let item = entry.item;
         if (options.mode === "ripple")
-          item = resizeKeys(item, item.duration + durationDelta);
-        if (entry.kind === "media") {
+          item = rippleResizeItem(item, entry.kind, edge, value.delta, durationDelta, ctx);
+        else if (entry.kind === "media") {
           const clip = item as Clip,
             original = entry.item as Clip,
             shift = value.delta * speed(original);
-          if (options.mode === "ripple" && isGenerated(item))
-            item = {
-              ...clip,
-              outPoint: original.inPoint + clip.duration * speed(original),
-            };
-          else if (options.mode === "slip")
-            item = {
-              ...clip,
-              inPoint: original.inPoint + shift,
-              outPoint: original.outPoint + shift,
-            };
-          else if (edge === "left")
-            item = original.reversed
-              ? { ...clip, outPoint: original.outPoint - shift }
-              : { ...clip, inPoint: original.inPoint + shift };
-          else
-            item = original.reversed
-              ? { ...clip, inPoint: original.inPoint - shift }
-              : { ...clip, outPoint: original.outPoint + shift };
+          item = {
+            ...clip,
+            inPoint: original.inPoint + shift,
+            outPoint: original.outPoint + shift,
+          };
         }
         put(entry, item);
       }
@@ -635,6 +683,19 @@ export function validateTimelineToolEdits(
   if (owners) for (const edit of edits) if (edit.kind === "media" || edit.kind in collections) {
     if (edit.after) owners.set(edit.id, edit.after as Item); else owners.delete(edit.id);
   }
+  // Index each collection once: a linear find per edit made validating a
+  // 1000-clip ripple (thousands of edits) quadratic.
+  const indexes = new Map<readonly EditData[], Map<string, EditData>>();
+  const lookup = (edit: TimelineToolItemEdit): EditData | null => {
+    const items = collection(project, edit);
+    let index = indexes.get(items);
+    if (!index) {
+      index = new Map();
+      for (const item of items) if (!index.has(item.id)) index.set(item.id, item);
+      indexes.set(items, index);
+    }
+    return index.get(edit.id) ?? null;
+  };
   const knownTracks = [
     ...project.timeline.tracks,
     ...edits.flatMap((edit) =>
@@ -659,9 +720,9 @@ export function validateTimelineToolEdits(
     const track = knownTracks.find((track) => track.id === edit.trackId);
     if (!timelineLevel && (!track || track.locked))
       throw new Error("An affected track is locked or missing.");
-    const current =
-      collection(project, edit).find((item) => item.id === edit.id) ?? null;
-    if (JSON.stringify(current) !== JSON.stringify(edit.before))
+    const current = lookup(edit);
+    // Plans reference the project's own objects as `before`: identity needs no serialising comparison.
+    if (current !== edit.before && JSON.stringify(current) !== JSON.stringify(edit.before))
       throw new Error("An affected item changed before the edit finished.");
     if (timelineLevel) {
       if (edit.after && edit.after.id !== edit.id)
@@ -815,7 +876,7 @@ export function applyTimelineToolEdits(
 export function invertTimelineToolEdits(
   edits: readonly TimelineToolItemEdit[],
 ): TimelineToolItemEdit[] {
-  return structuredClone(
+  return clonePlain(
     edits.map((edit) => ({ ...edit, before: edit.after, after: edit.before })),
   );
 }

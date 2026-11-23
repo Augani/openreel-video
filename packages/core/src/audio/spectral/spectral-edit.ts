@@ -3,6 +3,7 @@ import type { Clip, Effect } from "../../types/timeline";
 import {
   SPECTRAL_REPAIR_EFFECT_TYPE,
   createSpectralRepairEffect,
+  spectralRegionsVersion,
   sanitizeSpectralRegions,
   type SpectralRegion,
 } from "./spectral-regions";
@@ -40,6 +41,10 @@ export function planSpectralRegionsAction(
   }
   const current = sanitizeSpectralRegions(existing.params.regions);
   if (JSON.stringify(current) === JSON.stringify(next)) return null;
+  const { version: _drop, ...rest } = existing.params;
+  void _drop;
+  const version = spectralRegionsVersion(next);
+  const params = version ? { ...rest, version, regions: next } : { ...rest, regions: next };
   if (next.length === 0) {
     return { id: ids.actionId, timestamp, type: "audio/removeEffect", params: { clipId: clip.id, effectId: existing.id } };
   }
@@ -47,6 +52,6 @@ export function planSpectralRegionsAction(
     id: ids.actionId,
     timestamp,
     type: "audio/replaceEffect",
-    params: { clipId: clip.id, effectId: existing.id, effect: { ...existing, params: { ...existing.params, regions: next } } },
+    params: { clipId: clip.id, effectId: existing.id, effect: { ...existing, params } },
   };
 }

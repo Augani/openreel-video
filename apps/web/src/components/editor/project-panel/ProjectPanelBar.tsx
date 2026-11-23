@@ -39,11 +39,16 @@ import {
   renameMediaItem,
   runOrganize,
   setMediaText,
+  setMediaVrProperties,
 } from "../../../services/project-panel-commands";
 import { useBinDropTarget } from "./BinViews";
 import { InterpretFootageDialog } from "./InterpretFootageDialog";
+import { actionTargetIds } from "./ProjectPanelMenus";
 import { RawSourceSettingsDialog } from "./RawSourceSettingsDialog";
 import type { ProjectPanelData } from "./useProjectPanelData";
+
+// VR Properties loads when the dialog is opened.
+const VrPropertiesDialog = React.lazy(() => import("../VrPropertiesDialog").then((m) => ({ default: m.VrPropertiesDialog })));
 
 const iconButton = "h-[26px] w-[26px] shrink-0 border border-bg-3 bg-[#1c1d21] text-fg-3 hover:text-fg";
 
@@ -331,7 +336,7 @@ export const ProjectPanelDialogs: React.FC = () => {
       return;
     }
     if (!dialog || !media) return;
-    setText(dialog.kind === "rename-media" ? media.name : dialog.kind === "delete-bin" || dialog.kind === "interpret-footage" || dialog.kind === "raw-settings" ? "" : (media[dialog.kind] ?? ""));
+    setText(dialog.kind === "rename-media" ? media.name : dialog.kind === "delete-bin" || dialog.kind === "interpret-footage" || dialog.kind === "raw-settings" || dialog.kind === "vr-properties" ? "" : (media[dialog.kind] ?? ""));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dialog?.kind, media?.id]);
 
@@ -397,6 +402,22 @@ export const ProjectPanelDialogs: React.FC = () => {
 
   if (dialog?.kind === "raw-settings") {
     return media ? <RawSourceSettingsDialog key={media.id} media={media} onClose={close} /> : null;
+  }
+
+  if (dialog?.kind === "vr-properties") {
+    return media ? (
+      <React.Suspense fallback={null}>
+        <VrPropertiesDialog
+          key={media.id}
+          title="VR Properties"
+          subtitle={media.name}
+          value={media.vrProperties ?? (media.metadata.vr?.source === "metadata" ? media.metadata.vr : undefined)}
+          detected={media.metadata.vr}
+          onClose={close}
+          onApply={(vr) => void runOrganize("VR properties", setMediaVrProperties(actionTargetIds(media.id), vr))}
+        />
+      </React.Suspense>
+    ) : null;
   }
 
   if (dialog?.kind === "interpret-footage") {

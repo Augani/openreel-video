@@ -1,5 +1,6 @@
 import { fpsOf, makeFrameRate, resolveFrameRate, secondsToFrames, type FrameRate } from "./timecode";
 import type {
+  SeqClipMarker,
   InterchangeReport,
   Sequence,
   SeqClip,
@@ -9,6 +10,8 @@ import type {
   SeqTransition,
   SeqTransitionKind,
 } from "./model";
+import { TRANSITION_NAMES, transitionTypeFromName } from "./transition-names";
+import type { TransitionType } from "../types/effects";
 import { MARKER_KINDS, type MarkerKind } from "../types/timeline";
 import { nearestMarkerColorName } from "./marker-export";
 
@@ -48,6 +51,21 @@ const markerJson = (m: SeqMarker, rate: number): JsonObject => {
     comment: m.comment ?? "",
     marked_range: range(rt(m.frame, rate), rt(m.durationFrames ?? 0, rate)),
     metadata: Object.keys(meta).length ? { [OTIO_NAMESPACE]: meta } : {},
+  };
+};
+
+/** A clip / master-clip marker: `sec` is source-media time, so it is written in the media's own rate. */
+const clipMarkerJson = (m: SeqClipMarker, rate: number): JsonObject => {
+  const meta: JsonObject = { scope: "clip" };
+  if (m.color) meta.color = m.color;
+  if (m.kind) meta.kind = m.kind;
+  return {
+    OTIO_SCHEMA: "Marker.2",
+    name: m.name,
+    color: m.color ? nearestMarkerColorName(m.color) : "RED",
+    comment: m.comment ?? "",
+    marked_range: range(rt(Math.round(m.sec * rate), rate), rt(Math.round((m.durationSec ?? 0) * rate), rate)),
+    metadata: { [OTIO_NAMESPACE]: meta },
   };
 };
 
@@ -162,7 +180,7 @@ export function serializeOtio(input: Sequence): string {
       media_references: { DEFAULT_MEDIA: mediaRef(media) },
       active_media_reference_key: "DEFAULT_MEDIA",
       effects,
-      markers: [],
+      markers: (clip.markers ?? []).map((m) => clipMarkerJson(m, mrate)),
       enabled: true,
       metadata: {
         [OTIO_NAMESPACE]: {
@@ -218,11 +236,11 @@ export function serializeOtio(input: Sequence): string {
         index: bi,
         json: {
           OTIO_SCHEMA: "Transition.1",
-          name: tr.kind,
-          transition_type: TRANSITION_TYPE[tr.kind],
+          name: (tr.type && TRANSITION_NAMES[tr.type]?.name) || tr.kind,
+          transition_type: tr.type ? "Custom_Transition" : TRANSITION_TYPE[tr.kind],
           in_offset: rt(cut - tr.startFrame, seqFps),
           out_offset: rt(tr.endFrame - cut, seqFps),
-          metadata: { [OTIO_NAMESPACE]: { kind: tr.kind, alignment: tr.alignment } },
+          metadata: { [OTIO_NAMESPACE]: { kind: tr.kind, ...(tr.type ? { type: tr.type } : {}), alignment: tr.alignment } },
         },
       });
     }
@@ -640,8 +658,10 @@ export function parseOtio(source: string): { sequence: Sequence; report: Interch
           const kindOf: SeqTransitionKind | undefined =
             (kindMeta && KIND_BY_NAME[kindMeta]) ||
             (typeName === "SMPTE_Dissolve" ? "dissolve" : undefined);
-          if (!kindOf) warnings.push(`Transition "${typeName || str(item.name) || "custom"}" is not supported; imported as a cross dissolve.`);
-          transitions.push({ kind: kindOf ?? "dissolve", startFrame: cursor - inOff, endFrame: cursor + outOff, alignment: "center" });
+          const typeMeta = str(tm.type);
+          const named = typeMeta && TRANSITION_NAMES[typeMeta as keyof typeof TRANSITION_NAMES] ? (typeMeta as TransitionType) : transitionTypeFromName(str(item.name) ?? "");
+          if (!kindOf && !named) warnings.push(`Transition "${typeName || str(item.name) || "custom"}" is not supported; imported as a cross dissolve.`);
+          transitions.push({ kind: kindOf ?? "dissolve", ...(named ? { type: named } : {}), startFrame: cursor - inOff, endFrame: cursor + outOff, alignment: "center" });
         } else if (schema === "Clip") {
           const cm = ownMeta(item);
           const media = mediaFor(item, kind);

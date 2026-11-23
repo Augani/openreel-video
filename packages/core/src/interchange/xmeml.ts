@@ -29,6 +29,7 @@ import type {
   SeqTransition,
   SeqTransitionKind,
 } from "./model";
+import { TRANSITION_NAMES, transitionTypeFromName } from "./transition-names";
 
 /**
  * Final Cut Pro 7 XML (xmeml version 5) — the dialect Adobe Premiere Pro and
@@ -43,13 +44,14 @@ const TRANSITION_EFFECT: Record<SeqTransitionKind, { name: string; category: str
   dissolve: { name: "Cross Dissolve", category: "Dissolve" },
   dipToBlack: { name: "Dip to Black", category: "Dissolve" },
   dipToWhite: { name: "Dip to White", category: "Dissolve" },
-  wipe: { name: "Band Wipe", category: "Wipe" },
+  wipe: { name: "Wipe", category: "Wipe" },
   push: { name: "Push", category: "Slide" },
   slide: { name: "Slide", category: "Slide" },
 };
 
 export function transitionKindFromName(name: string): SeqTransitionKind | null {
   const n = name.toLowerCase();
+  if (transitionTypeFromName(name)) return null; // a named transition (Iris Round, Clock Wipe, ...) is imported as itself
   if (n.includes("dip to white") || n.includes("fade to white")) return "dipToWhite";
   if (n.includes("dip to black") || n.includes("fade to black") || n.includes("fade in") || n.includes("fade out"))
     return "dipToBlack";
@@ -357,7 +359,7 @@ export function serializeXmeml(input: Sequence): string {
       items.push({
         at: tr.startFrame - 0.5,
         write: () => {
-          const effect = TRANSITION_EFFECT[tr.kind];
+          const effect = (tr.type && TRANSITION_NAMES[tr.type]) || TRANSITION_EFFECT[tr.kind];
           w.open("transitionitem");
           w.leaf("start", tr.startFrame).leaf("end", tr.endFrame).leaf("alignment", tr.alignment);
           writeRate(w, seq.rate);
@@ -409,7 +411,11 @@ export function serializeXmeml(input: Sequence): string {
       const media = mediaByKey.get(clip.mediaKey);
       if (!media) return;
       const id = audioClipId(ai, ci);
-      w.open("clipitem", { id, premiereChannelType: "stereo" });
+      const channels = clip.audioChannels;
+      // mono = one file channel; stereo = an adjacent pair starting at trackindex. Other maps are approximated (see formatItems).
+      const channelType = channels?.format === "mono" ? "mono" : "stereo";
+      const firstChannel = channels ? Math.max(0, channels.sources.find((source) => source >= 0) ?? 0) : 0;
+      w.open("clipitem", { id, premiereChannelType: channelType });
       w.leaf("masterclipid", `masterclip-${fileId(media)}`);
       w.leaf("name", clip.name).leaf("enabled", "TRUE");
       w.leaf("duration", sourceFrames(media, media.durationSec));
@@ -418,7 +424,7 @@ export function serializeXmeml(input: Sequence): string {
       w.leaf("in", sourceFrames(media, clip.inSec)).leaf("out", sourceFrames(media, clip.outSec));
       writeFile(media);
       if (entry.pairedVideo === undefined) writeClipMarkers(clip, media);
-      w.open("sourcetrack").leaf("mediatype", "audio").leaf("trackindex", 1).close("sourcetrack");
+      w.open("sourcetrack").leaf("mediatype", "audio").leaf("trackindex", firstChannel + 1).close("sourcetrack");
       writeAudioRetime(clip);
       writeAudioFilters(clip);
       if (entry.pairedVideo !== undefined) {
@@ -650,11 +656,12 @@ export function parseXmeml(source: string): { sequence: Sequence; report: Interc
         const end = childNumber(el, "end");
         if (start === undefined || end === undefined || end <= start) return;
         const effectName = childText(child(el, "effect"), "name") ?? "";
+        const typeOf = transitionTypeFromName(effectName);
         const kindOf = transitionKindFromName(effectName);
-        if (!kindOf) warnings.push(`Transition "${effectName}" is not supported; imported as a cross dissolve.`);
+        if (!kindOf && !typeOf) warnings.push(`Transition "${effectName}" is not supported; imported as a cross dissolve.`);
         const alignmentRaw = (childText(el, "alignment") ?? "center").toLowerCase();
         const alignment = alignmentRaw.startsWith("start") ? "start" : alignmentRaw.startsWith("end") ? "end" : "center";
-        const t: SeqTransition = { kind: kindOf ?? "dissolve", startFrame: start, endFrame: end, alignment };
+        const t: SeqTransition = { kind: typeOf ? "dissolve" : (kindOf ?? "dissolve"), ...(typeOf ? { type: typeOf } : {}), startFrame: start, endFrame: end, alignment };
         transitions.push(t);
         parsedTransitions.push({ el, t, at });
       });
@@ -715,6 +722,17 @@ export function parseXmeml(source: string): { sequence: Sequence; report: Interc
             },
           ];
         });
+        // Audio clipitems carry their file channels as premiereChannelType (mono | stereo) + sourcetrack/trackindex.
+        const sourceChannel = kind === "audio" ? childNumber(child(el, "sourcetrack"), "trackindex") : undefined;
+        const isMonoClip = (el.attrs.premiereChannelType ?? "").toLowerCase() === "mono";
+        const fileChannels = media?.channels ?? 2;
+        const first = sourceChannel !== undefined && sourceChannel >= 1 ? sourceChannel - 1 : 0;
+        const audioChannels: SeqClip["audioChannels"] | undefined =
+          kind === "audio" && media && !nested && media.hasAudio && (isMonoClip ? fileChannels > 1 : first > 0 || fileChannels > 2)
+            ? isMonoClip
+              ? { format: "mono", sources: [Math.min(first, fileChannels - 1)], fileChannels }
+              : { format: "stereo", sources: [Math.min(first, fileChannels - 1), Math.min(first + 1, fileChannels - 1)], fileChannels }
+            : undefined;
         clips.push({
           clip: {
             id: el.attrs.id ?? `${kind}-${index}-${clips.length}`,
@@ -729,6 +747,7 @@ export function parseXmeml(source: string): { sequence: Sequence; report: Interc
             opacity,
             volume,
             withAudio: false,
+            ...(audioChannels ? { audioChannels } : {}),
             ...(nested ? { nested } : {}),
             ...(multicam ? { multicam } : {}),
             ...(clipMarkers.length && !nested ? { markers: clipMarkers } : {}),
@@ -760,6 +779,7 @@ export function parseXmeml(source: string): { sequence: Sequence; report: Interc
     videoParsed.forEach((p) => p.parsed.forEach((c) => c.elementId && videoById.set(c.elementId, c.clip)));
     const withAudio = new Set<SeqClip>();
     const audioVolume = new Map<SeqClip, number>();
+    const audioMapOf = new Map<SeqClip, NonNullable<SeqClip["audioChannels"]>>();
     const absorbed = new Set<SeqClip>();
     for (const p of audioParsed) {
       for (const a of p.parsed) {
@@ -776,6 +796,7 @@ export function parseXmeml(source: string): { sequence: Sequence; report: Interc
             if (!withAudio.has(v)) {
               withAudio.add(v);
               audioVolume.set(v, a.clip.volume);
+              if (a.clip.audioChannels) audioMapOf.set(v, a.clip.audioChannels);
             }
             break;
           }
@@ -785,7 +806,9 @@ export function parseXmeml(source: string): { sequence: Sequence; report: Interc
     const videoTracks: SeqTrack[] = videoParsed.map((p) => ({
       ...p.track,
       clips: p.track.clips.map((c) =>
-        withAudio.has(c) ? { ...c, withAudio: true, volume: audioVolume.get(c) ?? c.volume } : c,
+        withAudio.has(c)
+          ? { ...c, withAudio: true, volume: audioVolume.get(c) ?? c.volume, ...(audioMapOf.has(c) ? { audioChannels: audioMapOf.get(c) } : {}) }
+          : c,
       ),
     }));
     const audioTracks: SeqTrack[] = [];

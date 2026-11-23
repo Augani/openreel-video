@@ -23,6 +23,8 @@ export type AssetSection =
   | "ai"
   | "recipes"
   | "markers"
+  | "browser"
+  | "metadata"
   | "comments"
   | "versions"
   | "templates"
@@ -43,6 +45,16 @@ export const useEditorWorkspaceStore = create<{
   setTargetTrack: (kind: TargetKind, trackId: string | null) => void;
   /** Same as setTargetTrack: route a source component to a track (null clears). */
   setSourcePatch: (kind: TargetKind, trackId: string | null) => void;
+  /**
+   * Multichannel source patching: the track patched to each audio channel group of the Source monitor's clip beyond
+   * the first (A2, A3, ...; channel index 1+). Channel 0 (A1) is `targetTracks.audio`. A track belongs to one channel.
+   */
+  channelPatches: Record<number, string>;
+  /** Channel groups whose patch indicator is switched off (nothing is placed for them), by channel index. */
+  disabledChannels: number[];
+  /** Patches a source audio channel (0 = A1) to a track, or clears it (null = automatic). A track is patched to one channel only. */
+  setChannelPatch: (channel: number, trackId: string | null) => void;
+  setChannelEnabled: (channel: number, enabled: boolean) => void;
   /**
    * Premiere TRACK TARGETING: the tracks whose target toggle (V1 / A1 style) is
    * on. Extract, Lift, Add Edit, Match Frame, Paste and the Source monitor
@@ -91,9 +103,40 @@ export const useEditorWorkspaceStore = create<{
       const next = { ...state.targetTracks };
       if (trackId) next[kind] = trackId;
       else delete next[kind];
+      // A1 patched to a track takes it from any other audio channel.
+      if (kind === "audio" && trackId) {
+        const channelPatches = Object.fromEntries(Object.entries(state.channelPatches).filter(([, id]) => id !== trackId)) as Record<number, string>;
+        return { targetTracks: next, channelPatches };
+      }
       return { targetTracks: next };
     }),
   setSourcePatch: (kind, trackId) => get().setTargetTrack(kind, trackId),
+  channelPatches: {},
+  disabledChannels: [],
+  setChannelPatch: (channel, trackId) =>
+    set((state) => {
+      if (!Number.isInteger(channel) || channel < 0) return state;
+      // A track serves one channel: patching it here frees it from any other channel (and from the video-style A1 patch).
+      const channelPatches = Object.fromEntries(
+        Object.entries(state.channelPatches).filter(([key, id]) => !(trackId && id === trackId && Number(key) !== channel)),
+      ) as Record<number, string>;
+      const targetTracks = { ...state.targetTracks };
+      if (trackId && channel !== 0 && targetTracks.audio === trackId) delete targetTracks.audio;
+      if (channel === 0) {
+        if (trackId) targetTracks.audio = trackId;
+        else delete targetTracks.audio;
+        return { targetTracks, channelPatches };
+      }
+      if (trackId) channelPatches[channel] = trackId;
+      else delete channelPatches[channel];
+      return { targetTracks, channelPatches };
+    }),
+  setChannelEnabled: (channel, enabled) =>
+    set((state) => {
+      const has = state.disabledChannels.includes(channel);
+      if (enabled === !has) return state;
+      return { disabledChannels: enabled ? state.disabledChannels.filter((c) => c !== channel) : [...state.disabledChannels, channel] };
+    }),
   targetedTrackIds: [],
   setTrackTargeted: (trackId, targeted) =>
     set((state) => {

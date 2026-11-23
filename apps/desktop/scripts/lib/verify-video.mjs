@@ -117,7 +117,8 @@ function psnrOf(a, b) {
  */
 export function framePsnr(ffmpeg, a, b, { width, height, indexes }) {
   const out = [];
-  const batch = 90;
+  // Keep a batch under ~256 MB of raw frames (a 4K yuv420p frame is 12 MB).
+  const batch = Math.max(1, Math.min(90, Math.floor((256 << 20) / ((width * height * 3) / 2))));
   for (let from = 0; from < indexes.length; from += batch) {
     const chunk = indexes.slice(from, from + batch);
     const fa = rawFrames(ffmpeg, a, width, height, chunk);

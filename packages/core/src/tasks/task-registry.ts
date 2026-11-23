@@ -7,7 +7,7 @@
  * registry only presents progress and forwards pause / cancel / retry to the owning system.
  */
 
-export type BackgroundTaskKind = "export" | "proxy" | "transcription" | "import" | "analysis" | "tracking" | "other";
+export type BackgroundTaskKind = "export" | "proxy" | "transcription" | "import" | "analysis" | "tracking" | "render" | "other";
 export type BackgroundTaskStatus = "queued" | "running" | "paused" | "completed" | "failed" | "cancelled";
 
 export interface BackgroundTaskControls {
@@ -229,7 +229,8 @@ export class BackgroundTaskRegistry {
       this.upsert(abort.signal.aborted ? { ...base, detail, status: "cancelled" } : { ...base, detail, status: "completed", progress: 1 });
       return result;
     } catch (error) {
-      if (abort.signal.aborted || (error instanceof Error && error.name === "AbortError")) {
+      // Name check, not instanceof: a DOMException from another realm (a worker, an iframe, jsdom) is not an Error here.
+      if (abort.signal.aborted || (error as { name?: unknown } | null)?.name === "AbortError") {
         this.upsert({ ...base, detail, status: "cancelled" });
       } else {
         this.upsert({ ...base, detail, status: "failed", error: error instanceof Error ? error.message : String(error) });

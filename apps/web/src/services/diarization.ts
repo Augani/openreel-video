@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
+import { backgroundTasks } from "@openreel/core/tasks/task-registry";
 import {
   applySpeakerStyles,
   clusterEmbeddings,
@@ -81,7 +82,7 @@ function runWorker(
   });
 }
 
-export async function diarizeCaptions(options: DiarizeOptions = {}): Promise<DiarizeOutcome> {
+async function diarizeCaptionsUntracked(options: DiarizeOptions = {}): Promise<DiarizeOutcome> {
   const store = useProjectStore.getState();
   const all: Subtitle[] = store.project.timeline.subtitles;
   // Hidden translated tracks repeat the same time ranges; analyse the visible track only.
@@ -166,4 +167,45 @@ export async function diarizeCaptions(options: DiarizeOptions = {}): Promise<Dia
   } finally {
     void audioContext.close().catch(() => undefined);
   }
+}
+
+class DiarizeTaskFailure extends Error {
+  constructor(readonly outcome: DiarizeOutcome) {
+    super(outcome.message ?? "Speaker detection failed.");
+  }
+}
+
+/**
+ * Speaker detection, reported to the background-task panel. The outcome contract is unchanged (a failed detection
+ * still resolves with `success: false`; a cancel, from the caller's signal or the panel, rejects with an AbortError).
+ */
+export function diarizeCaptions(options: DiarizeOptions = {}): Promise<DiarizeOutcome> {
+  return backgroundTasks
+    .track({ kind: "analysis", source: "diarization", title: "Speaker detection", retry: () => void diarizeCaptions({ speakerCount: options.speakerCount }).catch(() => undefined) }, async (ctx) => {
+      const external = options.signal;
+      if (external?.aborted) throw new DOMException("Speaker detection cancelled.", "AbortError");
+      const merged = new AbortController();
+      const forward = () => merged.abort();
+      ctx.signal.addEventListener("abort", forward, { once: true });
+      external?.addEventListener("abort", forward, { once: true });
+      try {
+        const outcome = await diarizeCaptionsUntracked({
+          ...options,
+          signal: merged.signal,
+          onProgress: (progress, message) => {
+            ctx.progress(progress, message);
+            options.onProgress?.(progress, message);
+          },
+        });
+        if (!outcome.success) throw new DiarizeTaskFailure(outcome);
+        return outcome;
+      } finally {
+        ctx.signal.removeEventListener("abort", forward);
+        external?.removeEventListener("abort", forward);
+      }
+    })
+    .catch((error: unknown) => {
+      if (error instanceof DiarizeTaskFailure) return error.outcome;
+      throw error;
+    });
 }

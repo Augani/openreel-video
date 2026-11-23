@@ -117,7 +117,7 @@ export function createDesktopNativeFrameProvider(bridge: Bridge): NativeFramePro
         ...(probe.rotation ? { rotation: probe.rotation } : {}),
         ...(probe.container ? { container: probe.container } : {}),
         ...(streams.length
-          ? { audio: { trackCount: streams.length, channels: Math.max(...streams.map((s) => s.channels)), sampleRate: streams[0].sampleRate } }
+          ? { audio: { trackCount: streams.length, channels: Math.max(...streams.map((s) => s.channels)), sampleRate: streams[0].sampleRate, streamChannels: streams.map((s) => s.channels) } }
           : {}),
         ...(sourceColor ? { sourceColor } : {}),
         ...(probe.pixelAspectRatio ? { pixelAspectRatio: probe.pixelAspectRatio } : {}),

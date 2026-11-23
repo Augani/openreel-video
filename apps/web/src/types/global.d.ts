@@ -35,6 +35,8 @@ interface OpenReelExportStartArgs {
   audioTrackCount?: number;
   /** File start timecode, HH:MM:SS:FF (`;` for drop frame). */
   startTimecode?: string;
+  /** VR sequence in MP4 / MOV: spherical metadata (st3d / sv3d) to write into the finished file. */
+  vr?: { layout: "mono" | "over-under" | "side-by-side"; horizontalFov: number; verticalFov: number; initialView?: { yaw: number; pitch: number; roll: number } };
   /** ProRes 4444: the frames carry real alpha (export over a transparent background). */
   alpha?: boolean;
   keyframeInterval?: number;
@@ -351,15 +353,29 @@ export interface OpenReelIngestFolders {
   projectSaved: boolean;
 }
 
+type OpenReelProxyProfile = import("@openreel/core").DesktopProxyProfile;
+
+export interface OpenReelCopyJobResult {
+  destPath: string;
+  size: number;
+  checksum: { algorithm: "sha256" | "md5" | "xxh64"; value: string };
+  reused: boolean;
+}
+
 export interface OpenReelProxyJob {
   id: string;
+  /** "proxy" when absent. */
+  kind?: "proxy" | "copy";
   projectKey: string;
   mediaId: string;
+  name?: string;
   srcPath: string;
   outDir: string;
   fileName: string;
-  profile: { codec: "prores-proxy" | "h264" | "dnxhr-lb"; size: "half" | "quarter" | "720p" | "1080p" };
+  profile: OpenReelProxyProfile;
   previewTwin: boolean;
+  copy?: { algorithm: "sha256" | "md5" | "xxh64"; followUp?: unknown };
+  copyResult?: OpenReelCopyJobResult;
   status: "queued" | "running" | "done" | "failed";
   progress: number;
   error?: string;
@@ -384,11 +400,72 @@ export interface OpenReelIngestProject {
   projectId: string;
   projectPath?: string | null;
   config?: {
-    proxyProfile?: { codec: "prores-proxy" | "h264" | "dnxhr-lb"; size: "half" | "quarter" | "720p" | "1080p" };
+    proxyProfile?: OpenReelProxyProfile;
     proxyFolder?: string;
     mediaFolder?: string;
     concurrency?: 1 | 2;
+    proxiesWithCopy?: boolean;
+    checksum?: "sha256" | "md5" | "xxh64";
+    proxyPresetId?: string;
   } | null;
+}
+
+export type OpenReelCardKind = "sony-xavc" | "sony-xdcam" | "canon-xf" | "panasonic-p2" | "avchd" | "gopro";
+export interface OpenReelBrowserClip {
+  id: string;
+  name: string;
+  kind: OpenReelCardKind;
+  spanned: boolean;
+  segments: Array<{ path: string; name: string; size: number; audioPaths?: string[] }>;
+  proxyPath?: string;
+  sidecars: string[];
+}
+export interface OpenReelBrowserEntry {
+  id: string;
+  kind: "dir" | "file" | "clip";
+  name: string;
+  path: string;
+  size: number;
+  mtimeMs: number;
+  mediaType?: "video" | "audio" | "image";
+  clip?: OpenReelBrowserClip;
+}
+export interface OpenReelBrowserListing {
+  path: string;
+  parent: string | null;
+  card?: { kinds: Array<{ kind: OpenReelCardKind; label: string }> };
+  entries: OpenReelBrowserEntry[];
+  error?: string;
+}
+export interface OpenReelBrowserClipRef {
+  name: string;
+  kind: string;
+  segments: Array<{ path: string; audioPaths?: string[] }>;
+}
+export interface OpenReelXmpFields {
+  title?: string;
+  description?: string;
+  creator?: string;
+  rights?: string;
+  keywords?: string[];
+  scene?: string;
+  shot?: string;
+  take?: string;
+  good?: boolean;
+  logComment?: string;
+  reel?: string;
+}
+/** Desktop Media Browser: local and mounted volumes, camera cards as clips, previews, joined clips, XMP. */
+export interface OpenReelMediaBrowserBridge {
+  places(): Promise<Array<{ name: string; path: string; kind: "volume" | "place" }>>;
+  list(args: { path: string; rawFolders?: boolean }): Promise<OpenReelBrowserListing>;
+  thumbnail(args: { path: string; time?: number; width?: number }): Promise<string | null>;
+  filmstrip(args: { clip: OpenReelBrowserClipRef; count?: number; width?: number }): Promise<{ duration: number; frames: Array<string | null> }>;
+  probeClip(args: { clip: OpenReelBrowserClipRef }): Promise<{ duration: number; segmentDurations: number[]; width?: number; height?: number; frameRate?: number; videoCodec?: string }>;
+  preview(args: { clip: OpenReelBrowserClipRef }): Promise<{ data: ArrayBuffer; duration: number; truncated: boolean }>;
+  prepareImport(args: { clip: OpenReelBrowserClipRef }): Promise<{ path: string; name: string; duration: number; joined: boolean }>;
+  readXmp(path: string): Promise<{ fields: OpenReelXmpFields; source: "embedded" | "sidecar"; sidecarPath?: string } | null>;
+  writeSidecar(args: { path: string; fields: OpenReelXmpFields }): Promise<{ path: string }>;
 }
 
 export interface OpenReelIngestBridge {
@@ -399,10 +476,18 @@ export interface OpenReelIngestBridge {
         mediaId: string;
         name: string;
         srcPath: string;
-        profile: { codec: "prores-proxy" | "h264" | "dnxhr-lb"; size: "half" | "quarter" | "720p" | "1080p" };
+        profile: OpenReelProxyProfile;
         previewTwin: boolean;
       }>;
       force?: boolean;
+    },
+  ): Promise<OpenReelProxyJob[]>;
+  /** Queue verified copies into the project's Media folder as background jobs (optionally followed by proxies). */
+  enqueueCopies(
+    args: OpenReelIngestProject & {
+      items: Array<{ mediaId: string; name: string; srcPath: string }>;
+      algorithm?: "sha256" | "md5" | "xxh64";
+      thenProxies?: { profile: OpenReelProxyProfile; previewTwin: boolean };
     },
   ): Promise<OpenReelProxyJob[]>;
   listProxyJobs(projectId: string): Promise<OpenReelProxyJob[]>;
@@ -415,13 +500,15 @@ export interface OpenReelIngestBridge {
   readProxy(path: string): Promise<ArrayBuffer>;
   copyToProject(
     args: OpenReelIngestProject & { requestId: string; srcPath: string },
-  ): Promise<{ destPath: string; sha256: string; size: number; alreadyInPlace: boolean }>;
+  ): Promise<{ destPath: string; sha256: string; checksum: { algorithm: "sha256" | "md5" | "xxh64"; value: string }; size: number; alreadyInPlace: boolean }>;
   onCopyProgress(cb: (event: { requestId: string; progress: number }) => void): () => void;
   pickFolder(args?: { title?: string; defaultPath?: string }): Promise<string | null>;
   scanFolder(args: {
     root: string;
     names: string[];
     mode: "media" | "proxy";
+    /** Proxy name pattern with one {name}, for example {name}_proxy. */
+    proxyPattern?: string;
   }): Promise<{
     candidates: Array<{ path: string; name: string; size?: number; duration?: number; frameRate?: number; width?: number; height?: number }>;
     visited: number;
@@ -487,6 +574,94 @@ export interface OpenReelWatchFoldersBridge {
   onChange(cb: (snapshot: OpenReelWatchFoldersSnapshot) => void): () => void;
 }
 
+export interface OpenReelRenderCacheSettings {
+  scratchDir: string;
+  isDefault: boolean;
+  capBytes: number;
+  freeBytes: number | null;
+}
+/** Hosted audio plugins (the desktop app's out-of-process Audio Unit helper). */
+export interface OpenReelPlughostLiveOpenResult {
+  ok: true;
+  sessionId: string;
+  pluginLatencyFrames: number;
+  perPluginLatencyFrames: number[];
+  prefillBlocks: number;
+  blockFrames: number;
+  roundTripMs: { p50: number; p95: number; max: number };
+}
+
+export interface OpenReelPlughostBridge {
+  /** Live (realtime) plugin inserts. Main answers with a MessagePort per session (window message `openreel:plughost-live-port`). */
+  liveOpen?(args: {
+    sessionId: string;
+    steps: Array<{ pluginId: string; effectId: string; state?: string; values: Record<string, number>; automation: Record<string, Array<readonly [number, number]>> }>;
+    sampleRate: number;
+    blockFrames: 128 | 256 | 512;
+  }): Promise<OpenReelPlughostLiveOpenResult | { ok: false; kind: "unavailable" | "failed"; message: string }>;
+  liveSet?(sessionId: string, effectId: string, values?: Record<string, number>, automation?: Record<string, Array<readonly [number, number]>>): Promise<boolean>;
+  liveClose?(sessionId: string): Promise<boolean>;
+  liveStats?(sessionId: string): Promise<{ blocksIn: number; blocksOut: number; dropped: number; staleDropped: number; roundTripMs: { p50: number; p95: number; max: number }; failed: string | null; pids: number[] } | null>;
+  scan(force?: boolean): Promise<{
+    plugins: Array<{
+      id: string;
+      format: "au" | "vst3";
+      name: string;
+      vendor: string;
+      version?: string;
+      category?: string;
+      path?: string;
+      hasCustomView?: boolean;
+      status: "ok" | "unsupported" | "blocked";
+      statusReason?: string;
+      latencySamples?: number;
+      tailSeconds?: number;
+      parameterCount?: number;
+    }>;
+    helperAvailable: boolean;
+    helperError?: string;
+    searchedVst3: string[];
+    auSearchPaths: string[];
+  }>;
+  unblock(id: string): Promise<unknown>;
+  render(args: {
+    jobId: string;
+    pluginId: string;
+    state?: string;
+    values: Record<string, number>;
+    automation: Record<string, Array<readonly [number, number]>>;
+    channels: Float32Array[];
+    sampleRate: number;
+  }): Promise<{ ok: boolean; kind?: "unavailable" | "failed" | "cancelled"; message?: string; result?: { channels: Float32Array[]; latencySamples: number } }>;
+  cancel(jobId: string): Promise<boolean>;
+  describe(pluginId: string, state?: string): Promise<
+    | { ok: true; latencySamples: number; tailSeconds: number; state: string | null; parameters: Array<{ key: string; name: string; identifier?: string; min: number; max: number; value: number; unitName?: string; indexed?: boolean }> }
+    | { ok: false; message: string }
+  >;
+  openUi(args: { pluginId: string; title: string; state?: string; values?: Record<string, number> }): Promise<{ ok: true; sessionId: string } | { ok: false; message: string }>;
+  closeUi(sessionId: string): Promise<boolean>;
+  onProgress(cb: (event: { jobId: string; fraction: number }) => void): () => void;
+  onScanProgress(cb: (event: { done: number; total: number }) => void): () => void;
+  onUiEvent(cb: (event: { type: "opened" | "paramChanged" | "state" | "closed" | "error"; sessionId: string; key?: string; value?: number; state?: string | null; parameters?: Array<{ key: string; value: number }>; message?: string }) => void): () => void;
+}
+
+export interface OpenReelRenderCacheBridge {
+  getSettings(): Promise<OpenReelRenderCacheSettings>;
+  /** Opens the native folder dialog; the path never passes through the page. */
+  pickScratch(): Promise<{ changed: boolean; error: string | null; settings: OpenReelRenderCacheSettings }>;
+  resetScratch(): Promise<OpenReelRenderCacheSettings>;
+  setCap(capBytes: number): Promise<OpenReelRenderCacheSettings>;
+  open(project: string): Promise<boolean>;
+  put(project: string, key: string, data: ArrayBuffer): Promise<boolean>;
+  get(project: string, key: string): Promise<Uint8Array | undefined>;
+  delete(project: string, keys: string[]): Promise<boolean>;
+  list(project: string): Promise<Array<{ key: string; bytes: number }>>;
+  clearProject(project: string): Promise<boolean>;
+  clearAll(): Promise<boolean>;
+  stat(paths: string[]): Promise<Array<{ size: number; mtimeMs: number } | null>>;
+  usage(): Promise<{ bytes: number; projects: Array<{ key: string; bytes: number; files: number; touchedAt: number }> }>;
+}
+
 export type OpenReelProjectLockResult =
   | { status: "acquired" }
   | {
@@ -495,11 +670,57 @@ export type OpenReelProjectLockResult =
     }
   | { status: "unsupported"; reason: string };
 
+/** Mirrors apps/desktop/src/shared/project-manager.ts and main/project-manager/runner.ts (the web package cannot import apps/desktop). */
+export interface OpenReelProjectManagerOptions {
+  mode: "collect" | "consolidate";
+  sequenceIds: string[];
+  preset: "match-source" | "prores-422-lt" | "prores-422" | "prores-422-hq" | "dnxhr-sq" | "dnxhr-hq" | "h264";
+  excludeUnused: boolean;
+  trim: boolean;
+  handleFrames: number;
+  includeProxies: boolean;
+  includeRenderFiles: boolean;
+  includeAudioConform: boolean;
+  renameToClipNames: boolean;
+}
+export interface OpenReelProjectManagerEstimate {
+  totalBytes: number;
+  mediaBytes: number;
+  proxyBytes: number;
+  renderBytes: number;
+  freeBytes: number | null;
+  items: Array<{ mediaId: string; name: string; action: "copy" | "transcode" | "offline"; trimmed: boolean; keptSeconds: number; sourceSeconds: number; bytes: number; note?: string }>;
+  droppedCount: number;
+  warnings: string[];
+}
+export interface OpenReelProjectManagerEvent {
+  jobId: string;
+  phase: "scanning" | "running" | "finalizing" | "done" | "error" | "cancelled";
+  fraction: number;
+  label: string;
+  itemIndex: number;
+  itemCount: number;
+  destDir?: string;
+  projectPath?: string;
+  error?: string;
+  summary?: { destDir: string; projectPath: string; files: number; bytes: number; transcoded: number; copied: number; skipped: number; warnings: string[] };
+}
+export interface OpenReelProjectManagerBridge {
+  estimate(args: { projectJson: string; options: OpenReelProjectManagerOptions; destParent?: string | null }): Promise<OpenReelProjectManagerEstimate>;
+  start(args: { projectJson: string; options: OpenReelProjectManagerOptions; destParent: string; projectName?: string }): Promise<{ jobId: string }>;
+  cancel(jobId: string): Promise<boolean>;
+  onEvent(cb: (event: OpenReelProjectManagerEvent) => void): () => void;
+}
+
 declare global {
   interface Window {
     openreel?: {
       ingest?: OpenReelIngestBridge;
+      projectManager?: OpenReelProjectManagerBridge;
+      mediaBrowser?: OpenReelMediaBrowserBridge;
       watchFolders?: OpenReelWatchFoldersBridge;
+      renderCache?: OpenReelRenderCacheBridge;
+      plughost?: OpenReelPlughostBridge;
       platform: "desktop";
       publicOrigin: string;
       /** True for perf/e2e/CI/agent launches (computed in main, read synchronously in preload). Suppresses onboarding. */
@@ -527,6 +748,11 @@ declare global {
       };
       probeHardware(): Promise<OpenReelHardwareInfo>;
       onMenuAction(cb: (id: string) => void): () => void;
+      /** Files the OS opened with the app (projects, caption files): what arrived before the page loaded, and what arrives later. */
+      openFiles?: {
+        take(): Promise<Array<{ kind: "project" | "captions"; path: string }>>;
+        onOpen(cb: (items: Array<{ kind: "project" | "captions"; path: string }>) => void): () => void;
+      };
       fs: {
         showSaveDialog(opts: {
           defaultPath: string;
@@ -602,6 +828,45 @@ declare global {
           pixelFormat: string;
           color: { range?: string; matrix?: string; primaries?: string; transfer?: string };
         } | null>;
+        /** The first audio stream of a source file as the packet list shows it (codec, rate, encoder delay, length); null without audio. */
+        probeAudioSource?(path: string): Promise<{
+          codec: string;
+          profile?: string;
+          sampleRate: number;
+          channels: number;
+          sampleFormat: string;
+          bitrateKbps: number;
+          firstPts: number;
+          frameSamples: number;
+          packets: number;
+          endSamples: number;
+        } | null>;
+        /** Native smart render, audio: build and prove the copies of the plan; resolves with `declined` when the audio must be rendered. */
+        prepareAudioCopy?(
+          jobId: string,
+          plan: {
+            codec: "aac" | "pcm";
+            sampleRate: number;
+            channels: number;
+            totalSamples: number;
+            segments: Array<
+              | { kind: "encode"; start: number; end: number }
+              | {
+                  kind: "copy";
+                  start: number;
+                  end: number;
+                  sourcePath: string;
+                  sourceStart: number;
+                  priming?: number;
+                  sourceSize?: number;
+                  sourceMtimeMs?: number;
+                  sourceContentHash?: string;
+                }
+            >;
+          },
+        ): Promise<{ declined?: string }>;
+        /** Picture types (display order, one letter per frame) of `frames` frames from the key frame at `startTime`. */
+        probeGopTypes?(path: string, startTime: number, frames: number): Promise<{ types: string; firstTime: number } | null>;
         /** Absolute path of a File picked or dropped from disk; "" for an in-memory blob. */
         pathForFile?(file: File): string;
       };
