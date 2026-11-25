@@ -14,7 +14,8 @@ test("Recordings tab stays active and lists takes in a panel", async ({ page }) 
   await expect(page.getByTestId("recordings-panel")).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByText("No recordings yet")).toBeVisible();
-  await page.getByRole("button", { name: /New recording/ }).click();
+  await expect(page.getByRole("button", { name: "Record voice-over", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Record screen or camera", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
 });
 

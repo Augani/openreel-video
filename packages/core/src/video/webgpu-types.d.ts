@@ -15,7 +15,8 @@ interface GPURequestAdapterOptions {
 interface GPUAdapter {
   readonly features: GPUSupportedFeatures;
   readonly limits: GPUSupportedLimits;
-  readonly isFallbackAdapter: boolean;
+  readonly isFallbackAdapter?: boolean;
+  readonly info?: { readonly isFallbackAdapter?: boolean; readonly architecture?: string };
   requestDevice(descriptor?: GPUDeviceDescriptor): Promise<GPUDevice>;
 }
 

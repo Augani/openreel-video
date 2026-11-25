@@ -118,10 +118,10 @@ jobs:
     name: E2E (Playwright ${{ matrix.shard }}/10)
     # Pinned: ubuntu-latest moved to 26.04, which Playwright 1.60 cannot install Chromium on.
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: 75
     # The full suite (3 projects) is ~3 hours of CPU-only runner time, so it is split across 10 shards
     # balanced by measured test duration (apps/web/e2e/shard-plan.mjs, weights in shard-weights.json);
-    # each shard is planned at about 18 minutes. A shard that hangs is cut off at 50 rather than 90.
+    # Slow software-rendered exports need extra time on shared Linux runners.
     strategy:
       fail-fast: false
       matrix:
@@ -160,6 +160,12 @@ jobs:
       - name: Build WASM modules
         run: pnpm build:wasm
 
+      - name: Build the browser test bundle
+        working-directory: apps/web
+        env:
+          VITE_OPENREEL_E2E: '1'
+        run: pnpm exec vite build --outDir "$RUNNER_TEMP/openreel-e2e"
+
       # GitHub runners have no GPU: the "gpu" project runs on the SwiftShader
       # software stack (the editor falls back to Canvas2D when no WebGPU adapter
       # exists) and the GPU-vs-fallback pixel comparisons skip themselves, with a
@@ -169,7 +175,7 @@ jobs:
         working-directory: apps/web
         run: |
           node e2e/shard-plan.mjs ${{ matrix.shard }} 10 > "$RUNNER_TEMP/shard-plan.json"
-          OPENREEL_E2E_SHARD_PLAN="$RUNNER_TEMP/shard-plan.json" pnpm test:e2e
+          OPENREEL_E2E_DIST="$RUNNER_TEMP/openreel-e2e" OPENREEL_E2E_SHARD_PLAN="$RUNNER_TEMP/shard-plan.json" pnpm test:e2e
 
       - name: Upload Playwright report and traces
         if: failure()

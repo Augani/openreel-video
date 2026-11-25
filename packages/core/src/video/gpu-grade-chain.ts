@@ -10,6 +10,7 @@
  * The planner (gpu-grade-plan.ts) returns null for anything the chain cannot do, and every failure here (no WebGPU,
  * device lost, shader or pipeline error, canvas problem) resolves to null so the caller keeps the existing path.
  */
+import { isSoftwareGpuAdapter } from "./renderer-factory";
 import {
   GPU_GRADE_ENTRIES,
   GPU_GRADE_WGSL,
@@ -52,7 +53,9 @@ async function createShared(): Promise<SharedGpu | null> {
   if (!isWebGpuGradeSupported()) return null;
   try {
     const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
-    if (!adapter) return null;
+    // SwiftShader can return flat frames from the external-texture grade path.
+    // Software adapters use the reference renderer and its synchronous readback.
+    if (!adapter || isSoftwareGpuAdapter(adapter)) return null;
     const device = await adapter.requestDevice();
     const module = device.createShaderModule({ code: GPU_GRADE_WGSL });
     const layout = device.createBindGroupLayout({

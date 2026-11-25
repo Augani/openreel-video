@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { openEditor, openHookPage } from "./helpers";
 
 /**
@@ -12,6 +12,17 @@ import { openEditor, openHookPage } from "./helpers";
  *      identical with the chain on.
  *   4. CPU time per frame at 1080p, chain on vs off.
  */
+/** The production grade and readback paths run on hardware adapters. Other editor suites exercise the reference path. */
+async function requireHardwareGrade(page: Page) {
+  const software = await page.evaluate(async () => {
+    const adapter = await navigator.gpu?.requestAdapter({ powerPreference: "high-performance" });
+    if (!adapter) return false;
+    return adapter.info?.isFallbackAdapter || adapter.info?.architecture === "swiftshader"
+      || ("isFallbackAdapter" in adapter && adapter.isFallbackAdapter === true);
+  });
+  test.skip(Boolean(software), "Software WebGPU adapters use the reference grade and readback paths");
+}
+
 interface ChainHook {
   video: { getVideoEngine(): Engine };
   core: { proEffects: { PRO_EFFECT_DEFAULTS: Record<string, Record<string, unknown>> }; colorGradingEngine: Record<string, any> };
@@ -40,6 +51,7 @@ interface Row {
 test("WGSL grade chain matches the existing grade and effect paths stage by stage", async ({ page }) => {
   test.setTimeout(300_000);
   await openHookPage(page);
+  await requireHardwareGrade(page);
   const result = await page.evaluate(async () => {
     const hook = (window as unknown as { __openreelE2E: ChainHook }).__openreelE2E;
     const engine = hook.video.getVideoEngine();
@@ -224,6 +236,7 @@ test("WGSL grade chain matches the existing grade and effect paths stage by stag
 test("a graded clip renders the identical frame in preview and export with the WebGPU chain", async ({ page }) => {
   test.setTimeout(240_000);
   await openEditor(page);
+  await requireHardwareGrade(page);
   const result = await page.evaluate(async () => {
     const hook = (window as unknown as { __openreelE2E: ChainHook }).__openreelE2E;
     const engine = hook.video.getVideoEngine();
@@ -292,6 +305,7 @@ test("a graded clip renders the identical frame in preview and export with the W
 test("the grade chain costs less CPU per frame than the Canvas2D grade at 1080p", async ({ page }) => {
   test.setTimeout(300_000);
   await openHookPage(page);
+  await requireHardwareGrade(page);
   const result = await page.evaluate(async () => {
     const hook = (window as unknown as { __openreelE2E: ChainHook }).__openreelE2E;
     const engine = hook.video.getVideoEngine();
@@ -343,6 +357,7 @@ test("the grade chain costs less CPU per frame than the Canvas2D grade at 1080p"
 test("the pipelined GPU readback returns the exact bytes of the CPU readback, and costs the render thread less", async ({ page }) => {
   test.setTimeout(300_000);
   await openHookPage(page);
+  await requireHardwareGrade(page);
   const result = await page.evaluate(async () => {
     const hook = (window as unknown as { __openreelE2E: { video: { getVideoEngine(): Engine }; core: { colorGradingEngine: Record<string, any>; gpuFrameReadback: { GpuFrameReader: { create(w: number, h: number, depth?: number): Promise<Reader | null> } } } } }).__openreelE2E;
     interface Reader {
@@ -447,6 +462,7 @@ test("the pipelined GPU readback returns the exact bytes of the CPU readback, an
 test("the GPU I420 conversion matches the CPU reference within one code value", async ({ page }) => {
   test.setTimeout(300_000);
   await openHookPage(page);
+  await requireHardwareGrade(page);
   const result = await page.evaluate(async () => {
     interface Reader {
       begin(image: ImageBitmap): Promise<{ bytes: Promise<ArrayBuffer>; recycle(b: ArrayBuffer): void }>;

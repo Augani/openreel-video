@@ -1,5 +1,5 @@
 import type { Effect } from "../types/timeline";
-import type { Renderer, RendererConfig, RenderLayer } from "./renderer-factory";
+import { isSoftwareGpuAdapter, type Renderer, type RendererConfig, type RenderLayer } from "./renderer-factory";
 import {
   WebGPUEffectsProcessor,
   type EffectsChangeCallback,
@@ -108,8 +108,8 @@ export class WebGPURenderer implements Renderer {
         powerPreference: "high-performance",
       });
 
-      if (!this.adapter) {
-        console.warn("[WebGPURenderer] No GPU adapter available");
+      if (!this.adapter || isSoftwareGpuAdapter(this.adapter)) {
+        console.warn("[WebGPURenderer] No hardware WebGPU adapter available");
         return false;
       }
 

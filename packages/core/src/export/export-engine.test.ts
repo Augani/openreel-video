@@ -748,9 +748,15 @@ describe("ExportEngine", () => {
       expect(mockRenderFrame).not.toHaveBeenCalled();
     });
 
-    it("aborts GPU initialization failures, restores preview mode, and allows retry", async () => {
+    it("exports at the original size without starting the optional GPU upscaler", async () => {
+      expect(await drainVideoExport()).toMatchObject({ success: true });
+      expect(mockVideoEngine.initializeGPUCompositor).not.toHaveBeenCalled();
+    });
+
+    it("aborts upscaler initialization failures, restores preview mode, and allows retry", async () => {
       mockVideoEngine.initializeGPUCompositor.mockRejectedValueOnce(new Error("GPU initialization failed"));
-      expect(await drainVideoExport()).toMatchObject({ success: false, error: { message: expect.stringContaining("GPU initialization failed") } });
+      const upscaled = { ...DEFAULT_VIDEO_SETTINGS, width: 3840, height: 2160, frameRate: 1, upscaling: { enabled: true, quality: "balanced" as const, sharpening: 0 } };
+      expect(await drainVideoExport(upscaled)).toMatchObject({ success: false, error: { message: expect.stringContaining("GPU initialization failed") } });
       expect(writableStream.abort).toHaveBeenCalled();
       expect(mockVideoEngine).toHaveProperty("exportMode", false);
       expect(await drainVideoExport()).toMatchObject({ success: true });

@@ -39,6 +39,16 @@ describe("GpuGradeChain without WebGPU", () => {
     expect(chain.broken).toBe(true);
   });
 
+  it("keeps software WebGPU adapters on the reference renderer", async () => {
+    vi.stubGlobal("OffscreenCanvas", class {});
+    const requestDevice = vi.fn();
+    vi.stubGlobal("navigator", { gpu: { requestAdapter: async () => ({ info: { isFallbackAdapter: true }, requestDevice }) } });
+    const chain = new GpuGradeChain();
+    expect(await chain.run(fakeBitmap, plan)).toBeNull();
+    expect(chain.broken).toBe(true);
+    expect(requestDevice).not.toHaveBeenCalled();
+  });
+
   it("an empty plan is not run at all", async () => {
     const chain = new GpuGradeChain();
     expect(await chain.run(fakeBitmap, { passes: [] })).toBeNull();

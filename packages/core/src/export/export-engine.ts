@@ -359,8 +359,11 @@ export class ExportEngine {
       }
       checkCancelled();
       phase("capability");
-      await this.initializeGPUForExport(fullSettings.width, fullSettings.height);
-      phase("gpu-init");
+      const shouldUpscale = this.shouldApplyUpscaling(project, fullSettings);
+      if (shouldUpscale) {
+        await this.initializeGPUForExport(fullSettings.width, fullSettings.height);
+        phase("gpu-init");
+      }
       checkCancelled();
       let smartPlan = fullSettings.segmentWindow ? null : await this.planSmartRenderFor(project, fullSettings, backend, exportStart, totalFrames);
       checkCancelled();

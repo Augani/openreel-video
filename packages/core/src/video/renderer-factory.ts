@@ -1,5 +1,13 @@
 import type { Effect, Transform } from "../types/timeline";
 
+/** Older WebGPU implementations put the fallback flag on the adapter itself. */
+export function isSoftwareGpuAdapter(adapter: {
+  readonly isFallbackAdapter?: boolean;
+  readonly info?: { readonly isFallbackAdapter?: boolean; readonly architecture?: string };
+}): boolean {
+  return adapter.info?.isFallbackAdapter === true || adapter.isFallbackAdapter === true || adapter.info?.architecture === "swiftshader";
+}
+
 export type RendererType = "webgpu" | "canvas2d";
 
 export interface RendererConfig {
