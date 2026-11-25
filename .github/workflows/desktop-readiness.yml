@@ -8,6 +8,9 @@ on:
   pull_request:
     paths:
       - 'apps/desktop/**'
+      - 'apps/web/vite.config.ts'
+      - 'apps/web/vite-plugins/**'
+      - 'packages/agent/src/**'
       # The renderer half of the desktop features lives here: native export/smart render, the
       # export engine and its planner, desktop ingest/proxies and the Electron bridge types.
       - 'packages/core/src/export/**'
@@ -19,6 +22,9 @@ on:
     branches: [feat/ios-app, main]
     paths:
       - 'apps/desktop/**'
+      - 'apps/web/vite.config.ts'
+      - 'apps/web/vite-plugins/**'
+      - 'packages/agent/src/**'
       # The renderer half of the desktop features lives here: native export/smart render, the
       # export engine and its planner, desktop ingest/proxies and the Electron bridge types.
       - 'packages/core/src/export/**'
@@ -123,9 +129,19 @@ jobs:
       - name: Fetch the ffmpeg sidecar
         run: pnpm --filter @openreel/desktop fetch:ffmpeg
 
-      # VITE_OPENREEL_E2E exposes window.__openreelE2E, which the ingest e2e and export-check drive.
-      - name: Build the desktop app (renderer + main)
+      # Test the same chunk graph that ships to users before building with E2E hooks.
+      - name: Build the desktop app (release renderer + main)
         run: pnpm --filter @openreel/desktop build
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+
+      - name: Electron test (MCP catalog and tool calls)
+        timeout-minutes: 10
+        run: pnpm --filter @openreel/desktop test:electron
+
+      # The ingest and export suites need window.__openreelE2E in the renderer.
+      - name: Build the E2E renderer
+        run: pnpm --filter @openreel/desktop build:renderer
         env:
           VITE_OPENREEL_E2E: '1'
           NODE_OPTIONS: --max-old-space-size=6144
@@ -136,10 +152,6 @@ jobs:
       - name: Desktop unit and real-ffmpeg integration tests
         timeout-minutes: 15
         run: pnpm --filter @openreel/desktop test:run
-
-      - name: Electron test (early MCP request)
-        timeout-minutes: 10
-        run: pnpm --filter @openreel/desktop test:electron
 
       - name: Ingest e2e in real Electron
         timeout-minutes: 15

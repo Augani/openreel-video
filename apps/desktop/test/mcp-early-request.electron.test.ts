@@ -105,6 +105,7 @@ describe.skipIf(!enabled)("MCP early request through the main-process bridge (re
       const names = (list.json.result.tools as Array<{ name: string }>).map((tool) => tool.name);
       expect(names.length).toBeGreaterThan(20);
       expect(names).toContain("list_clips");
+      expect(names).toContain("list_saved_styles");
       const listClips = (list.json.result.tools as Array<{ name: string; annotations?: Record<string, unknown> }>).find(
         (tool) => tool.name === "list_clips",
       );
@@ -131,6 +132,22 @@ describe.skipIf(!enabled)("MCP early request through the main-process bridge (re
         expect(call.json.result.structuredContent.error.code).toBeTruthy();
         expect(text).toContain("Hint:");
       }
+
+      // Exercise the lazy group that failed to initialize in the 1.2.0 release.
+      const project = await rpc(endpoint!, {
+        jsonrpc: "2.0",
+        id: 3,
+        method: "tools/call",
+        params: { name: "create_project", arguments: { name: "MCP smoke test" } },
+      });
+      expect(project.json.result?.structuredContent).toMatchObject({ name: "MCP smoke test" });
+      const styles = await rpc(endpoint!, {
+        jsonrpc: "2.0",
+        id: 4,
+        method: "tools/call",
+        params: { name: "list_saved_styles", arguments: {} },
+      });
+      expect(styles.json.result?.structuredContent).toEqual({ text: [], caption: [] });
 
       console.info(
         `[mcp-early] first request sent ${sentAfterMs} ms after window creation; tools/list answered in ${listMs} ms (${names.length} tools); tools/call list_clips answered in ${callMs} ms`,

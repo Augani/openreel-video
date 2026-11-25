@@ -106,6 +106,12 @@ jobs:
       - name: Build main + preload
         run: pnpm --filter @openreel/desktop build:main
 
+      # Exercise the release renderer's chunk graph before packaging. An E2E-instrumented
+      # renderer or a dev-server test can initialize the registry in a different order.
+      - name: Check MCP catalog and tool execution in the release renderer
+        if: runner.os == 'macOS'
+        run: pnpm --filter @openreel/desktop test:electron
+
       # The macOS runner packages both architectures, so the Audio Unit helper is built for both.
       - name: Build plugin helper (both macOS architectures)
         if: runner.os == 'macOS'
