@@ -9,7 +9,7 @@ import { takeHdrPayload } from "../color/hdr-payload";
 import { CODEC_MAP, type VideoExportSettings, type ExportError } from "./types";
 import type { Project } from "../types/project";
 import type { EncoderBackend, SmartRenderMuxer } from "./encoder-backend";
-import { descriptionBytes, parameterSetKey, parseAvcC, prependParameterSets, type AvcParameterSets } from "./avc-config";
+import { descriptionBytes, parameterSetKey, parseAvcC, prependParameterSets, repairEncoderAvcConfig, type AvcParameterSets } from "./avc-config";
 import { browserAudioCodec } from "./browser-audio-codec";
 import { getAacEncoderPriming } from "./audio-priming";
 import { DOLBY_VIDEO_DESKTOP_ONLY_REASON, isDolbyFormat } from "./dolby";
@@ -310,6 +310,7 @@ export class WebCodecsBackend implements EncoderBackend {
       latencyMode: isWebKit ? "realtime" : "quality",
       ...(isHdr ? { fullCodecString: HDR_HEVC_CODEC_STRING } : {}),
       onEncodedPacket: (_packet, meta) => {
+        repairEncoderAvcConfig(meta);
         this.encodedVideoFrames++;
         // The container's colr box is written from the first packet's decoder config.
         if (outputColor && meta?.decoderConfig) {
@@ -597,6 +598,7 @@ export class WebCodecsBackend implements EncoderBackend {
         const data = new Uint8Array(chunk.byteLength);
         chunk.copyTo(data);
         const packet = new EncodedPacket(data, chunk.type === "key" ? "key" : "delta", chunk.timestamp / 1e6, (chunk.duration ?? 0) / 1e6);
+        repairEncoderAvcConfig(meta);
         const description = meta?.decoderConfig?.description;
         const sets = description
           ? parseAvcC(descriptionBytes(description))

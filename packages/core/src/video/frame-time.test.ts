@@ -49,6 +49,12 @@ describe("frame time", () => {
     }
   });
 
+  it("treats the rounded and exact NTSC rates as the same sequence cadence", () => {
+    const exact = 30000 / 1001;
+    expect(exportRenderTime(120, exact, 29.97)).toBe(120 / exact);
+    expect(exportRenderTime(120, 29.97, exact)).toBe(120 / 29.97);
+  });
+
   it("is untouched at the sequence rate", () => {
     expect(exportRenderTime(61, 30, 30, 0.01)).toBe(0.01 + 61 / 30);
     expect(exportRenderTime(5, 30, 30.0000001)).toBe(5 / 30);

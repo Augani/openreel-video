@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { openEditor } from "./helpers";
 import { E2E_FFMPEG, E2E_FFPROBE } from "./env";
 import type { useProjectStore } from "../src/stores/project-store";
@@ -36,6 +36,9 @@ test("X preset exports audible stereo AAC-LC without a native AAC encoder or dec
     "-v", "error", "-select_streams", "a:0", "-show_packets", "-read_intervals", "%+#1", "-of", "json", file,
   ], { encoding: "utf8" }));
   expect(packets[0].side_data_list).toContainEqual(expect.objectContaining({ skip_samples: 1024 }));
+  const decode = spawnSync(E2E_FFMPEG, ["-v", "error", "-i", file, "-f", "null", "-"], { encoding: "utf8" });
+  expect(decode.status, decode.stderr).toBe(0);
+  expect(decode.stderr).toBe("");
   const pcm = execFileSync(E2E_FFMPEG, ["-v", "error", "-i", file, "-map", "0:a", "-t", "3", "-ac", "1", "-ar", "8000", "-f", "s16le", "-"]);
   let energy = 0;
   for (let i = 0; i < pcm.length; i += 2) energy += (pcm.readInt16LE(i) / 32768) ** 2;

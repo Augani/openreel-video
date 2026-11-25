@@ -1,3 +1,4 @@
+import { repairEncoderAvcConfig } from "./avc-config";
 import { browserAudioCodec } from "./browser-audio-codec";
 import { CODEC_MAP, type VideoExportSettings } from "./types";
 
@@ -126,6 +127,7 @@ async function initialize(
 
     videoSource = new VideoSampleSource({
       codec: videoCodec,
+      onEncodedPacket: (_packet, meta) => repairEncoderAvcConfig(meta),
       bitrate: settings.bitrate ? settings.bitrate * 1000 : QUALITY_MEDIUM,
       keyFrameInterval: settings.keyframeInterval / settings.frameRate,
       hardwareAcceleration: "prefer-hardware",

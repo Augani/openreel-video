@@ -118,6 +118,7 @@ export async function smartMultichannelScenario(pw, opts) {
     await page.getByRole("button", { name: `Media actions for ${baseName}` }).click();
     await page.getByRole("menuitem", { name: "Add to timeline" }).click();
     await page.getByRole("button", { name: "Match Video" }).click({ timeout: 8000 }).catch(() => {});
+    await page.evaluate(() => window.__openreelE2E.project.getState().updateSettings({ frameRate: 30000 / 1001 }));
     await sleep(2000);
     const placed = await page.evaluate(() => {
       const st = window.__openreelE2E.project.getState();
