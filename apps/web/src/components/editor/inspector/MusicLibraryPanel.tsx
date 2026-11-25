@@ -7,7 +7,7 @@ import React, {
   useEffect,
   useRef,
 } from "react";
-import { AudioLines, Volume2, Loader2 } from "lucide-react";
+import { AudioLines, Volume2, Loader2, Star } from "lucide-react";
 import { wavPreviewEnvelope } from "../../../services/wav-preview-peaks";
 import {
   Button,
@@ -40,6 +40,7 @@ import { toast } from "../../../stores/notification-store";
 import { WorkspaceTabs, workspaceTabPanel } from "../WorkspacePrimitives";
 import { AudioLibraryIcon } from "@/icons/audio-library";
 import { formatSoundDuration } from "./sound-library-format";
+import { pinFavorites, useFavorites, useFavoritesStore, useRecents } from "../../../stores/favorites-store";
 
 type TabType = "music" | "sfx";
 type PreviewStatus = "loading" | "playing" | "paused" | "resuming";
@@ -51,6 +52,8 @@ interface SoundCardProps {
   isLoading: boolean;
   isUsed: boolean;
   isAdding: boolean;
+  isFavorite: boolean;
+  onToggleFavorite: () => void;
   readProgress: (soundId: string) => number;
   onPlay: () => void;
   onStop: () => void;
@@ -65,6 +68,8 @@ function SoundCard({
   isLoading,
   isUsed,
   isAdding,
+  isFavorite,
+  onToggleFavorite,
   readProgress,
   onPlay,
   onPause,
@@ -197,6 +202,17 @@ function SoundCard({
           <Button
             variant="ghost"
             size="icon-sm"
+            className={`workspace-sound-favorite${isFavorite ? " is-favorite" : ""}`}
+            aria-pressed={isFavorite}
+            aria-label={isFavorite ? `Unpin ${sound.name}` : `Pin ${sound.name} to favourites`}
+            title={isFavorite ? "Unpin" : "Pin to favourites"}
+            onClick={onToggleFavorite}
+          >
+            <Star size={12} fill={isFavorite ? "currentColor" : "none"} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
             className="workspace-sound-add"
             disabled={isAdding}
             aria-label={`Add ${sound.name} to timeline`}
@@ -222,6 +238,9 @@ function SoundCard({
         >
           Stop preview
         </ContextMenuItem>
+        <ContextMenuItem onSelect={onToggleFavorite}>
+          {isFavorite ? "Unpin from favourites" : "Pin to favourites"}
+        </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
   );
@@ -246,6 +265,11 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
   >("all");
   const [selectedMoods, setSelectedMoods] = useState<MoodTag[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [pinnedView, setPinnedView] = useState<"all" | "favorites" | "recent">("all");
+  const favoriteIds = useFavorites(activeTab);
+  const recentIds = useRecents(activeTab);
+  const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
+  const pushRecent = useFavoritesStore((state) => state.pushRecent);
   const allFiltersButton = useRef<HTMLButtonElement>(null);
   const keyboardFilters = useRef(false);
   const [preview, setPreview] = useState<{
@@ -372,6 +396,14 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
     let results = activeTab === "music" ? allMusic : allSfx;
     if (results.length === 0) return [];
 
+    if (pinnedView === "favorites") {
+      const pinned = new Set(favoriteIds);
+      results = results.filter((s) => pinned.has(s.id));
+    } else if (pinnedView === "recent") {
+      const byId = new Map(results.map((s) => [s.id, s]));
+      results = recentIds.map((id) => byId.get(id)).filter((s): s is SoundItem => Boolean(s));
+    }
+
     if (activeTab === "music" && selectedGenre !== "all") {
       results = results.filter(
         (s) =>
@@ -403,11 +435,14 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
       );
     }
 
-    return results;
+    return pinnedView === "all" ? pinFavorites(results, (s) => s.id, favoriteIds) : results;
   }, [
     allMusic,
     allSfx,
     activeTab,
+    pinnedView,
+    favoriteIds,
+    recentIds,
     selectedGenre,
     selectedSfxCategory,
     selectedMoods,
@@ -422,6 +457,7 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
     selectedSfxCategory,
     selectedMoods,
     activeTab,
+    pinnedView,
   ]);
   useEffect(() => {
     let cancelled = false;
@@ -561,6 +597,7 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
         );
         if (!placed.success)
           toast.error("Could not add sound", placed.error?.message);
+        else pushRecent(sound.category === "sfx" ? "sfx" : "music", sound.id);
       } catch (error) {
         if (isCurrent())
           toast.error(
@@ -578,7 +615,7 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
         }
       }
     },
-    [getSoundLibraryEngine],
+    [getSoundLibraryEngine, pushRecent],
   );
 
   const toggleMood = useCallback((mood: MoodTag) => {
@@ -646,6 +683,24 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
                 >
                   All
                 </Button>
+                <Button
+                  variant="ghost"
+                  aria-pressed={pinnedView === "favorites"}
+                  aria-label="Show favourites only"
+                  onClick={() => setPinnedView((view) => (view === "favorites" ? "all" : "favorites"))}
+                >
+                  <Star size={11} fill={pinnedView === "favorites" ? "currentColor" : "none"} aria-hidden="true" />
+                  {favoriteIds.length ? ` ${favoriteIds.length}` : ""}
+                </Button>
+                {recentIds.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    aria-pressed={pinnedView === "recent"}
+                    onClick={() => setPinnedView((view) => (view === "recent" ? "all" : "recent"))}
+                  >
+                    Recent
+                  </Button>
+                )}
                 {activeTab === "music" ? (
                   <>
                     {presentMusicGenres.slice(0, 4).map((genre) => (
@@ -825,6 +880,8 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
                 onPause={() => handlePause(sound.id)}
                 isUsed={usedSoundIds.has(sound.id)}
                 isAdding={addingIds.has(sound.id)}
+                isFavorite={favoriteIds.includes(sound.id)}
+                onToggleFavorite={() => toggleFavorite(activeTab, sound.id)}
                 readProgress={readProgress}
                 onPlay={() => {
                   void handlePlay(sound);

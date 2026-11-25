@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CAPTION_ANIMATION_STYLES, type CueSettings, getAnimationStyleDisplayName, type CaptionAnimationStyle, type Subtitle, type SubtitleStyle } from "@openreel/core";
-import { Button, Card, ColorPicker, Input, Label, RadioGroup, RadioGroupItem, Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue, Textarea } from "@openreel/ui";
+import { Button, Card, ColorPicker, Input, Label, RadioGroup, RadioGroupItem, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from "@openreel/ui";
 import { Captions, Upload } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
 import { toast } from "../../../stores/notification-store";
-import { FONT_CATEGORIES, FONT_FILE_ACCEPT, registerCustomFont, useCustomFonts } from "./font-options";
+import { FONT_FILE_ACCEPT, registerCustomFont } from "./font-options";
+import { FontPicker } from "./FontPicker";
 import { DEFAULT_CAPTION_STYLE } from "@openreel/core/captions/caption-layout";
 import { InspectorSection as Section } from "./shell/InspectorSection";
 import { SavedStylesSection } from "./SavedStylesSection";
@@ -70,7 +71,6 @@ function SubtitleNumberInput({ label, value, onCommit, min, max, step = 1 }: {
 export function SubtitleInspector({ subtitle }: { subtitle: Subtitle }) {
   const projectId = useProjectStore(state => state.project.id);
   const owner = useProjectStore(state => state.actionExecutor);
-  const customFonts = useCustomFonts();
   const fontFile = useRef<HTMLInputElement>(null);
   const fontIntent = useRef(0);
   useEffect(() => () => { fontIntent.current += 1; }, [projectId, owner, subtitle.id]);
@@ -79,13 +79,6 @@ export function SubtitleInspector({ subtitle }: { subtitle: Subtitle }) {
   const cue = subtitle.cueSettings ?? {};
   const background = backgroundChannels(style.backgroundColor);
   const knownOpacity = OPACITY_OPTIONS.some(option => option.value === background.alpha);
-  const fontGroups = useMemo(() => {
-    const seen = new Set<string>();
-    return [...Object.entries(FONT_CATEGORIES), ["Custom", customFonts] as const].map(([name, families]) => ({
-      name, families: families.filter(family => { if (seen.has(family)) return false; seen.add(family); return true; }),
-    }));
-  }, [customFonts]);
-  const knownFamily = fontGroups.some(group => group.families.includes(style.fontFamily));
 
   const currentSubtitle = () => {
     const state = useProjectStore.getState();
@@ -156,14 +149,8 @@ export function SubtitleInspector({ subtitle }: { subtitle: Subtitle }) {
       </div>}
     </div></Section>
     <Section title="Font"><div className="space-y-3">
-      <Field label="Font Family"><Select value={style.fontFamily} onValueChange={fontFamily => { fontIntent.current += 1; updateStyle({ fontFamily }); }}>
-        <SelectTrigger aria-label="Font family" className="h-7 w-40 min-w-0 rounded-[5px] bg-bg-2 px-2 py-1 text-xs"><SelectValue /></SelectTrigger>
-        <SelectContent>{!knownFamily && <SelectItem value={style.fontFamily}>{style.fontFamily}</SelectItem>}
-          {fontGroups.filter(group => group.families.length > 0).map(group => <SelectGroup key={group.name}><SelectLabel>{group.name}</SelectLabel>
-            {group.families.map(family => <SelectItem key={family} value={family}>{family}</SelectItem>)}
-          </SelectGroup>)}
-        </SelectContent>
-      </Select></Field>
+      <Field label="Font Family"><div className="w-40 min-w-0"><FontPicker ariaLabel="Font family" value={style.fontFamily}
+        onChange={fontFamily => { fontIntent.current += 1; updateStyle({ fontFamily }); }} /></div></Field>
       <Input ref={fontFile} type="file" aria-label="Subtitle font file" accept={FONT_FILE_ACCEPT} className="sr-only" tabIndex={-1}
         onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void uploadFont(file); }} />
       <Button type="button" variant="outline" className="h-8 w-full gap-2 text-xs" onClick={() => fontFile.current?.click()}><Upload size={13} aria-hidden />Upload Custom Font</Button>
