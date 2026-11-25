@@ -51,10 +51,18 @@ jobs:
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - run: pnpm build:wasm
+      - name: Install ffmpeg for the benchmark fixtures
+        run: brew list ffmpeg >/dev/null 2>&1 || brew install ffmpeg
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+          HOMEBREW_NO_INSTALL_CLEANUP: '1'
+      - name: Fetch the desktop ffmpeg sidecar
+        run: pnpm --filter @openreel/desktop fetch:ffmpeg
       - run: pnpm --filter @openreel/desktop build
         env:
           NODE_OPTIONS: --max-old-space-size=6144
       - name: Check budgets
+        shell: bash
         run: |
           mkdir -p perf-out
           pnpm --filter @openreel/desktop perf:budget -- --runs "${{ inputs.runs || '5' }}" --save "$PWD/perf-out" | tee perf-out/budget.txt
