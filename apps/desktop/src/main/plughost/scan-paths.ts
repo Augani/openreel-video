@@ -13,23 +13,23 @@ export interface ScanPathOptions {
 /** Extra VST3 folders from OPENREEL_VST3_PATH (separated like PATH), after the standard ones. Lets a user or a test point the scan at a plugin folder of their own. */
 export function vst3SearchPaths(options: ScanPathOptions = {}): string[] {
   const env = options.env ?? process.env;
-  const extra = (env.OPENREEL_VST3_PATH ?? "").split(options.platform === "win32" ? ";" : path.delimiter).map((p) => p.trim()).filter(Boolean);
+  const extra = (env.OPENREEL_VST3_PATH ?? "").split((options.platform ?? process.platform) === "win32" ? ";" : ":").map((p) => p.trim()).filter(Boolean);
   return [...standardVst3Paths(options), ...extra];
 }
 
 function standardVst3Paths({ platform = process.platform, home = os.homedir(), env = process.env }: ScanPathOptions = {}): string[] {
-  if (platform === "darwin") return ["/Library/Audio/Plug-Ins/VST3", path.join(home, "Library/Audio/Plug-Ins/VST3")];
+  if (platform === "darwin") return ["/Library/Audio/Plug-Ins/VST3", path.posix.join(home, "Library/Audio/Plug-Ins/VST3")];
   if (platform === "win32") {
     const common = env.COMMONPROGRAMFILES ?? "C:\\Program Files\\Common Files";
-    const local = env.LOCALAPPDATA ?? path.join(home, "AppData", "Local");
-    return [path.join(common, "VST3"), path.join(local, "Programs", "Common", "VST3")];
+    const local = env.LOCALAPPDATA ?? path.win32.join(home, "AppData", "Local");
+    return [path.win32.join(common, "VST3"), path.win32.join(local, "Programs", "Common", "VST3")];
   }
-  return [path.join(home, ".vst3"), "/usr/lib/vst3", "/usr/local/lib/vst3"];
+  return [path.posix.join(home, ".vst3"), "/usr/lib/vst3", "/usr/local/lib/vst3"];
 }
 
 export function audioUnitSearchPaths({ platform = process.platform, home = os.homedir() }: ScanPathOptions = {}): string[] {
   if (platform !== "darwin") return [];
-  return ["/Library/Audio/Plug-Ins/Components", path.join(home, "Library/Audio/Plug-Ins/Components"), "/System/Library/Components"];
+  return ["/Library/Audio/Plug-Ins/Components", path.posix.join(home, "Library/Audio/Plug-Ins/Components"), "/System/Library/Components"];
 }
 
 export interface Vst3Bundle {

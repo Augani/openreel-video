@@ -92,7 +92,7 @@ export async function waitForAnalysis(page: Page, id: string, timeout = 240_000)
 }
 
 type Matrix = "bt709" | "bt601";
-export function lumaOf(rgba: number[], matrix: Matrix = "bt709", fullRange = false): Uint8Array {
+export function lumaOf(rgba: ArrayLike<number>, matrix: Matrix = "bt709", fullRange = false): Uint8Array {
   const out = new Uint8Array(rgba.length / 4);
   const [kr, kg, kb] = matrix === "bt709" ? [0.2126, 0.7152, 0.0722] : [0.299, 0.587, 0.114];
   for (let i = 0; i < out.length; i++) {
@@ -124,34 +124,55 @@ async function waitDone(page: Page, id: string, timeout = 600_000): Promise<stri
 
 /** Frames at `times`, rendered by the preview engine and by the export-mode engine (same renderer, two modes). */
 export async function renderBoth(page: Page, times: number[]) {
-  return page.evaluate(async (list) => {
+  return captureFrames(page, times, false);
+}
+
+/** Send packed RGBA bytes across Playwright, which otherwise serializes every channel as a separate JS number. */
+async function captureFrames(page: Page, times: number[], dissolve: boolean) {
+  const frames = await page.evaluate(async ({ list, dissolve }) => {
     const h = (window as unknown as { __openreelE2E: Hook }).__openreelE2E;
     const engine = h.video.getVideoEngine();
-    const read = async (bitmap: ImageBitmap) => {
-      const c = new OffscreenCanvas(bitmap.width, bitmap.height);
-      const g = c.getContext("2d", { willReadFrequently: true })!;
-      g.drawImage(bitmap, 0, 0);
-      return Array.from(g.getImageData(0, 0, bitmap.width, bitmap.height).data);
-    };
-    const render = async (exportMode: boolean, t: number) => {
-      const project = h.project.getState().project;
-      engine.exportMode = exportMode;
+    const current = h.project.getState().project;
+    const project = dissolve ? {
+      ...current,
+      timeline: {
+        ...current.timeline,
+        tracks: current.timeline.tracks.map((track: any) => ({
+          ...track,
+          transitions: track.transitions.map((transition: any) => ({
+            ...transition, type: "crossfade", params: { ...transition.params, curve: "linear" },
+          })),
+        })),
+      },
+    } : current;
+    const canvas = new OffscreenCanvas(640, 360);
+    const context = canvas.getContext("2d", { willReadFrequently: true })!;
+    async function render(t: number, exporting: boolean) {
+      engine.exportMode = exporting;
       try {
-        return await read((await engine.renderFrame(project, t, 640, 360)).image);
+        const { image } = await engine.renderFrame(project, t, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0);
+        return context.getImageData(0, 0, canvas.width, canvas.height).data;
       } finally {
         engine.exportMode = false;
       }
-    };
-    const out: Array<{ t: number; preview: number[]; identical: boolean }> = [];
-    for (const t of list) {
-      const preview = await render(false, t);
-      const exported = await render(true, t);
-      let identical = preview.length === exported.length;
-      for (let i = 0; identical && i < preview.length; i++) if (preview[i] !== exported[i]) identical = false;
-      out.push({ t, preview, identical });
     }
-    return out;
-  }, times);
+    const result = [];
+    for (const t of list) {
+      const preview = await render(t, false);
+      const exported = dissolve ? preview : await render(t, true);
+      const identical = preview.every((value, i) => value === exported[i]);
+      const encoded = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve((reader.result as string).split(",")[1]!);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(new Blob([preview]));
+      });
+      result.push({ t, encoded, identical });
+    }
+    return result;
+  }, { list: times, dissolve });
+  return frames.map(({ t, encoded, identical }) => ({ t, preview: Buffer.from(encoded, "base64"), identical }));
 }
 
 /** Names every navigation, crash and page error in the log: a reload under the test must be visible, not a mystery. */
@@ -167,27 +188,8 @@ function watchPage(page: Page): void {
 }
 
 /** The same frames with the transition swapped for a plain cross dissolve (same duration and alignment). */
-async function renderDissolveFrames(page: Page, times: number[]): Promise<number[][]> {
-  return page.evaluate(async (list) => {
-    const h = (window as unknown as { __openreelE2E: Hook }).__openreelE2E;
-    const project = h.project.getState().project;
-    const swapped = {
-      ...project,
-      timeline: {
-        ...project.timeline,
-        tracks: project.timeline.tracks.map((t: any) => ({ ...t, transitions: t.transitions.map((x: any) => ({ ...x, type: "crossfade", params: { ...x.params, curve: "linear" } })) })),
-      },
-    };
-    const out: number[][] = [];
-    for (const t of list) {
-      const bitmap = (await h.video.getVideoEngine().renderFrame(swapped, t, 640, 360)).image;
-      const c = new OffscreenCanvas(bitmap.width, bitmap.height);
-      const g = c.getContext("2d", { willReadFrequently: true })!;
-      g.drawImage(bitmap, 0, 0);
-      out.push(Array.from(g.getImageData(0, 0, bitmap.width, bitmap.height).data));
-    }
-    return out;
-  }, times);
+async function renderDissolveFrames(page: Page, times: number[]) {
+  return (await captureFrames(page, times, true)).map((frame) => frame.preview);
 }
 
 export function registerMorphCutTests(expectCpu: boolean): void {

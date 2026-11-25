@@ -1,3 +1,4 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ProxyQueue, jobIdFor, kindOfJob, type CopyJobResult, type ProxyJob, type ProxyJobInput, type ProxyJobResult, type ProxyQueueStore } from "../src/main/ingest/proxy-queue";
 import { copyJobFollowUpInput } from "../src/main/ingest/follow-up";
@@ -132,7 +133,7 @@ describe("copy jobs in the ingest queue", () => {
     // The proxy is built from the verified copy and written beside the media, as the preset says.
     const proxy = q.list().find((job) => job.id === "p1:a");
     expect(proxy?.srcPath).toBe("/proj/Media/a.mov");
-    expect(proxy?.outDir).toBe("/proj/Media/Proxies");
+    expect(proxy?.outDir).toBe(path.resolve("/proj/Media/Proxies"));
     expect(proxy?.profile.codec).toBe("prores-lt");
     expect(proxy?.previewTwin).toBe(true);
     expect(proxy?.fileName).toMatch(/_half-lt_proxy\.mov$/);

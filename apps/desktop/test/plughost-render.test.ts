@@ -91,7 +91,7 @@ describe("pipe render", () => {
   });
 
   it("turns a crash in the middle of a render into a failure with the reason, and NaN output into a failure", async () => {
-    await expect(renderThroughHelper(spawnOptions, request("au:aufx:cr3b:mock", [signal(20000)]))).rejects.toThrow(/SIGSEGV/);
+    await expect(renderThroughHelper(spawnOptions, request("au:aufx:cr3b:mock", [signal(20000)]))).rejects.toThrow(/SIGSEGV|access violation/);
     await expect(renderThroughHelper(spawnOptions, request("au:aufx:nan0:mock", [signal(2000)]))).rejects.toBeInstanceOf(NativePluginRenderError);
     await expect(renderThroughHelper(spawnOptions, request("au:aufx:hang:mock", [signal(2000)]), { openTimeoutMs: 400 })).rejects.toThrow(/did not answer/);
   });
@@ -118,7 +118,7 @@ describe("host service", () => {
     const host = service();
     await host.scanNow();
     const failed = await host.render("j4", request("au:aufx:cr3b:mock", [signal(20000)]));
-    expect(failed).toMatchObject({ ok: false, kind: "failed", message: expect.stringMatching(/SIGSEGV/) });
+    expect(failed).toMatchObject({ ok: false, kind: "failed", message: expect.stringMatching(/SIGSEGV|access violation/) });
     expect(host.usableIds().has("au:aufx:cr3b:mock")).toBe(false);
     expect(await host.render("j5", request("au:aufx:cr3b:mock", [signal(2000)]))).toMatchObject({ ok: false, kind: "unavailable" });
     expect(host.usableIds().has("au:aufx:gain:mock")).toBe(true);
