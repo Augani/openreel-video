@@ -94,6 +94,16 @@ export default defineConfig({
           // shell's WindowControls, and the welcome screen then statically imported the whole export
           // engine through it. A chunk of its own keeps the shell's closure small.
           if (isDesktop && id.includes("/components/editor/inspector/multicam-workflow")) return "multicam-workflow";
+          // Desktop: the agent's lazy tool groups (the 28 modules lazy-tool-groups.ts imports) must never share a
+          // chunk with registry.ts. registry awaits loadLazyToolGroups() at module scope, so while that await is
+          // pending the rest of the chunk — including the namespace object Rollup emits for a folded module — has not
+          // run yet. experimentalMinChunkSize folded text-style-tools into the registry's chunk, Rollup rewrote
+          // import("./text-style-tools") to read that namespace binding instead of requesting a chunk, and the read
+          // threw "Cannot access 'jf' before initialization". The registry module then failed to evaluate, so every
+          // MCP tools/list, tools/call and Settings > MCP "Test connection" failed while the editor itself kept
+          // working. One chunk for the groups leaves those imports as real chunk requests again. mcp-tools is excluded
+          // because the package barrel re-exports it statically, and it must not drag the groups onto that path.
+          if (isDesktop && /\/packages\/agent\/src\/(?!mcp-tools\.ts$)[a-z0-9-]+-tools\.ts$/.test(id)) return "agent-tool-groups";
           // Desktop: Vite's dynamic-import helper (__vitePreload) is imported by every chunk that has a dynamic import. Left to Rollup
           // it lands in whichever manual chunk happens to contain a module with a dynamic import (it was the agent text tools chunk,
           // then the three.js renderers), and the whole app, the entry first, then statically imports that chunk for the helper.
