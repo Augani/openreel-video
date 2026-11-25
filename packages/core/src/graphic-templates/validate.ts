@@ -3,6 +3,7 @@ import { EASING_TYPES } from "../types/timeline";
 import { SHAPE_TYPES } from "../graphics/types";
 import type { ShapeStyle, ShapeType } from "../graphics/types";
 import type { TextAnimationPreset, TextStyle } from "../text/types";
+import { hasRunOverrides, parseRuns } from "../text/rich-text";
 import {
   GRAPHIC_TEMPLATE_SCHEMA_VERSION,
   type GraphicAxisPin,
@@ -389,10 +390,14 @@ function layer(raw: unknown, index: number, errors: Errors, layerIds: ReadonlySe
 
   if (kind === "text") {
     if (!isRecord(raw.text)) errors.add(`${path}.text`, "text layers need a text object");
-    else result.text = {
-      text: str(raw.text.text, `${path}.text.text`, errors, GRAPHIC_LIMITS.maxStringLength, ""),
-      style: textStyle(raw.text.style, `${path}.text.style`, errors),
-    };
+    else {
+      const runs = parseRuns(raw.text.runs);
+      result.text = {
+        text: str(raw.text.text, `${path}.text.text`, errors, GRAPHIC_LIMITS.maxStringLength, ""),
+        style: textStyle(raw.text.style, `${path}.text.style`, errors),
+        ...(runs && hasRunOverrides(runs) ? { runs } : {}),
+      };
+    }
   } else if (kind === "shape") {
     if (!isRecord(raw.shape)) errors.add(`${path}.shape`, "shape layers need a shape object");
     else {

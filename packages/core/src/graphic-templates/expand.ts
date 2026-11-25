@@ -3,6 +3,7 @@ import type { ShapeClip, SVGClip, ShapeStyle } from "../graphics/types";
 import { DEFAULT_SHAPE_STYLE } from "../graphics/types";
 import type { TextClip, TextStyle } from "../text/types";
 import { DEFAULT_TEXT_STYLE } from "../text/types";
+import { editRuns, hasRunOverrides, runsForText, scaleRuns } from "../text/rich-text";
 import {
   GRAPHIC_DESIGN_WIDTH,
   GRAPHIC_LAYER_ID_KEY,
@@ -117,7 +118,8 @@ function applyProperty(layer: GraphicLayer, property: string, value: GraphicPara
   const str = typeof value === "string" ? value : undefined;
   switch (property) {
     case "text":
-      return layer.text && str !== undefined ? { ...layer, text: { ...layer.text, text: str } } : layer;
+      return layer.text && str !== undefined
+        ? { ...layer, text: { ...layer.text, text: str, ...(layer.text.runs ? { runs: editRuns(layer.text.runs, str) } : {}) } } : layer;
     case "textColor":
       return layer.text && str !== undefined
         ? { ...layer, text: { ...layer.text, style: { ...layer.text.style, color: str } } } : layer;
@@ -610,6 +612,9 @@ export function expandGraphicInstance(instance: GraphicInstance, frame: GraphicF
         ...base,
         text: layer.text.text,
         style,
+        ...(layer.text.runs && hasRunOverrides(layer.text.runs)
+          ? { runs: scaleRuns(runsForText(layer.text.text, layer.text.runs), design.scale) }
+          : {}),
         transform: buildTransform(rest, layer.rotation),
         keyframes: layerKeyframes(id, layer, "text", rest, design, duration, box.w, box.h),
         ...(animation && animation.preset !== "none"

@@ -18,6 +18,8 @@ import type { MotionShaderDef, MotionShaderParamDef } from "../motion/shaders/ty
 import type { ProEffectType } from "./pro-effects";
 import { PRELUDE } from "./pro-effect-prelude";
 import { EXTRA_GLSL, EXTRA_UNIFORMS } from "./pro-effect-shaders-extra";
+import { CREATIVE_GLSL, CREATIVE_UNIFORMS } from "./pro-effect-shaders-creative";
+import { REPAIR_GLSL, REPAIR_UNIFORMS } from "./pro-effect-shaders-repair";
 import type { VrProEffectType } from "./vr-effect-specs";
 import type { VrImageEffectType } from "./vr-image-effect-specs";
 import { getVrRuntime, isVrEffectType, onVrRuntime, VrRuntimeNotLoadedError, type VrRuntime } from "./vr-runtime-loader";
@@ -535,6 +537,8 @@ const GLSL: Readonly<Record<BuiltinProEffectType, string>> = {
   echo: TEMPORAL_PASSTHROUGH,
   "posterize-time": TEMPORAL_PASSTHROUGH,
   ...EXTRA_GLSL,
+  ...REPAIR_GLSL,
+  ...CREATIVE_GLSL,
 };
 
 /** Uniform names (without the `u_` prefix) each shader consumes. */
@@ -559,6 +563,8 @@ const UNIFORMS: Readonly<Record<BuiltinProEffectType, readonly string[]>> = {
   echo: [],
   "posterize-time": [],
   ...EXTRA_UNIFORMS,
+  ...REPAIR_UNIFORMS,
+  ...CREATIVE_UNIFORMS,
 };
 
 function buildDef(type: ProEffectType, glsl: string, uniforms: readonly string[]): MotionShaderDef {

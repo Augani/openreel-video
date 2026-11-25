@@ -63,3 +63,10 @@ export type {
   RenderStatusSegment,
   RenderStatusOptions,
 } from "./render-status";
+export { IdleRenderScheduler, pickIdleChunk, hasIdleCacheRoom, IDLE_RENDER_DELAY_MS, IDLE_RENDER_CHUNK_SECONDS } from "./idle-render-scheduler";
+export type {
+  IdleRenderDeps,
+  IdleRenderState,
+  IdleRenderPause,
+  IdleChunkResult,
+} from "./idle-render-scheduler";

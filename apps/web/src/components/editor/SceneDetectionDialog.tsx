@@ -25,6 +25,22 @@ import {
   type SceneAnalysis,
 } from "../../services/scene-detection";
 
+function describeEdits(analysis: SceneAnalysis): string {
+  const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+  const total = analysis.edits?.length ?? analysis.cuts.length;
+  if (!analysis.edits || analysis.edits.every((e) => e.kind === "cut"))
+    return `${total} cut${total === 1 ? "" : "s"} found`;
+  const cuts = analysis.edits.filter((e) => e.kind === "cut").length;
+  const dissolves = analysis.edits.filter((e) => e.kind === "dissolve").length;
+  const fades = total - cuts - dissolves;
+  const parts = [
+    cuts ? count(cuts, "cut") : "",
+    dissolves ? count(dissolves, "dissolve") : "",
+    fades ? count(fades, "fade") : "",
+  ].filter(Boolean);
+  return `${count(total, "edit")} found (${parts.join(", ")})`;
+}
+
 type Phase = "idle" | "analysing" | "done" | "applying";
 
 const isAbort = (error: unknown) =>
@@ -44,7 +60,10 @@ function SceneDetectionSession({ clipId }: { clipId: string }) {
   const mounted = useRef(true);
   const [sensitivity, setSensitivity] = useState(50);
   const [minLength, setMinLength] = useState(0.5);
+  const [detectDissolves, setDetectDissolves] = useState(true);
+  const [detectFades, setDetectFades] = useState(true);
   const [splitClip, setSplitClip] = useState(true);
+  const [createSubclips, setCreateSubclips] = useState(false);
   const [addMarkers, setAddMarkers] = useState(false);
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState(0);
@@ -97,6 +116,8 @@ function SceneDetectionSession({ clipId }: { clipId: string }) {
       const found = await analyseClipScenes(clipId, {
         sensitivity: sensitivity / 100,
         minSceneLength: minLength,
+        detectDissolves,
+        detectFades,
         signal: abort.signal,
         onProgress: (p) => {
           if (run === runId.current && mounted.current) setProgress(p.fraction);
@@ -129,11 +150,15 @@ function SceneDetectionSession({ clipId }: { clipId: string }) {
     setPhase("applying");
     setError(null);
     try {
-      const result = await applySceneCuts(analysis, { splitClip, addMarkers });
+      const result = await applySceneCuts(analysis, { splitClip, addMarkers, createSubclips });
       if (!mounted.current || run !== runId.current) return;
       const parts: string[] = [];
       if (splitClip)
         parts.push(`${result.splits} split${result.splits === 1 ? "" : "s"}`);
+      if (createSubclips)
+        parts.push(
+          `${result.subclips} subclip${result.subclips === 1 ? "" : "s"}`,
+        );
       if (addMarkers)
         parts.push(
           `${result.markers} marker${result.markers === 1 ? "" : "s"}`,
@@ -142,7 +167,7 @@ function SceneDetectionSession({ clipId }: { clipId: string }) {
         parts.push(
           `${result.skippedLockedLinked} linked clip${result.skippedLockedLinked === 1 ? "" : "s"} on locked tracks skipped`,
         );
-      if (result.splits === 0 && result.markers === 0) {
+      if (result.splits === 0 && result.markers === 0 && result.subclips === 0) {
         setPhase("done");
         setError(
           "None of the detected cuts fall inside the clip as it is now. Analyse again.",
@@ -162,7 +187,9 @@ function SceneDetectionSession({ clipId }: { clipId: string }) {
 
   const analysing = phase === "analysing";
   const busy = analysing || phase === "applying";
-  const cutCount = analysis?.cuts.length ?? 0;
+  const cutCount = analysis ? (analysis.edits?.length ?? analysis.cuts.length) : 0;
+  const summary = analysis ? describeEdits(analysis) : "";
+  const nothingToDo = !splitClip && !addMarkers && !createSubclips;
 
   return (
     <Dialog
@@ -178,7 +205,7 @@ function SceneDetectionSession({ clipId }: { clipId: string }) {
             Scene Edit Detection
           </DialogTitle>
           <DialogDescription className="text-xs text-fg-3">
-            Find hard cuts in this clip. Fades and dissolves are ignored.
+            Find hard cuts, cross-dissolves and fades to or from black in this clip.
           </DialogDescription>
         </DialogHeader>
 
@@ -226,9 +253,40 @@ function SceneDetectionSession({ clipId }: { clipId: string }) {
 
           <div className="space-y-3 border-t border-border pt-3">
             <div className="flex items-start justify-between gap-3">
+              <Label htmlFor={`${id}-dissolves`} className="text-xs">
+                Detect cross-dissolves
+              </Label>
+              <Switch
+                id={`${id}-dissolves`}
+                checked={detectDissolves}
+                disabled={busy}
+                onCheckedChange={(value) => {
+                  setDetectDissolves(value);
+                  invalidate();
+                }}
+              />
+            </div>
+            <div className="flex items-start justify-between gap-3">
+              <Label htmlFor={`${id}-fades`} className="text-xs">
+                Detect fades to and from black
+              </Label>
+              <Switch
+                id={`${id}-fades`}
+                checked={detectFades}
+                disabled={busy}
+                onCheckedChange={(value) => {
+                  setDetectFades(value);
+                  invalidate();
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-3 border-t border-border pt-3">
+            <div className="flex items-start justify-between gap-3">
               <div className="space-y-0.5">
                 <Label htmlFor={`${id}-split`} className="text-xs">
-                  Split clip at cuts
+                  Apply a cut at each detected edit
                 </Label>
                 <p className="text-[11px] text-fg-3">
                   One undo step. Linked audio is split too.
@@ -239,6 +297,20 @@ function SceneDetectionSession({ clipId }: { clipId: string }) {
                 checked={splitClip}
                 disabled={busy}
                 onCheckedChange={setSplitClip}
+              />
+            </div>
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-0.5">
+                <Label htmlFor={`${id}-subclips`} className="text-xs">
+                  Create subclips for each scene
+                </Label>
+                <p className="text-[11px] text-fg-3">Added to the Project panel.</p>
+              </div>
+              <Switch
+                id={`${id}-subclips`}
+                checked={createSubclips}
+                disabled={busy}
+                onCheckedChange={setCreateSubclips}
               />
             </div>
             <div className="flex items-start justify-between gap-3">
@@ -273,9 +345,7 @@ function SceneDetectionSession({ clipId }: { clipId: string }) {
 
           {phase === "done" && analysis && !error && (
             <p className="text-xs font-semibold" role="status">
-              {cutCount === 0
-                ? "No cuts found. Try raising the sensitivity."
-                : `${cutCount} cut${cutCount === 1 ? "" : "s"} found`}
+              {cutCount === 0 ? "No cuts found. Try raising the sensitivity." : summary}
             </p>
           )}
 
@@ -317,7 +387,7 @@ function SceneDetectionSession({ clipId }: { clipId: string }) {
                 <Button
                   size="sm"
                   onClick={() => void handleApply()}
-                  disabled={busy || (!splitClip && !addMarkers)}
+                  disabled={busy || nothingToDo}
                 >
                   {phase === "applying" ? "Applying…" : "Apply"}
                 </Button>

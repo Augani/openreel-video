@@ -12,3 +12,4 @@ export * from "./social-clips";
 export * from "./audio-sync";
 export * from "./audio-sync-stream";
 export * from "./source";
+export * from "./sync-clips";

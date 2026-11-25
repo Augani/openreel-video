@@ -1,6 +1,6 @@
 {
  "count": 494,
- "total": "243b90c72e976c818592cb1b1b5fcbff3beec5935d6a230cd77d564604adab44",
+ "total": "997247195ce4398764b35eaecbc56667d029a58336c976bdca08d777c895c758",
  "tools": [
   "get_editor_state:4bec3e3c3b0bfb2c",
   "list_media:3109aee5b9063093",
@@ -98,7 +98,7 @@
   "set_clip_volume:f79a4fae5c09222d",
   "set_clip_fade:703fb4c8fac18cd4",
   "add_audio_automation:ac04458d1d83c60d",
-  "add_audio_effect:dcd751fbacab858d",
+  "add_audio_effect:052ea12febaa951d",
   "remove_audio_effect:ea6a8f5c4dc7a2cd",
   "update_audio_effect:ef74e58cb4736f3f",
   "toggle_audio_effect:6f9680c013a708e5",
@@ -353,8 +353,8 @@
   "set_clip_mask_path:eb14f6556234a1e1",
   "export_timeline_xml:d56f0360e74276b5",
   "import_timeline_xml:15812a1233d700dc",
-  "add_track_audio_effect:354521a5f4eb8ed9",
-  "set_track_audio_effect_param:8fd925a51110ce2b",
+  "add_track_audio_effect:1eec4e3bd9f5fcc3",
+  "set_track_audio_effect_param:038659099375c867",
   "remove_track_audio_effect:69d2fa40b588c60e",
   "set_track_automation:78bb6c9c95a3a8dd",
   "create_bus:f10790652f1713ff",

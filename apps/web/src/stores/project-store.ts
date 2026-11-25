@@ -13,10 +13,13 @@ import type {
   Track,
   Clip,
   AutomationPoint,
+  TrackAutomationMode,
+  TrackAutomationPass,
   Transition,
   Action,
   ActionResult,
   TextClip,
+  TextRun,
   TextStyle,
   TextAnimation,
   TextAnimationPreset,
@@ -209,7 +212,7 @@ export interface ProjectState {
   ) => Promise<ActionResult>;
 
   // Media library actions
-  importMedia: (file: File, onProgress?: (stage: string) => void, source?: { soundLibraryId?: string; stockSource?: StockMediaSource; recordedTake?: "screen" | "webcam" }, options?: { signal?: AbortSignal; isCurrent?: () => boolean }) => Promise<ActionResult>;
+  importMedia: (file: File, onProgress?: (stage: string) => void, source?: { soundLibraryId?: string; stockSource?: StockMediaSource; recordedTake?: "screen" | "webcam" | "voiceover" }, options?: { signal?: AbortSignal; isCurrent?: () => boolean }) => Promise<ActionResult>;
   deleteMedia: (mediaId: string) => Promise<ActionResult>;
   replaceMediaAsset: (mediaId: string, file: File, sourceFolder?: string, options?: { restorePlaceholder?: boolean; sourcePath?: string }) => Promise<ActionResult>;
   renameMedia: (mediaId: string, name: string) => Promise<ActionResult>;
@@ -246,11 +249,17 @@ export interface ProjectState {
   setAudioRack: (target: string, rack: AudioRack | null) => Promise<ActionResult>;
   /** Commit one routing plan (bus/output/send edit) as ONE undo step. */
   applyAudioRouting: (plan: RoutingPlan) => Promise<ActionResult>;
+  /** Save / recall / rename / delete a mixer snapshot as ONE undo step. */
+  applyMixerSnapshot: (plan: import("@openreel/core/audio/mixer-snapshots").SnapshotPlan) => Promise<ActionResult>;
   setTrackAutomation: (
     trackId: string,
     lane: "volume" | "pan",
     points: AutomationPoint[] | null,
   ) => Promise<ActionResult>;
+  /** Set the track's automation mode (Off, Read, Write, Touch, Latch): one undo step. */
+  setTrackAutomationMode: (trackId: string, mode: TrackAutomationMode) => Promise<ActionResult>;
+  /** Commit a whole automation recording pass (fader / pan lanes, effect keyframes) as ONE undo step. */
+  recordTrackAutomation: (passes: TrackAutomationPass[]) => Promise<ActionResult>;
   groupTracks: (trackId: string, partnerTrackId?: string) => boolean;
   renameTrack: (trackId: string, name: string) => Promise<ActionResult>;
   getTrack: (trackId: string) => Track | undefined;
@@ -432,6 +441,8 @@ export interface ProjectState {
     clipId: string,
     style: Partial<TextStyle>,
   ) => TextClip | null;
+  /** Replace the per-character style runs (undoable); `undefined` returns the clip to single-style text. */
+  updateTextRuns: (clipId: string, runs: TextRun[] | undefined) => TextClip | null;
   updateTextAnimation: (
     clipId: string,
     animation: TextAnimation,
@@ -2318,7 +2329,10 @@ export const useProjectStore = create<ProjectState>()(
           .map((clipId): TimelineClipboardItem | null => {
             const mediaClip = state.getClip(clipId);
             if (mediaClip) {
-              return { kind: "media", clip: structuredClone(mediaClip) };
+              // A copy is a new clip: it does not join the original's group.
+              const { groupId: _group, ...copy } = structuredClone(mediaClip);
+              void _group;
+              return { kind: "media", clip: copy };
             }
             const textClip = state.getTextClip(clipId);
             if (textClip) {

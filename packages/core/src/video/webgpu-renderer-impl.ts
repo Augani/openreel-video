@@ -12,6 +12,7 @@ import {
   createTransformUniformsBuffer,
   createTransformMatrix,
 } from "./shaders";
+import { WebGPULayerBlender, resolveLayerBlendMode, withoutBlendEffects } from "./webgpu-layer-blend";
 import { TextureCache, calculateTextureSize } from "./texture-cache";
 
 export class WebGPURenderer implements Renderer {
@@ -34,6 +35,7 @@ export class WebGPURenderer implements Renderer {
 
   // Double buffering
   private frameBuffers: GPUTexture[] = [];
+  private layerBlender: WebGPULayerBlender | null = null;
   private currentFrameBuffer = 0;
 
   // Pipeline resources
@@ -146,6 +148,7 @@ export class WebGPURenderer implements Renderer {
         height: this.height,
       });
       await this.effectsProcessor.initialize();
+      this.layerBlender = new WebGPULayerBlender(this.device);
       this.effectsProcessor.onEffectsChange((clipId, effects) => {
         this.triggerReRender(clipId, effects);
       });
@@ -526,6 +529,9 @@ export class WebGPURenderer implements Renderer {
     this.isDestroyed = true;
     this.deviceRecreationInProgress = false;
 
+    this.layerBlender?.destroy();
+    this.layerBlender = null;
+
     // Destroy effects processor
     if (this.effectsProcessor) {
       this.effectsProcessor.dispose();
@@ -619,8 +625,7 @@ export class WebGPURenderer implements Renderer {
         },
       ],
     });
-    this.renderLayersToPass(frameRenderPass);
-    frameRenderPass.end();
+    this.renderLayersToFrame(commandEncoder, frameBuffer, frameRenderPass);
 
     // Second pass: copy frame buffer to swap chain texture
     const presentRenderPass = commandEncoder.beginRenderPass({
@@ -640,6 +645,7 @@ export class WebGPURenderer implements Renderer {
     // Submit commands and wait for completion
     const commandBuffer = commandEncoder.finish();
     this.device.queue.submit([commandBuffer]);
+    this.layerBlender?.endFrame();
 
     // Use mapAsync to ensure GPU work is done
     // Create a staging buffer to read back the frame from the frame buffer (not swap chain)
@@ -686,22 +692,47 @@ export class WebGPURenderer implements Renderer {
     });
   }
 
-  private renderLayersToPass(renderPass: GPURenderPassEncoder): void {
-    if (!this.device || !this.textureSampler) return;
-
+  /**
+   * Draws the layers into `frameBuffer` (`firstPass` is its open, cleared pass; it is ended here). A layer with a blend
+   * mode needs the backdrop, so it closes the pass, composites in its own passes and the frame continues in a loading pass.
+   */
+  private renderLayersToFrame(
+    commandEncoder: GPUCommandEncoder,
+    frameBuffer: GPUTexture,
+    firstPass: GPURenderPassEncoder,
+  ): void {
+    let renderPass = firstPass;
     for (const layer of this.layers) {
+      const mode = resolveLayerBlendMode(layer);
+      if (mode !== "normal" && this.layerBlender) {
+        renderPass.end();
+        this.layerBlender.composite(commandEncoder, frameBuffer, mode, (layerPass) => this.renderLayerToPass(layerPass, layer));
+        renderPass = commandEncoder.beginRenderPass({
+          label: "Frame Buffer Render Pass (continued)",
+          colorAttachments: [{ view: frameBuffer.createView(), loadOp: "load", storeOp: "store" }],
+        });
+        continue;
+      }
+      this.renderLayerToPass(renderPass, layer);
+    }
+    renderPass.end();
+  }
+
+  private renderLayerToPass(renderPass: GPURenderPassEncoder, layer: RenderLayer): void {
+    if (!this.device || !this.textureSampler) return;
+    {
       // Skip if texture is not a GPUTexture
       if (!layer.texture || !("createView" in layer.texture)) {
-        continue;
+        return;
       }
 
       const gpuTexture = layer.texture as GPUTexture;
       const hasBorderRadius = layer.borderRadius > 0;
       let processedTexture = gpuTexture;
-      if (layer.effects.length > 0 && this.effectsProcessor) {
+      if (withoutBlendEffects(layer.effects).length > 0 && this.effectsProcessor) {
         processedTexture = this.effectsProcessor.processEffects(
           gpuTexture,
-          layer.effects,
+          withoutBlendEffects(layer.effects),
         );
       }
 

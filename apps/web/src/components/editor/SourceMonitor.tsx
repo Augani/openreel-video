@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@openreel/ui";
 import { effectiveVrProperties, getRawDeveloper, isDevelopedRaw, isVrProperties, mediaImageVersion, type MediaItem } from "@openreel/core";
 import { addSourceMarker } from "../../services/clip-marker-commands";
@@ -210,7 +210,11 @@ function Waveform({
   );
 }
 
+// The Transcript tab (and everything behind it: the transcript store, Whisper pipeline and search) loads on first use.
+const SourceTranscriptPanel = lazy(() => import("./SourceTranscriptPanel"));
+
 export function SourceMonitor() {
+  const transcriptOpen = useSourceMonitorStore((s) => s.transcriptOpen);
   const mediaId = useSourceMonitorStore((s) => s.mediaId);
   const position = useSourceMonitorStore((s) => s.position);
   const rate = useSourceMonitorStore((s) => s.rate);
@@ -418,6 +422,19 @@ export function SourceMonitor() {
           >
             VR view
           </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            data-testid="source-transcript-toggle"
+            aria-pressed={transcriptOpen}
+            title="Transcript: select words to set In/Out, then Insert or Overwrite. Search every transcribed clip."
+            onMouseDown={noFocusSteal}
+            onClick={() => useSourceMonitorStore.getState().setTranscriptOpen(!transcriptOpen)}
+            className={transcriptOpen ? "bg-[#26282d] text-fg" : "text-fg-3"}
+          >
+            Transcript
+          </Button>
           <Button type="button" variant="ghost" size="sm" data-testid="reverse-match-frame" title="Reverse Match Frame (Shift+F)" onMouseDown={noFocusSteal} disabled={!media} onClick={() => runWithToast("Reverse match frame", reverseMatchFrame)}>Find in sequence</Button>
           <span className="font-mono text-[11px] tabular-nums text-fg-3" data-testid="source-duration">
             {media ? `Dur ${tc(rangeLength)}` : ""}
@@ -492,6 +509,14 @@ export function SourceMonitor() {
           </React.Suspense>
         ) : null}
       </div>
+
+      {transcriptOpen && (
+        <div data-testid="source-transcript-pane" className="flex h-[42%] min-h-[150px] shrink-0 flex-col border-t border-border bg-bg-1">
+          <Suspense fallback={<p className="p-3 text-[11px] text-fg-3">Loading transcript…</p>}>
+            <SourceTranscriptPanel />
+          </Suspense>
+        </div>
+      )}
 
       <div className="workspace-preview-controls">
         <div className="relative px-3 pt-2">

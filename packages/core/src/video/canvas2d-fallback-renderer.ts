@@ -1,6 +1,13 @@
 import type { Effect } from "../types/timeline";
 import type { Renderer, RendererConfig, RenderLayer } from "./renderer-factory";
 import { VideoEffectsEngine } from "./video-effects-engine";
+import type { BlendMode } from "./types";
+import {
+  drawImageWithBlend,
+  getNativeCanvasBlendOperation,
+  isBlendMode,
+  needsCpuBlend,
+} from "./blend-reference";
 
 export class Canvas2DFallbackRenderer implements Renderer {
   readonly type = "canvas2d" as const;
@@ -80,10 +87,17 @@ export class Canvas2DFallbackRenderer implements Renderer {
       return;
     }
 
-    ctx.save();
-    ctx.globalAlpha = opacity * transform.opacity;
     const effects = this.pendingEffects.get(image) ?? layer.effects;
-    ctx.globalCompositeOperation = resolveCompositeOperation(effects);
+    const blendMode = resolveBlendMode(effects);
+    const cpuBlend = needsCpuBlend(blendMode);
+    // Modes with no Canvas2D op: draw the layer alone, then blend per pixel.
+    const scratch = cpuBlend ? new OffscreenCanvas(this.width, this.height) : null;
+    const target = (scratch?.getContext("2d") ?? ctx) as OffscreenCanvasRenderingContext2D;
+    target.save();
+    target.globalAlpha = cpuBlend ? 1 : opacity * transform.opacity;
+    target.globalCompositeOperation = cpuBlend
+      ? "source-over"
+      : (getNativeCanvasBlendOperation(blendMode) ?? "source-over");
     let source: ImageBitmap | OffscreenCanvas = image;
     const processable = effects.filter(
       (effect) => effect.enabled && effect.type !== "blend",
@@ -103,35 +117,41 @@ export class Canvas2DFallbackRenderer implements Renderer {
         if (processed) source = processed;
       } catch (error) {
         console.warn("[Canvas2DFallbackRenderer] effects failed:", error);
-        ctx.filter = buildCanvasFilter(processable);
+        target.filter = buildCanvasFilter(processable);
       }
     }
 
     // Translate to position
     const centerX = this.width / 2 + transform.position.x;
     const centerY = this.height / 2 + transform.position.y;
-    ctx.translate(centerX, centerY);
-    ctx.rotate((transform.rotation * Math.PI) / 180);
-    ctx.scale(transform.scale.x, transform.scale.y);
+    target.translate(centerX, centerY);
+    target.rotate((transform.rotation * Math.PI) / 180);
+    target.scale(transform.scale.x, transform.scale.y);
     const drawX = -image.width * transform.anchor.x;
     const drawY = -image.height * transform.anchor.y;
     if (borderRadius > 0) {
-      ctx.beginPath();
+      target.beginPath();
       this.roundRect(
-        ctx,
+        target,
         drawX,
         drawY,
         image.width,
         image.height,
         borderRadius,
       );
-      ctx.clip();
+      target.clip();
     }
 
     // Draw the image
-    ctx.drawImage(source, drawX, drawY);
+    target.drawImage(source, drawX, drawY);
 
-    ctx.restore();
+    target.restore();
+    if (scratch) {
+      ctx.save();
+      ctx.globalAlpha = opacity * transform.opacity;
+      drawImageWithBlend(ctx, scratch, blendMode);
+      ctx.restore();
+    }
   }
 
   private roundRect(
@@ -246,31 +266,8 @@ function buildCanvasFilter(effects: readonly Effect[]): string {
   return filters.length > 0 ? filters.join(" ") : "none";
 }
 
-function resolveCompositeOperation(
-  effects: readonly Effect[],
-): GlobalCompositeOperation {
+function resolveBlendMode(effects: readonly Effect[]): BlendMode {
   const blend = effects.find((effect) => effect.enabled && effect.type === "blend");
   const mode = blend?.params.mode;
-  if (typeof mode !== "string" || mode === "normal") return "source-over";
-  if (mode === "add" || mode === "linear-dodge") return "lighter";
-  const supported = new Set<GlobalCompositeOperation>([
-    "multiply",
-    "screen",
-    "overlay",
-    "darken",
-    "lighten",
-    "color-dodge",
-    "color-burn",
-    "hard-light",
-    "soft-light",
-    "difference",
-    "exclusion",
-    "hue",
-    "saturation",
-    "color",
-    "luminosity",
-  ]);
-  return supported.has(mode as GlobalCompositeOperation)
-    ? (mode as GlobalCompositeOperation)
-    : "source-over";
+  return isBlendMode(mode) ? mode : "normal";
 }

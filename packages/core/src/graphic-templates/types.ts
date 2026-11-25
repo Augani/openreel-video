@@ -1,6 +1,6 @@
 import type { EasingType } from "../types/timeline";
 import type { ShapeStyle, ShapeType } from "../graphics/types";
-import type { TextAnimationParams, TextAnimationPreset, TextStyle } from "../text/types";
+import type { TextAnimationParams, TextAnimationPreset, TextRun, TextStyle } from "../text/types";
 
 /**
  * Essential Graphics (MOGRT-lite).
@@ -74,6 +74,8 @@ export interface GraphicLayerPin {
 export interface GraphicTextContent {
   readonly text: string;
   readonly style: Partial<TextStyle>;
+  /** Per-character styling (design pixels, like `style`); absent for single-style text. */
+  readonly runs?: TextRun[];
 }
 
 export interface GraphicShapeContent {

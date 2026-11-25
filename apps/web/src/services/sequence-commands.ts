@@ -9,12 +9,15 @@ import {
   ensureSequences,
   getCompoundClipId,
   getSequence,
+  groupClips,
   insertSequenceAsNest,
+  makeSubsequence,
   listSequences,
   moveSequencesToBin,
   nestClips,
   renameSequence,
   reorderOpenSequences,
+  ungroupClips,
   type NewSequenceOptions,
   type Project,
   type SequenceEditResult,
@@ -141,6 +144,35 @@ export const moveSequencesToBinCommand = (ids: readonly string[], binId: string 
 export async function nestSelectedClips(name?: string): Promise<SequenceCommandResult> {
   const ids = useUIStore.getState().getSelectedClipIds();
   return run("Nest", "Nest clips", (p) => nestClips(p, ids, name));
+}
+
+/** The span Make Subsequence works on: the In/Out range when marked, else the selected clips' extent. */
+export function subsequenceRange(): { start: number; end: number } | null {
+  const { loopStart, loopEnd } = useTimelineStore.getState();
+  if (loopEnd > loopStart) return { start: loopStart, end: loopEnd };
+  const ids = new Set(useUIStore.getState().getSelectedClipIds());
+  const clips = useProjectStore.getState().project.timeline.tracks.flatMap((track) => track.clips).filter((clip) => ids.has(clip.id));
+  if (!clips.length) return null;
+  return { start: Math.min(...clips.map((clip) => clip.startTime)), end: Math.max(...clips.map((clip) => clip.startTime + clip.duration)) };
+}
+
+/** Premiere's "Make Subsequence": the marked range (or the selection's extent) becomes a new nested sequence in place. */
+export async function makeSubsequenceCommand(name?: string): Promise<SequenceCommandResult> {
+  const range = subsequenceRange();
+  if (!range) return run("Make subsequence", "Make subsequence", () => ({ ok: false, message: "Mark an In and Out range or select clips first." }));
+  return run("Make subsequence", "Make subsequence", (p) => makeSubsequence(p, range, name));
+}
+
+/** Group (Cmd+G): the selected clips select, move and delete together. One undo step. */
+export async function groupSelectedClips(): Promise<SequenceCommandResult> {
+  const ids = useUIStore.getState().getSelectedClipIds();
+  return run("Group", "Group clips", (p) => groupClips(p, ids, uuidv4()));
+}
+
+/** Ungroup (Shift+Cmd+G): every group the selection touches dissolves. One undo step. */
+export async function ungroupSelectedClips(): Promise<SequenceCommandResult> {
+  const ids = useUIStore.getState().getSelectedClipIds();
+  return run("Ungroup", "Ungroup clips", (p) => ungroupClips(p, ids));
 }
 
 /** Drop a sequence from the Project panel onto a timeline lane. */

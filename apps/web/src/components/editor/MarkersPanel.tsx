@@ -13,6 +13,7 @@ import {
   addMarkerAtPlayhead,
   clearAllMarkers,
   exportMarkers,
+  copyYouTubeChapters,
   seekToMarker,
   type MarkerExportKind,
 } from "../../services/marker-commands";
@@ -429,9 +430,21 @@ export function MarkersPanel() {
         )}
       </div>
 
-      {scope === "sequence" && <footer className="flex items-center gap-1.5 border-t border-border px-3 py-2">
+      {scope === "sequence" && <footer className="flex flex-wrap items-center gap-1.5 border-t border-border px-3 py-2">
         <span className="mr-auto text-[11px] text-fg-muted">Export</span>
         {exportButton("chapters", "Chapters")}
+        {exportButton("webvtt", "VTT")}
+        <Button
+          variant="secondary"
+          size="sm"
+          className="h-7 px-2 text-[12px]"
+          disabled={markers.length === 0}
+          data-testid="markers-copy-youtube"
+          title="Copy the chapter list for a YouTube description"
+          onClick={() => void copyYouTubeChapters()}
+        >
+          Copy YouTube
+        </Button>
         {exportButton("csv", "CSV")}
         {exportButton("edl", "EDL")}
       </footer>}

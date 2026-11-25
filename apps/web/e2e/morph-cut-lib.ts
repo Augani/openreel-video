@@ -92,7 +92,7 @@ export async function waitForAnalysis(page: Page, id: string, timeout = 240_000)
 }
 
 type Matrix = "bt709" | "bt601";
-function lumaOf(rgba: number[], matrix: Matrix = "bt709", fullRange = false): Uint8Array {
+export function lumaOf(rgba: number[], matrix: Matrix = "bt709", fullRange = false): Uint8Array {
   const out = new Uint8Array(rgba.length / 4);
   const [kr, kg, kb] = matrix === "bt709" ? [0.2126, 0.7152, 0.0722] : [0.299, 0.587, 0.114];
   for (let i = 0; i < out.length; i++) {
@@ -101,7 +101,7 @@ function lumaOf(rgba: number[], matrix: Matrix = "bt709", fullRange = false): Ui
   }
   return out;
 }
-function psnr(a: ArrayLike<number>, b: ArrayLike<number>): number {
+export function psnr(a: ArrayLike<number>, b: ArrayLike<number>): number {
   let se = 0;
   for (let i = 0; i < a.length; i++) se += (a[i] - b[i]) ** 2;
   return se === 0 ? Infinity : 10 * Math.log10((255 * 255) / (se / a.length));
@@ -123,7 +123,7 @@ async function waitDone(page: Page, id: string, timeout = 600_000): Promise<stri
 }
 
 /** Frames at `times`, rendered by the preview engine and by the export-mode engine (same renderer, two modes). */
-async function renderBoth(page: Page, times: number[]) {
+export async function renderBoth(page: Page, times: number[]) {
   return page.evaluate(async (list) => {
     const h = (window as unknown as { __openreelE2E: Hook }).__openreelE2E;
     const engine = h.video.getVideoEngine();

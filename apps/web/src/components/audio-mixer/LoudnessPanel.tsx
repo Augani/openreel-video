@@ -1,11 +1,19 @@
 import { memo, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
-import { getRealtimeAudioGraph, LOUDNESS_PRESETS, type LoudnessSnapshot } from "@openreel/core";
+import {
+  evaluateCompliance,
+  getRealtimeAudioGraph,
+  LOUDNESS_PRESETS,
+  loudnessTargetFromPreset,
+  type ComplianceResult,
+  type LoudnessSnapshot,
+} from "@openreel/core";
 import { Button, Progress, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { useLoudnessStore } from "../../stores/loudness-store";
 import { createLiveLoudnessTap } from "../../services/live-loudness-meter";
 import { analyzeTimelineLoudness } from "../../services/loudness";
 import { toast } from "../../stores/notification-store";
+import { describeCompliance, describeVerdict, isSilentCompliance } from "../../services/export-loudness-report";
 
 const formatLufs = (value: number, digits = 1): string =>
   Number.isFinite(value) ? value.toFixed(digits) : "−∞";
@@ -55,6 +63,34 @@ function Readout({
   );
 }
 
+function ComplianceList({ result, testId }: { result: ComplianceResult; testId: string }) {
+  return (
+    <div className="mt-1.5 rounded-md border border-border bg-bg-2 px-2 py-1.5" data-testid={testId}>
+      <p
+        className={`text-[11px] font-semibold ${isSilentCompliance(result) ? "text-fg-muted" : result.pass ? "text-status-success" : "text-status-error"}`}
+        data-testid={`${testId}-verdict`}
+      >
+        {result.specLabel}: {describeVerdict(result)}
+      </p>
+      <ul className="mt-0.5 space-y-0.5">
+        {describeCompliance(result).map((line, index) => (
+          <li
+            key={result.checks[index].id}
+            className={`font-mono text-[10px] ${result.checks[index].pass ? "text-fg-muted" : "text-status-error"}`}
+            data-testid={`${testId}-${result.checks[index].id}`}
+            data-pass={result.checks[index].pass}
+          >
+            {line}
+          </li>
+        ))}
+      </ul>
+      {result.dialogueFallback && (
+        <p className="mt-0.5 text-[10px] text-fg-muted">No dialogue detected, so program loudness was checked.</p>
+      )}
+    </div>
+  );
+}
+
 function LevelBar({ label, lufs }: { label: string; lufs: number }) {
   const percent = barPercent(lufs);
   const hot = Number.isFinite(lufs) && lufs > -14;
@@ -94,6 +130,7 @@ export const LoudnessPanel = memo(function LoudnessPanel({ visible }: { visible:
   const timeline = useProjectStore((s) => s.project.timeline);
   const error = useLoudnessStore((s) => s.error);
   const [targetId, setTargetId] = useState("streaming");
+  const exportReport = useLoudnessStore((s) => s.exportReport);
 
   useEffect(() => {
     if (!visible) return;
@@ -141,7 +178,10 @@ export const LoudnessPanel = memo(function LoudnessPanel({ visible }: { visible:
   const fresh = analysis && analysisProject === projectId ? analysis : null;
   const stale = fresh !== null && analysisTimeline !== timeline;
   const running = status === "running";
-  const delta = fresh && Number.isFinite(fresh.integrated) ? fresh.integrated - preset.targetLufs : null;
+  const dialogueGated = preset.gating === "dialogue" && Number.isFinite(fresh?.dialogueIntegrated ?? NaN);
+  const comparedLufs = fresh ? (dialogueGated ? (fresh.dialogueIntegrated as number) : fresh.integrated) : -Infinity;
+  const delta = fresh && Number.isFinite(comparedLufs) ? comparedLufs - preset.targetLufs : null;
+  const compliance = fresh ? evaluateCompliance(loudnessTargetFromPreset(preset), fresh) : null;
 
   return (
     <section
@@ -219,8 +259,14 @@ export const LoudnessPanel = memo(function LoudnessPanel({ visible }: { visible:
 
       {fresh ? (
         <div className="mt-2" data-testid="loudness-analysis">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
             <Readout label="Integrated" value={formatLufs(fresh.integrated)} unit="LUFS" testId="loudness-integrated" />
+            <Readout
+              label="Dialogue"
+              value={formatLufs(fresh.dialogueIntegrated ?? -Infinity)}
+              unit="LUFS"
+              testId="loudness-dialogue"
+            />
             <Readout label="Loudness range" value={formatLufs(fresh.loudnessRange)} unit="LU" testId="loudness-lra" />
             <Readout
               label="True peak"
@@ -234,11 +280,12 @@ export const LoudnessPanel = memo(function LoudnessPanel({ visible }: { visible:
           <p className="mt-1.5 text-[11px] text-fg-muted" data-testid="loudness-delta">
             {delta === null
               ? "No audible program material was found in the timeline."
-              : `${delta >= 0 ? "+" : "−"}${Math.abs(delta).toFixed(1)} LU vs ${preset.targetLufs} LUFS target${
+              : `${delta >= 0 ? "+" : "−"}${Math.abs(delta).toFixed(1)} LU ${dialogueGated ? "(dialogue) " : ""}vs ${preset.targetLufs} LUFS target${
                   fresh.truePeak > preset.truePeakCeilingDb ? ` · peaks exceed ${preset.truePeakCeilingDb} dBTP` : ""
                 }`}
             {stale ? " · timeline edited since this analysis, re-analyze to update" : ""}
           </p>
+          {compliance && <ComplianceList result={compliance} testId="loudness-compliance" />}
         </div>
       ) : (
         !running && (
@@ -247,6 +294,12 @@ export const LoudnessPanel = memo(function LoudnessPanel({ visible }: { visible:
             range and true peak.
           </p>
         )
+      )}
+      {exportReport?.compliance && (
+        <div className="mt-3" data-testid="loudness-export-report">
+          <h4 className="text-[11px] font-semibold text-fg-2">Last export</h4>
+          <ComplianceList result={exportReport.compliance} testId="loudness-export-compliance" />
+        </div>
       )}
     </section>
   );

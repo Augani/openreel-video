@@ -46,6 +46,7 @@ describe("SceneDetectionDialog", () => {
     vi.mocked(applySceneCuts).mockResolvedValue({
       splits: 2,
       markers: 0,
+      subclips: 0,
       skippedLockedLinked: 0,
       droppedCuts: 0,
     });
@@ -58,6 +59,7 @@ describe("SceneDetectionDialog", () => {
     expect(vi.mocked(applySceneCuts).mock.calls[0][1]).toEqual({
       splitClip: true,
       addMarkers: false,
+      createSubclips: false,
     });
     await waitFor(() => expect(useSceneDetectionDialogStore.getState().clipId).toBeNull());
   });
@@ -95,5 +97,27 @@ describe("SceneDetectionDialog", () => {
     await waitFor(() => expect(signal).toBeDefined());
     act(() => useSceneDetectionDialogStore.getState().close());
     expect(signal?.aborted).toBe(true);
+  });
+
+  it("passes the dissolve / fade switches to the analysis and the output choices to apply", async () => {
+    vi.mocked(analyseClipScenes).mockResolvedValue({
+      ...analysis(1),
+      edits: [
+        { kind: "cut", time: 1, start: 1, end: 1, score: 1 },
+        { kind: "dissolve", time: 3, start: 2.5, end: 3.5, score: 1 },
+        { kind: "fade-through-black", time: 5, start: 4, end: 6, score: 1 },
+      ],
+    });
+    vi.mocked(applySceneCuts).mockResolvedValue({ splits: 3, markers: 3, subclips: 4, skippedLockedLinked: 0, droppedCuts: 0 });
+    render(<SceneDetectionDialog />);
+    fireEvent.click(screen.getByRole("switch", { name: "Detect cross-dissolves" }));
+    fireEvent.click(screen.getByRole("button", { name: "Analyse" }));
+    await screen.findByText("3 edits found (1 cut, 1 dissolve, 1 fade)");
+    expect(vi.mocked(analyseClipScenes).mock.calls[0][1]).toMatchObject({ detectDissolves: false, detectFades: true });
+    fireEvent.click(screen.getByRole("switch", { name: "Create subclips for each scene" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Add timeline markers" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await waitFor(() => expect(applySceneCuts).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(applySceneCuts).mock.calls[0][1]).toEqual({ splitClip: true, addMarkers: true, createSubclips: true });
   });
 });

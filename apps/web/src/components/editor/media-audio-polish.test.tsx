@@ -34,6 +34,8 @@ describe("formatSoundDuration", () => {
 describe("RecordingsPanel", () => {
   it("only recognises recorder takes", () => {
     expect(isRecordingTake(take("Screen_20260101T101500.webm"))).toBe(true);
+    expect(isRecordingTake(take("Narration", { type: "audio", metadata: { recordedTake: "voiceover" } as MediaItem["metadata"] }))).toBe(true);
+    expect(isRecordingTake(take("Voice Over Take 1", { type: "audio" }))).toBe(true);
     expect(isRecordingTake(take("Sunrise_Sky.mp4"))).toBe(false);
   });
   it("keeps renamed takes through their recorder provenance", () => {
@@ -43,16 +45,16 @@ describe("RecordingsPanel", () => {
     const onRecord = vi.fn();
     const onAdd = vi.fn();
     const items = [take("Screen_20260101T101500.webm"), take("clip.mp4")];
-    render(<RecordingsPanel items={items} onRecord={onRecord} onAddToTimeline={onAdd} onOpenInSource={vi.fn()} />);
+    render(<RecordingsPanel items={items} onVoiceOver={vi.fn()} onRecord={onRecord} onAddToTimeline={onAdd} onOpenInSource={vi.fn()} />);
     expect(screen.getByText(/1:15/)).toBeTruthy();
     expect(screen.queryByText("clip.mp4")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /New recording/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Record screen or camera/ }));
     expect(onRecord).toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /Add Screen/ }));
     expect(onAdd).toHaveBeenCalledWith(items[0]);
   });
   it("shows an honest empty state", () => {
-    render(<RecordingsPanel items={[]} onRecord={vi.fn()} onAddToTimeline={vi.fn()} onOpenInSource={vi.fn()} />);
+    render(<RecordingsPanel items={[]} onVoiceOver={vi.fn()} onRecord={vi.fn()} onAddToTimeline={vi.fn()} onOpenInSource={vi.fn()} />);
     expect(screen.getByText("No recordings yet")).toBeTruthy();
   });
 });

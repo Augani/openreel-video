@@ -42,7 +42,7 @@ export async function commitMaskEdit(
 }
 
 /** Adds a freshly drawn closed path as a new "drawn" mask (one undo step). */
-export async function commitNewMask(clipId: string, path: BezierPath): Promise<string | null> {
+export async function commitNewMask(clipId: string, path: BezierPath, space?: Mask["space"]): Promise<string | null> {
   const mask: Mask = {
     id: crypto.randomUUID(),
     clipId,
@@ -53,6 +53,7 @@ export async function commitNewMask(clipId: string, path: BezierPath): Promise<s
     opacity: 1,
     inverted: false,
     keyframes: [],
+    ...(space ? { space } : {}),
   };
   try {
     const ok = await editClipMasks(scopeFor(clipId), (current) => [...current, mask]);
@@ -69,7 +70,8 @@ export async function commitNewMask(clipId: string, path: BezierPath): Promise<s
  * history), so the Program canvas follows the pointer live. `end()` restores
  * the original masks and commits the final path as ONE `mask/setAll` action,
  * so the whole drag is exactly one undo step and the undo target is the mask
- * as it was before the drag.
+ * as it was before the drag. `update` takes the outline as the monitor shows it; `toStored` maps it to the mask's
+ * own space (a source-space object mask on a stabilized clip).
  */
 export interface MaskGesture {
   readonly base: Mask;
@@ -77,14 +79,14 @@ export interface MaskGesture {
   end: () => Promise<boolean>;
 }
 
-export function beginMaskGesture(clipId: string, maskId: string): MaskGesture | null {
+export function beginMaskGesture(clipId: string, maskId: string, toStored: (shown: BezierPath) => BezierPath = (shown) => shown): MaskGesture | null {
   const base = maskOf(clipId, maskId);
   if (!base) return null;
   const scope = scopeFor(clipId);
   const baseMasks = useProjectStore.getState().project.masks ?? [];
   const time = currentMaskTime();
   const tolerance = maskKeyTolerance();
-  const edited = (path: BezierPath): Mask => editMaskPathAtTime(base, time, () => path, tolerance);
+  const edited = (path: BezierPath): Mask => editMaskPathAtTime(base, time, () => toStored(path), tolerance);
   let latest: BezierPath | null = null;
   let frame: number | null = null;
   let previewed = false;

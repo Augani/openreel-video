@@ -190,6 +190,64 @@ export const VoiceOverPanel: React.FC = () => {
         )}
       </Card>
 
+      {phase === "countdown" ? (
+        <Button
+          onClick={() => useVoiceOverStore.getState().cancel()}
+          type="button"
+          aria-label="Cancel recording"
+          className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-8 px-3 text-[12px] w-full justify-center bg-bg-3 text-fg hover:bg-bg-3/80"
+        >
+          <span className="truncate">Cancel (Esc)</span>
+        </Button>
+      ) : phase === "recording" ? (
+        <Button
+          onClick={() => useVoiceOverStore.getState().stop()}
+          type="button"
+          aria-label="Stop & Add to Timeline"
+          className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] text-accent-fg w-full justify-center bg-red-500 hover:bg-red-600"
+        >
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center"><Square size={13} aria-hidden /></span>
+          <span className="truncate">Stop & Add to Timeline</span>
+        </Button>
+      ) : (
+        <Button
+          onClick={() => void useVoiceOverStore.getState().start()}
+          type="button"
+          aria-label={phase === "saving" ? "Adding Voice Over…" : "Record Voice Over"}
+          disabled={phase === "saving"}
+          className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-accent text-accent-fg hover:bg-accent/90 w-full justify-center"
+        >
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center"><Mic size={14} aria-hidden /></span>
+          <span className="truncate">{phase === "saving" ? "Adding Voice Over…" : "Record Voice Over"}</span>
+        </Button>
+      )}
+
+      {error && (
+        <Card
+          className="min-w-0 rounded-[7px] shadow-none text-fg p-2 flex items-start gap-2 border border-red-500/30 bg-red-500/10"
+          role="alert"
+          data-testid="voiceover-error"
+        >
+          <AlertCircle size={14} className="mt-0.5 shrink-0 text-red-400" aria-hidden />
+          <div className="min-w-0 space-y-1">
+            <span className="block font-normal text-[10px] text-red-400">{error}</span>
+            {(errorKind === "blocked" || errorKind === "denied") && typeof window !== "undefined" && window.openreel?.microphone && (
+              <button
+                type="button"
+                data-testid="voiceover-open-settings"
+                onClick={() => void window.openreel?.microphone?.openSettings()}
+                className="rounded-md border border-red-500/40 px-2 py-0.5 text-[10px] font-semibold text-red-300 hover:bg-red-500/10 focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Open microphone settings
+              </button>
+            )}
+          </div>
+        </Card>
+      )}
+      {lastTake?.note && (
+        <p className="text-[10px] text-fg-2" data-testid="voiceover-note">{lastTake.note}</p>
+      )}
+
       <div className="space-y-2 rounded-[7px] border border-border bg-bg-2 p-3">
         <div className={ROW}>
           <label htmlFor="voiceover-input" className={LABEL}>Input</label>
@@ -284,64 +342,6 @@ export const VoiceOverPanel: React.FC = () => {
           hint="Silences the timeline once recording starts so speakers do not feed back into the microphone."
         />
       </div>
-
-      {error && (
-        <Card
-          className="min-w-0 rounded-[7px] shadow-none text-fg p-2 flex items-start gap-2 border border-red-500/30 bg-red-500/10"
-          role="alert"
-          data-testid="voiceover-error"
-        >
-          <AlertCircle size={14} className="mt-0.5 shrink-0 text-red-400" aria-hidden />
-          <div className="min-w-0 space-y-1">
-            <span className="block font-normal text-[10px] text-red-400">{error}</span>
-            {(errorKind === "blocked" || errorKind === "denied") && typeof window !== "undefined" && window.openreel?.microphone && (
-              <button
-                type="button"
-                data-testid="voiceover-open-settings"
-                onClick={() => void window.openreel?.microphone?.openSettings()}
-                className="rounded-md border border-red-500/40 px-2 py-0.5 text-[10px] font-semibold text-red-300 hover:bg-red-500/10 focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                Open microphone settings
-              </button>
-            )}
-          </div>
-        </Card>
-      )}
-      {lastTake?.note && (
-        <p className="text-[10px] text-fg-2" data-testid="voiceover-note">{lastTake.note}</p>
-      )}
-
-      {phase === "countdown" ? (
-        <Button
-          onClick={() => useVoiceOverStore.getState().cancel()}
-          type="button"
-          aria-label="Cancel recording"
-          className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-8 px-3 text-[12px] w-full justify-center bg-bg-3 text-fg hover:bg-bg-3/80"
-        >
-          <span className="truncate">Cancel (Esc)</span>
-        </Button>
-      ) : phase === "recording" ? (
-        <Button
-          onClick={() => useVoiceOverStore.getState().stop()}
-          type="button"
-          aria-label="Stop & Add to Timeline"
-          className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] text-accent-fg w-full justify-center bg-red-500 hover:bg-red-600"
-        >
-          <span className="flex h-4 w-4 shrink-0 items-center justify-center"><Square size={13} aria-hidden /></span>
-          <span className="truncate">Stop & Add to Timeline</span>
-        </Button>
-      ) : (
-        <Button
-          onClick={() => void useVoiceOverStore.getState().start()}
-          type="button"
-          aria-label={phase === "saving" ? "Adding Voice Over…" : "Record Voice Over"}
-          disabled={phase === "saving"}
-          className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-accent text-accent-fg hover:bg-accent/90 w-full justify-center"
-        >
-          <span className="flex h-4 w-4 shrink-0 items-center justify-center"><Mic size={14} aria-hidden /></span>
-          <span className="truncate">{phase === "saving" ? "Adding Voice Over…" : "Record Voice Over"}</span>
-        </Button>
-      )}
 
       {takes.length > 0 && (
         <section aria-label="Takes" data-testid="voiceover-takes" className="space-y-1">

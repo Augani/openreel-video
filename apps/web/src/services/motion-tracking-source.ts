@@ -33,7 +33,8 @@ function trackingSourceTarget(clipId: string) {
 }
 
 /** One bounded decoder per job, independent of export/preview decoder ownership. */
-export function createMotionTrackingSource(clipId: string, region: Rectangle, signal: AbortSignal, range?: { startFrame: number; endFrame: number }) {
+/** `frameOffset` shifts where inside a frame's interval the footage is sampled (0 = its start, the default; 0.5 = its middle, what the Program monitor shows). */
+export function createMotionTrackingSource(clipId: string, region: Rectangle, signal: AbortSignal, range?: { startFrame: number; endFrame: number }, frameOffset = 0) {
   const { project, clip, media } = trackingSourceTarget(clipId);
   const signature = motionTrackingSourceSignature(project, clip, media);
   const frameRate = project.settings.frameRate;
@@ -80,7 +81,7 @@ export function createMotionTrackingSource(clipId: string, region: Rectangle, si
         assertCurrent();
         if (!decoder) throw new Error("Could not decode this video for tracking");
       }
-      const canvas = await decoder.getFrame(sourceTime(frame / frameRate));
+      const canvas = await decoder.getFrame(sourceTime((frame + frameOffset) / frameRate));
       assertCurrent();
       const context = canvas?.getContext("2d", { willReadFrequently: true });
       if (!canvas || !context) throw new Error("Could not read tracking pixels");

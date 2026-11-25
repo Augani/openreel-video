@@ -1,5 +1,7 @@
 import { useVoiceOverStore } from "./services/voiceover/voiceover-recorder";
 import { useProjectStore } from "./stores/project-store";
+import { useObjectMaskStore } from "./stores/object-mask-store";
+import { getEffectsBridge } from "./bridges/effects-bridge";
 import { getActiveEffectPreviewEngine } from "./components/editor/panels/effect-previews/active-engine";
 import { previewGpuStats } from "./components/editor/panels/effect-previews/effect-renderer";
 import { getProgramRenderer } from "./components/editor/preview/device-loss";
@@ -17,7 +19,7 @@ import { useMulticamStore } from "./stores/multicam-monitor-store";
 import * as multicamController from "./services/multicam-controller";
 import { nestSelectedClips, openSequence } from "./services/sequence-commands";
 import { getPlaybackEvents, getPlaybackStageTraces, getPlaybackStalls } from "./components/editor/preview/playback-watchdog";
-import { NATIVE_PLUGIN_BLOCK_FRAMES, applyRackStemsToTimeline, bakeNativePluginAutomation, getSharedRackStemCache, pluginRackSteps, setNativePluginBackend, nativePluginKeyframeProperty, nativePluginSteps, resolveClipAudioEffects, getMemoryGovernor, ProjectSerializer, RealtimeAudioGraph, effectLatencySamples, getAudioEffectsEngine, planTimelineDelayCompensation, ensureRepairWorklet, processChannels, analyzeAudioIssues, getRepairMeter, AudioRackBus, createRackEffect, getAudioEngine, getExportEngine, getRealtimeAudioGraph, getVideoEngine, measureLoudness } from "@openreel/core";
+import { NATIVE_PLUGIN_BLOCK_FRAMES, applyRackStemsToTimeline, bakeNativePluginAutomation, getSharedRackStemCache, pluginRackSteps, setNativePluginBackend, nativePluginKeyframeProperty, nativePluginSteps, resolveClipAudioEffects, getMemoryGovernor, ProjectSerializer, RealtimeAudioGraph, effectLatencySamples, getAudioEffectsEngine, planTimelineDelayCompensation, ensureRepairWorklet, processChannels, analyzeAudioIssues, getRepairMeter, ensureCreativeFxWorklet, renderCreativeFx, SidechainKeyHub, trackOwnerId, AudioRackBus, createRackEffect, getAudioEngine, getExportEngine, getRealtimeAudioGraph, getVideoEngine, measureLoudness } from "@openreel/core";
 import { useLoudnessStore } from "./stores/loudness-store";
 import { renderCacheService } from "./services/render-cache-service";
 import { useExportQueueStore } from "./stores/export-queue-store";
@@ -63,6 +65,8 @@ import * as morphCutRegistryModule from "@openreel/core/video/morph-cut/registry
 import * as morphCutFacesModule from "@openreel/core/video/morph-cut/synthetic-faces";
 import * as morphCutAnalyseJobModule from "@openreel/core/video/morph-cut/analyse-job";
 import * as morphCutServiceModule from "./services/morph-cut-service";
+import * as warpStabilizerServiceModule from "./services/warp-stabilizer-service";
+import * as warpRegistryModule from "@openreel/core/video/stabilization/warp/registry";
 import * as proEffectsModule from "@openreel/core/video/pro-effects";
 import * as proEffectShadersModule from "@openreel/core/video/pro-effect-shaders";
 import * as proEffectsExtraModule from "@openreel/core/video/pro-effects-extra";
@@ -74,10 +78,17 @@ import * as temporalEffectsModule from "@openreel/core/video/temporal-effects";
 import * as echoCompositorModule from "@openreel/core/video/echo-compositor";
 import * as motionShaderRendererModule from "@openreel/core/motion/motion-shader-renderer";
 import * as maskPathModule from "@openreel/core/video/mask-path";
+import * as blendReferenceModule from "@openreel/core/video/blend-reference";
+import * as motionGpuCompositorModule from "@openreel/core/motion/motion-gpu-compositor";
+import * as motionGpuBlendModule from "@openreel/core/motion/motion-gpu-blend";
 import * as canvas2dFallbackRendererModule from "@openreel/core/video/canvas2d-fallback-renderer";
 import * as colorGradingEngineModule from "@openreel/core/video/color-grading-engine";
 import * as hueCurvesModule from "@openreel/core/video/hue-curves";
 import * as lumetriPipelineModule from "@openreel/core/video/lumetri-pipeline";
+import * as gpuGradeChainModule from "@openreel/core/video/gpu-grade-chain";
+import * as gpuFrameReadbackModule from "@openreel/core/video/gpu-frame-readback";
+import * as yuv420SdrModule from "@openreel/core/export/yuv420-sdr";
+import * as gpuGradePlanModule from "@openreel/core/video/gpu-grade-plan";
 import * as hdrWorkingModule from "@openreel/core/color/hdr-working";
 import * as cameraLogModule from "@openreel/core/color/camera-log";
 import * as acesModule from "@openreel/core/color/aces";
@@ -86,6 +97,7 @@ import * as ocioSettingsModule from "@openreel/core/color/ocio/settings";
 import * as ocioGpuEvalModule from "@openreel/core/video/ocio-gpu-eval";
 import * as inputTransformModule from "@openreel/core/color/input-transform";
 import * as hdrGpuModule from "@openreel/core/video/hdr-gpu";
+import * as hdrScopeFeedModule from "@openreel/core/video/hdr-scope-feed";
 import * as colorOutputModule from "@openreel/core/export/color-output";
 import * as burnInModule from "@openreel/core/video/burn-in";
 import * as evaluateKeyframesModule from "@openreel/core/animation/evaluate-keyframes";
@@ -160,6 +172,8 @@ export async function prepareE2EHook(): Promise<void> {
 export function installE2EHook(): void {
   (window as unknown as { __openreelE2E?: unknown }).__openreelE2E = {
     project: useProjectStore,
+    /** Object mask tool and Remove Object UI state (tracking tolerance, running analysis). */
+    objectMask: useObjectMaskStore,
     /** AI onboarding path (WP-B): the chat and connection stores plus a stand-alone sheet mount. */
     chat: useChatStore,
     aiConnection: useAIConnectionStore,
@@ -205,7 +219,7 @@ export function installE2EHook(): void {
       return { time: ctx.currentTime, state: ctx.state };
     },
     sequence: { nestSelectedClips, openSequence },
-    audio: { RealtimeAudioGraph, effectLatencySamples, getAudioEffectsEngine, planTimelineDelayCompensation, AudioRackBus, createRackEffect, getAudioEngine, getRealtimeAudioGraph, getExportEngine, measureLoudness, ensureRepairWorklet, processChannels, analyzeAudioIssues, getRepairMeter },
+    audio: { RealtimeAudioGraph, effectLatencySamples, getAudioEffectsEngine, planTimelineDelayCompensation, AudioRackBus, createRackEffect, getAudioEngine, getRealtimeAudioGraph, getExportEngine, measureLoudness, ensureRepairWorklet, processChannels, analyzeAudioIssues, getRepairMeter, ensureCreativeFxWorklet, renderCreativeFx, SidechainKeyHub, trackOwnerId },
     nativePlugins: { host: nativePluginHost, findMissing: findProjectMissingPlugins, nativePluginKeyframeProperty, nativePluginSteps, resolveClipAudioEffects, bakeNativePluginAutomation, blockFrames: NATIVE_PLUGIN_BLOCK_FRAMES, setBackend: setNativePluginBackend, rack: { steps: pluginRackSteps, applyStems: applyRackStemsToTimeline, stemCache: getSharedRackStemCache(), preview: getPluginRackPreview(), previewState: usePluginRackPreviewState } },
     liveInsertProbe: (options: unknown) => import("./e2e-live-insert").then((module) => module.liveInsertProbe(options as Parameters<typeof module.liveInsertProbe>[0])),
     loudness: useLoudnessStore,
@@ -235,6 +249,8 @@ export function installE2EHook(): void {
     mixdownCache: getMixdownCache(),
     engine: useEngineStore,
     video: { getVideoEngine },
+    /** Activity of the WebGPU grade chains: the render engine's and the live preview bridge's. */
+    gradeChainStats: () => ({ engine: getVideoEngine().getGpuGradeStats(), preview: getEffectsBridge().getGpuGradeStats() }),
     analyzeTimelineLoudness,
     routing: {
       planAddBus,
@@ -277,6 +293,8 @@ export function installE2EHook(): void {
       morphCutFaces: morphCutFacesModule,
       morphCutJob: morphCutAnalyseJobModule,
       morphCutService: morphCutServiceModule,
+      warpStabilizer: warpStabilizerServiceModule,
+      warpRegistry: warpRegistryModule,
       proEffects: proEffectsModule,
       proEffectShaders: proEffectShadersModule,
       proEffectsExtra: proEffectsExtraModule,
@@ -294,9 +312,16 @@ export function installE2EHook(): void {
       motionShaderRenderer: motionShaderRendererModule,
       maskPath: maskPathModule,
       canvas2dFallbackRenderer: canvas2dFallbackRendererModule,
+      blendReference: blendReferenceModule,
+      motionGpuCompositor: motionGpuCompositorModule,
+      motionGpuBlend: motionGpuBlendModule,
       colorGradingEngine: colorGradingEngineModule,
       hueCurves: hueCurvesModule,
       lumetriPipeline: lumetriPipelineModule,
+      gpuGradeChain: gpuGradeChainModule,
+      gpuFrameReadback: gpuFrameReadbackModule,
+      yuv420Sdr: yuv420SdrModule,
+      gpuGradePlan: gpuGradePlanModule,
       hdrWorking: hdrWorkingModule,
       cameraLog: cameraLogModule,
       aces: acesModule,
@@ -314,6 +339,7 @@ export function installE2EHook(): void {
         plans: await import("@openreel/core/video/transition-plans"),
       }),
       hdrGpu: hdrGpuModule,
+      hdrScopeFeed: hdrScopeFeedModule,
       colorOutput: colorOutputModule,
       burnIn: burnInModule,
       evaluateKeyframes: evaluateKeyframesModule,

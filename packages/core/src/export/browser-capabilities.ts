@@ -1,4 +1,5 @@
 import { DOLBY_VIDEO_DESKTOP_ONLY_REASON, dolbyContainerProblem, isDolbyFormat } from "./dolby";
+import { browserAudioCodec } from "./browser-audio-codec";
 import { CODEC_MAP, type VideoExportSettings } from "./types";
 import type { Project } from "../types/project";
 import type { Clip } from "../types/timeline";
@@ -88,13 +89,9 @@ export async function checkBrowserExportCapability(
     });
     if (video !== codec) return { supported: false, reason: `This browser cannot encode ${settings.codec.toUpperCase()} at ${settings.width}×${settings.height}. Try H.264 / MP4, VP9 / WebM, or a smaller resolution.` };
     if (!includeAudio) return { supported: true, reason: null };
-    const audioCodec = await library.getFirstEncodableAudioCodec(format.getSupportedAudioCodecs(), {
-      numberOfChannels: settings.audioSettings.channels,
-      sampleRate: settings.audioSettings.sampleRate,
-      bitrate: settings.audioSettings.bitrate * 1000,
-    });
+    const audioCodec = await browserAudioCodec(library, settings, format.getSupportedAudioCodecs());
     if (!audioCodec) return { supported: false, reason: `This browser cannot encode audio for ${settings.format.toUpperCase()}. Try WebM with Opus audio or another browser.` };
-    return { supported: true, reason: null, audioCodec };
+    return { supported: true, reason: null, audioCodec: audioCodec.codec };
   } catch (error) {
     return { supported: false, reason: `Could not check browser export support: ${error instanceof Error ? error.message : "encoder unavailable"}` };
   }

@@ -7,6 +7,8 @@ export interface RenderCachePrefs {
   resolution: PreviewResolution;
   /** Browser only: size cap for one project's render files. */
   webCapBytes: number;
+  /** Render the uncached effect-heavy ranges in the background after a few quiet seconds (default: on in the desktop app, off in the browser). */
+  idleRender: boolean;
 }
 
 const KEY = "openreel-render-cache-prefs";
@@ -21,7 +23,7 @@ function isDesktop(): boolean {
 
 export function defaultPrefs(): RenderCachePrefs {
   // The scratch disk has room for sequence-size frames; a browser profile's quota usually does not.
-  return { resolution: isDesktop() ? "full" : "1080p", webCapBytes: DEFAULT_WEB_CAP_BYTES };
+  return { resolution: isDesktop() ? "full" : "1080p", webCapBytes: DEFAULT_WEB_CAP_BYTES, idleRender: isDesktop() };
 }
 
 const clampCap = (cap: number) => Math.min(MAX_WEB_CAP_BYTES, Math.max(MIN_WEB_CAP_BYTES, Math.round(cap)));
@@ -38,6 +40,7 @@ export function readRenderCachePrefs(): RenderCachePrefs {
         typeof cap === "number" && Number.isFinite(cap)
           ? clampCap(cap)
           : defaults.webCapBytes,
+      idleRender: typeof raw.idleRender === "boolean" ? raw.idleRender : defaults.idleRender,
     };
   } catch {
     return defaults;

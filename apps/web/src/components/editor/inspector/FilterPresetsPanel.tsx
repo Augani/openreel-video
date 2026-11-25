@@ -1,7 +1,8 @@
-import React, { Suspense, lazy } from "react";
+import React, { Suspense } from "react";
+import { lazyWithRetry } from "./lazy-retry";
 
 // The look grid (real-footage previews) loads on demand: it stays out of the editor chunk.
-const FilterLooksPanel = lazy(() => import("./looks/FilterLooksPanel"));
+const FilterLooksPanel = lazyWithRetry(() => import("./looks/FilterLooksPanel"));
 
 interface FilterPresetsPanelProps {
   clipId?: string;

@@ -80,6 +80,9 @@ interface GPUDevice extends EventTarget {
   createRenderPipeline(
     descriptor: GPURenderPipelineDescriptor,
   ): GPURenderPipeline;
+  createRenderPipelineAsync(
+    descriptor: GPURenderPipelineDescriptor,
+  ): Promise<GPURenderPipeline>;
   createCommandEncoder(
     descriptor?: GPUCommandEncoderDescriptor,
   ): GPUCommandEncoder;
@@ -112,7 +115,7 @@ interface GPUQueue {
 }
 
 interface GPUImageCopyExternalImage {
-  source: ImageBitmap | HTMLVideoElement | HTMLCanvasElement | OffscreenCanvas;
+  source: ImageBitmap | HTMLVideoElement | HTMLCanvasElement | OffscreenCanvas | VideoFrame;
   origin?: GPUOrigin2D;
   flipY?: boolean;
 }

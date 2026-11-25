@@ -36,6 +36,20 @@ export function waitForVideoMetadata(
   });
 }
 
+/**
+ * A video element seeks to microsecond precision, and a time that is a frame's exact start (the preview asks for
+ * `frame / fps`) can land a rounding step before that frame's timestamp, presenting the previous frame (frames whose
+ * start is not a whole microsecond: every third frame at 30 fps). The export decodes the frame the time falls in, so
+ * the paused picture asks for a moment just inside the frame instead of its first instant.
+ */
+export const PAUSED_SEEK_NUDGE = 0.0005;
+
+/** The element time to seek to for a source time, clamped inside the media. */
+export function pausedSeekTime(mediaTime: number, duration: number): number {
+  const limit = Number.isFinite(duration) ? duration - 0.001 : Infinity;
+  return Math.max(0, Math.min(mediaTime + PAUSED_SEEK_NUDGE, limit));
+}
+
 /** Register readiness listeners before seeking; a paused frame needs no subsequent playback frame. */
 export function seekVideoFrame(
   video: HTMLVideoElement,

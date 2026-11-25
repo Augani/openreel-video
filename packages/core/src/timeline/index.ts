@@ -64,4 +64,14 @@ export {
   wouldCreateSequenceCycle,
   type NewSequenceOptions,
   type SequenceEditResult,
+  makeSubsequence,
 } from "./sequences";
+export {
+  DEFAULT_ASSEMBLY_OPTIONS,
+  orderAssemblyMedia,
+  planAutomateToSequence,
+  type AssemblyMethod,
+  type AssemblyOptions,
+  type AssemblyOrder,
+  type AssemblyResult,
+} from "./assembly";

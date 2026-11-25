@@ -7,6 +7,8 @@ import {
   nitsToSignal,
   type ScopeLevelScale,
 } from "@openreel/core/video/scopes-extra";
+import { getHdrScopeFrame } from "@openreel/core/video/hdr-scope-feed";
+import { sequenceScopeScale } from "@openreel/core/color/sequence-color";
 import {
   SKIN_TONE_ANGLE_DEG,
   VECTORSCOPE_TARGETS,
@@ -63,6 +65,8 @@ function drawGraticule(
   width: number,
   height: number,
   scale: ScopeLevelScale = "ire",
+  /** HDR sequences: the scope is fed PQ-encoded values, so marks sit at their PQ positions whatever label set is used. */
+  labelSet?: "pq" | "hlg",
 ): void {
   canvas.width = width;
   canvas.height = height;
@@ -82,7 +86,7 @@ function drawGraticule(
             frac: pct / 100,
             label: String(pct),
           }))
-        : NIT_GRATICULE[scale].map((nits) => ({
+        : NIT_GRATICULE[labelSet ?? scale].map((nits) => ({
             frac: nitsToSignal(nits, scale),
             label: nits === 203 ? "203 ref" : `${nits} nit`,
           }));
@@ -191,7 +195,15 @@ function drawGraticule(
  */
 function grabFrame(
   scratch: HTMLCanvasElement,
+  hdrSequence = false,
 ): { data: ImageData; width: number; height: number; empty: boolean } | null {
+  if (hdrSequence) {
+    // HDR sequence: the scope reads the PQ-encoded float image (nits), not the tone-mapped SDR monitor. Until the
+    // engine has completed an HDR frame, show nothing rather than a misleading SDR trace under a nit scale.
+    const feed = getHdrScopeFrame();
+    if (!feed) return null;
+    return { data: new ImageData(new Uint8ClampedArray(feed.data), feed.width, feed.height), width: feed.width, height: feed.height, empty: false };
+  }
   const src = getPreviewCanvas();
   if (!src || src.width === 0 || src.height === 0) return null;
   // Never upscale a small preview: analyse at the canvas width up to the scope width.
@@ -224,7 +236,14 @@ const ScopesPanelBody: React.FC = () => {
   const kind = useUIStore((s) => s.scopesKind);
   const setKind = useUIStore((s) => s.setScopesKind);
   const setVisible = useUIStore((s) => s.setScopesVisible);
-  const scale = useUIStore((s) => s.scopesScale);
+  const userScale = useUIStore((s) => s.scopesScale);
+  const hdrScale = useProjectStore((s) => sequenceScopeScale(s.project.settings));
+  const hdrSequence = hdrScale !== "ire";
+  // HDR sequences measure in PQ nits (positions); HLG sequences label the marks with the HLG set.
+  const scale = hdrSequence ? "pq" : userScale;
+  const hdrLabelSet = hdrSequence ? (hdrScale === "hlg" ? "hlg" : "pq") : undefined;
+  const hdrSequenceRef = useRef(hdrSequence);
+  hdrSequenceRef.current = hdrSequence;
   const setScale = useUIStore((s) => s.setScopesScale);
   const falseColor = useColorMonitorStore((s) => s.falseColor);
   const setFalseColor = useColorMonitorStore((s) => s.setFalseColor);
@@ -298,7 +317,7 @@ const ScopesPanelBody: React.FC = () => {
     if (busyRef.current) return;
     if (!scratchRef.current)
       scratchRef.current = document.createElement("canvas");
-    const frame = grabFrame(scratchRef.current);
+    const frame = grabFrame(scratchRef.current, hdrSequenceRef.current);
     if (!frame) return;
     if (frame.empty) {
       // Tolerate a single transient clear; a persistent one is a real blank frame.
@@ -362,14 +381,14 @@ const ScopesPanelBody: React.FC = () => {
 
   useEffect(() => {
     if (!graticuleRef.current) return;
-    drawGraticule(graticuleRef.current, kind, dims.width, dims.height, scale);
+    drawGraticule(graticuleRef.current, kind, dims.width, dims.height, scale, hdrLabelSet);
     // Resizing clears the trace of the previous scope type straight away.
     const trace = scopeCanvasRef.current;
     if (trace && (trace.width !== dims.width || trace.height !== dims.height)) {
       trace.width = dims.width;
       trace.height = dims.height;
     }
-  }, [kind, scale, dims.width, dims.height]);
+  }, [kind, scale, hdrLabelSet, dims.width, dims.height]);
 
   // Tear down an in-progress drag/resize if the panel unmounts mid-gesture.
   // Keep a floating panel reachable when the preview area is smaller than when
@@ -580,7 +599,15 @@ const ScopesPanelBody: React.FC = () => {
             OCIO output · {ocioView}
           </span>
         ) : null}
-        {isWaveform ? (
+        {isWaveform && hdrSequence ? (
+          <span
+            data-testid="scopes-hdr-scale"
+            title="HDR sequence: the scope reads the float image PQ-encoded, so levels are absolute nits (203 = reference white)."
+            className="rounded-[6px] bg-bg-2 px-1.5 py-0.5 text-[10px] text-fg-2"
+          >
+            {hdrScale === "hlg" ? "HLG sequence" : "PQ sequence"} · nits
+          </span>
+        ) : isWaveform ? (
           <select
             aria-label="Waveform scale"
             value={scale}

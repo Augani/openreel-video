@@ -5,6 +5,10 @@ import {
 import type { AutomationPoint, ClipFade, Effect } from "../types/timeline";
 import { createNoiseReductionNodeChain } from "./audio-effects-engine";
 import { createRepairChainNode, ensureRepairWorklet } from "./repair/repair-node";
+import { previewClipChainClockOffset } from "./clip-chain-clock";
+import { createCreativeFxNode, type CreativeChainNode } from "./creative/creative-fx-node";
+import { isCreativeFxType, sanitizeCreativeParams } from "./creative/creative-fx-definitions";
+import { SidechainKeyHub, MASTER_OWNER, trackOwnerId } from "./sidechain";
 import { isRepairEffectType, type RepairParams } from "./repair/repair-dsp";
 import { sanitizeRepairParams } from "./repair/repair-definitions";
 import { scheduleVolumeAutomationOnGain } from "./clip-volume-automation";
@@ -13,6 +17,7 @@ import { getPanFromAudioEffects } from "./audio-effect-routing";
 import type { AudioRack, Timeline } from "../types/timeline";
 import { AudioRoutingGraph } from "./audio-routing-graph";
 import { schedulePanAutomationOnParam } from "./clip-pan-automation";
+import { effectiveTrackAutomation, hasEffectiveTrackAutomation } from "./track-automation-modes";
 import { shouldPreservePitch } from "./time-stretch";
 import { SCRUB_GRAIN_SECONDS, SCRUB_MAX_GRAINS, planScrubGrains } from "./scrub-grain";
 import { StretchCache, getSharedStretchCache, type StretchRequest, type StretchRunner } from "./stretch-cache";
@@ -196,8 +201,14 @@ export class RealtimeAudioGraph {
   private routingHorizon = 3600;
   /** Track fader / pan automation: lane signature per track, to re-schedule only on change, play or seek. */
   private trackAutomationSignature = new Map<string, string>();
+  /** Lanes a recording pass has taken over (the fader / pan follow the user, the stored lane is not played). */
+  private trackLaneOverrides = new Map<string, { volume?: boolean; pan?: boolean }>();
+  /** Automation mode each track's rack keyframes were last scheduled under (Off drops them). */
+  private trackRackModes = new Map<string, string>();
   private trackLatencySeconds = new Map<string, number>();
   private masterRack: AudioRack | undefined;
+  /** Where compressors with a sidechain key find the signal of the track/bus they listen to. */
+  private readonly sidechain: SidechainKeyHub;
 
   constructor(masterClock?: MasterTimelineClock) {
     this.masterClock = masterClock || getMasterClock();
@@ -208,7 +219,8 @@ export class RealtimeAudioGraph {
     this.masterPre = this.audioContext.createGain();
     this.masterPre.connect(this.masterGain);
     this.masterOutput = this.audioContext.createGain();
-    this.masterBus = createRackBus(this.audioContext, undefined, { live: true });
+    this.sidechain = new SidechainKeyHub(this.audioContext);
+    this.masterBus = createRackBus(this.audioContext, undefined, { live: true, sidechain: { hub: this.sidechain, ownerId: MASTER_OWNER } });
     this.masterGain.connect(this.masterBus.input);
     this.masterBus.output.connect(this.masterOutput);
     this.masterOutput.connect(this.audioContext.destination);
@@ -216,6 +228,7 @@ export class RealtimeAudioGraph {
     getAudioOutputRouter().attach(this.audioContext, this.masterOutput);
     this.routing = new AudioRoutingGraph(this.audioContext, this.masterPre, {
       live: true,
+      sidechain: this.sidechain,
       getTimelineTime: () => this.masterClock.currentTime,
       getHorizon: () => this.routingHorizon,
     });
@@ -246,12 +259,13 @@ export class RealtimeAudioGraph {
     this.surround = surround;
     this.stopAllClips();
     this.masterBus.dispose();
-    this.masterBus = createRackBus(this.audioContext, this.masterRack, { live: true, surround });
+    this.masterBus = createRackBus(this.audioContext, this.masterRack, { live: true, surround, sidechain: { hub: this.sidechain, ownerId: MASTER_OWNER } });
     this.masterGain.connect(this.masterBus.input);
     this.masterBus.output.connect(this.masterOutput);
     this.routing.dispose();
     this.routing = new AudioRoutingGraph(this.audioContext, this.masterPre, {
       live: true,
+      sidechain: this.sidechain,
       surround,
       getTimelineTime: () => this.masterClock.currentTime,
       getHorizon: () => this.routingHorizon,
@@ -291,15 +305,37 @@ export class RealtimeAudioGraph {
    */
   setTrackRack(trackId: string, rack: AudioRack | undefined): void {
     this.trackRacks.set(trackId, rack);
+    const keysChanged = this.refreshSidechain();
     this.updateTrackVolume(trackId, rackVolume(rack));
     this.updateTrackPan(trackId, rackPan(rack));
     this.trackNodes.get(trackId)?.rackBus.update(rack);
+    if (keysChanged) this.reconcileSidechain();
     this.refreshLatency();
+  }
+
+  /** Recomputes which sidechain keys are legal from the live racks. True when the legal set changed. */
+  private refreshSidechain(): boolean {
+    const tracks = this.routingTimeline.tracks.map((track) => (this.trackRacks.has(track.id) ? { ...track, audioRack: this.trackRacks.get(track.id) } : track));
+    return this.sidechain.setTimeline({ tracks, audioBuses: this.routingTimeline.audioBuses, masterAudioRack: this.masterRack });
+  }
+
+  /** A key became legal or illegal without any rack param changing: re-apply every rack so those compressors rebuild. */
+  private reconcileSidechain(): void {
+    for (const [trackId, nodes] of this.trackNodes) {
+      const key = trackOwnerId(trackId);
+      if (this.sidechain.isKeySource(key)) this.sidechain.publish(key, nodes.outputGain);
+      else this.sidechain.unpublish(key, nodes.outputGain);
+      nodes.rackBus.update(this.trackRacks.get(trackId));
+    }
+    this.masterBus.update(this.masterRack);
+    this.routing.refreshRacks();
   }
 
   setMasterRack(rack: AudioRack | undefined): void {
     this.masterRack = rack;
+    const keysChanged = this.refreshSidechain();
     this.masterBus.update(rack);
+    if (keysChanged) this.reconcileSidechain();
     this.setMasterVolume(rackVolume(rack));
     this.refreshLatency();
   }
@@ -404,7 +440,9 @@ export class RealtimeAudioGraph {
     this.surroundTimeline = timeline;
     this.refreshSurroundPans();
     this.routingHorizon = Math.max(10, (timeline.duration ?? 0) + 30);
+    const keysChanged = this.refreshSidechain();
     const structural = this.routing.configure(timeline);
+    if (keysChanged) this.reconcileSidechain();
     this.refreshLatency();
     this.syncTrackAutomation(false);
     if (!structural) return;
@@ -422,8 +460,15 @@ export class RealtimeAudioGraph {
    * play and are re-anchored to the playhead on play, seek and lane edits.
    */
   private syncTrackAutomation(force: boolean, timelineTime?: number): void {
+    if (force) this.scheduleRackAutomation(timelineTime ?? this.masterClock.currentTime);
     for (const track of this.routingTimeline.tracks) {
-      const signature = JSON.stringify(track.automation ?? null);
+      const modeKey = `${track.automationMode ?? "read"}`;
+      const knownMode = this.trackRackModes.get(track.id);
+      this.trackRackModes.set(track.id, modeKey);
+      if (!force && knownMode !== undefined && knownMode !== modeKey && (this.isPlaying || modeKey === "off")) {
+        this.scheduleTrackRackAutomation(track.id, timelineTime ?? this.masterClock.currentTime);
+      }
+      const signature = JSON.stringify([effectiveTrackAutomation(track) ?? null, this.trackLaneOverrides.get(track.id) ?? null]);
       const known = this.trackAutomationSignature.get(track.id);
       if (!force && (known ?? "null") === signature) continue;
       this.trackAutomationSignature.set(track.id, signature);
@@ -435,10 +480,12 @@ export class RealtimeAudioGraph {
     const nodes = this.trackNodes.get(trackId);
     const config = this.trackConfigs.get(trackId);
     if (!nodes || !config) return;
-    const lanes = this.routingTimeline.tracks.find((t) => t.id === trackId)?.automation;
+    const track = this.routingTimeline.tracks.find((t) => t.id === trackId);
+    const lanes = track ? effectiveTrackAutomation(track) : undefined;
+    const override = this.trackLaneOverrides.get(trackId);
     const now = this.audioContext.currentTime;
-    const hasVolume = (lanes?.volume?.length ?? 0) > 0;
-    const hasPan = (lanes?.pan?.length ?? 0) > 0;
+    const hasVolume = (lanes?.volume?.length ?? 0) > 0 && !override?.volume;
+    const hasPan = (lanes?.pan?.length ?? 0) > 0 && !override?.pan;
     const audible = isTrackAudible(config, this.hasSoloTracks);
     const time = timelineTime ?? this.masterClock.currentTime;
     const ctxStart = now + (this.trackLatencySeconds.get(trackId) ?? 0) - this.routing.getTotalLatencySeconds();
@@ -456,6 +503,42 @@ export class RealtimeAudioGraph {
         nodes.panNode.pan.setValueAtTime(Math.max(-1, Math.min(1, config.pan)), now);
       }
     }
+  }
+
+  /** Places the keyframes of every track / master rack effect from timeline second `time` (play, seek, loop wrap). */
+  private scheduleRackAutomation(time: number): void {
+    const ctxStart = this.audioContext.currentTime;
+    for (const trackId of this.trackNodes.keys()) this.scheduleTrackRackAutomation(trackId, time);
+    this.masterBus.anchorTimeline?.(time, ctxStart);
+    this.masterBus.scheduleAutomation?.(time, this.routingHorizon, ctxStart);
+  }
+
+  /** Off ignores the track's rack keyframes too (the params return to their static values), like the export. */
+  private scheduleTrackRackAutomation(trackId: string, time: number): void {
+    const bus = this.trackNodes.get(trackId)?.rackBus;
+    if (!bus) return;
+    bus.anchorTimeline?.(time, this.audioContext.currentTime);
+    const track = this.routingTimeline.tracks.find((t) => t.id === trackId);
+    this.trackRackModes.set(trackId, `${track?.automationMode ?? "read"}`);
+    if (track?.automationMode === "off") bus.clearAutomation?.();
+    else bus.scheduleAutomation?.(time, this.routingHorizon, this.audioContext.currentTime);
+  }
+
+  /**
+   * A recording pass takes over a lane (the stored curve stops playing, the fader / pan follow the user) or gives it
+   * back (the curve plays again from the playhead). Does not touch the project.
+   */
+  setTrackLaneOverride(trackId: string, lane: "volume" | "pan", overridden: boolean): void {
+    const current = this.trackLaneOverrides.get(trackId) ?? {};
+    if (!!current[lane] === overridden) return;
+    const next = { ...current, [lane]: overridden };
+    if (!next.volume && !next.pan) this.trackLaneOverrides.delete(trackId);
+    else this.trackLaneOverrides.set(trackId, next);
+    this.applyTrackAutomation(trackId);
+    this.trackAutomationSignature.set(
+      trackId,
+      JSON.stringify([effectiveTrackAutomation(this.routingTimeline.tracks.find((t) => t.id === trackId) ?? {}) ?? null, this.trackLaneOverrides.get(trackId) ?? null]),
+    );
   }
 
   /** Draft bus rack (fader, pan, effects) from the mixer; never touches history. */
@@ -543,7 +626,13 @@ export class RealtimeAudioGraph {
       delayNodes,
     } = this.buildEffectChain(config.effects, this.surround ? 6 : 2);
 
-    const rackBus = createRackBus(this.audioContext, this.trackRacks.get(config.trackId), { live: true, surround: this.surround });
+    const rackBus = createRackBus(this.audioContext, this.trackRacks.get(config.trackId), {
+      live: true,
+      surround: this.surround,
+      sidechain: { hub: this.sidechain, ownerId: trackOwnerId(config.trackId) },
+    });
+    // Compressors elsewhere can key on this track's post-fader output (only wired while something listens).
+    if (this.sidechain.isKeySource(trackOwnerId(config.trackId))) this.sidechain.publish(trackOwnerId(config.trackId), outputGain);
     inputGain.connect(effectChainInput);
     const trackInsert = this.liveInserts.get(liveInsertKey("track", config.trackId));
     if (trackInsert) {
@@ -593,7 +682,9 @@ export class RealtimeAudioGraph {
     noiseReductionNodes: AudioNode[];
     reverbNodes: ReverbNodes | null;
     delayNodes: DelayNodes | null;
+    creativeChains: CreativeChainNode[];
   } {
+    const creativeChains: CreativeChainNode[] = [];
     const passthrough = pinChannels(this.audioContext.createGain(), channels);
     const allNodes: AudioNode[] = [passthrough];
     let tailSeconds = 0;
@@ -614,6 +705,7 @@ export class RealtimeAudioGraph {
         noiseReductionNodes,
         reverbNodes,
         delayNodes,
+        creativeChains,
       };
     }
 
@@ -685,6 +777,21 @@ export class RealtimeAudioGraph {
           allNodes.push(...chain.nodes);
           break;
         }
+        case "chorus":
+        case "flanger":
+        case "phaser":
+        case "distortion":
+        case "stereoWidth":
+        case "invertPolarity":
+        case "channelMap": {
+          if (!isCreativeFxType(effect.type)) break;
+          const chain = createCreativeFxNode(this.audioContext, effect.type, sanitizeCreativeParams(effect.type, effect.params as Record<string, unknown>), { channels });
+          creativeChains.push(chain);
+          currentNode.connect(chain.input);
+          currentNode = chain.output;
+          allNodes.push(...chain.nodes);
+          break;
+        }
         case "reverb": {
           reverbNodes = this.createReverbNodes(effect, channels);
           allNodes.push(...(Object.values(reverbNodes).flat() as AudioNode[]));
@@ -717,6 +824,7 @@ export class RealtimeAudioGraph {
       noiseReductionNodes,
       reverbNodes,
       delayNodes,
+      creativeChains,
     };
   }
 
@@ -868,6 +976,7 @@ export class RealtimeAudioGraph {
 
     const nodes = this.trackNodes.get(trackId);
     if (nodes) {
+      this.sidechain.unpublish(trackOwnerId(trackId), nodes.outputGain);
       nodes.inputGain.disconnect();
       nodes.rackBus.dispose();
       nodes.panNode.disconnect();
@@ -988,7 +1097,8 @@ export class RealtimeAudioGraph {
       this.audioContext.currentTime,
     );
     nodes.preFaderGate.gain.setValueAtTime(audible ? 1 : 0, this.audioContext.currentTime);
-    const lanes = this.routingTimeline.tracks.find((t) => t.id === trackId)?.automation;
+    const laneTrack = this.routingTimeline.tracks.find((t) => t.id === trackId);
+    const lanes = laneTrack ? effectiveTrackAutomation(laneTrack) : undefined;
     if (lanes?.volume?.length || lanes?.pan?.length || this.trackAutomationSignature.get(trackId) !== undefined && this.trackAutomationSignature.get(trackId) !== "null") {
       this.applyTrackAutomation(trackId);
     }
@@ -1496,6 +1606,11 @@ export class RealtimeAudioGraph {
     // Gains and fades sit after the clip chain: they see the signal chainLatency later.
     const playbackStartTime = sourceStartTime + chainLatency;
     if (!(playbackDuration > 0) || !Number.isFinite(playbackDuration)) { release(); return; }
+    // Modulated clip effects (chorus, flanger, phaser) follow timeline time, not the context time the source happens to start at.
+    if (chain) {
+      const clockOffset = previewClipChainClockOffset(schedule.startTime, clipOffset, sourceStartTime);
+      for (const creative of chain.creativeChains) creative.setClockOffset(clockOffset);
+    }
     scheduleVolumeAutomationOnGain(clipGain, schedule.volumeAutomation, schedule.volume, clipOffset, playbackDuration, playbackStartTime);
     if (!panner) schedulePanAutomationOnParam((clipPan as StereoPannerNode).pan, schedule.panAutomation, basePan, clipOffset, playbackDuration, playbackStartTime);
     scheduleClipFadeEnvelope(fadeGain.gain, { startTime: playbackStartTime, clipOffset,
@@ -1543,7 +1658,7 @@ export class RealtimeAudioGraph {
   playScrubGrains(schedules: readonly AudioClipSchedule[], time: number, grainSeconds: number = SCRUB_GRAIN_SECONDS): number {
     const planned = planScrubGrains(schedules, time, grainSeconds);
     if (planned.length === 0) return 0;
-    if (this.routingTimeline.tracks.some((t) => t.automation?.volume?.length || t.automation?.pan?.length)) {
+    if (this.routingTimeline.tracks.some((t) => hasEffectiveTrackAutomation(t))) {
       // The playhead is not where the (paused) clock says: place track automation at the scrub position.
       this.syncTrackAutomation(true, time);
     }
@@ -1689,6 +1804,8 @@ export class RealtimeAudioGraph {
       this.schedulerIntervalId = null;
     }
     this.stopAllClips();
+    for (const nodes of this.trackNodes.values()) nodes.rackBus.stopAutomation?.();
+    this.masterBus.stopAutomation?.();
     this.emitTransport(false, this.masterClock.currentTime);
   }
 
@@ -1731,6 +1848,7 @@ export class RealtimeAudioGraph {
     this.impulseResponseCache.clear();
     this.routing.dispose();
     this.masterBus.dispose();
+    this.sidechain.dispose();
     this.masterPre.disconnect();
     this.masterGain.disconnect();
     this.masterOutput.disconnect();

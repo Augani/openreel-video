@@ -1,4 +1,5 @@
-import { getBackgroundRemovalEngine, hasAnimatedVideoEffects, getAnimatedVideoEffects, getAnimatedIrisEffects, isRenderableVideoEffect, isNeutralColorGrading, hasAnimatedColorGrading, getAnimatedColorGrading, type Clip } from "@openreel/core";
+import { clipHasObjectRemoval } from "@openreel/core/video/content-aware-fill/apply";
+import { getBackgroundRemovalEngine, hasAnimatedVideoEffects, getAnimatedVideoEffects, getAnimatedIrisEffects, isRenderableVideoEffect, isNeutralColorGrading, hasAnimatedColorGrading, getAnimatedColorGrading, clipHasWarp, type Clip } from "@openreel/core";
 import { getEffectsBridge } from "../../../bridges/effects-bridge";
 import { applyEffectsToFrame, applyEffectsToFrameCanvas, type PreviewEffectFrame } from "./canvas-renderers";
 import { isColorBypassed, withPreviewOverrides } from "./program-frame-control";
@@ -11,9 +12,13 @@ interface PreparedPreviewFrame {
 
 export const clipNeedsFrameProcessing = (
   clipId: string,
-  clip?: Partial<Pick<Clip, "keyframes" | "effects">>,
+  clip?: Partial<Pick<Clip, "keyframes" | "effects" | "stabilization" | "objectRemoval">>,
   localTime?: number,
 ): boolean => {
+  // Remove Object replaces picture content, so the ungraded comparison keeps it too.
+  if (clipHasObjectRemoval(clip)) return true;
+  // Warp Stabilizer bakes the camera correction into the frame: geometry, so the ungraded comparison keeps it.
+  if (clip && clipHasWarp({ id: clipId, stabilization: clip.stabilization })) return true;
   // Source colour management is interpretation, not grading: it applies even in the ungraded comparison.
   if (inputTransformForClip(clipId)) return true;
   if (isColorBypassed()) return false;

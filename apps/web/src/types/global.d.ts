@@ -10,6 +10,8 @@ interface OpenReelHardwareInfo {
 }
 
 interface OpenReelExportStartArgs {
+  /** One video-only segment of a parallel export: the main process supplies everything else from its session. */
+  segment?: { sessionId: string; index: number };
   width: number;
   height: number;
   frameRate: number;
@@ -39,6 +41,8 @@ interface OpenReelExportStartArgs {
   vr?: { layout: "mono" | "over-under" | "side-by-side"; horizontalFov: number; verticalFov: number; initialView?: { yaw: number; pitch: number; roll: number } };
   /** ProRes 4444: the frames carry real alpha (export over a transparent background). */
   alpha?: boolean;
+  /** Frames are planar 8-bit 4:2:0 (I420, BT.709 limited range) converted on the GPU instead of RGBA (plain H.264 / H.265 only). */
+  rawYuv420?: boolean;
   keyframeInterval?: number;
   audioBitrateKbps?: number;
   /** Audio codec of the file: "ac3" (Dolby Digital) or "eac3" (Dolby Digital Plus); absent = AAC / Opus / PCM by container. */
@@ -57,6 +61,8 @@ interface OpenReelExportStartArgs {
   };
   /** Subtitle tracks muxed into the file: SRT text for mov_text, SCC text for a c608 track (MOV only). */
   captions?: Array<{ kind: "mov_text" | "cea608"; data: string; language?: string }>;
+  /** ffmpeg `;FFMETADATA1` chapters text (MP4 / MOV). */
+  chaptersMetadata?: string;
   /** Native smart render: re-encoded runs must reproduce `match` to join the stream-copied ones. */
   smartRender?: {
     match: {
@@ -73,6 +79,8 @@ interface OpenReelExportStartArgs {
 
 interface OpenReelExportSession {
   jobId: string;
+  /** The pipe of this job carries I420 (a parallel segment worker learns the session's choice here). */
+  rawYuv420?: boolean;
 }
 
 interface OpenReelAuroraRenderPreviewArgs {
@@ -911,6 +919,17 @@ declare global {
         toggleMaximize(): Promise<void>;
         close(): Promise<void>;
         isMaximized(): Promise<boolean>;
+      };
+      /** Parallel segment export: the editor starts a session, hidden worker windows render its segments and audio. */
+      exportSegments?: {
+        start(args: unknown): Promise<{ sessionId: string; encoder: string }>;
+        cancel(sessionId: string): Promise<void>;
+        init(sessionId: string): Promise<unknown>;
+        next(sessionId: string): Promise<unknown>;
+        writeAudioChunk(sessionId: string, chunk: ArrayBuffer, position: number): Promise<void>;
+        finishAudio(sessionId: string): Promise<void>;
+        fail(sessionId: string, message: string): Promise<void>;
+        onEvent(cb: (event: unknown) => void): () => void;
       };
       /** Linked composition windows: the main process opens them and relays messages between windows. */
       linkedComp?: {

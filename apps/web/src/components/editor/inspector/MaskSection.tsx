@@ -12,6 +12,7 @@ import { createEditorMask, duplicateEditorMask, editClipMasks, maskSources, type
 import { PropertySlider } from "./shell/PropertySlider";
 import { MaskPathTools, MaskPenLauncher } from "./MaskPenControls";
 import { useNumericDraft } from "./shell/useNumericDraft";
+import { MaskRemoveObjectControls, MaskTargetToggle, MaskTrackingControls } from "./ObjectMaskControls";
 
 const SHAPES: Array<{ kind: EditorMaskKind; label: string; name: string; icon: LucideIcon }> = [
   { kind: "rectangle", label: "Rectangle", name: "Rectangle", icon: Square },
@@ -73,6 +74,9 @@ function MaskItem({ mask, index, selected, expanded, select, toggle, edit, remov
         </div>)}</div><p className="text-[10px] leading-4 text-fg-2">X and Y are composition percentages. Adjust points for precise custom cutouts.</p>
       </div>}
       {mask.type === "track-matte" ? <MatteFields mask={mask} edit={edit} /> : <MaskPathTools mask={mask} />}
+      {mask.type !== "track-matte" && <MaskTrackingControls mask={mask} />}
+      {mask.type !== "track-matte" && <MaskRemoveObjectControls mask={mask} />}
+      <MaskTargetToggle mask={mask} edit={edit} />
       {index > 0 && <div className="space-y-1.5"><Label className="block text-[11px] text-fg-2">Combine with previous masks</Label><ToggleGroup type="single" aria-label="Mask combine mode" value={mask.combine ?? "intersect"} onValueChange={value => {
         if ((MASK_COMBINE_MODES as readonly string[]).includes(value)) edit(current => ({ ...current, combine: value as MaskCombineMode }));
       }} className="grid grid-cols-4 gap-1">{MASK_COMBINE_MODES.map(mode => <ToggleGroupItem key={mode} value={mode} aria-label={`Combine mode ${mode}`} className="h-7 min-w-0 border border-border px-1 text-[10px] capitalize">{mode}</ToggleGroupItem>)}</ToggleGroup></div>}

@@ -1,12 +1,9 @@
 import React, { useCallback, useMemo } from "react";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@openreel/ui";
+import { Select, SelectTrigger, SelectValue, SelectContent } from "@openreel/ui";
+import { BlendModeSelectItems } from "./BlendModeSelectItems";
 import { InlineSlider } from "./shell/InspectorControls";
 import { useProjectStore } from "../../../stores/project-store";
-import {
-  getAvailableBlendModes,
-  getBlendModeName,
-  type BlendMode,
-} from "@openreel/core";
+import type { BlendMode } from "@openreel/core";
 
 interface BlendingSectionProps {
   clipId: string;
@@ -49,7 +46,6 @@ export const BlendingSection: React.FC<BlendingSectionProps> = ({ clipId }) => {
   const blendMode = clip?.blendMode || "normal";
   const blendOpacity = clip?.blendOpacity ?? 100;
 
-  const availableBlendModes = useMemo(() => getAvailableBlendModes(), []);
 
   const handleBlendModeChange = useCallback(
     (mode: BlendMode) => {
@@ -88,9 +84,7 @@ export const BlendingSection: React.FC<BlendingSectionProps> = ({ clipId }) => {
             }
           >
             <SelectTrigger aria-label="Blend mode" className="h-auto w-full rounded-[7px] border border-border bg-transparent px-[10px] py-[8px] text-[13px] font-medium text-fg-2 outline-none focus:border-accent [&>svg]:size-[11px]"><SelectValue /></SelectTrigger>
-            <SelectContent>{availableBlendModes.map((mode) => (
-              <SelectItem key={mode} value={mode}>{getBlendModeName(mode)}</SelectItem>
-            ))}</SelectContent>
+            <SelectContent><BlendModeSelectItems /></SelectContent>
           </Select>
         </div>
       </div>

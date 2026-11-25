@@ -51,10 +51,16 @@ export async function runEngineParity(page: Page): Promise<{ rows: ParityRow[]; 
       g.fillRect(0, 0, w, h);
       return canvas;
     };
+    const readBack = (canvas: OffscreenCanvas, w: number, h: number) => {
+      const copy = new OffscreenCanvas(w, h);
+      const g = copy.getContext("2d", { willReadFrequently: true })!;
+      g.drawImage(canvas, 0, 0);
+      return g.getImageData(0, 0, w, h).data;
+    };
     const pixels = async (engine: any, w: number, h: number, type: string, params: Record<string, unknown>, p: number, a = A, b = B) => {
       const transition = { id: "t", clipAId: "a", clipBId: "b", type, duration: 1, params: { ...t.engine.getDefaultTransitionParams(type), ...params } };
       const canvas: OffscreenCanvas = await engine.renderTransitionToCanvas(solid(w, h, a), solid(w, h, b), transition, p);
-      return { data: canvas.getContext("2d")!.getImageData(0, 0, w, h).data, transition };
+      return { data: readBack(canvas, w, h), transition };
     };
     const compare = (actual: Uint8ClampedArray, expected: Float64Array) => {
       let sum = 0;

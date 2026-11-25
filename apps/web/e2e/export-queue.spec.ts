@@ -131,6 +131,33 @@ async function useHd(page: Page): Promise<void> {
   await settle(page, 500);
 }
 
+for (const format of ["mp4", "mov"]) {
+  test(`browser ${format.toUpperCase()} keeps ranged chapter titles, offsets and media`, async ({ page }) => {
+    await openEditor(page);
+    await page.evaluate(async () => {
+      const { project } = (window as unknown as { __openreelE2E: Hook }).__openreelE2E;
+      await project.getState().addMarker(0.25, "Outside range", "#fff", { kind: "chapter" });
+      await project.getState().addMarker(1.4, "First", "#fff", { kind: "chapter" });
+      await project.getState().addMarker(2, "Résumé", "#fff", { kind: "chapter" });
+    });
+    const settings = { ...MP4_SMALL, format, embedChapters: true, range: { startTime: 1, endTime: 3 } };
+    const id = await enqueue(page, { settings, presetLabel: "Chapters" });
+    await queueAction(page, "start");
+    await waitStatus(page, id, "completed");
+    const file = await downloadAndProbe(page, await jobById(page, id));
+    const result = JSON.parse(execFileSync(FFPROBE, ["-v", "error", "-show_chapters", "-of", "json", file.path], { encoding: "utf8" }));
+    expect(result.chapters).toHaveLength(2);
+    expect(result.chapters.map((c: { tags: { title: string } }) => c.tags.title)).toEqual(["First", "Résumé"]);
+    expect(Number(result.chapters[0].start_time)).toBeCloseTo(0.4, 2);
+    expect(Number(result.chapters[0].end_time)).toBeCloseTo(1, 2);
+    expect(Number(result.chapters[1].start_time)).toBeCloseTo(1, 2);
+    expect(Number(result.chapters[1].end_time)).toBeCloseTo(2, 2);
+    expect(video(file.probe).codec_name).toBe("h264");
+    expect(file.probe.streams.some((stream) => stream.codec_type === "audio")).toBe(true);
+    execFileSync(FFMPEG, ["-v", "error", "-xerror", "-i", file.path, "-map", "0:v:0", "-map", "0:a:0", "-f", "null", "-"]);
+  });
+}
+
 test("two presets queued from the dialog and the store both complete with valid files", async ({ page }, testInfo) => {
   testInfo.setTimeout(240_000);
   await openEditor(page);

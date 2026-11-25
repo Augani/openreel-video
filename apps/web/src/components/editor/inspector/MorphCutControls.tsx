@@ -12,6 +12,8 @@ export function morphCutStatusLine(state: ReturnType<ReturnType<typeof getMorphC
       return `Analysing in background (${Math.round(state.progress * 100)}%). Renders as a cross dissolve until it finishes.`;
     case "ready":
       return `Analysed${state.backend ? ` on the ${state.backend === "gpu" ? "GPU" : "CPU"}` : ""}${state.analysisMs !== undefined ? ` in ${(state.analysisMs / 1000).toFixed(1)} s` : ""}, confidence ${Math.round((state.confidence ?? 0) * 100)}%.`;
+    case "cancelled":
+      return "Analysis cancelled. Renders as a cross dissolve.";
     case "failed":
       return `${state.message}. Rendering as a cross dissolve.`;
     default:
@@ -57,6 +59,33 @@ export const MorphCutControls: React.FC<{
       <p className="text-fg-2 text-[10px] leading-snug" role="status" aria-live="polite" data-testid="morph-cut-status" data-status={state.status}>
         {transitionId ? morphCutStatusLine(state) : "Add the transition, then it analyses in the background."}
       </p>
+      {analysing && transitionId && (
+        <button
+          type="button"
+          className="text-[10px] text-accent underline"
+          data-testid="morph-cut-cancel"
+          onClick={() => {
+            void import("@openreel/core/video/morph-cut/analyse-job").then((m) => m.cancelMorphCutAnalysis(transitionId));
+          }}
+        >
+          Cancel analysis
+        </button>
+      )}
+      {state.status === "cancelled" && transitionId && (
+        <button
+          type="button"
+          className="text-[10px] text-accent underline"
+          data-testid="morph-cut-reanalyse"
+          onClick={() => {
+            void import("@openreel/core/video/morph-cut/analyse-job").then((m) => {
+              m.restartMorphCutAnalysis(transitionId);
+              void import("../../../services/morph-cut-service").then((s) => s.scheduleMorphCutScan());
+            });
+          }}
+        >
+          Analyse again
+        </button>
+      )}
       {analysing && (
         <div className="h-1 w-full overflow-hidden rounded bg-bg-3" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(state.progress * 100)}>
           <div className="h-full bg-accent" style={{ width: `${Math.round(state.progress * 100)}%` }} />

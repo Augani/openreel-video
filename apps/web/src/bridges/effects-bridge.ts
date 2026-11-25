@@ -140,6 +140,17 @@ interface SerializedColorGrading {
  * - 11.1: Update effect order in clip's effect list
  * - 11.2: Process effects in new order after reordering
  */
+type GpuGradeRunner = typeof import("@openreel/core/video/gpu-grade-runner");
+
+/** localStorage "openreel-grade-renderer" = "canvas2d" pins the clip effect / grade chain to the Canvas2D / WebGL path. */
+function canvas2dGradeForced(): boolean {
+  try {
+    return typeof localStorage !== "undefined" && localStorage.getItem("openreel-grade-renderer") === "canvas2d";
+  } catch {
+    return false;
+  }
+}
+
 class EffectsBridgeDisposedError extends Error {
   constructor() {
     super("EffectsBridge was disposed during initialization");
@@ -590,6 +601,53 @@ export class EffectsBridge {
       console.error("[EffectsBridge] Effects processing failed:", error);
       return { image, processingTime: 0 };
     }
+  }
+
+  private gradeRunner: GpuGradeRunner | null = null;
+  private gradeLoading: Promise<void> | null = null;
+  private gradeChain: InstanceType<GpuGradeRunner["GpuGradeChain"]> | null = null;
+  private gradeChainOff: boolean | null = null;
+
+  /**
+   * The clip's whole effect stack and colour grade on the WebGPU grade chain: one upload, every pass on the GPU, a
+   * GPU-backed bitmap back. Null means "use processEffects / processColorGrading": WebGPU is missing, the chain is
+   * still loading (it is a lazy chunk), a stage has no WGSL port, or the chain failed (it then stays off).
+   * `animated` is the sampled effect stack of a keyframed clip; `sampled` the sampled grade values.
+   */
+  async processClipChainGpu(
+    clipId: string,
+    image: ImageBitmap,
+    animated: readonly Effect[] | null,
+    sampled?: Pick<ColorGradingSettings, "tone" | "vignette" | "temperature" | "tint" | "hueCurves">,
+  ): Promise<ImageBitmap | null> {
+    if (!this.initialized) return null;
+    this.gradeChainOff ??= canvas2dGradeForced() || typeof navigator === "undefined" || !(navigator as { gpu?: unknown }).gpu;
+    if (this.gradeChainOff) return null;
+    if (!this.gradeRunner) {
+      this.gradeLoading ??= import("@openreel/core/video/gpu-grade-runner").then(
+        (module) => {
+          this.gradeRunner = module;
+        },
+        () => {
+          this.gradeChainOff = true;
+        },
+      );
+      return null;
+    }
+    const runner = this.gradeRunner;
+    this.gradeChain ??= new runner.GpuGradeChain();
+    const stack: Effect[] = (animated ?? this.getEffects(clipId))
+      .filter((effect) => effect.enabled !== false)
+      .map((effect) => ({ id: effect.id, type: effect.type, enabled: true, params: this.withTransientParams(effect).params }));
+    const grading: ColorGradingSettings = { ...this.getColorGrading(clipId), ...sampled };
+    const result = await runner.runGpuGrade(this.gradeChain, image, stack, grading);
+    if (!result && this.gradeChain.broken) this.gradeChainOff = true;
+    return result;
+  }
+
+  /** Activity of the live preview's WebGPU grade chain (null until the first frame needed it). */
+  getGpuGradeStats(): { frames: number; fallbacks: number; readbacks: number; meanCpuMs: number } | null {
+    return this.gradeChain ? { ...this.gradeChain.stats } : null;
   }
 
   /** Process an explicit effect stack, used by timeline adjustment layers. */
@@ -1395,6 +1453,8 @@ export class EffectsBridge {
       this.colorGradingEngine.dispose();
     }
     this.videoEffectsEngine?.dispose();
+    this.gradeChain?.dispose();
+    this.gradeChain = null;
 
     this.clipEffects.clear();
     this.clipColorGrading.clear();

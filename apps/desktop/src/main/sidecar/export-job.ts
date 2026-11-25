@@ -7,6 +7,9 @@ import { isBroadcastExportCodec, supportsTwoPass, videoEncodeArgs, withTopFieldF
 import { dolbyTrackArgs, type DolbyAudioPlan } from "./dolby-args";
 import { addSphericalMetadataToFile, type SphericalExportFields } from "./spherical-file";
 import { colorFilterArgs, colorTagArgs, rawInputPixelFormat, type NativeColorOutput } from "./color-output-args";
+import { pipePixelFormat } from "./raw-yuv420";
+
+export { assertRawYuv420Allowed, pipeFrameBytes, pipePixelFormat } from "./raw-yuv420";
 
 export interface ExportArgs {
   width: number;
@@ -32,6 +35,11 @@ export interface ExportArgs {
   dnxhrProfile?: DnxhrProfile;
   /** ProRes 4444: keep the render's alpha channel. */
   alpha?: boolean;
+  /**
+   * The pipe carries planar 8-bit 4:2:0 YCbCr (I420, BT.709 limited range) converted by the renderer's GPU instead of
+   * RGBA, so ffmpeg runs no RGB to YUV conversion. Plain single-pass H.264 / HEVC only (see `assertRawYuv420Allowed`).
+   */
+  rawYuv420?: boolean;
   audioBitrateKbps?: number;
   /** Dolby Digital / Digital Plus audio track (MP4, MOV or MKV) instead of AAC / Opus / PCM. */
   dolby?: DolbyAudioPlan;
@@ -41,6 +49,8 @@ export interface ExportArgs {
    * to this output space (instead of RGBA), and the stream is tagged with it.
    */
   color?: NativeColorOutput;
+  /** ffmpeg `;FFMETADATA1` file whose [CHAPTER] entries become the output's chapters (MP4 / MOV). */
+  chaptersPath?: string;
   /** Subtitle files muxed in as extra tracks (SRT -> mov_text, SCC -> c608 in MOV). */
   captionInputs?: CaptionInput[];
   /** XDCAM HD422 / AVC-Intra 100: top-field-first interlaced frames. */
@@ -53,6 +63,11 @@ export interface ExportArgs {
   startTimecode?: string;
   /** VR sequence in MP4 / MOV: spherical metadata is written into the finished file (st3d / sv3d). */
   vr?: SphericalExportFields;
+  /**
+   * One video-only segment of a parallel export (see segment-session.ts): written as MPEG-TS (a MOV for ProRes)
+   * whose timestamps are pinned to its place on the output frame grid, so the segments join by a plain append.
+   */
+  segment?: { startFrame: number };
 }
 
 export interface CaptionInput {
@@ -157,6 +172,18 @@ export function captionMuxArgs(a: ExportArgs): { inputs: string[]; outputs: stri
   return { inputs, outputs };
 }
 
+/** Containers that store chapters as chapter atoms (MP4 / MOV). */
+export function canHoldChapters(format: string): boolean {
+  return format === "mp4" || format === "mov";
+}
+
+/** Extra `-i` and `-map_chapters` arguments for the chapter metadata file; it is input number 2 + the caption inputs. */
+export function chapterMuxArgs(a: ExportArgs): { inputs: string[]; outputs: string[] } {
+  if (!a.chaptersPath || !canHoldChapters(a.format)) return { inputs: [], outputs: [] };
+  const index = 2 + usableCaptionInputs(a.format, a.captionInputs).length;
+  return { inputs: ["-f", "ffmetadata", "-i", a.chaptersPath], outputs: ["-map_chapters", String(index)] };
+}
+
 /**
  * The canvas is sRGB and video players read untagged HD as BT.709, but ffmpeg's
  * RGB to YUV conversion defaults to BT.601 and writes no tags, which shifts every
@@ -164,6 +191,15 @@ export function captionMuxArgs(a: ExportArgs): { inputs: string[]; outputs: stri
  */
 export const COLOR_PIPELINE_ARGS: readonly string[] = [
   "-vf", "scale=out_color_matrix=bt709:out_range=tv",
+  "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv",
+];
+
+/**
+ * Raw I420 input already is BT.709 limited-range 4:2:0: no `scale` conversion may run (it would convert from an
+ * unspecified matrix), the frames are only tagged.
+ */
+export const COLOR_PIPELINE_YUV_ARGS: readonly string[] = [
+  "-vf", "setparams=colorspace=bt709:color_primaries=bt709:color_trc=bt709:range=tv",
   "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv",
 ];
 
@@ -204,7 +240,7 @@ function buildOpAtomArgs(a: ExportArgs): string[] {
   ];
 }
 
-function planOf(a: ExportArgs): Parameters<typeof videoEncodeArgs>[0] {
+export function planOf(a: ExportArgs): Parameters<typeof videoEncodeArgs>[0] {
   return {
     codec: a.codec,
     encoder: a.encoder,
@@ -269,13 +305,14 @@ export function buildFfmpegArgs(a: ExportArgs, stage: "single" | "pass2" = "sing
     ? ["-i", join(a.passDir ?? "", INTERMEDIATE_NAME)]
     : [
         "-f", "rawvideo",
-        "-pix_fmt", a.color ? rawInputPixelFormat(a.color) : "rgba",
+        "-pix_fmt", pipePixelFormat(a),
         "-s", `${a.width}x${a.height}`,
         "-r", String(a.frameRate),
         "-thread_queue_size", String(threadQueueSize(a.width, a.height)),
         "-i", "pipe:0",
       ];
   const captions = captionMuxArgs(a);
+  const chapters = chapterMuxArgs(a);
   const monoCount = monoTrackCount(a);
   // N mono tracks: the N-channel WAV is split into N mono streams, one track each.
   const monoInputs = monoCount ? ["-filter_complex", monoSplitFilter(monoCount)] : [];
@@ -287,10 +324,12 @@ export function buildFfmpegArgs(a: ExportArgs, stage: "single" | "pass2" = "sing
     ...inputArgs,
     "-i", a.audioWavPath,
     ...captions.inputs,
+    ...chapters.inputs,
     ...monoInputs,
     ...captions.outputs,
+    ...chapters.outputs,
     ...monoMaps,
-    ...withTopFieldFirst(a.color ? colorFilterArgs(a.color) : [...COLOR_PIPELINE_ARGS], planOf(a)),
+    ...withTopFieldFirst(a.color ? colorFilterArgs(a.color) : [...(a.rawYuv420 ? COLOR_PIPELINE_YUV_ARGS : COLOR_PIPELINE_ARGS)], planOf(a)),
     ...videoEncodeArgs(pass2 ? { ...planOf(a), pass: { stage: 2, logPrefix: passLogPrefix(a) } } : planOf(a)),
     ...(a.color ? colorTagArgs(a.color) : []),
     ...(a.dolby
@@ -323,6 +362,8 @@ export class ExportJob {
     private readonly onFrame: (frame: number) => void,
     private readonly onDone: () => void,
     private readonly onError: (msg: string) => void,
+    /** Replaces `buildFfmpegArgs` for single-pass jobs (a parallel segment writes a different container). */
+    private readonly buildArgs?: (a: ExportArgs) => string[],
   ) {}
 
   /** 0 = single pass; 1 / 2 = the passes of a two-pass export. */
@@ -362,7 +403,7 @@ export class ExportJob {
   private spawnStage(stage: 0 | 1 | 2): void {
     this.stage = stage;
     this.progressBuf = "";
-    const ffArgs = stage === 1 ? buildPass1Args(this.args) : buildFfmpegArgs(this.args, stage === 2 ? "pass2" : "single");
+    const ffArgs = stage === 1 ? buildPass1Args(this.args) : stage === 0 && this.buildArgs ? this.buildArgs(this.args) : buildFfmpegArgs(this.args, stage === 2 ? "pass2" : "single");
     const proc = spawn(resolveFfmpegPath(), ffArgs);
     this.proc = proc;
     // Pass 2 reads the intermediate file; nothing is piped in.

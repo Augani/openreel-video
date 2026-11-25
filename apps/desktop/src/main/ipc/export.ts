@@ -1,8 +1,10 @@
+import { patchContentLightLevel, type MeasuredLightLevel } from "../sidecar/patch-content-light-level";
 import { MessageChannelMain, type WebContents, type MessagePortMain } from "electron";
 import { promises as fs, rmSync } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { ExportJob, usesPcmAudio, type CaptionInput, type ExportArgs } from "../sidecar/export-job";
+import { ExportJob, canHoldChapters, usesPcmAudio, type CaptionInput, type ExportArgs } from "../sidecar/export-job";
+import { assertRawYuv420Allowed, pipeFrameBytes } from "../sidecar/raw-yuv420";
 import { assertLocalSourcePath } from "../sidecar/probe-source";
 import { fingerprintFile, fingerprintMismatch, verifySourceForCopy, type FingerprintCache } from "../sidecar/source-guard";
 import { SmartExportSession, type SmartStreamMatch } from "../sidecar/smart-export";
@@ -18,8 +20,10 @@ import { dolbyPlanFromRequest } from "../sidecar/dolby-args";
 import { dolbyContainerProblem } from "../../../../../packages/core/src/export/dolby";
 import { addSphericalMetadataToFile, type SphericalExportFields } from "../sidecar/spherical-file";
 import { isNativeColorOutput, type NativeColorOutput } from "../sidecar/color-output-args";
+import { buildSegmentArgs } from "../sidecar/segment-args";
+import { segmentRuns } from "./segment-registry";
 
-interface ExportStartArgs {
+export interface ExportStartArgs {
   width: number;
   height: number;
   frameRate: number;
@@ -42,6 +46,8 @@ interface ExportStartArgs {
   dnxhrProfile?: DnxhrProfile;
   /** ProRes 4444 / 4444 XQ: write the alpha channel (the renderer is exporting over a transparent background). */
   alpha?: boolean;
+  /** Frames arrive as planar 8-bit 4:2:0 (I420, BT.709 limited) converted on the renderer's GPU instead of RGBA. */
+  rawYuv420?: boolean;
   keyframeInterval?: number;
   audioBitrateKbps?: number;
   /** "ac3" (Dolby Digital) / "eac3" (Dolby Digital Plus): the audio track's codec instead of AAC / Opus / PCM. MP4, MOV or MKV. */
@@ -64,12 +70,19 @@ interface ExportStartArgs {
    */
   color?: NativeColorOutput;
   captions?: Array<{ kind: "mov_text" | "cea608"; data: string; language?: string }>;
+  /** ffmpeg `;FFMETADATA1` text with one [CHAPTER] per chapter marker; written as MP4 / MOV chapters. */
+  chaptersMetadata?: string;
   /**
    * Native smart render: the renderer stream-copies untouched spans of the
    * sources (copyExportRun) and sends frames only for the re-encoded spans;
    * `match` is what those spans must reproduce to join the copied ones.
    */
   smartRender?: { match: SmartStreamMatch };
+  /**
+   * One video-only segment of a parallel export (see segment-export.ts): the arguments, encoder and output file
+   * come from the session, which already resolved them for the whole export.
+   */
+  segment?: { sessionId: string; index: number };
 }
 
 // 288 MB admits 8 frames at 4K (33 MB each) and 2 at 8K (133 MB each).
@@ -130,6 +143,8 @@ interface JobEntry {
   replayBytes: number;
   /** True once the renderer's "finish" has been delivered to the current job. */
   finishDelivered: boolean;
+  /** PQ exports: the MaxCLL / MaxFALL the renderer measured, written into the file once ffmpeg has exited. */
+  lightLevel?: MeasuredLightLevel;
   retried: boolean;
   /** Hardware was chosen explicitly: a failure is reported, never retried on the software encoder. */
   strictHardware: boolean;
@@ -151,6 +166,10 @@ interface JobEntry {
   smartRun: { cfr: CfrWriter; baseTs: number } | null;
   /** Full-content hashes of the copy sources already verified in this job (keyed by path, size and mtime). */
   sourceFingerprints: FingerprintCache;
+  /** Set for a segment of a parallel export. */
+  segment: { sessionId: string; index: number } | null;
+  /** Highest frame count ffmpeg reported. */
+  framesWritten: number;
 }
 
 const jobs = new Map<string, JobEntry>();
@@ -208,6 +227,11 @@ export function sphericalExportFields(args: Pick<ExportStartArgs, "vr" | "format
     return { vr: { layout, horizontalFov, verticalFov, initialView: { yaw, pitch, roll } } };
   }
   return { vr: { layout, horizontalFov, verticalFov } };
+}
+
+/** The renderer sends chapter text only in ffmpeg's metadata format, bounded in size. */
+export function isChaptersMetadata(text: unknown): text is string {
+  return typeof text === "string" && text.length <= 262144 && text.startsWith(";FFMETADATA1\n");
 }
 
 const TIMECODE_RE = /^\d{2}:\d{2}:\d{2}[:;]\d{2,3}$/;
@@ -307,6 +331,10 @@ export function resolveExportArgs(
     throw new Error(`Software was chosen, but this export would use the hardware encoder ${encoder}. Choose Auto or Hardware, or install an ffmpeg build with the software encoder.`);
   }
   const hdrProres = !!color && codec === "prores" && color.transfer !== "bt709";
+  if (args.rawYuv420 === true) {
+    assertRawYuv420Allowed({ codec, color, alpha: args.alpha, width: args.width, height: args.height, rateControl: args.rateControl, format: args.format, scan: args.scan, mxfPattern: args.mxfPattern });
+    if (args.smartRender) throw new Error("Raw 4:2:0 frames cannot be combined with smart render.");
+  }
   const dolby = dolbyPlanFromRequest(args);
   if (dolby) {
     const containerProblem = dolbyContainerProblem(args.format);
@@ -330,10 +358,14 @@ export function resolveExportArgs(
     outputPath: args.outputPath,
     audioWavPath,
     format: args.format,
-    // HDR ProRes is 4444 XQ (4:4:4, 12-bit class): the 422 profiles cannot carry the converted frames.
-    proresProfile: hdrProres && args.proresProfile !== "4444" ? "4444xq" : args.proresProfile,
+    // HDR ProRes is 4444 XQ (default), 4444 or 422 HQ (10-bit 4:2:2, the renderer's 4:4:4 planes are subsampled by
+    // ffmpeg). The lower 422 profiles are too coarse for HDR and are raised to HQ.
+    proresProfile: hdrProres
+      ? (args.proresProfile === "4444" || args.proresProfile === "hq" ? args.proresProfile : args.proresProfile && args.proresProfile !== "4444xq" ? "hq" : "4444xq")
+      : args.proresProfile,
     dnxhrProfile: args.dnxhrProfile,
     alpha: needs4444 && args.alpha === true,
+    ...(args.rawYuv420 === true ? { rawYuv420: true } : {}),
     keyframeInterval: args.keyframeInterval,
     audioBitrateKbps: args.audioBitrateKbps,
     ...(dolby ? { dolby } : {}),
@@ -369,14 +401,19 @@ async function assertTwoPassScratchSpace(args: ExportStartArgs): Promise<void> {
   }
 }
 
-export async function startExport(wc: WebContents, args: ExportStartArgs): Promise<{ jobId: string }> {
+export async function startExport(wc: WebContents, args: ExportStartArgs): Promise<{ jobId: string; rawYuv420?: boolean }> {
   const jobId = randomUUID();
-  if (args.rateControl === "vbr2") await assertTwoPassScratchSpace(args);
+  const segmentRun = args.segment ? segmentRuns.get(args.segment.sessionId) : undefined;
+  if (args.segment && !segmentRun) throw new Error("This parallel export is no longer running.");
+  if (!args.segment && args.rateControl === "vbr2") await assertTwoPassScratchSpace(args);
   // Verified, not merely listed: a listed hardware encoder can still fail to start
   // (and encode-args forbids software fallback inside videotoolbox).
   const encoders = await getVerifiedEncoders();
-  const audioWavPath = await newTempPathReady(`openreel-export-${jobId}`, "wav");
-  const exportArgs = resolveExportArgs(args, process.platform, encoders, audioWavPath);
+  // A segment is video only: its audio is rendered once for the whole export by the session.
+  const audioWavPath = args.segment ? "" : await newTempPathReady(`openreel-export-${jobId}`, "wav");
+  const exportArgs = args.segment && segmentRun
+    ? segmentRun.session.argsFor(segmentRun.session.segments[args.segment.index] ?? (() => { throw new Error(`Unknown segment ${args.segment!.index}.`); })())
+    : resolveExportArgs(args, process.platform, encoders, audioWavPath);
   const captionPaths: string[] = [];
   if (args.captions?.length) {
     const inputs: CaptionInput[] = [];
@@ -387,6 +424,13 @@ export async function startExport(wc: WebContents, args: ExportStartArgs): Promi
       inputs.push({ path, kind: caption.kind, language: caption.language });
     }
     exportArgs.captionInputs = inputs;
+  }
+  if (args.chaptersMetadata !== undefined && !args.segment && canHoldChapters(args.format)) {
+    if (!isChaptersMetadata(args.chaptersMetadata)) throw new Error("Invalid chapter metadata.");
+    const path = await newTempPathReady(`openreel-chapters-${jobId}`, "ffmeta");
+    await fs.writeFile(path, args.chaptersMetadata, "utf8");
+    captionPaths.push(path);
+    exportArgs.chaptersPath = path;
   }
 
   let smart: SmartExportSession | null = null;
@@ -429,6 +473,8 @@ export async function startExport(wc: WebContents, args: ExportStartArgs): Promi
     smartVideoPath,
     smartRun: null,
     sourceFingerprints: new Map(),
+    segment: args.segment ?? null,
+    framesWritten: 0,
   };
 
   // The renderer streams frames concurrently (credit window), but CfrWriter is
@@ -440,9 +486,12 @@ export async function startExport(wc: WebContents, args: ExportStartArgs): Promi
   // endInput() cannot close stdin while frames are still queued.
   port1.on("message", (e) => {
     const msg = e.data as
-      | { type?: string; ts?: number; buffer?: ArrayBuffer }
+      | { type?: string; ts?: number; buffer?: ArrayBuffer; lightLevel?: MeasuredLightLevel }
       | null;
     if (!msg || typeof msg.type !== "string") return;
+    if (msg.type === "finish" && msg.lightLevel && Number.isFinite(msg.lightLevel.maxCll) && Number.isFinite(msg.lightLevel.maxFall)) {
+      entry.lightLevel = msg.lightLevel;
+    }
     if (entry.smart) {
       handleSmartMessage(jobId, entry, msg);
       return;
@@ -453,6 +502,11 @@ export async function startExport(wc: WebContents, args: ExportStartArgs): Promi
       entry.queue = entry.queue
         .then(async () => {
           if (!entry.cfr) return;
+          // A frame of the wrong layout (RGBA into a raw 4:2:0 pipe or the reverse) would be encoded as garbage.
+          const expected = pipeFrameBytes(entry.exportArgs);
+          if (entry.exportArgs.rawYuv420 && expected !== undefined && buffer.byteLength !== expected) {
+            throw new Error(`Frame of ${buffer.byteLength} bytes does not match the raw 4:2:0 pipe (${expected} bytes).`);
+          }
           await entry.cfr.push(new Uint8Array(buffer), ts);
           port1.postMessage({ type: "credit", credits: 1 });
         })
@@ -471,13 +525,18 @@ export async function startExport(wc: WebContents, args: ExportStartArgs): Promi
   });
   port1.start();
 
-  wc.postMessage("openreel:export-port", { jobId }, [port2]);
+  wc.postMessage("openreel:export-port", { jobId, ...(exportArgs.rawYuv420 ? { rawYuv420: true } : {}) }, [port2]);
   jobs.set(jobId, entry);
   // A reload, crash or close of the owning renderer orphans the job: stop it.
   acquirePowerHold(jobId, wc, () => {
     void cancelExport({ jobId });
   });
-  return { jobId };
+  // No audio to wait for: the segment's encoder starts at once.
+  if (entry.segment) {
+    segmentRun?.jobIds.add(jobId);
+    startNativeExportJob(jobId, entry);
+  }
+  return { jobId, ...(exportArgs.rawYuv420 ? { rawYuv420: true } : {}) };
 }
 
 export async function writeAudioWav(args: { jobId: string; wav: ArrayBuffer }): Promise<void> {
@@ -562,15 +621,44 @@ function discardAudio(entry: JobEntry): void {
 function createJob(jobId: string, entry: JobEntry): ExportJob {
   const job = new ExportJob(
     entry.exportArgs,
-    (frame) => entry.port.postMessage({ type: "progress", frame }),
+    (frame) => {
+      entry.framesWritten = Math.max(entry.framesWritten, frame);
+      entry.port.postMessage({ type: "progress", frame });
+      if (entry.segment) segmentRuns.get(entry.segment.sessionId)?.progress(entry.segment.index, frame);
+    },
     () => {
-      entry.port.postMessage({ type: "done" });
-      cleanupJob(jobId);
+      if (entry.segment) {
+        try {
+          segmentRuns.get(entry.segment.sessionId)?.finished(entry.segment.index, entry.framesWritten);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          entry.port.postMessage({ type: "error", message });
+          segmentRuns.get(entry.segment.sessionId)?.fail(message);
+          cleanupJob(jobId);
+          return;
+        }
+      }
+      void writeMeasuredLightLevel(entry).finally(() => {
+        entry.port.postMessage({ type: "done" });
+        cleanupJob(jobId);
+      });
     },
     (msg) => handleJobError(jobId, entry, job, msg),
+    entry.segment ? buildSegmentArgs : undefined,
   );
   entry.job = job;
   return job;
+}
+
+/** HDR10 (PQ, libx265) exports: replace the declared content light level with the measured one. Never fails the export. */
+async function writeMeasuredLightLevel(entry: JobEntry): Promise<void> {
+  const { color, encoder, outputPath, codec } = entry.exportArgs;
+  if (!entry.lightLevel || color?.transfer !== "pq" || encoder !== "libx265" || (codec !== "hevc" && codec !== "h265")) return;
+  try {
+    await patchContentLightLevel(outputPath, entry.lightLevel);
+  } catch (error) {
+    console.warn("[export] could not write the measured MaxCLL / MaxFALL:", error);
+  }
 }
 
 function recordReplayFrame(entry: JobEntry, frame: Uint8Array): void {
@@ -599,14 +687,13 @@ function handleJobError(jobId: string, entry: JobEntry, failed: ExportJob, msg: 
     entry.queue = entry.queue.then(() => retryWithSoftware(jobId, entry, software));
     return;
   }
-  entry.port.postMessage({
-    type: "error",
-    message: hardwareFailure
-      ? entry.strictHardware
-        ? `${msg}\nThe hardware encoder ${encoder} failed on this system. Hardware was chosen explicitly, so OpenReel did not switch to software. Choose Auto or Software and export again.`
-        : hardwareFailureMessage(encoder, msg)
-      : msg,
-  });
+  const message = hardwareFailure
+    ? entry.strictHardware
+      ? `${msg}\nThe hardware encoder ${encoder} failed on this system. Hardware was chosen explicitly, so OpenReel did not switch to software. Choose Auto or Software and export again.`
+      : hardwareFailureMessage(encoder, msg)
+    : msg;
+  entry.port.postMessage({ type: "error", message });
+  if (entry.segment) segmentRuns.get(entry.segment.sessionId)?.fail(message);
   cleanupJob(jobId);
 }
 
@@ -674,11 +761,11 @@ function handleSmartMessage(
       .then(async () => {
         if (entry.cancelled) return;
         entry.finishDelivered = true;
-        const { outputPath, audioWavPath, audioBitrateKbps, dolby, format, captionInputs, startTimecode } = entry.exportArgs;
+        const { outputPath, audioWavPath, audioBitrateKbps, dolby, format, captionInputs, chaptersPath, startTimecode } = entry.exportArgs;
         // ProRes masters carry PCM like the normal export path writes (a ProRes smart export used to get AAC here).
         const pcm = usesPcmAudio(entry.exportArgs);
         await smart.assemble(
-          { audioWavPath, outputPath, audioCodec: pcm ? "pcm_s24le" : "aac", audioBitrateKbps: pcm ? undefined : audioBitrateKbps, dolby, format, captionInputs, startTimecode },
+          { audioWavPath, outputPath, audioCodec: pcm ? "pcm_s24le" : "aac", audioBitrateKbps: pcm ? undefined : audioBitrateKbps, dolby, format, captionInputs, chaptersPath, startTimecode },
           (frame) => entry.port.postMessage({ type: "progress", frame }),
         );
         if (entry.exportArgs.vr) await addSphericalMetadataToFile(outputPath, entry.exportArgs.vr);

@@ -10,3 +10,5 @@ export * from "./stem-export";
 export * from "./zip";
 export * from "./gif-encoder";
 export * from "./image-sequence";
+export * from "./segment-plan";
+export * from "./yuv420-sdr";

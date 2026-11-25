@@ -9,7 +9,7 @@ import { moveLinkedCaptions } from "../../../utils/linked-caption-edit";
 import React, { useRef, useState, useEffect, useCallback } from "react";
 import { flushSync } from "react-dom";
 import { ContextMenu, ContextMenuTrigger } from "@openreel/ui";
-import { Box, Image, Layers } from "@/icons/lucide-compat";
+import { Box, Group, Image, Layers } from "@/icons/lucide-compat";
 import { getCompoundClipId, type Clip, type Track, type TransitionType } from "@openreel/core";
 import { computeLaneInfos, type ClipLaneInfo } from "./clip-lane-info";
 import { useProjectStore } from "../../../stores/project-store";
@@ -17,6 +17,7 @@ import { ClipMarkerFlags } from "./ClipMarkerFlags";
 import { useUIStore } from "../../../stores/ui-store";
 import { useEditPointStore } from "../../../stores/edit-point-store";
 import { selectEditPoint } from "../../../services/edit-point-commands";
+import { openTrimMonitor } from "../../../services/trim-monitor";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import {
   calculateSnap,
@@ -183,6 +184,12 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
     // A trim drag also ends in a click; only a click without movement selects.
     if (Math.abs(e.clientX - trimStartRef.current.mouseX) > 3) return;
     selectEditPoint(clip.id, edge, { toggleKind: e.metaKey || e.ctrlKey });
+  };
+  // Double-clicking an edit point opens the Trim Monitor on it.
+  const handleEditPointDoubleClick = (edge: "left" | "right") => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    selectEditPoint(clip.id, edge);
+    openTrimMonitor();
   };
   // Snapshot of every additional selected clip at drag start. Multi-clip
   // drag applies the same time delta to each entry so they stay locked
@@ -1028,6 +1035,7 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
           data-timeline-clip
           data-timeline-item-id={clip.id}
           data-clip-label={clipLabel?.id ?? "none"}
+          data-clip-group={clip.groupId}
           data-clip-kind={isAudio ? "audio" : isImage ? "image" : "video"}
           data-timeline-interacting={Boolean(isInteracting)}
           data-applying-effect={isApplyingEffect}
@@ -1080,6 +1088,11 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
       {isSelected && !track.locked && <TimelineTouchMoveHandle label={`Move ${clipName}`} onPointerDown={(event) => touchGesture.start(event, handleMouseDown)} />}
       <RemoteClipSelection clipId={clip.id} />
       {isSelected && <span className="mobile-clip-duration">{clip.duration.toFixed(1)}s</span>}
+      {clip.groupId && (
+        <span data-testid="clip-group-indicator" title="Grouped clip: selects, moves and deletes with its group" className="pointer-events-none absolute right-1 top-[6px] z-20 flex h-3.5 w-3.5 items-center justify-center rounded-[3px] bg-black/55 text-white">
+          <Group size={10} aria-hidden />
+        </span>
+      )}
       {clipLabel && <div data-testid="clip-label-bar" className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[4px]" style={{ backgroundColor: clipLabel.color }} />}
       {isApplyingEffect && (
         <>
@@ -1293,6 +1306,7 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
             } ${editPointEdge === "left" ? (editPointKind === "roll" ? "bg-amber-400" : "bg-red-500") : isSelected ? "bg-primary" : isAudio ? "hover:bg-blue-400/50" : isVideo ? "hover:bg-green-400/50" : "hover:bg-primary/50"}`}
             style={{ borderRadius: "6px 0 0 6px" }}
             onClick={handleEditPointClick("left")}
+            onDoubleClick={handleEditPointDoubleClick("left")}
           >
             {isSelected && (
               <div className="w-0.5 h-3 bg-primary-foreground/80 rounded-full" />
@@ -1309,6 +1323,7 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
             } ${editPointEdge === "right" ? (editPointKind === "roll" ? "bg-amber-400" : "bg-red-500") : isSelected ? "bg-primary" : isAudio ? "hover:bg-blue-400/50" : isVideo ? "hover:bg-green-400/50" : "hover:bg-primary/50"}`}
             style={{ borderRadius: "0 6px 6px 0" }}
             onClick={handleEditPointClick("right")}
+            onDoubleClick={handleEditPointDoubleClick("right")}
           >
             {isSelected && (
               <div className="w-0.5 h-3 bg-primary-foreground/80 rounded-full" />
@@ -1331,6 +1346,18 @@ function liveTrackFor(track: Track): Track {
 
 type ClipProps = React.ComponentProps<typeof ClipComponentImpl>;
 
+/** Whether the thumbnail and waveform-bar windows a clip draws are identical under the previous and next scroll. */
+function decorationRangesEqual(prev: ClipProps, next: ClipProps): boolean {
+  const left = next.clip.startTime * next.pixelsPerSecond;
+  const width = next.clip.duration * next.pixelsPerSecond;
+  const counts = [Math.max(1, Math.floor(width / 60)), Math.max(1, Math.floor((width - 8) / 3))];
+  return counts.every((count) => {
+    const a = getVisibleRepeatRange(left, width, prev.scrollX, prev.viewportWidth, count);
+    const b = getVisibleRepeatRange(left, width, next.scrollX, next.viewportWidth, count);
+    return a.start === b.start && a.end === b.end;
+  });
+}
+
 /**
  * With `laneInfo` supplied the lane has already folded every cross-clip input into
  * primitives, so the track list identity and the track's clip array (both replaced by
@@ -1339,8 +1366,16 @@ type ClipProps = React.ComponentProps<typeof ClipComponentImpl>;
 function areClipPropsEqual(prev: ClipProps, next: ClipProps): boolean {
   const lane = next.laneInfo !== undefined && next.getAllTracks !== undefined;
   const keys = new Set([...Object.keys(prev), ...Object.keys(next)]) as Set<keyof ClipProps>;
+  let sameDecorations: boolean | null = null;
   for (const key of keys) {
     if (Object.is(prev[key], next[key])) continue;
+    if (key === "scrollX" || key === "viewportWidth") {
+      // The scroll position only decides which thumbnails / waveform bars are drawn. A clip whose drawn ranges are
+      // unchanged (every clip that is fully in view, or fully out of the lookahead, on this scroll step) skips the render.
+      sameDecorations ??= decorationRangesEqual(prev, next);
+      if (sameDecorations) continue;
+      return false;
+    }
     if (lane && key === "allTracks") continue;
     if (lane && key === "track") {
       const a = prev.track;

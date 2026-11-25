@@ -1,3 +1,10 @@
+import type {
+  ReframeMotionPreset,
+  ReframeSubjectMode,
+  SubjectBox,
+} from "./subject-reframe";
+import { pickDominantSubject } from "./subject-reframe";
+
 export type AspectRatioPreset =
   | "16:9"
   | "9:16"
@@ -133,6 +140,10 @@ export interface ReframeKeyframe {
 }
 
 export interface ReframeSettings {
+  /** Subject source: "person" uses the person matte, "auto" also falls back to the colour heuristic. */
+  subjectMode: ReframeSubjectMode;
+  /** How eagerly the crop follows the subject. */
+  motion: ReframeMotionPreset;
   targetAspectRatio: AspectRatioPreset;
   customRatio?: number;
   trackingSpeed: number;
@@ -143,6 +154,8 @@ export interface ReframeSettings {
 }
 
 export const DEFAULT_REFRAME_SETTINGS: ReframeSettings = {
+  subjectMode: "auto",
+  motion: "default",
   targetAspectRatio: "9:16",
   trackingSpeed: 0.5,
   padding: 0.1,
@@ -181,6 +194,23 @@ class AutoReframeEngine {
 
   isInitialized(): boolean {
     return this.initialized;
+  }
+
+  /**
+   * Skin-colour fallback used when person segmentation is unavailable. Returns the
+   * dominant region as a normalized box.
+   */
+  detectSubjectHeuristic(frame: ImageBitmap): SubjectBox | null {
+    if (!this.initialized) return null;
+    const regions = this.detectFacesSimple(frame);
+    const boxes = regions.map((r) => ({
+      cx: (r.x + r.width / 2) / frame.width,
+      cy: (r.y + r.height / 2) / frame.height,
+      width: r.width / frame.width,
+      height: r.height / frame.height,
+      area: (r.width * r.height) / (frame.width * frame.height),
+    }));
+    return pickDominantSubject(boxes);
   }
 
   async analyzeClip(

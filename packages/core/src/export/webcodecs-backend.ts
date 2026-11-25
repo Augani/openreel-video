@@ -6,10 +6,11 @@ import {
   type OutputColorSpec,
 } from "./color-output";
 import { takeHdrPayload } from "../color/hdr-payload";
-import { CODEC_MAP, type VideoExportSettings, type AudioExportSettings, type ExportError } from "./types";
+import { CODEC_MAP, type VideoExportSettings, type ExportError } from "./types";
 import type { Project } from "../types/project";
 import type { EncoderBackend, SmartRenderMuxer } from "./encoder-backend";
 import { descriptionBytes, parameterSetKey, parseAvcC, prependParameterSets, type AvcParameterSets } from "./avc-config";
+import { browserAudioCodec } from "./browser-audio-codec";
 import { getAacEncoderPriming } from "./audio-priming";
 import { DOLBY_VIDEO_DESKTOP_ONLY_REASON, isDolbyFormat } from "./dolby";
 import { applyMp4AudioTiming, applyMovChannelLayout } from "./mp4-audio-timing";
@@ -63,6 +64,8 @@ export class WebCodecsBackend implements EncoderBackend {
   private tagMovChannelLayout = false;
   /** Six-channel AAC: the channel order the browser's encoder reads (see aac-surround-order.ts). Null = pass buffers through. */
   private aacInputOrder: readonly number[] | null = null;
+  private chapterMarkers: Project["timeline"]["markers"] = [];
+  private chapterRange: VideoExportSettings["range"];
   private movieMetadata: { bytes: Uint8Array; position: number } | null = null;
   /** VR sequence in an MP4 / MOV: the trailing moov gets st3d / sv3d spherical metadata so players treat the file as 360. */
   private sphericalVr: VrProperties | null = null;
@@ -143,7 +146,6 @@ export class WebCodecsBackend implements EncoderBackend {
       VideoSampleSource,
       AudioBufferSource,
       getFirstEncodableVideoCodec,
-      getFirstEncodableAudioCodec,
       QUALITY_MEDIUM,
     } = this.mediabunny;
 
@@ -163,6 +165,9 @@ export class WebCodecsBackend implements EncoderBackend {
     this.audioSampleRate = settings.audioSettings.sampleRate;
     this.tagMovChannelLayout = settings.format === "mov" && settings.audioSettings.channels === 6;
     this.movieMetadata = null;
+    this.chapterMarkers = settings.embedChapters && (settings.format === "mp4" || settings.format === "mov")
+      ? project.timeline.markers.filter((marker) => marker.kind === "chapter") : [];
+    this.chapterRange = settings.range;
     this.sphericalVr = (settings.format === "mp4" || settings.format === "mov") && isVrProperties(project.settings.vr) ? normalizeVrProperties(project.settings.vr) : null;
     this.submittedVideoFrames = 0;
     this.encodedVideoFrames = 0;
@@ -234,21 +239,24 @@ export class WebCodecsBackend implements EncoderBackend {
     }
 
     const hasAudio = project.timeline.tracks.some((track) => trackHasAudioItems(project, track.id));
-    const audioCodecResult = hasAudio ? await this.findSupportedAudioCodec(
-      outputFormat,
-      settings.audioSettings,
-      getFirstEncodableAudioCodec,
-    ) : null;
+    const audioCodecResult = hasAudio
+      ? await browserAudioCodec(this.mediabunny, settings, outputFormat.getSupportedAudioCodecs())
+      : null;
+    if (hasAudio && !audioCodecResult) {
+      throw { code: "UNSUPPORTED_CODEC", message: `Cannot encode audio for ${settings.format.toUpperCase()} with these settings.`, phase: "preparing", recoverable: true } satisfies ExportError;
+    }
 
     if (audioCodecResult?.codec === "aac" && settings.format !== "webm") {
-      this.audioPriming = await getAacEncoderPriming(this.mediabunny, {
+      // The bundled FFmpeg AAC-LC encoder primes one 1024-sample frame. It
+      // accepts standard PCM channel order even on systems with no AAC decoder.
+      this.audioPriming = audioCodecResult.softwareAac ? 1024 : await getAacEncoderPriming(this.mediabunny, {
         sampleRate: settings.audioSettings.sampleRate,
         channels: settings.audioSettings.channels,
         bitrate: audioCodecResult.bitrate,
       });
     }
 
-    this.aacInputOrder = audioCodecResult?.codec === "aac" && settings.audioSettings.channels === 6
+    this.aacInputOrder = audioCodecResult?.codec === "aac" && !audioCodecResult.softwareAac && settings.audioSettings.channels === 6
       ? await resolveAacSurroundOrder(this.mediabunny, settings.audioSettings.sampleRate, audioCodecResult.bitrate)
       : null;
 
@@ -311,7 +319,8 @@ export class WebCodecsBackend implements EncoderBackend {
     });
     const packetSource = this.smartEnabled ? new this.mediabunny.EncodedVideoPacketSource("avc") : null;
     const audioSource = audioCodecResult ? new AudioBufferSource({
-      codec: audioCodecResult.codec as "aac" | "opus" | "mp3",
+      codec: audioCodecResult.codec,
+      ...(audioCodecResult.codec === "aac" ? { fullCodecString: "mp4a.40.2" } : {}),
       bitrate: audioCodecResult.bitrate,
     }) : null;
     output.addVideoTrack((videoSource ?? packetSource)!);
@@ -462,7 +471,7 @@ export class WebCodecsBackend implements EncoderBackend {
       throw new Error(`The video encoder produced ${this.encodedVideoFrames} of ${this.submittedVideoFrames} frames. Retry with a lower resolution or a different codec.`);
     }
     const patchAudio = (this.audioPriming !== null || this.tagMovChannelLayout) && this.audioFrameCount > 0;
-    if (patchAudio || this.sphericalVr) {
+    if (patchAudio || this.sphericalVr || this.chapterMarkers.length) {
       if (!this.movieMetadata || !this.writableStream) throw new Error("MP4 movie metadata was not written.");
       const { bytes, position } = this.movieMetadata;
       let corrected = patchAudio && this.audioPriming !== null
@@ -474,9 +483,14 @@ export class WebCodecsBackend implements EncoderBackend {
         const { applySphericalToMoov } = await import("./spherical-metadata");
         corrected = applySphericalToMoov(corrected, this.sphericalVr);
       }
+      const chunks = this.chapterMarkers.length
+        ? (await import("./mp4-chapters")).addChapterTrack(corrected, position, this.chapterMarkers, this.chapterRange)
+        : [corrected];
       await this.writableStream.seek(position);
-      await this.writableStream.write(corrected as unknown as FileSystemWriteChunkType);
-      this.bytesWritten += corrected.byteLength;
+      for (const chunk of chunks) {
+        await this.writableStream.write(chunk as unknown as FileSystemWriteChunkType);
+        this.bytesWritten += chunk.byteLength;
+      }
     }
     await this.writableStream?.close();
   }
@@ -667,95 +681,6 @@ export class WebCodecsBackend implements EncoderBackend {
       return copied;
     } finally {
       input.dispose();
-    }
-  }
-
-  private async findSupportedAudioCodec(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    outputFormat: { getSupportedAudioCodecs: () => any[] },
-    audioSettings: AudioExportSettings,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    getFirstEncodableAudioCodec: (codecs: any[]) => Promise<string | null>,
-  ): Promise<{ codec: string; bitrate: number }> {
-    const supportedCodecs = outputFormat.getSupportedAudioCodecs();
-    const requestedBitrate = audioSettings.bitrate * 1000;
-
-    const bitrateFallbacks = [requestedBitrate, 192000, 128000, 96000].filter(
-      (b, i, arr) => arr.indexOf(b) === i,
-    );
-
-    for (const bitrate of bitrateFallbacks) {
-      const codec = await getFirstEncodableAudioCodec(supportedCodecs);
-      if (codec) {
-        const isSupported = await this.isAudioConfigSupported(
-          codec,
-          bitrate,
-          audioSettings.channels,
-          audioSettings.sampleRate,
-        );
-        if (isSupported) {
-          return { codec, bitrate };
-        }
-      }
-    }
-
-    for (const fallbackCodec of ["aac", "mp3", "opus"]) {
-      if (
-        supportedCodecs.some((c: string) =>
-          String(c).toLowerCase().includes(fallbackCodec) ||
-          (fallbackCodec === "aac" && String(c).toLowerCase().includes("mp4a")),
-        )
-      ) {
-        for (const bitrate of bitrateFallbacks) {
-          const isSupported = await this.isAudioConfigSupported(
-            fallbackCodec,
-            bitrate,
-            audioSettings.channels,
-            audioSettings.sampleRate,
-          );
-          if (isSupported) {
-            return { codec: fallbackCodec, bitrate };
-          }
-        }
-      }
-    }
-
-    throw { code: "UNSUPPORTED_CODEC", message: `No supported audio encoder for ${outputFormat.constructor.name}. Try WebM or another browser.`, phase: "preparing", recoverable: true } satisfies ExportError;
-  }
-
-  private async isAudioConfigSupported(
-    codec: string,
-    bitrate: number,
-    channels: number,
-    sampleRate: number,
-  ): Promise<boolean> {
-    if (typeof AudioEncoder === "undefined") {
-      return true;
-    }
-
-    try {
-      let codecString: string;
-      if (codec === "aac" || codec.includes("mp4a")) {
-        codecString = "mp4a.40.2";
-      } else if (codec === "opus") {
-        codecString = "opus";
-      } else if (codec === "mp3") {
-        codecString = "mp3";
-      } else {
-        codecString = codec;
-      }
-
-      const config: AudioEncoderConfig = {
-        codec: codecString,
-        sampleRate,
-        numberOfChannels: channels,
-        bitrate,
-      };
-
-      const support = await AudioEncoder.isConfigSupported(config);
-      return support.supported === true;
-    } catch {
-      return false;
     }
   }
 }

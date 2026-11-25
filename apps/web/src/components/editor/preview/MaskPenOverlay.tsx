@@ -30,8 +30,10 @@ import {
   beginMaskGesture,
   commitMaskEdit,
   commitNewMask,
+  currentMaskTime,
   type MaskGesture,
 } from "../../../services/mask-pen";
+import { displayPathOf, storedPathOf } from "../../../services/object-mask";
 
 /** Pointer hit radii in CSS pixels, constant at every Program zoom. */
 const VERTEX_HIT = 9;
@@ -88,6 +90,8 @@ function MaskPenOverlayArmed({ disabled = false }: { disabled?: boolean }) {
     maskId ? (s.project.masks ?? []).find((m) => m.id === maskId && m.clipId === clipId) : undefined,
   );
   const playhead = useTimelineStore((s) => s.playheadPosition);
+  // A stabilized clip moves its source-space masks with the warp, so the outline is redrawn when the warp changes.
+  const stabilization = useProjectStore((s) => (clipId ? s.project.timeline.tracks.flatMap((t) => t.clips).find((c) => c.id === clipId)?.stabilization : undefined));
 
   const rootRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<Drag | null>(null);
@@ -138,8 +142,8 @@ function MaskPenOverlayArmed({ disabled = false }: { disabled?: boolean }) {
   }, [active, setDraftBoth]);
 
   const shownPath: BezierPath | null = useMemo(
-    () => live ?? (mask ? maskPathAtTime(mask, playhead) : null),
-    [live, mask, playhead],
+    () => live ?? (mask && clipId ? displayPathOf(clipId, mask, playhead) : mask ? maskPathAtTime(mask, playhead) : null),
+    [live, mask, clipId, playhead, stabilization],
   );
 
   const toNorm = useCallback((e: { clientX: number; clientY: number }): { n: MaskPoint; px: MaskPoint } => {
@@ -218,7 +222,7 @@ function MaskPenOverlayArmed({ disabled = false }: { disabled?: boolean }) {
     const path = shownPath;
     if (!path) return;
     const hit = hitTest(px, n, path);
-    const begin = () => beginMaskGesture(clipId, maskId);
+    const begin = () => beginMaskGesture(clipId, maskId, mask ? storedPathOf(clipId, mask, currentMaskTime()) : undefined);
 
     if (hit.kind === "handle") {
       const gesture = begin();

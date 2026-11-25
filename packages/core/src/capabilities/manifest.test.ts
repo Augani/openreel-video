@@ -101,8 +101,8 @@ describe("CAPABILITY_MANIFEST superseded legacy effects", () => {
 });
 
 describe("CAPABILITY_MANIFEST premiere parity", () => {
-  it("lists all fifty-six pro effects with valid numeric ranges and neutral values", () => {
-    expect(CAPABILITY_MANIFEST.proEffects).toHaveLength(56);
+  it("lists all sixty-one pro effects with valid numeric ranges and neutral values", () => {
+    expect(CAPABILITY_MANIFEST.proEffects).toHaveLength(61);
     for (const effect of CAPABILITY_MANIFEST.proEffects) {
       expect(effect.params.length).toBeGreaterThan(0);
       for (const param of effect.params) {

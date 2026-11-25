@@ -1,15 +1,16 @@
 import type { AudioBus, AudioSend, AutomationPoint, Timeline, Track } from "../types/timeline";
 import { scheduleVolumeAutomationOnGain } from "./clip-volume-automation";
 import { schedulePanAutomationOnParam } from "./clip-pan-automation";
-import { hasTrackAutomation } from "./track-automation";
+import { effectiveTrackAutomation, hasEffectiveTrackAutomation, trackAutomationMode } from "./track-automation-modes";
 import {
   computeBusAudibility,
   getAudioBuses,
   resolveOutputBusId,
   SEND_MAX_LEVEL,
 } from "./audio-routing";
-import { createRackBus, rackHasProcessing, rackPan, rackVolume, type RackBusLike } from "./track-audio-rack";
+import { createRackBus, rackHasAutomation, rackHasProcessing, rackPan, rackVolume, type RackBusLike } from "./track-audio-rack";
 import { planTimelineDelayCompensation, type PdcPlan } from "./effect-latency";
+import { busOwnerId, trackOwnerId, type SidechainKeyHub } from "./sidechain";
 
 /** Longest compensation delay a graph will insert (seconds). Real chains are tens of ms. */
 const MAX_PDC_SECONDS = 2;
@@ -128,6 +129,8 @@ export interface RoutingGraphOptions {
   readonly getTimelineTime?: () => number;
   /** Live only: how far ahead (seconds) automation is scheduled. */
   readonly getHorizon?: () => number;
+  /** Sidechain keys: bus racks get their compressors' keys from this hub and every bus publishes its output to it. */
+  readonly sidechain?: SidechainKeyHub;
   /** Offline only: the rendered window (context time 0 = `timelineStart`). */
   readonly window?: { readonly timelineStart: number; readonly duration: number };
 }
@@ -254,7 +257,12 @@ export class AudioRoutingGraph {
 
   private createBus(bus: AudioBus): void {
     const input = this.ctx.createGain();
-    const rackBus = createRackBus(this.ctx, bus.rack, { live: this.options.live, surround: this.options.surround });
+    const hub = this.options.sidechain;
+    const rackBus = createRackBus(this.ctx, bus.rack, {
+      live: this.options.live,
+      surround: this.options.surround,
+      sidechain: hub ? { hub, ownerId: busOwnerId(bus.id) } : undefined,
+    });
     const pan = this.options.surround ? this.ctx.createGain() : this.ctx.createStereoPanner();
     const fader = this.ctx.createGain();
     const insert = this.busInserts.get(bus.id);
@@ -264,6 +272,8 @@ export class AudioRoutingGraph {
     } else input.connect(rackBus.input);
     rackBus.output.connect(pan);
     pan.connect(fader);
+    if (hub?.isKeySource(busOwnerId(bus.id))) hub.publish(busOwnerId(bus.id), fader);
+    if (this.anchor) rackBus.anchorTimeline?.(this.anchor.timelineStart, this.anchor.ctxStart);
     this.buses.set(bus.id, { id: bus.id, input, rackBus, pan, fader, connectedTo: null, pdc: null, bus });
   }
 
@@ -378,6 +388,17 @@ export class AudioRoutingGraph {
     return audible ? rackVolume(nodes.bus.rack) : 0;
   }
 
+  /** Re-applies every bus rack (a sidechain key may have become legal or illegal without any param changing). */
+  refreshRacks(): void {
+    const hub = this.options.sidechain;
+    for (const nodes of this.buses.values()) {
+      const key = busOwnerId(nodes.id);
+      if (hub?.isKeySource(key)) hub.publish(key, nodes.fader);
+      else hub?.unpublish(key, nodes.fader);
+      nodes.rackBus.update(nodes.bus.rack);
+    }
+  }
+
   /** Pushes bus racks, pan, fader, mute/solo and send levels without rebuilding. */
   private updateParams(): void {
     const buses = getAudioBuses(this.timeline);
@@ -454,6 +475,7 @@ export class AudioRoutingGraph {
   scheduleAutomation(timelineStart: number, duration: number, ctxStart: number): void {
     const previous = this.anchor;
     this.anchor = { timelineStart, duration: Math.max(0.001, duration), ctxStart };
+    for (const nodes of this.buses.values()) nodes.rackBus.anchorTimeline?.(timelineStart, ctxStart);
     this.updateParams();
     this.anchor = previous;
   }
@@ -463,6 +485,7 @@ export class AudioRoutingGraph {
     for (const pdc of this.trackOutputs.values()) pdc.dispose(false);
     this.trackOutputs.clear();
     for (const nodes of this.buses.values()) {
+      this.options.sidechain?.unpublish(busOwnerId(nodes.id), nodes.fader);
       nodes.pdc?.dispose(false);
       nodes.rackBus.dispose();
       for (const node of [nodes.input, nodes.pan, nodes.fader]) {
@@ -491,7 +514,7 @@ export class AudioRoutingGraph {
 export function buildOfflineTrackChain(
   ctx: BaseAudioContext,
   routing: AudioRoutingGraph | null,
-  track: Pick<Track, "id" | "audioRack" | "output" | "sends" | "automation">,
+  track: Pick<Track, "id" | "audioRack" | "output" | "sends" | "automation" | "automationMode">,
   masterIn: AudioNode,
   /** Plugin delay compensation (s) for a track that plays straight into the master (no routing graph). */
   masterDelaySeconds = 0,
@@ -499,29 +522,37 @@ export function buildOfflineTrackChain(
   surround = false,
   /** The rendered window (context time 0 = `timelineStart`); needed to place track automation. */
   window?: { readonly timelineStart: number; readonly duration: number },
+  /** Sidechain keys: the track's compressors listen through this hub, and the track publishes its output when something keys on it. */
+  keys?: SidechainKeyHub,
 ): AudioNode | undefined {
   const rack = track.audioRack;
-  const automated = hasTrackAutomation(track) && !!window;
+  const isKeySource = !!keys && keys.isKeySource(trackOwnerId(track.id));
+  const lanes = effectiveTrackAutomation(track);
+  const automated = hasEffectiveTrackAutomation(track) && !!window;
+  const rackAutomated = rackHasAutomation(rack) && trackAutomationMode(track) !== "off" && !!window;
   const routed = !!routing && (routing.outputFor(track.output) !== masterIn || (track.sends?.length ?? 0) > 0);
   const hasRack = !!rack && (rackHasProcessing(rack) || rackVolume(rack) !== 1 || (!surround && rackPan(rack) !== 0));
   const compensated = masterDelaySeconds > 0 || (!!routing && routing.getTrackDelaySeconds(track.id) > 0);
-  if (!routed && !hasRack && !compensated && !automated) return undefined;
-  const bus = createRackBus(ctx, rack, { live: false, surround });
+  if (!routed && !hasRack && !compensated && !automated && !isKeySource) return undefined;
+  const bus = createRackBus(ctx, rack, { live: false, surround, sidechain: keys ? { hub: keys, ownerId: trackOwnerId(track.id) } : undefined });
+  if (window) bus.anchorTimeline?.(window.timelineStart, 0);
+  if (rackAutomated && window) bus.scheduleAutomation?.(window.timelineStart, window.duration, 0);
   const pan = surround ? ctx.createGain() : ctx.createStereoPanner();
   if ("pan" in pan) pan.pan.value = rackPan(rack);
   const volume = ctx.createGain();
   volume.gain.value = rackVolume(rack);
   if (automated && window) {
     // The lanes replace the rack fader / pan while they play; the rack values hold before the first point.
-    if (track.automation?.volume?.length) {
-      scheduleVolumeAutomationOnGain(volume, track.automation.volume, rackVolume(rack), window.timelineStart, window.duration, 0);
+    if (lanes?.volume?.length) {
+      scheduleVolumeAutomationOnGain(volume, lanes.volume, rackVolume(rack), window.timelineStart, window.duration, 0);
     }
-    if (track.automation?.pan?.length && "pan" in pan) {
-      schedulePanAutomationOnParam(pan.pan, track.automation.pan, rackPan(rack), window.timelineStart, window.duration, 0);
+    if (lanes?.pan?.length && "pan" in pan) {
+      schedulePanAutomationOnParam(pan.pan, lanes.pan, rackPan(rack), window.timelineStart, window.duration, 0);
     }
   }
   bus.output.connect(pan);
   pan.connect(volume);
+  if (isKeySource) keys?.publish(trackOwnerId(track.id), volume);
   if (routing) routing.connectTrackOutput(track.id, volume, track.output);
   else if (masterDelaySeconds > 0) {
     const delay = ctx.createDelay(MAX_PDC_SECONDS);

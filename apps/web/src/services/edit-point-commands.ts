@@ -7,7 +7,6 @@ import {
   isGapValid,
   markClipRange,
   planDeleteGap,
-  planEditPointTrim,
   toggleEditPointKind,
   NUDGE_FRAMES,
   NUDGE_FRAMES_LARGE,
@@ -16,9 +15,8 @@ import {
 import { useProjectStore } from "../stores/project-store";
 import { useTimelineStore } from "../stores/timeline-store";
 import { useUIStore } from "../stores/ui-store";
-import { useEditorWorkspaceStore } from "../stores/editor-workspace-store";
 import { useEditPointStore } from "../stores/edit-point-store";
-import { getLinkedTimelineSelection } from "../utils/linked-timeline-selection";
+import { planSelectedEditTrim } from "./trim-monitor-plan";
 import { commitNudgePlan } from "./timeline-tool-nudge";
 import { commit, getMarkedRange, getTargetedTrackIds, type CommandOutcome } from "./premiere-edit-commands";
 
@@ -88,14 +86,7 @@ export function trimSelectedEditPoint(frames: number, burst = true): CommandOutc
     return fail("The selected edit point no longer exists.");
   }
   try {
-    const plan = planEditPointTrim(project, {
-      clipId: selection.clipId,
-      edge: selection.edge,
-      frames,
-      kind: selection.kind,
-      linkedIds: getLinkedTimelineSelection(project, [selection.clipId], useEditorWorkspaceStore.getState().linkedSelection)
-        .filter((id) => id !== selection.clipId),
-    });
+    const plan = planSelectedEditTrim(project, selection, frames);
     if (!plan.edits.length) return fail("The edit point cannot move that way (source handle, neighbour or one-frame minimum).");
     const result = burst ? commitNudgePlan(plan) : store.commitTimelineToolEdit(plan);
     if (!result.success) return fail(result.error?.message ?? "The trim could not be applied.");

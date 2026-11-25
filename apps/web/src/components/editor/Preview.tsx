@@ -1,6 +1,9 @@
 import { selectVoiceOverPlaybackMuted, useVoiceOverStore } from "../../services/voiceover/voiceover-recorder";
+import { followWarpFootage } from "../../services/warp-footage";
+import { consumedMaskId } from "@openreel/core/video/content-aware-fill/apply";
 import { clipNeedsFrameProcessing, preparePreviewFrame, renderOverlayLayerWithEffects } from "./preview/frame-processing";
 import { inputTransformForClip } from "./preview/clip-input-transform";
+import { masksForStabilizedFrame } from "./preview/stabilized-masks";
 import { usePhoneEditor } from "../../hooks/usePhoneEditor";
 import { MobilePreviewTransport } from "./mobile/MobilePreviewTransport";
 import { Button as ShadcnButton, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuCheckboxItem, DropdownMenuSeparator, DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from "@openreel/ui";
@@ -10,6 +13,7 @@ import { notifyPreviewDeviceLoss, registerProgramRenderer } from "./preview/devi
 import { ProgramMonitorOverlays } from "./preview/ProgramMonitorOverlays";
 import { useVrViewStore } from "../../stores/vr-view-store";
 import { DynamicTrimTwoUp } from "./preview/DynamicTrimTwoUp";
+import { TrimMonitor } from "./preview/TrimMonitor";
 import { MotionTrackingOverlay } from "./preview/MotionTrackingOverlay";
 import { PlanarTrackOverlay } from "./preview/PlanarTrackOverlay";
 import { CornerPinOverlay } from "./preview/CornerPinOverlay";
@@ -38,6 +42,7 @@ import {
   VolumeX,
 } from "@/icons/lucide-compat";
 import { cn } from "@openreel/ui";
+import { SequenceColorSpaceMenu } from "./preview/SequenceColorSpaceMenu";
 import { useProjectStore } from "../../stores/project-store";
 import { currentBurnInSource } from "../../utils/burn-in-source";
 import { useEditPointStore } from "../../stores/edit-point-store";
@@ -92,7 +97,7 @@ import {
   AdjustmentLayerSchedule,
   planAdjustmentLayers,
   trackHasAdjustableContent,
-  type BlendMode,
+  drawImageWithBlend,
   type MediaItem,
   getTrackTransitionAudioFades,
   resolveCanvasFitDimensions,
@@ -129,6 +134,8 @@ import {
   drawFrameWithTransform,
   drawFrameWithMasks,
   applyEffectsToFrame,
+  effectMaskBaseFor,
+  clipHasEffectMasks,
   getTransitionAtTime,
   setImageLoadCallback,
   disposePreview3DRenderer,
@@ -152,6 +159,8 @@ import { previewFrameSize as fitPreviewFrame, previewViewportSize } from "./prev
 import { PreviewTransformControls } from "./preview/PreviewTransformControls";
 import { TextInPlaceEditor } from "./preview/TextInPlaceEditor";
 import { MaskPenButton } from "./preview/MaskPenButton";
+import { ObjectMaskButton } from "./preview/ObjectMaskButton";
+import { ObjectMaskOverlay } from "./preview/ObjectMaskOverlay";
 import { ProxyToggleButton } from "./preview/ProxyToggleButton";
 
 import { useMaskPenStore } from "../../stores/mask-pen-store";
@@ -162,7 +171,7 @@ import { DecoderRefusals, admitDecoder, decoderLimitActive, decoderLimitMessage,
 import { proxiesOn, queueProxies } from "../../services/proxy-ingest";
 import { captureNativeVideoFrame, decodeFrameWithWebCodecs } from "./preview/video-frame";
 import { cacheProjectPreview } from "../../services/project-preview-cache";
-import { seekVideoFrame, waitForVideoMetadata } from "./preview/native-video-ready";
+import { pausedSeekTime, seekVideoFrame, waitForVideoMetadata } from "./preview/native-video-ready";
 import { ScrubFrameCache, blobIdentity, scrubCacheSize, scrubFrameKey } from "./preview/scrub-frame-cache";
 import { getSeekAnchorService } from "./preview/seek-anchor-service";
 import { createScrubVideoReleaser } from "./preview/scrub-video-release";
@@ -178,6 +187,7 @@ import {
   withBurnInText,
   createMotionAwareOcclusionMask,
   getStabilizedTransform,
+  clipHasWarp,
   getVidstabEngine,
   frameConformFor,
   clipHasTemporalEffects,
@@ -237,14 +247,6 @@ interface GPULayer {
 
 type PreviewClip = Track["clips"][number];
 type PreviewFrameSource = Parameters<typeof drawFrameWithTransform>[1];
-type PreviewCompositeOperation =
-  CanvasRenderingContext2D["globalCompositeOperation"];
-
-const adjustmentBlendOperation = (mode: BlendMode): PreviewCompositeOperation =>
-  mode === "add" || mode === "linear-dodge"
-    ? "lighter"
-    : (mode as PreviewCompositeOperation);
-
 const applyPreviewAdjustmentLayers = async (
   canvas: OffscreenCanvas,
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
@@ -272,8 +274,7 @@ const applyPreviewAdjustmentLayers = async (
       if (processed.width <= 0 || processed.height <= 0) continue;
       ctx.save();
       ctx.globalAlpha = Math.max(0, Math.min(1, layer.opacity));
-      ctx.globalCompositeOperation = adjustmentBlendOperation(layer.blendMode);
-      ctx.drawImage(processed, 0, 0, canvas.width, canvas.height);
+      drawImageWithBlend(ctx, processed, layer.blendMode, canvas.width, canvas.height);
       ctx.restore();
       applied = true;
     } catch (error) {
@@ -289,6 +290,8 @@ const applyPreviewAdjustmentLayers = async (
 const clipCssFilterOnly = (clipId: string, clip?: Partial<Pick<Clip, "keyframes">>): string | null => {
   if (clip && hasAnimatedVideoEffects(clip)) return null;
   if (inputTransformForClip(clipId)) return null;
+  // Effect masks need the processed picture as a bitmap next to the raw one, not a CSS filter on the draw.
+  if (clipHasEffectMasks(clipId)) return null;
   const bgEngine = getBackgroundRemovalEngine();
   if (bgEngine?.isInitialized() && bgEngine.getSettings(clipId).enabled) {
     return null;
@@ -315,6 +318,8 @@ const scaleTransformPositionForPreview = (
     },
   };
 };
+
+followWarpFootage();
 
 const applyStabilizationTransform = (
   clip: Track["clips"][number],
@@ -431,10 +436,15 @@ const drawBlurredBackdrop = (
   ctx.restore();
 };
 
-/** True when the project is in ACES colour management: the Program monitor then shows the engine's ACES Output Transform render. */
+/**
+ * True when the Program monitor must show the engine's float-compositor render instead of the direct per-clip draw:
+ * ACES / OCIO colour management (its Output Transform), and HDR / Rec.2020 sequences (Rec.2100 PQ and HLG included),
+ * whose tone-mapped SDR view only exists in the half-float compositor. That is the same render the export encodes, so
+ * the preview shows what the file will contain.
+ */
 const isAcesProject = (): boolean => {
-  const mode = useProjectStore.getState().project.settings.colorManagement;
-  return mode === "aces" || mode === "ocio";
+  const settings = useProjectStore.getState().project.settings;
+  return settings.colorManagement === "aces" || settings.colorManagement === "ocio" || settings.workingColorSpace === "rec2020";
 };
 
 const renderFrameWithGPU = async (
@@ -1431,13 +1441,28 @@ export const Preview: React.FC = () => {
 
   const getMaskEngine = useEngineStore((state) => state.getMaskEngine);
   const clipMasksById = useMemo(() => {
+    // While Remove Object is on, its mask only marks what is removed: it no longer cuts the clip (same rule as the export).
+    const consumed = new Set<string>();
+    for (const track of project.timeline.tracks) {
+      for (const clip of track.clips) {
+        const maskId = consumedMaskId(clip);
+        if (maskId) consumed.add(maskId);
+      }
+    }
     const byClip = new Map<string, Mask[]>();
     for (const mask of project.masks ?? []) {
+      if (consumed.has(mask.id)) continue;
       const existing = byClip.get(mask.clipId) ?? [];
       byClip.set(mask.clipId, [...existing, mask]);
     }
     return byClip;
-  }, [project.masks]);
+  }, [project.masks, project.timeline.tracks]);
+
+  const clipById = useMemo(() => {
+    const byId = new Map<string, Clip>();
+    for (const track of project.timeline.tracks) for (const clip of track.clips) byId.set(clip.id, clip);
+    return byId;
+  }, [project.timeline.tracks]);
 
   const drawClipFrame = useCallback(
     async (
@@ -1450,7 +1475,10 @@ export const Preview: React.FC = () => {
       time: number,
       filter?: string,
     ) => {
-      const masks = clipMasksById.get(clipId) ?? [];
+      const clipMasks = clipMasksById.get(clipId) ?? [];
+      const masks = clipMasks.length === 0
+        ? clipMasks
+        : masksForStabilizedFrame(clipById.get(clipId), clipMasks, frame as { width?: number; height?: number; videoWidth?: number; videoHeight?: number }, transform, canvasWidth, canvasHeight, time);
       if (masks.length === 0) {
         drawFrameWithTransform(
           ctx,
@@ -1475,6 +1503,7 @@ export const Preview: React.FC = () => {
           maskEngine,
           time,
           filter,
+          baseFrame: effectMaskBaseFor(frame),
         });
       } catch (error) {
         console.warn(`[Preview] Failed to apply masks to ${clipId}:`, error);
@@ -1488,7 +1517,7 @@ export const Preview: React.FC = () => {
         );
       }
     },
-    [clipMasksById, getMaskEngine],
+    [clipMasksById, clipById, getMaskEngine],
   );
 
   // Get subtitles from project timeline
@@ -2803,10 +2832,7 @@ export const Preview: React.FC = () => {
             cached.lastUsed = Date.now();
             const { video } = cached;
 
-            const clampedTime = Math.max(
-              0,
-              Math.min(mediaTime, video.duration - 0.001),
-            );
+            const clampedTime = pausedSeekTime(mediaTime, video.duration);
             fallbackMediaTime = clampedTime;
             await seekVideoFrame(video, clampedTime, signal);
             if (isStaleRequest()) {
@@ -4921,7 +4947,7 @@ export const Preview: React.FC = () => {
         );
 
         const bgEngine = getBackgroundRemovalEngine();
-        const hasBgRemoval = bgEngine?.isInitialized() && bgEngine.getSettings(clip.id).enabled;
+        const hasBgRemoval = (bgEngine?.isInitialized() && bgEngine.getSettings(clip.id).enabled) || clipHasWarp(latestClip);
 
         let videoFrame: HTMLVideoElement | ImageBitmap = video;
         if (hasBgRemoval) {
@@ -8733,6 +8759,7 @@ export const Preview: React.FC = () => {
           <MonitorTabs active="program" /><span>Timeline 1</span>
           <div className="workspace-preview-options">
             <MaskPenButton />
+            <ObjectMaskButton />
             <ProxyToggleButton />
             {settings.colorManagement === "aces" && (
               <span
@@ -8801,13 +8828,7 @@ export const Preview: React.FC = () => {
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="max-w-[260px] whitespace-normal text-[10px] font-normal leading-snug">OpenColorIO: a config you load (with its LUT files) decides how each clip is read, the working space, and the display, view and looks the monitor and exports show. Settings are stored in the project and are one undo step. ACES: footage enters through an input transform (Interpret footage picks it per footage item), compositing runs in ACEScg half float, grading in ACEScct, and the picture leaves through the ACES RRT and the output transform above. HDR10 and HLG exports use the Rec.2020 1000 nit transforms. The monitor, scopes and SDR exports show the output transform. Frames with adjustment layers or text behind subject still render display-referred.</DropdownMenuLabel>
               </DropdownMenuSubContent></DropdownMenuSub>
-              <DropdownMenuSub><DropdownMenuSubTrigger>Working color space</DropdownMenuSubTrigger><DropdownMenuSubContent>
-                {([["rec709", "Rec.709 (default)"], ["rec2020", "Rec.2020"]] as const).map(([value, label]) => (
-                  <DropdownMenuCheckboxItem key={value} checked={(settings.workingColorSpace ?? "rec709") === value} onCheckedChange={() => { void updateSettings({ workingColorSpace: value }); }}>{label}</DropdownMenuCheckboxItem>
-                ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel className="max-w-[240px] whitespace-normal text-[10px] font-normal leading-snug">Rec.2020 switches to the HDR working mode: compositing and grading run in half-float scene-linear Rec.2020 (HDR highlights above SDR white are kept), the preview shows a tone-mapped SDR view, and exports are tagged BT.2020.</DropdownMenuLabel>
-              </DropdownMenuSubContent></DropdownMenuSub>
+              <SequenceColorSpaceMenu />
               <DropdownMenuSub><DropdownMenuSubTrigger disabled={(settings.workingColorSpace ?? "rec709") !== "rec2020" && settings.colorManagement !== "aces" && settings.colorManagement !== "ocio"}>HDR graphics white</DropdownMenuSubTrigger><DropdownMenuSubContent>
                 {GRAPHICS_WHITE_OPTIONS.map(({ nits, label }) => (
                   <DropdownMenuCheckboxItem key={nits} checked={(settings.graphicsWhiteNits ?? DEFAULT_GRAPHICS_WHITE_NITS) === nits} onCheckedChange={() => { void updateSettings({ graphicsWhiteNits: nits === DEFAULT_GRAPHICS_WHITE_NITS ? undefined : nits }); }}>{label}</DropdownMenuCheckboxItem>
@@ -8978,6 +8999,7 @@ export const Preview: React.FC = () => {
             </React.Suspense>
           ) : null}
           <DynamicTrimTwoUp />
+          <TrimMonitor />
           <MotionTrackingOverlay clipId={(selectedClip || clipAtPlayhead)?.id ?? null} bounds={clipBounds} />
           <PlanarTrackOverlay clipId={(selectedClip || clipAtPlayhead)?.id ?? null} bounds={clipBounds} />
           <CornerPinOverlay />
@@ -9065,6 +9087,7 @@ export const Preview: React.FC = () => {
 
           {/* Mask pen tool: draw / edit Bezier masks directly on the frame */}
           {!cropMode && <MaskPenOverlay disabled={isPlaying} />}
+          {!cropMode && <ObjectMaskOverlay disabled={isPlaying} />}
 
           {/* Resize/Transform Overlay */}
           {!cropMode && showResizeHandles && clipBounds && (

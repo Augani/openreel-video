@@ -52,6 +52,12 @@ const LOAD_JUDGE_MAX = 4;
 /** Transition shape of the generated project: --transition-seconds 1, --transition-alignment center|start|end (center = default). */
 const TRANSITION = { seconds: Number(opt("transition-seconds", 1)), alignment: opt("transition-alignment", "") };
 const firstTransitionStartS = 12 - (TRANSITION.alignment === "end" ? TRANSITION.seconds : TRANSITION.alignment === "start" ? 0 : TRANSITION.seconds / 2);
+/** --transition-renderer canvas2d pins transitions to the Canvas2D engine (the A side of a GPU-vs-Canvas2D comparison). */
+const TRANSITION_RENDERER = opt("transition-renderer", "");
+/** --grade-renderer canvas2d pins the clip effect / grade chain to the Canvas2D / WebGL path (the A side of a WebGPU-grade comparison). */
+const GRADE_RENDERER = opt("grade-renderer", "");
+/** --grade-every-clip puts a full colour grade (Basic Correction, wheels, curves, HSL, LUT, vignette, white balance) on every video clip. */
+const GRADE_EVERY_CLIP = flag("grade-every-clip");
 const ffmpeg = process.env.FFMPEG ?? "/opt/homebrew/bin/ffmpeg";
 
 const require = createRequire(path.join(thisRepo, "package.json"));
@@ -115,12 +121,14 @@ async function launch(userData) {
   });
   startSidecarSampler(app);
   const page = await app.firstWindow();
-  await page.addInitScript(() => {
+  await page.addInitScript(([renderer, gradeRenderer]) => {
     try {
+      if (renderer) localStorage.setItem("openreel-transition-renderer", renderer);
+      if (gradeRenderer) localStorage.setItem("openreel-grade-renderer", gradeRenderer);
       localStorage.setItem("openreel-onboarding-complete", "true");
       localStorage.setItem("openreel-mograph-tour-complete", "true");
     } catch { /* storage unavailable */ }
-  });
+  }, [TRANSITION_RENDERER, GRADE_RENDERER]);
   await page.reload();
   return { app, page, load };
 }
@@ -225,7 +233,7 @@ async function importMedia(page, files) {
 
 /** Builds the heavy timeline through the store: returns what was built (for the report) or throws. */
 async function buildTimeline(page) {
-  return page.evaluate(async (tr) => {
+  return page.evaluate(async ([tr, gradeEvery]) => {
     const h = window.__openreelE2E;
     const st = () => h.project.getState();
     const media = (name) => st().project.mediaLibrary.items.find((m) => m.name === name);
@@ -277,6 +285,25 @@ async function buildTimeline(page) {
       built.videoClips++;
     }
 
+    // Optional: a full grade on every video clip (the benchmark of the WebGPU grade chain).
+    if (gradeEvery) {
+      const grade = (i) => ({
+        temperature: 6 + i, tint: -3,
+        tone: { exposure: 0.1, contrast: 0.2, highlights: -0.15, shadows: 0.2, whites: 0.05, blacks: -0.05 },
+        colorWheels: { shadows: { r: 0.02, g: 0, b: 0.04 }, midtones: { r: 0, g: 0.01, b: 0 }, highlights: { r: 0.03, g: 0.01, b: -0.02 }, shadowsLift: 0.02, midtonesGamma: 1.1, highlightsGain: 1.05 },
+        curves: { rgb: [{ x: 0, y: 0 }, { x: 0.3, y: 0.24 }, { x: 0.75, y: 0.8 }, { x: 1, y: 1 }], red: [{ x: 0, y: 0 }, { x: 1, y: 1 }], green: [{ x: 0, y: 0 }, { x: 1, y: 1 }], blue: [{ x: 0, y: 0.02 }, { x: 1, y: 0.98 }] },
+        hsl: { hue: [4, 0, 0, 0, 0, 0, 0, 0], saturation: [0.08, 0, 0, 0, 0.06, 0, 0, 0.05], luminance: [0, 0, 0, 0.02, 0, 0, 0, 0] },
+        vignette: { amount: -0.25, midpoint: 0.5, roundness: 0, feather: 0.5 },
+        lut: lut(17, 1 - i * 0.01),
+      });
+      let i = 0;
+      for (const track of st().project.timeline.tracks) {
+        if (track.type !== "video") continue;
+        for (const clip of [...track.clips]) { await st().updateColorGrading(clip.id, grade(i++)); built.effects++; }
+      }
+      built.gradedEveryClip = i;
+    }
+
     // Titles
     await st().addTrack("text", undefined, { trackId: "pb-t1", name: "Titles" });
     for (const [i, text] of ["OPENREEL", "Heavy project benchmark", "Mercury playback"].entries()) {
@@ -296,7 +323,7 @@ async function buildTimeline(page) {
     built.frameRate = st().project.settings.frameRate;
     built.size = `${st().project.settings.width}x${st().project.settings.height}`;
     return built;
-  }, TRANSITION);
+  }, [TRANSITION, GRADE_EVERY_CLIP]);
 }
 
 /**
@@ -373,6 +400,22 @@ async function seekToStart(page) {
   await sleep(1200);
 }
 
+/** Waits (no input) until no yellow/red stretch is left uncached, i.e. background rendering has finished. */
+async function waitForIdleRender(page, timeoutMs) {
+  const t0 = Date.now();
+  let last = null;
+  while (Date.now() - t0 < timeoutMs) {
+    last = await page.evaluate(() => {
+      const st = window.__openreelE2E.renderCache.getStatus();
+      const pending = st.segments.filter((s) => s.level !== "cached");
+      return { rendering: st.rendering, frames: st.frameCount, pendingS: Math.round(pending.reduce((a, s) => a + s.end - s.start, 0) * 10) / 10, bytesMB: Math.round(st.bytes / 1048576) };
+    });
+    if (!last.rendering && last.pendingS === 0) break;
+    await sleep(2000);
+  }
+  return { waitedMs: Date.now() - t0, ...last, timedOut: Date.now() - t0 >= timeoutMs };
+}
+
 async function playbackPass(app, page, quality, fps) {
   await page.evaluate((legacy) => { window.__orLegacyLookahead = legacy; }, flag("legacy-lookahead"));
   await page.evaluate((q) => window.__openreelE2E.ui.getState().setPlaybackQuality(q), quality);
@@ -380,6 +423,7 @@ async function playbackPass(app, page, quality, fps) {
   await seekToStart(page);
   const cdp = flag("profile") && quality === "full" ? await page.context().newCDPSession(page) : null;
   if (cdp) { await cdp.send("Profiler.enable"); await cdp.send("Profiler.setSamplingInterval", { interval: 250 }); await cdp.send("Profiler.start"); }
+  const gradeBefore = await page.evaluate(() => window.__openreelE2E.gradeChainStats?.() ?? null);
   await page.evaluate(() => { window.__openreelE2E.renderCache.resetTelemetry(); window.__perfMon.start(false); });
   const before = await procSnapshot(app);
   const sidecarBefore = new Map([...sidecarSeen].map(([pid, v]) => [pid, v.cpuMs]));
@@ -411,8 +455,11 @@ async function playbackPass(app, page, quality, fps) {
   }
   const analysis = analyzePlayback({ presentedFrames: distinct.size, seconds: (endedAt - startedAt) / 1000, sourceFps: fps });
   const cpu = cpuDelta(before, after);
+  const gradeAfter = await page.evaluate(() => window.__openreelE2E.gradeChainStats?.() ?? null);
   return {
     quality,
+    // WebGPU grade chain activity during the pass (null: chain never created, i.e. the Canvas2D path rendered every frame).
+    gradeChain: gradeAfter ? Object.fromEntries(["engine", "preview"].map((k) => [k, gradeAfter[k] ? { frames: gradeAfter[k].frames - (gradeBefore?.[k]?.frames ?? 0), fallbacks: gradeAfter[k].fallbacks - (gradeBefore?.[k]?.fallbacks ?? 0), readbacks: gradeAfter[k].readbacks, meanCpuMs: Math.round(gradeAfter[k].meanCpuMs * 1000) / 1000 } : null])) : null,
     ...analysis,
     frameGapP50Ms: r1(median(gaps)),
     frameGapP95Ms: r1(pct(gaps, 0.95)),
@@ -546,6 +593,11 @@ async function runOnce(files) {
     result.projectFileKB = fs.existsSync(projectFile) ? Math.round(fs.statSync(projectFile).size / 1024) : null;
 
     result.memoryAfterBuild = { rssMB: rssTotal(await procSnapshot(app)), jsHeapMB: await page.evaluate(() => (performance.memory ? Math.round(performance.memory.usedJSHeapSize / 104857.6) / 10 : null)).catch(() => null) };
+    if (flag("idle-prefill")) {
+      // Leave the editor alone so background (idle) rendering fills the render cache, then measure playback from it.
+      result.idlePrefill = await waitForIdleRender(page, Number(opt("idle-timeout", 900)) * 1000);
+      log("idlePrefill", JSON.stringify(result.idlePrefill));
+    }
     if (only.has("playback")) {
       result.playbackFull = await playbackPass(app, page, "full", fps);
       log("playbackFull", JSON.stringify({ ...result.playbackFull, rendererTopSelf: undefined }));

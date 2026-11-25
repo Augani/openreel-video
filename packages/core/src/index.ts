@@ -36,7 +36,9 @@ export {
   createIsolatedExportEngine,
 } from "./export/export-engine";
 export type { ExportEngineOptions } from "./export/export-engine";
+export type { LoudnessExportReport } from "./export/loudness-export";
 export * from "./export/color-output";
+export * from "./export/yuv420-sdr";
 export * from "./export/image-sequence";
 export {
   GIF_MAX_DIMENSION,
@@ -55,6 +57,8 @@ export * from "./color/looks";
 export * from "./color/input-transform";
 export * from "./color/camera-log";
 export * from "./color/hdr-working";
+export * from "./color/sequence-color";
+export { getHdrScopeFrame, type HdrScopeFrame } from "./video/hdr-scope-feed";
 export * from "./color/aces";
 export * from "./color/ocio-config";
 export * from "./color/hdr-effects";
@@ -89,6 +93,7 @@ export type {
 } from "./export/types";
 
 export * from "./export/export-queue";
+export * from "./export/segment-plan";
 export * from "./export/stem-export";
 export * from "./export/zip";
 export { cloneProjectSnapshot } from "./export/project-snapshot";
@@ -134,6 +139,22 @@ export {
   type EditPointRef,
   type TimelineGap,
 } from "./editing/edit-point";
+export {
+  TRIM_MONITOR_MODES,
+  TRIM_MONITOR_MODE_LABELS,
+  adjacentEditPoint,
+  availableTrimMonitorModes,
+  defaultTrimMonitorMode,
+  editPointRefAt,
+  planTrimMonitor,
+  resolveTrimMonitorEdit,
+  slipSlideTarget,
+  trimMonitorRefFor,
+  type TrimMonitorEdit,
+  type TrimMonitorMode,
+  type TrimMonitorPlanOptions,
+  type TrimMonitorSide,
+} from "./editing/trim-monitor";
 export {
   DEFAULT_SPLIT_EDIT_FRAMES,
   findLinkedPartners,
@@ -356,6 +377,25 @@ export {
   getTranscriptionProviders,
 } from "./captions/transcript-edit";
 export type { TranscriptionProvider, TranscriptionRequest } from "./captions/transcript-edit";
+export {
+  SOURCE_TRANSCRIPT_VERSION,
+  parseSourceTranscriptRecord,
+  createSourceTranscriptRecord,
+  resolveCachedTranscript,
+  sourceTranscriptOf,
+  selectionToSourceMarks,
+  parseSourceSearchQuery,
+  searchSourceTranscripts,
+  editDistance,
+} from "./captions/source-transcript";
+export type {
+  SourceTranscriptRecord,
+  CachedTranscriptStatus,
+  SourceMarkRange,
+  SourceTranscriptEntry,
+  SourceSearchOptions,
+  SourceSearchHit,
+} from "./captions/source-transcript";
 export * from "./review/review-comments";
 export { nextMarker, prevMarker, markersInRange, markerAt, sortMarkers } from "./editing/marker-nav";
 export type { MarkerNavOptions } from "./editing/marker-nav";
@@ -410,3 +450,12 @@ export type {
 export { resegmentCues, splitText, DEFAULT_RESEGMENT } from "./captions/caption-resegment";
 export type { ResegmentOptions, ResegmentResult } from "./captions/caption-resegment";
 export * from "./tasks";
+export {
+  expandClipGroups,
+  groupClips,
+  groupMembers,
+  pruneSingletonGroups,
+  reconcileGroupSelection,
+  ungroupClips,
+  type ClipGroupResult,
+} from "./editing/clip-groups";

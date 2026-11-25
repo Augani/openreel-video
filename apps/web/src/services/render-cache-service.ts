@@ -1,7 +1,11 @@
 import { useSyncExternalStore } from "react";
 import {
+  IdleRenderScheduler,
+  hasIdleCacheRoom,
   PlaybackFrameStats,
   RenderCache,
+  getMemoryGovernor,
+  type IdleRenderState,
   buildRenderStatusSegments,
   cacheFrameSize,
   createFrameCodec,
@@ -61,6 +65,15 @@ export interface PlaybackTelemetry {
 }
 
 const FRAME_LOG_LIMIT = 20000;
+/** Below this battery level (and not charging) the OS is treated as being in low-power territory. */
+const LOW_BATTERY_LEVEL = 0.2;
+
+interface BatteryLike {
+  charging: boolean;
+  level: number;
+  addEventListener(type: string, listener: () => void): void;
+  removeEventListener(type: string, listener: () => void): void;
+}
 
 class RenderCacheService {
   private cache: RenderCache | null = null;
@@ -78,6 +91,11 @@ class RenderCacheService {
   private cacheFrames = 0;
   private liveFrames = 0;
   private enabled = true;
+  private idle: IdleRenderScheduler | null = null;
+  private idleState: IdleRenderState = { kind: "off" };
+  private readonly idleListeners = new Set<() => void>();
+  private idleCleanups: Array<() => void> = [];
+  private battery: BatteryLike | null = null;
   private lastProject: Project | null = null;
   /** media id -> "size:mtime" of the file on disk (desktop), part of every persisted segment hash. */
   private sourceStamps = new Map<string, string>();
@@ -135,8 +153,122 @@ class RenderCacheService {
       window.addEventListener(RENDER_CACHE_PREFS_EVENT, this.onPrefsChanged);
       window.addEventListener("pagehide", this.onPageHide);
       dropLegacyIndexedDb();
+      this.startIdleRender();
     }
     return this.cache as RenderCache;
+  }
+
+  /** Background rendering: quiet-period scheduler fed by edits, playback, scrubbing and the setting. */
+  private startIdleRender(): void {
+    const scheduler = new IdleRenderScheduler({
+      isEnabled: () => readRenderCachePrefs().idleRender,
+      isBusy: () =>
+        !this.cache ||
+        !useEngineStore.getState().videoEngine ||
+        this.cache.isRendering() ||
+        useUIStore.getState().exportState.isExporting ||
+        isExportQueueRunning() ||
+        useTimelineStore.getState().playbackState === "playing" ||
+        useTimelineStore.getState().isScrubbing ||
+        hasOfflineMedia(),
+      isMemoryOk: () => getMemoryGovernor().policy.pressure === "normal",
+      isPowerOk: () => !(this.battery && !this.battery.charging && this.battery.level <= LOW_BATTERY_LEVEL),
+      getPlayhead: () => useTimelineStore.getState().playheadPosition,
+      getPendingRanges: () => this.pendingEffectRanges(),
+      prepare: () => {
+        this.cache?.setProject(useProjectStore.getState().getFullProject());
+      },
+      renderChunk: async (range, signal) => {
+        const cache = this.cache;
+        if (!cache) return { status: "failed", framesRendered: 0, framesSkipped: 0 };
+        await this.ready;
+        const summary = await cache.renderRange(range, { signal });
+        return { status: summary.status, framesRendered: summary.framesRendered, framesSkipped: summary.framesSkipped };
+      },
+      onStateChange: (state) => {
+        this.idleState = state;
+        for (const listener of Array.from(this.idleListeners)) listener();
+      },
+    });
+    this.idle = scheduler;
+    const unsubs: Array<() => void> = [
+      // Any edit invalidates cached frames and ends the quiet period.
+      useProjectStore.subscribe((state, previous) => {
+        if (state.project !== previous.project) scheduler.notifyActivity();
+      }),
+      useTimelineStore.subscribe((state, previous) => {
+        if (
+          state.playbackState !== previous.playbackState ||
+          state.isScrubbing !== previous.isScrubbing ||
+          state.playheadPosition !== previous.playheadPosition
+        ) {
+          scheduler.notifyActivity();
+        }
+      }),
+      getMemoryGovernor().subscribe(() => scheduler.notifyConditionsChanged()),
+      // An export starting takes the engine: stop the running chunk at once instead of at the next chunk boundary.
+      useUIStore.subscribe((state, previous) => {
+        if (state.exportState.isExporting !== previous.exportState.isExporting) scheduler.notifyActivity();
+      }),
+    ];
+    const onPrefs = () => scheduler.notifyConditionsChanged();
+    window.addEventListener(RENDER_CACHE_PREFS_EVENT, onPrefs);
+    unsubs.push(() => window.removeEventListener(RENDER_CACHE_PREFS_EVENT, onPrefs));
+    const getBattery = (navigator as Navigator & { getBattery?: () => Promise<BatteryLike> }).getBattery;
+    if (typeof getBattery === "function") {
+      void getBattery
+        .call(navigator)
+        .then((battery) => {
+          if (this.idle !== scheduler) return;
+          this.battery = battery;
+          const onChange = () => scheduler.notifyConditionsChanged();
+          battery.addEventListener("chargingchange", onChange);
+          battery.addEventListener("levelchange", onChange);
+          this.idleCleanups.push(() => {
+            battery.removeEventListener("chargingchange", onChange);
+            battery.removeEventListener("levelchange", onChange);
+          });
+        })
+        .catch(() => undefined);
+    }
+    this.idleCleanups = unsubs;
+    scheduler.notifyConditionsChanged();
+  }
+
+  /** Yellow and red stretches with no cached frames yet, longer than one frame. */
+  private pendingEffectRanges(): RenderTimeRange[] {
+    const cache = this.cache;
+    if (!cache) return [];
+    const project = useProjectStore.getState().getFullProject();
+    const snapshot = cache.getSnapshot();
+    // Never evict earlier frames to make room: stop once the cache cannot take another chunk.
+    if (!hasIdleCacheRoom(snapshot, project.settings.frameRate)) return [];
+    const segments = buildRenderStatusSegments(project, {
+      cachedRuns: snapshot.cachedRuns,
+      measuredMs: (range) => this.stats.mean(range),
+    });
+    const minLength = 1 / Math.max(1, project.settings.frameRate);
+    return segments
+      .filter((s) => (s.level === "light" || s.level === "heavy") && s.end - s.start >= minLength)
+      .map((s) => ({ start: s.start, end: s.end }));
+  }
+
+  /** Aborts a running background chunk and waits (briefly) for the cache to free up. */
+  private async yieldIdleRender(cache: RenderCache): Promise<void> {
+    if (!this.idle || this.idleState.kind !== "rendering" || !cache.isRendering()) return;
+    this.idle.notifyActivity();
+    for (let i = 0; i < 100 && cache.isRendering(); i++) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 20));
+    }
+  }
+
+  getIdleRenderState(): IdleRenderState {
+    return this.idleState;
+  }
+
+  subscribeIdleRender(listener: () => void): () => void {
+    this.idleListeners.add(listener);
+    return () => this.idleListeners.delete(listener);
   }
 
   subscribe(listener: () => void): () => void {
@@ -346,6 +478,7 @@ class RenderCacheService {
   private readonly onPreviewInvalidate = (event: Event): void => {
     const detail = (event as CustomEvent<{ audioOnly?: boolean } | undefined>).detail;
     if (detail?.audioOnly) return;
+    this.idle?.notifyActivity();
     // Engine-side pixel state (e.g. background removal) changed without a project edit:
     // nothing finer than "everything" is knowable here.
     void this.deleteRenderFiles({ silent: true });
@@ -398,6 +531,8 @@ class RenderCacheService {
       toast.warning("Render unavailable", "Wait for the export to finish before rendering previews.");
       return null;
     }
+    // A background chunk yields to a render the user asked for.
+    await this.yieldIdleRender(cache);
     if (cache.isRendering()) return null;
     await this.ready;
     const duration = useProjectStore.getState().project.timeline.duration;
@@ -464,6 +599,8 @@ class RenderCacheService {
   }
 
   cancelRender(): void {
+    // A render the user cancelled must not start again by itself until the next edit.
+    this.idle?.suspendUntilActivity();
     this.cache?.cancelRender();
   }
 
@@ -572,6 +709,11 @@ class RenderCacheService {
   }
 
   dispose(): void {
+    this.idle?.dispose();
+    this.idle = null;
+    for (const cleanup of this.idleCleanups) cleanup();
+    this.idleCleanups = [];
+    this.battery = null;
     this.unsubscribeProject?.();
     this.unsubscribeProject = null;
     this.unsubscribeCache?.();
@@ -605,6 +747,17 @@ const EMPTY_SNAPSHOT: RenderCacheSnapshot = {
   maxWidth: 1920,
   restored: null,
 };
+
+/** What background rendering is doing (off, waiting for a quiet period, rendering a range, paused). */
+export function useIdleRenderState(): IdleRenderState {
+  return useSyncExternalStore(
+    (listener) => renderCacheService.subscribeIdleRender(listener),
+    () => renderCacheService.getIdleRenderState(),
+    () => OFF_STATE,
+  );
+}
+
+const OFF_STATE: IdleRenderState = { kind: "off" };
 
 /** Live snapshot of the render cache for React. */
 export function useRenderCacheSnapshot(): RenderCacheSnapshot {

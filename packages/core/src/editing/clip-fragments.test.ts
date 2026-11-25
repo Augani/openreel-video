@@ -141,6 +141,16 @@ function fadeAt(clip: Clip, time: number) {
   );
 }
 
+describe("Remove Object through Split", () => {
+  it("keeps the analysis on the left piece and drops it from the new right piece", () => {
+    const removal = { enabled: true, maskId: "m", analysisKey: "k", dilate: 10, feather: 5 };
+    const project = fixture({ objectRemoval: removal });
+    const source = project.timeline.tracks[0].clips[0];
+    expect(createClipFragment(source, { startTime: 10, duration: 1.5, fromTime: 10, inserted: false }, "source", project).objectRemoval).toEqual(removal);
+    expect(createClipFragment(source, { startTime: 11.5, duration: 2.5, fromTime: 11.5, inserted: false }, "split-x", project).objectRemoval).toBeUndefined();
+  });
+});
+
 describe("source-preserving Split", () => {
   it.each([
     { speed: 2, reversed: false },

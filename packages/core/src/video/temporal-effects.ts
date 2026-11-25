@@ -20,6 +20,7 @@
  * wall clock and no frame history, so preview, playback scrubbing and export
  * produce the identical frame for the same timeline position.
  */
+import { clipHasDeflicker } from "./deflicker";
 import type {
   ProEffectCategory,
   ProEffectParamSpec,
@@ -244,6 +245,8 @@ export function clipHasTemporalEffects(clip: {
   readonly effects?: readonly TemporalEffectLike[];
   readonly keyframes?: readonly { readonly property: string }[];
 }): boolean {
+  // Deflicker reads the neighbour frames of the clip: same routing as Echo.
+  if (clipHasDeflicker(clip)) return true;
   const active = clip.effects?.some(
     (e) =>
       isTemporalEffectType(e.type) &&

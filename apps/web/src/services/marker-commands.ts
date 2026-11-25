@@ -9,6 +9,7 @@ import {
   type Marker,
   type MarkerKind,
 } from "@openreel/core";
+import { chapterMarkers, chaptersToWebVtt, chaptersToYouTubeText, deliveryChapters } from "@openreel/core/export/chapters";
 import { markerSourceMetadata } from "./export-metadata";
 import { useEditorWorkspaceStore } from "../stores/editor-workspace-store";
 import { useProjectStore } from "../stores/project-store";
@@ -132,7 +133,7 @@ export async function addRangeMarker(start: number, end: number): Promise<void> 
   });
 }
 
-export type MarkerExportKind = "chapters" | "csv" | "edl";
+export type MarkerExportKind = "chapters" | "webvtt" | "csv" | "edl";
 
 export interface MarkerExportFile {
   readonly filename: string;
@@ -152,6 +153,15 @@ export function buildMarkerExport(kind: MarkerExportKind): MarkerExportFile {
   if (kind === "chapters") {
     const result = chaptersText(list, { totalDuration: useProjectStore.getState().getTimelineDuration() });
     return { filename: `${base}_chapters.txt`, mimeType: "text/plain", content: result.text, warnings: result.warnings };
+  }
+  if (kind === "webvtt") {
+    const chapters = deliveryChapters(list, Math.max(useProjectStore.getState().getTimelineDuration(), project.timeline.duration));
+    return {
+      filename: `${base}_chapters.vtt`,
+      mimeType: "text/vtt",
+      content: chaptersToWebVtt(chapters),
+      warnings: chapters.length === 0 ? ["There are no chapter markers. Set a marker's type to Chapter."] : [],
+    };
   }
   if (kind === "csv") {
     return { filename: `${base}_markers.csv`, mimeType: "text/csv", content: markersCsv(list, fps, { sourceMetadata: markerSourceMetadata(project) }), warnings: [] };
@@ -185,3 +195,25 @@ export function exportMarkers(kind: MarkerExportKind): MarkerExportFile | null {
   else toast.success("Markers exported", file.filename);
   return file;
 }
+
+/** Copies the YouTube chapter list (chapter markers; every marker when none is a chapter) to the clipboard. */
+export async function copyYouTubeChapters(): Promise<boolean> {
+  const { project } = useProjectStore.getState();
+  const duration = Math.max(useProjectStore.getState().getTimelineDuration(), project.timeline.duration);
+  const chapters = deliveryChapters(project.timeline.markers, duration);
+  const text = chapters.length > 0 ? chaptersToYouTubeText(chapters) : chaptersText(project.timeline.markers, { totalDuration: duration }).text;
+  if (!text) {
+    toast.info("No chapters to copy", "Add markers and set their type to Chapter.");
+    return false;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    toast.success("Chapters copied", `${text.split("\n").length} lines, ready to paste into a YouTube description.`);
+    return true;
+  } catch {
+    toast.error("Could not copy", "The clipboard is not available here.");
+    return false;
+  }
+}
+
+export const hasChapterMarkers = (): boolean => chapterMarkers(useProjectStore.getState().project.timeline.markers).length > 0;

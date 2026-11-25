@@ -35,6 +35,65 @@ export interface TextClip {
   readonly text3d?: Text3DSettings;
   /** Roll (vertical) or crawl (horizontal) the text across the frame over the clip duration. */
   readonly scroll?: TextScroll;
+  /**
+   * Per-character style runs. Absent on clips authored before rich text: they
+   * load as a single run (see `runsForText`). When present the run texts
+   * concatenate to `text`; a mismatch is reconciled lazily on read.
+   */
+  readonly runs?: TextRun[];
+}
+
+export interface TextGradientStop {
+  /** 0..1 along the gradient. */
+  readonly offset: number;
+  readonly color: string;
+}
+
+/** Solid or gradient paint for glyph fills. Gradients span the whole text block. */
+export type TextFill =
+  | { readonly type: "solid"; readonly color: string }
+  | { readonly type: "linear"; /** Degrees, 0 = left to right, 90 = top to bottom. */ readonly angle: number; readonly stops: readonly TextGradientStop[] }
+  | { readonly type: "radial"; readonly stops: readonly TextGradientStop[] };
+
+export interface TextStroke {
+  readonly color: string;
+  readonly width: number;
+  /** `behind` (default) paints under the fill; `over` paints on top of it. */
+  readonly position?: "behind" | "over";
+  readonly join?: "round" | "miter" | "bevel";
+}
+
+/** A box drawn behind the whole text block. */
+export interface TextBackgroundBox {
+  readonly color: string;
+  readonly paddingX: number;
+  readonly paddingY: number;
+  readonly radius: number;
+}
+
+/** Style overrides of one run; an absent field inherits from the clip style. */
+export interface TextRunStyle {
+  readonly fontFamily?: string;
+  readonly fontWeight?: FontWeight;
+  readonly fontStyle?: "normal" | "italic";
+  readonly fontSize?: number;
+  readonly color?: string;
+  readonly fill?: TextFill;
+  /** Tracking in pixels (same unit as TextStyle.letterSpacing). */
+  readonly letterSpacing?: number;
+  /** Baseline shift in pixels, positive raises the run. */
+  readonly baselineShift?: number;
+  readonly underline?: boolean;
+  readonly smallCaps?: boolean;
+  /** Standard ligatures; on by default, `false` turns them off. */
+  readonly ligatures?: boolean;
+  /** Tabular (fixed width) figures. */
+  readonly tabularFigures?: boolean;
+}
+
+export interface TextRun {
+  readonly text: string;
+  readonly style: TextRunStyle;
 }
 
 /**
@@ -92,6 +151,12 @@ export interface TextStyle {
   readonly lineHeight: number;
   readonly letterSpacing: number;
   readonly textDecoration?: TextDecoration;
+  /** Gradient (or solid) fill; takes precedence over `color` when set. */
+  readonly fill?: TextFill;
+  /** Any number of strokes, painted in order; when set it replaces strokeColor/strokeWidth. */
+  readonly strokes?: TextStroke[];
+  /** Padded, rounded box behind the text block; replaces `backgroundColor` when set. */
+  readonly backgroundBox?: TextBackgroundBox;
   readonly shader?: TextShaderStyle;
 }
 

@@ -46,8 +46,23 @@ export interface PrgShadow {
   readonly blur: number;
 }
 
+/** One styled stretch of a text layer; absent fields inherit the layer's style. */
+export interface PrgTextRun {
+  readonly text: string;
+  readonly fontFamily?: string;
+  readonly fontStyle?: string;
+  readonly fontSize?: number;
+  readonly color?: string;
+  readonly tracking?: number;
+  readonly baselineShift?: number;
+  readonly underline?: boolean;
+  readonly allCaps?: boolean;
+}
+
 export interface PrgText {
   readonly text: string;
+  /** Present only when the runs differ in styling. */
+  readonly runs?: readonly PrgTextRun[];
   readonly fontFamily?: string;
   readonly fontStyle?: string;
   readonly fontSize?: number;
@@ -299,21 +314,43 @@ function mapKind(tag: string, el: XmlElement): { kind: PrgLayerKind; shapeType?:
 
 const LAYER_TAG = /^[A-Za-z]*(Layer|GraphicItem)$/;
 
-function readText(el: XmlElement, notes: string[]): PrgText {
+function readText(el: XmlElement, _notes: string[]): PrgText {
   const runs = (child(el, "Runs", "TextRuns")?.children ?? []).filter((r) => /^(run|textrun)$/i.test(r.name));
   const source = runs.length ? runs[0] : el;
   const textEl = child(el, "Text", "SourceText", "Content", "String");
   let text = runs.length ? runs.map((r) => str(r, "Text", "Content") ?? r.text).join("") : (textEl ? (attr(textEl, "Value") ?? textEl.text) : str(el, "Text")) ?? "";
   text = text.replace(/\r\n?/g, "\n");
+  let styledRuns: PrgTextRun[] | undefined;
   if (runs.length > 1) {
-    const sig = (r: XmlElement) => [str(r, "Font", "FontFamily"), str(r, "FontStyle"), str(r, "FontSize"), colorOf(child(r, "FillColor", "Fill", "Color"))].join("|");
-    if (new Set(runs.map(sig)).size > 1) notes.push("mixed styling inside one text layer: the first run's style is used for the whole text");
+    const sig = (r: XmlElement) => [str(r, "Font", "FontFamily"), str(r, "FontStyle"), str(r, "FontSize"), colorOf(child(r, "FillColor", "Fill", "Color")), str(r, "Tracking", "Kerning"), str(r, "BaselineShift"), str(r, "Underline"), str(r, "AllCaps", "Caps")].join("|");
+    if (new Set(runs.map(sig)).size > 1) {
+      styledRuns = runs.map((r): PrgTextRun => {
+        const fill = colorOf(child(r, "FillColor", "Fill", "Color"));
+        const family = str(r, "Font", "FontFamily");
+        const fontStyle = str(r, "FontStyle", "FontStyleName");
+        const size = numberOf(str(r, "FontSize", "Size"));
+        const tracking = numberOf(str(r, "Tracking", "Kerning"));
+        const shift = numberOf(str(r, "BaselineShift"));
+        return {
+          text: (str(r, "Text", "Content") ?? r.text).replace(/\r\n?/g, "\n"),
+          ...(family ? { fontFamily: family } : {}),
+          ...(fontStyle ? { fontStyle } : {}),
+          ...(size !== undefined ? { fontSize: size } : {}),
+          ...(fill ? { color: fill } : {}),
+          ...(tracking !== undefined ? { tracking } : {}),
+          ...(shift !== undefined ? { baselineShift: shift } : {}),
+          ...(bool(str(r, "Underline")) ? { underline: true } : {}),
+          ...(bool(str(r, "AllCaps", "Caps")) ? { allCaps: true } : {}),
+        };
+      });
+    }
   }
   const get = (...names: string[]) => str(source, ...names) ?? str(el, ...names);
   const strokeEl = child(source, "Stroke") ?? child(el, "Stroke");
   const underline = bool(get("Underline"));
   return {
     text,
+    ...(styledRuns ? { runs: styledRuns } : {}),
     ...(get("Font", "FontFamily") ? { fontFamily: get("Font", "FontFamily") } : {}),
     ...(get("FontStyle", "FontStyleName") ? { fontStyle: get("FontStyle", "FontStyleName") } : {}),
     ...(numberOf(get("FontSize", "Size")) !== undefined ? { fontSize: numberOf(get("FontSize", "Size")) } : {}),

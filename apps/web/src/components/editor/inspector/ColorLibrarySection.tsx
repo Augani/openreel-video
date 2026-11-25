@@ -1,7 +1,8 @@
-import React, { Suspense, lazy } from "react";
+import React, { Suspense } from "react";
+import { lazyWithRetry } from "./lazy-retry";
 
 // Looks, LUT library and saved looks (graded real-footage previews) load on demand: out of the editor chunk.
-const LooksAndLuts = lazy(() => import("./looks/LooksAndLutsSection"));
+const LooksAndLuts = lazyWithRetry(() => import("./looks/LooksAndLutsSection"));
 
 interface Props {
   clipId: string;

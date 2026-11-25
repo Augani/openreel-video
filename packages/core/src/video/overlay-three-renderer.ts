@@ -114,29 +114,6 @@ export function get3DFont(
 }
 
 // Map CSS blend modes to THREE.js blending constants
-// Note: THREE.js only supports a subset of blend modes, so some CSS modes are approximated
-// with the closest THREE.js equivalent for visual similarity
-const BLEND_MODE_MAP: Record<BlendMode, THREE.Blending> = {
-  normal: THREE.NormalBlending,
-  multiply: THREE.MultiplyBlending,
-  screen: THREE.AdditiveBlending,
-  overlay: THREE.NormalBlending, // Approximated as normal
-  darken: THREE.NormalBlending, // Approximated as normal
-  lighten: THREE.AdditiveBlending,
-  "color-dodge": THREE.AdditiveBlending,
-  "color-burn": THREE.MultiplyBlending,
-  "hard-light": THREE.NormalBlending, // Approximated as normal
-  "soft-light": THREE.NormalBlending, // Approximated as normal
-  difference: THREE.SubtractiveBlending,
-  exclusion: THREE.SubtractiveBlending,
-  hue: THREE.NormalBlending, // Approximated as normal
-  saturation: THREE.NormalBlending, // Approximated as normal
-  color: THREE.NormalBlending, // Approximated as normal
-  luminosity: THREE.NormalBlending, // Approximated as normal
-  add: THREE.AdditiveBlending,
-  "linear-dodge": THREE.AdditiveBlending,
-};
-
 export class ThreeJSLayerRenderer {
   private scene: THREE.Scene;
   private camera: THREE.OrthographicCamera;
@@ -299,15 +276,21 @@ export class ThreeJSLayerRenderer {
     }
   }
 
+  /**
+   * The mesh is always drawn with normal blending: the overlay canvas it renders into is composited over the frame
+   * afterwards with the clip's own blend mode (drawOverlayLayerWithBlend), the same per-pixel reference the 2D overlays,
+   * preview and export use. THREE can only express a handful of the modes, and against a transparent canvas none of them.
+   * Blend opacity (0-100) joins the layer's own opacity for normal mode; for other modes the compositor applies it.
+   */
   applyBlendMode(
     material: THREE.MeshBasicMaterial,
     blendMode: BlendMode,
     blendOpacity: number,
   ) {
-    // Map CSS blend modes to THREE.js blending and set opacity as separate property
-    // blendOpacity is stored as 0-100, normalize to 0-1 range
-    material.blending = BLEND_MODE_MAP[blendMode] || THREE.NormalBlending;
-    material.opacity = (blendOpacity ?? 100) / 100;
+    material.blending = THREE.NormalBlending;
+    if (!blendMode || blendMode === "normal") {
+      material.opacity *= (blendOpacity ?? 100) / 100;
+    }
     material.transparent = true;
   }
 

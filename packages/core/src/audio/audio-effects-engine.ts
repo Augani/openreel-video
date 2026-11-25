@@ -10,6 +10,8 @@ import {
   type NoiseProfile,
 } from "./noise-reduction";
 import { createRepairChainNode, ensureRepairWorklet } from "./repair/repair-node";
+import { createCreativeFxNode, ensureCreativeFxWorklet } from "./creative/creative-fx-node";
+import { isCreativeFxType, sanitizeCreativeParams } from "./creative/creative-fx-definitions";
 import { isRepairEffectType, type RepairParams } from "./repair/repair-dsp";
 import { sanitizeRepairParams } from "./repair/repair-definitions";
 import { effectChainLatencySamples } from "./effect-latency";
@@ -689,9 +691,14 @@ export class AudioEffectsEngine {
     }
   }
 
+  /**
+   * `options.timelineStart`: timeline second of the buffer's first sample. Modulated effects (chorus, flanger,
+   * phaser) anchor their LFO to timeline time from it, exactly as the live clip chain does.
+   */
   async applyEffectChain(
     buffer: AudioBuffer,
     effects: Effect[],
+    options: { timelineStart?: number } = {},
   ): Promise<EffectProcessingResult> {
     this.ensureInitialized();
 
@@ -714,6 +721,7 @@ export class AudioEffectsEngine {
       offlineContext,
       enabledEffects,
       buffer.numberOfChannels,
+      options.timelineStart ?? 0,
     );
     if (firstNode && lastNode) {
       source.connect(firstNode);
@@ -744,6 +752,7 @@ export class AudioEffectsEngine {
     context: BaseAudioContext,
     effects: Effect[],
     channels = 2,
+    timelineStart = 0,
   ): Promise<{
     firstNode: AudioNode | null;
     lastNode: AudioNode | null;
@@ -758,7 +767,7 @@ export class AudioEffectsEngine {
         continue;
       }
 
-      const nodePair = await this.createEffectNode(context, effect, channels);
+      const nodePair = await this.createEffectNode(context, effect, channels, timelineStart);
       if (!nodePair) {
         continue;
       }
@@ -783,6 +792,7 @@ export class AudioEffectsEngine {
     context: BaseAudioContext,
     effect: Effect,
     channels = 2,
+    timelineStart = 0,
   ): Promise<EffectNodePair | null> {
     switch (effect.type) {
       case "eq":
@@ -811,6 +821,12 @@ export class AudioEffectsEngine {
             sanitizeRepairParams(effect.type, effect.params) as RepairParams,
             { channels },
           );
+          return { input: chain.input, output: chain.output };
+        }
+        if (isCreativeFxType(effect.type)) {
+          await ensureCreativeFxWorklet(context);
+          const chain = createCreativeFxNode(context, effect.type, sanitizeCreativeParams(effect.type, effect.params as Record<string, unknown>), { channels });
+          chain.setClockOffset(timelineStart);
           return { input: chain.input, output: chain.output };
         }
         return null;

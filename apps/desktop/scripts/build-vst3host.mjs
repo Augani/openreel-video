@@ -43,7 +43,10 @@ if (!sdk) {
 
 const hostArch = process.arch === "arm64" ? "arm64" : "x64";
 const arches = process.platform === "darwin" && process.argv.includes("--all") ? ["arm64", "x64"] : [hostArch];
-const generator = has("ninja") ? ["-G", "Ninja"] : [];
+// Windows builds with MSVC through CMake's default Visual Studio generator: Ninja on a GitHub Windows runner picks up
+// MinGW g++, whose libstdc++ has no std::aligned_alloc, and the VST3 SDK does not compile there.
+const generatorFor = (arch) =>
+  process.platform === "win32" ? ["-A", arch === "arm64" ? "ARM64" : "x64"] : has("ninja") ? ["-G", "Ninja"] : [];
 let failed = false;
 for (const arch of arches) {
   const build = path.join(root, ".cache", "vst3host-build", `${process.platform}-${arch}`);
@@ -52,7 +55,7 @@ for (const arch of arches) {
   mkdirSync(outDir, { recursive: true });
   const archFlags = process.platform === "darwin" ? [`-DCMAKE_OSX_ARCHITECTURES=${arch === "arm64" ? "arm64" : "x86_64"}`] : [];
   console.log(`[build-vst3host] cmake ${process.platform}-${arch} (VST3 SDK ${VST3_SDK_VERSION}, ${VST3_SDK_TAG})`);
-  if (run("cmake", ["-S", source, "-B", build, ...generator, "-DCMAKE_BUILD_TYPE=Release", `-DOPENREEL_VST3_SDK=${sdk}`, ...archFlags]).status !== 0) { failed = true; continue; }
+  if (run("cmake", ["-S", source, "-B", build, ...generatorFor(arch), "-DCMAKE_BUILD_TYPE=Release", `-DOPENREEL_VST3_SDK=${sdk}`, ...archFlags]).status !== 0) { failed = true; continue; }
   if (run("cmake", ["--build", build, "--config", "Release", "--target", "openreel-vst3host", "--parallel"]).status !== 0) { failed = true; continue; }
   const candidates = [path.join(build, "bin", exe), path.join(build, "bin", "Release", exe), path.join(build, "Release", exe)];
   const built = candidates.find((c) => existsSync(c));
@@ -68,4 +71,9 @@ if (!failed) {
   copyFileSync(path.join(sdk, "LICENSE.txt"), path.join(licenseDir, "LICENSE-vst3sdk.txt"));
   writeFileSync(path.join(licenseDir, "NOTICE.txt"), `openreel-vst3host is linked against the Steinberg VST 3 SDK ${VST3_SDK_VERSION} (${VST3_SDK_TAG}), MIT License, Copyright (c) 2026 Steinberg Media Technologies GmbH. See LICENSE-vst3sdk.txt.\nVST is a trademark of Steinberg Media Technologies GmbH.\n`);
 }
-process.exit(failed ? 1 : 0);
+if (failed) {
+  // Only a release that asks for the helper (OPENREEL_REQUIRE_VST3HOST=1) fails here; any other build ships without
+  // VST3 hosting, which the app already reports as unsupported, instead of losing the whole desktop build.
+  skip("the helper did not build");
+}
+process.exit(0);

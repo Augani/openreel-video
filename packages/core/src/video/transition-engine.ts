@@ -19,6 +19,8 @@ import {
   renderMaskTransition,
   type ExtraRenderScratch,
 } from "./transition-extra-render";
+import { buildGpuTransitionSpec } from "./transition-gpu-spec";
+import type { GpuTransitionRenderer } from "./transition-gpu-renderer";
 import type {
   Transition,
   Clip,
@@ -59,6 +61,18 @@ export function mapTransitionRange(progress: number, params: Record<string, unkn
   return lo + (hi - lo) * progress;
 }
 
+/**
+ * True when the user (or a benchmark) pinned transitions to the Canvas2D renderer:
+ * localStorage "openreel-transition-renderer" = "canvas2d". The GPU path is the default wherever WebGPU exists.
+ */
+function canvas2dTransitionsForced(): boolean {
+  try {
+    return typeof localStorage !== "undefined" && localStorage.getItem("openreel-transition-renderer") === "canvas2d";
+  } catch {
+    return false;
+  }
+}
+
 export class TransitionEngine {
   private canvas: OffscreenCanvas | null = null;
   private ctx: OffscreenCanvasRenderingContext2D | null = null;
@@ -75,10 +89,19 @@ export class TransitionEngine {
   private pixelScratch: OffscreenCanvas | null = null;
   private pixelScratchCtx: OffscreenCanvasRenderingContext2D | null = null;
   private extraScratch: ExtraRenderScratch = createExtraRenderScratch();
+  // WebGPU path (transition-gpu-*.ts): shots are uploaded once and the transition is one GPU pass into a WebGPU canvas,
+  // so there are no scratch canvases and no bitmap round trips. The Canvas2D code below stays the fallback (no WebGPU,
+  // a lost device, a shot WebGPU cannot take) and the reference the GPU shaders are tested against.
+  private readonly useGpu: boolean;
+  private gpu: GpuTransitionRenderer | null = null;
+  private gpuInit: Promise<boolean> | null = null;
+  /** Which renderer drew the last frame (tests, the perf trace and the export log read it). */
+  lastRenderPath: "gpu" | "canvas2d" | null = null;
 
   constructor(config: TransitionEngineConfig) {
     this.width = config.width;
     this.height = config.height;
+    this.useGpu = config.useGPU !== false && !canvas2dTransitionsForced();
     // Lazy initialization for environments without OffscreenCanvas (e.g., Node.js tests)
     this.initializeCanvas();
   }
@@ -184,6 +207,61 @@ export class TransitionEngine {
   }
 
   /**
+   * Creates the WebGPU renderer (once). Resolves true when transitions will draw on the GPU, false when they use
+   * Canvas2D (no WebGPU in this browser, `useGPU: false`, or the device could not be created).
+   */
+  ensureGpu(): Promise<boolean> {
+    if (!this.useGpu || typeof OffscreenCanvas === "undefined" || typeof navigator === "undefined" || !(navigator as { gpu?: unknown }).gpu) {
+      return Promise.resolve(false);
+    }
+    if (this.gpuInit) return this.gpuInit;
+    const init: Promise<boolean> = import("./transition-gpu-renderer")
+      .then(({ GpuTransitionRenderer: Renderer }) => Renderer.create(this.width, this.height))
+      .then((renderer) => {
+        // dispose() ran while the device was being created: nothing owns this renderer any more.
+        if (this.gpuInit !== init) {
+          renderer?.dispose();
+          return false;
+        }
+        this.gpu = renderer;
+        renderer?.resize(this.width, this.height);
+        return renderer !== null;
+      })
+      .catch(() => false);
+    this.gpuInit = init;
+    return init;
+  }
+
+  /** True while transitions draw on the GPU. */
+  isGpuActive(): boolean {
+    return this.gpu?.usable === true;
+  }
+
+  private gpuSpec(transition: Transition, eased: number) {
+    return buildGpuTransitionSpec(transition, eased, this.width, this.height, (t, p) => this.planFor(t, p));
+  }
+
+  /** Draws the frame on the GPU and returns the canvas it is in, or null when the Canvas2D path has to draw it. */
+  private async renderOnGpu(
+    outgoing: CanvasImageSource,
+    incoming: CanvasImageSource,
+    transition: Transition,
+    eased: number,
+  ): Promise<OffscreenCanvas | null> {
+    if (!(await this.ensureGpu())) return null;
+    const gpu = this.gpu;
+    if (!gpu || !gpu.usable) return null;
+    try {
+      const spec = this.gpuSpec(transition, eased);
+      if (!spec || !(await gpu.prepare(spec))) return null;
+      return gpu.draw(spec, outgoing, incoming, eased) ? gpu.canvas : null;
+    } catch (error) {
+      console.warn("[TransitionEngine] GPU transition failed, drawing with Canvas2D:", error);
+      return null;
+    }
+  }
+
+  /**
    * Runs the transition once on 2x2 stand-in frames so the engine-sized scratch canvases, 2D contexts and the
    * transition's own buffers exist before its first real frame (allocating them is the engine-side cost of a
    * transition's first frame). Never shown or exported: the result canvas is overwritten by the next real render, so
@@ -192,6 +270,10 @@ export class TransitionEngine {
   async warmUp(transition: Transition): Promise<boolean> {
     if (!this.canvas || !this.ctx || typeof OffscreenCanvas === "undefined" || transition.type === "morphCut") {
       return false;
+    }
+    if (await this.ensureGpu()) {
+      const spec = this.gpuSpec(transition, this.easedProgress(transition, 0.5));
+      if (spec && this.gpu && (await this.gpu.warm(spec))) return true;
     }
     const standIn = (shade: string) => {
       const c = new OffscreenCanvas(2, 2);
@@ -203,7 +285,7 @@ export class TransitionEngine {
       return c;
     };
     try {
-      await this.renderTransitionToCanvas(standIn("#000"), standIn("#fff"), transition, 0.5);
+      await this.renderOnCanvas2d(standIn("#000"), standIn("#fff"), transition, this.easedProgress(transition, 0.5));
       this.ctx.clearRect(0, 0, this.width, this.height);
       return true;
     } catch {
@@ -229,7 +311,7 @@ export class TransitionEngine {
     return {
       frame,
       processingTime: performance.now() - startTime,
-      gpuAccelerated: false, // Canvas 2D is not GPU accelerated
+      gpuAccelerated: this.lastRenderPath === "gpu",
     };
   }
 
@@ -246,6 +328,28 @@ export class TransitionEngine {
     }
     const clampedProgress = Math.max(0, Math.min(1, progress));
     const easedProgress = this.easedProgress(transition, clampedProgress);
+
+    const onGpu = await this.renderOnGpu(outgoingFrame, incomingFrame, transition, easedProgress);
+    if (onGpu) {
+      this.lastRenderPath = "gpu";
+      return onGpu;
+    }
+    return this.renderOnCanvas2d(outgoingFrame, incomingFrame, transition, easedProgress);
+  }
+
+  /** The Canvas2D renderers: the fallback of the GPU path and the reference its shaders are tested against. */
+  private async renderOnCanvas2d(
+    outgoingFrame: CanvasImageSource,
+    incomingFrame: CanvasImageSource,
+    transition: Transition,
+    easedProgress: number,
+  ): Promise<OffscreenCanvas> {
+    if (!this.canvas || !this.ctx) {
+      throw new Error(
+        "Canvas not available. Rendering requires a browser environment.",
+      );
+    }
+    this.lastRenderPath = "canvas2d";
 
     // Letterbox both inputs to the engine canvas first so a clip whose aspect
     // differs from the project (e.g. a portrait clip in a landscape project)
@@ -1694,6 +1798,7 @@ export class TransitionEngine {
   resize(width: number, height: number): void {
     this.width = width;
     this.height = height;
+    this.gpu?.resize(width, height);
 
     if (typeof OffscreenCanvas !== "undefined") {
       try {
@@ -1715,6 +1820,9 @@ export class TransitionEngine {
     if (this.ctx) {
       this.ctx.clearRect(0, 0, this.width, this.height);
     }
+    this.gpu?.dispose();
+    this.gpu = null;
+    this.gpuInit = null;
     this.canvas = null;
     this.ctx = null;
     this.pixelScratch = null;

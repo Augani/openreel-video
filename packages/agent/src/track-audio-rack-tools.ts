@@ -3,7 +3,7 @@ import type { AudioRack, AudioRackEffect } from "@openreel/core/types/timeline";
 import {
   AUDIO_RACK_EFFECT_DEFINITIONS,
   AUDIO_RACK_EFFECT_TYPES,
-  MAX_RACK_EFFECTS,
+  getMaxRackEffects,
   createRackEffect,
   isAudioRackEffectType,
   sanitizeRackEffectParams,
@@ -13,7 +13,7 @@ import type { RegisteredTool } from "./registry";
 import type { JSONSchema, ToolResult } from "./types";
 
 /**
- * Premiere-style Audio Track Mixer effect racks (up to five ordered effects per
+ * Premiere-style Audio Track Mixer effect racks (a configurable number of ordered effects per
  * audio track plus the master bus). Each tool dispatches ONE `audioRack/set`
  * action, i.e. one undo step, through the same handler the mixer UI uses.
  */
@@ -42,7 +42,7 @@ const TARGET_DESC = 'Track id, bus id (create_bus), or "master" for the master b
 const EFFECT_PARAM_DOC = AUDIO_RACK_EFFECT_TYPES.map((type) => {
   const def = AUDIO_RACK_EFFECT_DEFINITIONS[type];
   return `${type}: ${def.params.map((p) => `${p.key} ${p.min}..${p.max}${p.unit ? ` ${p.unit}` : ""}`).join(", ")}`;
-}).join("; ");
+}).join("; ") + '; compressor sidechain: set keySource to "track:<trackId>" or "bus:<busId>" so it detects on that signal instead of its own (a key that would close a feedback loop is ignored); keyHpf high-passes the key';
 
 function currentRack(host: EditingHost, target: string): AudioRack {
   const timeline = host.getProject().timeline;
@@ -93,7 +93,7 @@ export const TRACK_AUDIO_RACK_TOOLS: RegisteredTool[] = [
     name: "add_track_audio_effect",
     domain: "track",
     title: "Add track audio effect",
-    description: `Add an effect to a track's (or the master bus's) audio effect rack. Racks hold up to ${MAX_RACK_EFFECTS} effects processed in order, in live playback and in export. effectType: ${AUDIO_RACK_EFFECT_TYPES.join("|")}. Optional params (omitted ones use defaults; ${EFFECT_PARAM_DOC}), position (0-based slot, default end) and bypassed. Returns the new effectId. One undo step.`,
+    description: `Add an effect to a track's (or the master bus's) audio effect rack. Racks hold up to ${getMaxRackEffects()} effects processed in order, in live playback and in export. effectType: ${AUDIO_RACK_EFFECT_TYPES.join("|")}. Optional params (omitted ones use defaults; ${EFFECT_PARAM_DOC}), position (0-based slot, default end) and bypassed. Returns the new effectId. One undo step.`,
     inputSchema: obj(
       {
         target: { ...str, description: TARGET_DESC },
@@ -116,8 +116,8 @@ export const TRACK_AUDIO_RACK_TOOLS: RegisteredTool[] = [
       }
       const target = args.target as string;
       const rack = currentRack(host, target);
-      if (rack.effects.length >= MAX_RACK_EFFECTS) {
-        return fail(`The rack is full (${MAX_RACK_EFFECTS} effects). Remove one first.`, "RACK_FULL");
+      if (rack.effects.length >= getMaxRackEffects()) {
+        return fail(`The rack is full (${getMaxRackEffects()} effects). Remove one first.`, "RACK_FULL");
       }
       const effect = createRackEffect(args.effectType, {
         params: paramRecord(args.params),

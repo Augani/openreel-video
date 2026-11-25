@@ -1,6 +1,5 @@
 import { TemplateThumb } from "../../welcome/TemplateThumb";
 import React, {
-  lazy,
   Suspense,
   useState,
   useCallback,
@@ -38,13 +37,14 @@ import {
 } from "@openreel/core";
 import { templateCloudService } from "../../../services/template-cloud-service";
 // The save dialog is only fetched when it is first opened.
-const SaveTemplateDialog = lazy(() => import("../SaveTemplateDialog").then((m) => ({ default: m.SaveTemplateDialog })));
+const SaveTemplateDialog = lazyWithRetry(() => import("../SaveTemplateDialog").then((m) => ({ default: m.SaveTemplateDialog })));
 import { TemplateVariablesPanel } from "./TemplateVariablesPanel";
 import {
   openTemplateProject,
   resolveTemplateMedia,
   templateEditorOwner,
 } from "../../../services/project-templates";
+import { lazyWithRetry } from "./lazy-retry";
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   "social-media": Share,

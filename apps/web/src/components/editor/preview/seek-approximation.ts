@@ -14,6 +14,7 @@ export function isPlainVideoClip(clip: Clip, hasMask = false): boolean {
   if (clip.blendMode && clip.blendMode !== "normal") return false;
   if (clip.blendOpacity !== undefined && clip.blendOpacity !== 1) return false;
   if (clip.stabilization?.enabled) return false;
+  if (clip.objectRemoval?.enabled) return false;
   if (clip.emphasisAnimation && clip.emphasisAnimation.type !== "none") return false;
   if (clip.reversed || clip.freezeFrames?.length || clip.speedKeyframes?.length) return false;
   if (clip.metadata?.motionClip || clip.metadata?.motionCompositionId) return false;

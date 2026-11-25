@@ -14,7 +14,7 @@ describe("browser export preflight", () => {
     const media = library();
     await expect(checkBrowserExportCapability(DEFAULT_VIDEO_SETTINGS, media)).resolves.toMatchObject({ supported: true, audioCodec: "aac" });
     expect(media.getFirstEncodableVideoCodec).toHaveBeenCalledWith(["avc"], { width: 1920, height: 1080, bitrate: 5_000_000 });
-    expect(media.getFirstEncodableAudioCodec).toHaveBeenCalledWith(["aac", "opus"], { numberOfChannels: 2, sampleRate: 48000, bitrate: 192000 });
+    expect(media.getFirstEncodableAudioCodec).toHaveBeenCalledWith(["aac"], { numberOfChannels: 2, sampleRate: 48000, bitrate: 192000 });
   });
   it("rejects an incompatible container before querying the encoder", async () => {
     const media = library();

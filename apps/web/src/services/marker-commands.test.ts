@@ -10,6 +10,7 @@ import {
   addMarkerAtPlayhead,
   addRangeMarker,
   buildMarkerExport,
+  copyYouTubeChapters,
   clearAllMarkers,
   clearMarkerAtPlayhead,
   editMarkerAtPlayhead,
@@ -160,5 +161,32 @@ describe("marker shortcuts go through the preset system", () => {
     expect(keyboardShortcuts.setShortcut("tools.nextMarker", "alt+arrowdown")).toBeTruthy();
     expect(keyboardShortcuts.getAllShortcuts().find((s) => s.id === "tools.nextMarker")?.currentKey).toBe("alt+arrowdown");
     keyboardShortcuts.resetAllShortcuts();
+  });
+});
+
+describe("chapter deliverables", () => {
+  afterEach(() => setMarkers([]));
+
+  it("builds a WebVTT chapters file from the chapter markers only", () => {
+    setMarkers([mk("Intro", 0, { kind: "chapter" }), mk("note", 4), mk("Act", 30, { kind: "chapter" })]);
+    useProjectStore.setState((s) => ({ project: { ...s.project, timeline: { ...s.project.timeline, duration: 60 } } }));
+    const file = buildMarkerExport("webvtt");
+    expect(file.filename).toBe("My_Cut_chapters.vtt");
+    expect(file.mimeType).toBe("text/vtt");
+    expect(file.content).toContain("WEBVTT");
+    expect(file.content).toContain("00:00:00.000 --> 00:00:30.000\nIntro");
+    expect(file.content).toContain("00:00:30.000 --> ");
+    expect(file.content).not.toContain("note");
+    expect(file.warnings).toEqual([]);
+  });
+
+  it("warns when there is no chapter marker, and copies the YouTube text to the clipboard", async () => {
+    setMarkers([mk("note", 4)]);
+    expect(buildMarkerExport("webvtt").warnings.join(" ")).toMatch(/no chapter markers/i);
+    setMarkers([mk("Intro", 0, { kind: "chapter" }), mk("Act", 75, { kind: "chapter" })]);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    expect(await copyYouTubeChapters()).toBe(true);
+    expect(writeText).toHaveBeenCalledWith("0:00 Intro\n1:15 Act");
   });
 });

@@ -349,6 +349,7 @@ export const Toolbar: React.FC = () => {
         isOpen={isExportDialogOpen}
         onClose={closeModal}
         onExport={handleCustomExport}
+        onExportAudio={(id) => { void handleQuickExport(id); }}
         onAddToQueue={(settings, meta) => { addDialogExportToQueue(settings, { ...meta, sequenceId: exportSequenceId }); }}
         duration={exportProject.timeline?.duration ?? 0}
         projectWidth={exportProject.settings?.width ?? 1920}

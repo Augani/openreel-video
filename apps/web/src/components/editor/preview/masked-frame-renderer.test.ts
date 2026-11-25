@@ -99,4 +99,100 @@ describe("drawFrameWithMasks", () => {
     expect(initial.close).toHaveBeenCalledOnce();
     expect(second.close).toHaveBeenCalledOnce();
   });
+
+  it("effect masks cross-fade the processed and raw pictures and never cut the clip", async () => {
+    const drawFrame = vi.fn();
+    const drawImage = vi.fn();
+    const layerCtx = { drawImage: vi.fn() };
+    const initial = bitmap("processed");
+    const mixed = bitmap("mixed");
+    const base = bitmap("raw");
+    const effectMask = { ...mask("fx"), appliesTo: "effects" as const };
+    const loadMasks = vi.fn();
+    const applyMasks = vi.fn();
+    const composeEffectMasks = vi.fn().mockResolvedValue(mixed);
+
+    await drawFrameWithMasks(
+      {
+        ctx: { drawImage } as unknown as CanvasRenderingContext2D,
+        frame: bitmap("source"),
+        baseFrame: base,
+        transform: DEFAULT_TRANSFORM,
+        canvasWidth: 640,
+        canvasHeight: 360,
+        masks: [effectMask],
+        maskEngine: { loadMasks, applyMasks, composeEffectMasks },
+        time: 1,
+        filter: "blur(2px)",
+      },
+      {
+        createCanvas: () => ({ getContext: () => layerCtx }) as unknown as OffscreenCanvas,
+        createBitmap: vi.fn().mockResolvedValue(initial),
+        drawFrame,
+      },
+    );
+
+    // Processed layer (with the filter) and raw layer (without it) are drawn separately.
+    expect(drawFrame).toHaveBeenCalledTimes(2);
+    expect(drawFrame.mock.calls[0][5]).toBe("blur(2px)");
+    expect(drawFrame.mock.calls[1][1]).toBe(base);
+    expect(drawFrame.mock.calls[1][5]).toBeUndefined();
+    expect(composeEffectMasks).toHaveBeenCalledWith(initial, expect.anything(), [effectMask], 1);
+    expect(applyMasks).not.toHaveBeenCalled();
+    expect(drawImage).toHaveBeenCalledWith(mixed, 0, 0, 640, 360);
+    expect(initial.close).toHaveBeenCalledOnce();
+    expect(mixed.close).toHaveBeenCalledOnce();
+  });
+
+  it("an effect mask without a base picture shows the processed clip everywhere", async () => {
+    const drawFrame = vi.fn();
+    const applyMasks = vi.fn();
+    await drawFrameWithMasks(
+      {
+        ctx: { drawImage: vi.fn() } as unknown as CanvasRenderingContext2D,
+        frame: bitmap("source"),
+        transform: DEFAULT_TRANSFORM,
+        canvasWidth: 640,
+        canvasHeight: 360,
+        masks: [{ ...mask("fx"), appliesTo: "effects" as const }],
+        maskEngine: { loadMasks: vi.fn(), applyMasks },
+        time: 0,
+      },
+      { drawFrame },
+    );
+    expect(drawFrame).toHaveBeenCalledOnce();
+    expect(applyMasks).not.toHaveBeenCalled();
+  });
+
+  it("effect masks and visibility masks combine: scope first, then cut", async () => {
+    const mixed = bitmap("mixed");
+    const cut = bitmap("cut");
+    const loadMasks = vi.fn();
+    const applyMasks = vi.fn().mockResolvedValue({ image: cut, processingTime: 1, gpuAccelerated: false });
+    const composeEffectMasks = vi.fn().mockResolvedValue(mixed);
+    const effectMask = { ...mask("fx"), appliesTo: "effects" as const };
+    const cutMask = mask("cut");
+    const drawImage = vi.fn();
+    await drawFrameWithMasks(
+      {
+        ctx: { drawImage } as unknown as CanvasRenderingContext2D,
+        frame: bitmap("source"),
+        baseFrame: bitmap("raw"),
+        transform: DEFAULT_TRANSFORM,
+        canvasWidth: 640,
+        canvasHeight: 360,
+        masks: [effectMask, cutMask],
+        maskEngine: { loadMasks, applyMasks, composeEffectMasks },
+        time: 3,
+      },
+      {
+        createCanvas: () => ({ getContext: () => ({ drawImage: vi.fn() }) }) as unknown as OffscreenCanvas,
+        createBitmap: vi.fn().mockResolvedValue(bitmap("processed")),
+        drawFrame: vi.fn(),
+      },
+    );
+    expect(composeEffectMasks).toHaveBeenCalledWith(expect.anything(), expect.anything(), [effectMask], 3);
+    expect(applyMasks).toHaveBeenCalledWith(mixed, [cutMask], 3);
+    expect(drawImage).toHaveBeenCalledWith(cut, 0, 0, 640, 360);
+  });
 });

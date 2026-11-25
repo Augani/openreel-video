@@ -19,6 +19,7 @@ import { toast } from "../../../stores/notification-store";
 import { InspectorSlider } from "./shell/InspectorSlider";
 import { FONT_CATEGORIES, useCustomFonts } from "./font-options";
 import { useTextFontEdit } from "./useTextFontEdit";
+import { useTextSelectionStore } from "../../../stores/text-selection-store";
 
 const builtInFonts = Object.values(FONT_CATEGORIES).flat();
 
@@ -54,6 +55,10 @@ export function PrimaryTextProperties({ clipId }: { clipId: string }) {
         onChange={(e) =>
           useProjectStore.getState().updateTextContent(clipId, e.target.value)
         }
+        onSelect={(e) => {
+          const { selectionStart, selectionEnd } = e.currentTarget;
+          useTextSelectionStore.getState().setSelection(clipId, selectionStart, selectionEnd);
+        }}
       />
       <div className="workspace-text-font-row">
         <Select

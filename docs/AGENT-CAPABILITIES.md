@@ -284,8 +284,8 @@ The agent exposes **494 tools** spanning read/observe, project, track, clip, tra
 - **delete_gap** — Ripple-delete the empty gap on a track that contains `time` (seconds, or timeFrame in frames): later clips move earlier to close it. Space after the last clip is not a gap. Sync Lock: every other unlocked sync-locked track must be empty over the gap and shifts with it; otherwise the edit is blocked and the error names the track. Locked tracks block it. One undo step.
 - **set_track_target** — Turn a track's target toggle (the V1/A1 buttons) on or off. Targeted tracks are what Extract, Lift, Add Edit, Paste, Match Frame and insert/overwrite use when no trackId is given. Editor state, not part of the project (no undo step). Live editor only.
 - **set_source_patch** — Patch a Source monitor component to a timeline track: kind video|audio, trackId of a video/image track (video) or an audio track (audio), or null to clear (auto). insert_from_source / overwrite_from_source then place the source's video and audio on the patched tracks (two linked clips when both are patched to different tracks). Editor state, not part of the project (no undo step). Live editor only.
-- **add_track_audio_effect** — Add an effect to a track's (or the master bus's) audio effect rack. Racks hold up to 5 effects processed in order, in live playback and in export. effectType: gain|eq|compressor|limiter|reverb|delay|noiseReduction|deHum|deClick|deClip|deEss|deReverb|gate|brickwallLimiter|lowPass. Optional params (omitted ones use defaults; gain: gainDb -24..24 dB; eq: lowGain -24..24 dB, midGain -24..24 dB, midFreq 200..8000 Hz, midQ 0.1..10, highGain -24..24 dB; compressor: threshold -60..0 dB, ratio 1..20 :1, attack 0.001..1 s, release 0.01..3 s, knee 0..40 dB, makeupGain 0..24 dB; limiter: ceiling -24..0 dB, release 0.01..1 s; reverb: roomSize 0..1, damping 0..1, wetLevel 0..1, dryLevel 0..1; delay: time 0..2 s, feedback 0..0.95, wetLevel 0..1; noiseReduction: threshold -60..0 dB, reduction 0..1, attack 0..100 ms, release 0..500 ms; deHum: frequency 40..70 Hz, harmonics 1..8, q 5..100, depth 0..1; deClick: sensitivity 0..1, maxWidth 2..48 smp; deClip: threshold -24..0 dBFS, maxRun 4..120 smp; deEss: frequency 2500..12000 Hz, bandwidthQ 0.3..6, threshold -60..0 dB, ratio 1..20 :1, attack 0.0002..0.05 s, release 0.005..0.5 s, listen 0..1; deReverb: amount 0..1, rt60 0.1..3 s, floor -40..0 dB; gate: threshold -80..0 dB, range -80..0 dB, attack 0.0002..0.2 s, hold 0..1 s, release 0.01..2 s; brickwallLimiter: ceiling -24..0 dBTP, release 0.01..1 s; lowPass: frequency 100..20000 Hz, slope 12..48 dB/oct), position (0-based slot, default end) and bypassed. Returns the new effectId. One undo step.
-- **set_track_audio_effect_param** — Edit one effect in a track/master audio rack: any of params (object of numeric parameters, clamped to range; gain: gainDb -24..24 dB; eq: lowGain -24..24 dB, midGain -24..24 dB, midFreq 200..8000 Hz, midQ 0.1..10, highGain -24..24 dB; compressor: threshold -60..0 dB, ratio 1..20 :1, attack 0.001..1 s, release 0.01..3 s, knee 0..40 dB, makeupGain 0..24 dB; limiter: ceiling -24..0 dB, release 0.01..1 s; reverb: roomSize 0..1, damping 0..1, wetLevel 0..1, dryLevel 0..1; delay: time 0..2 s, feedback 0..0.95, wetLevel 0..1; noiseReduction: threshold -60..0 dB, reduction 0..1, attack 0..100 ms, release 0..500 ms; deHum: frequency 40..70 Hz, harmonics 1..8, q 5..100, depth 0..1; deClick: sensitivity 0..1, maxWidth 2..48 smp; deClip: threshold -24..0 dBFS, maxRun 4..120 smp; deEss: frequency 2500..12000 Hz, bandwidthQ 0.3..6, threshold -60..0 dB, ratio 1..20 :1, attack 0.0002..0.05 s, release 0.005..0.5 s, listen 0..1; deReverb: amount 0..1, rt60 0.1..3 s, floor -40..0 dB; gate: threshold -80..0 dB, range -80..0 dB, attack 0.0002..0.2 s, hold 0..1 s, release 0.01..2 s; brickwallLimiter: ceiling -24..0 dBTP, release 0.01..1 s; lowPass: frequency 100..20000 Hz, slope 12..48 dB/oct), bypassed and position (new 0-based slot: reorders the rack). Also sets the bus fader/pan of that track: volume (linear 0..4, 1 = 0 dB) and pan (-1..1; tracks only) when effectId is omitted. One undo step.
+- **add_track_audio_effect** — Add an effect to a track's (or the master bus's) audio effect rack. Racks hold up to 12 effects processed in order, in live playback and in export. effectType: gain|eq|compressor|limiter|reverb|delay|noiseReduction|deHum|deClick|deClip|deEss|deReverb|gate|brickwallLimiter|lowPass|chorus|flanger|phaser|distortion|stereoWidth|invertPolarity|channelMap. Optional params (omitted ones use defaults; gain: gainDb -24..24 dB; eq: lowGain -24..24 dB, midGain -24..24 dB, midFreq 200..8000 Hz, midQ 0.1..10, highGain -24..24 dB; compressor: threshold -60..0 dB, ratio 1..20 :1, attack 0.001..1 s, release 0.01..3 s, knee 0..40 dB, makeupGain 0..24 dB, keyHpf 20..2000 Hz; limiter: ceiling -24..0 dB, release 0.01..1 s; reverb: roomSize 0..1, damping 0..1, wetLevel 0..1, dryLevel 0..1; delay: time 0..2 s, feedback 0..0.95, wetLevel 0..1; noiseReduction: threshold -60..0 dB, reduction 0..1, attack 0..100 ms, release 0..500 ms; deHum: frequency 40..70 Hz, harmonics 1..8, q 5..100, depth 0..1; deClick: sensitivity 0..1, maxWidth 2..48 smp; deClip: threshold -24..0 dBFS, maxRun 4..120 smp; deEss: frequency 2500..12000 Hz, bandwidthQ 0.3..6, threshold -60..0 dB, ratio 1..20 :1, attack 0.0002..0.05 s, release 0.005..0.5 s, listen 0..1; deReverb: amount 0..1, rt60 0.1..3 s, floor -40..0 dB; gate: threshold -80..0 dB, range -80..0 dB, attack 0.0002..0.2 s, hold 0..1 s, release 0.01..2 s; brickwallLimiter: ceiling -24..0 dBTP, release 0.01..1 s; lowPass: frequency 100..20000 Hz, slope 12..48 dB/oct; chorus: rate 0.05..10 Hz, depth 0..1, delay 0.1..30 ms, feedback -0.9..0.9, spread 0..1, mix 0..1; flanger: rate 0.05..10 Hz, depth 0..1, delay 0.1..30 ms, feedback -0.9..0.9, spread 0..1, mix 0..1; phaser: rate 0.05..10 Hz, depth 0..1, frequency 100..4000 Hz, feedback -0.9..0.9, stages 2..12, mix 0..1; distortion: mode 0..2, drive 0..40 dB, tone 500..20000 Hz, level -24..12 dB, mix 0..1; stereoWidth: width 0..2, midGain -12..12 dB; invertPolarity: left 0..1, right 0..1; channelMap: mode 0..4; compressor sidechain: set keySource to "track:<trackId>" or "bus:<busId>" so it detects on that signal instead of its own (a key that would close a feedback loop is ignored); keyHpf high-passes the key), position (0-based slot, default end) and bypassed. Returns the new effectId. One undo step.
+- **set_track_audio_effect_param** — Edit one effect in a track/master audio rack: any of params (object of numeric parameters, clamped to range; gain: gainDb -24..24 dB; eq: lowGain -24..24 dB, midGain -24..24 dB, midFreq 200..8000 Hz, midQ 0.1..10, highGain -24..24 dB; compressor: threshold -60..0 dB, ratio 1..20 :1, attack 0.001..1 s, release 0.01..3 s, knee 0..40 dB, makeupGain 0..24 dB, keyHpf 20..2000 Hz; limiter: ceiling -24..0 dB, release 0.01..1 s; reverb: roomSize 0..1, damping 0..1, wetLevel 0..1, dryLevel 0..1; delay: time 0..2 s, feedback 0..0.95, wetLevel 0..1; noiseReduction: threshold -60..0 dB, reduction 0..1, attack 0..100 ms, release 0..500 ms; deHum: frequency 40..70 Hz, harmonics 1..8, q 5..100, depth 0..1; deClick: sensitivity 0..1, maxWidth 2..48 smp; deClip: threshold -24..0 dBFS, maxRun 4..120 smp; deEss: frequency 2500..12000 Hz, bandwidthQ 0.3..6, threshold -60..0 dB, ratio 1..20 :1, attack 0.0002..0.05 s, release 0.005..0.5 s, listen 0..1; deReverb: amount 0..1, rt60 0.1..3 s, floor -40..0 dB; gate: threshold -80..0 dB, range -80..0 dB, attack 0.0002..0.2 s, hold 0..1 s, release 0.01..2 s; brickwallLimiter: ceiling -24..0 dBTP, release 0.01..1 s; lowPass: frequency 100..20000 Hz, slope 12..48 dB/oct; chorus: rate 0.05..10 Hz, depth 0..1, delay 0.1..30 ms, feedback -0.9..0.9, spread 0..1, mix 0..1; flanger: rate 0.05..10 Hz, depth 0..1, delay 0.1..30 ms, feedback -0.9..0.9, spread 0..1, mix 0..1; phaser: rate 0.05..10 Hz, depth 0..1, frequency 100..4000 Hz, feedback -0.9..0.9, stages 2..12, mix 0..1; distortion: mode 0..2, drive 0..40 dB, tone 500..20000 Hz, level -24..12 dB, mix 0..1; stereoWidth: width 0..2, midGain -12..12 dB; invertPolarity: left 0..1, right 0..1; channelMap: mode 0..4; compressor sidechain: set keySource to "track:<trackId>" or "bus:<busId>" so it detects on that signal instead of its own (a key that would close a feedback loop is ignored); keyHpf high-passes the key), bypassed and position (new 0-based slot: reorders the rack). Also sets the bus fader/pan of that track: volume (linear 0..4, 1 = 0 dB) and pan (-1..1; tracks only) when effectId is omitted. One undo step.
 - **remove_track_audio_effect** — Remove one effect from a track's (or the master bus's) audio effect rack by effectId. One undo step.
 - **set_source_channel_patch** — Patch audio channel group `channel` (1 = A1) of a multichannel source to an audio track (trackId, null = automatic) and/or switch it off (enabled false). insert_from_source / overwrite_from_source place one clip per enabled group. Editor state, no undo step. Live editor only.
 
@@ -367,7 +367,7 @@ The agent exposes **494 tools** spanning read/observe, project, track, clip, tra
 - **set_clip_blend_opacity** — Set a clip's blend opacity (0..1).
 
 ## effect
-- **add_video_effect** — Add a video effect to a clip. Standard effectType values include brightness, contrast, saturation, blur, sharpen, vignette, grain, temperature, tint, shadow, glow, motion-blur, radial-blur, chromatic-aberration. Pro effect types (params validated against their ranges; omitted params take the same defaults as adding the effect in the editor UI): mosaic (size 1..200); posterize (levels 2..256); mirror (mode none|horizontal|vertical|quad, center 0..100); lens-distortion (amount -100..100, zoom 10..400, compensate boolean); directional-blur (angle 0..360, length 0..200); find-edges (amount 0..100, invert boolean); emboss (amount 0..100, angle 0..360, relief 0..10); exposure (exposure -5..5, offset -0.5..0.5, gamma 0.2..3); threshold (level 0..255, mix 0..100); halftone (dotSize 2..100, angle 0..360, amount 0..100, invert boolean); vhs-glitch (scanlines 0..100, rgbSplit 0..100, jitter 0..200, noise 0..100, time 0..3600, seed 0..9999); unsharp-mask (amount 0..500, radius 0.1..50, threshold 0..255); gaussian-blur (blurX 0..100, blurY 0..100); crop (left 0..100, top 0..100, right 0..100, bottom 0..100, feather 0..100); vibrance (vibrance -100..100, saturation -100..100); skew (skewX -60..60, skewY -60..60); hsl-secondary (hueMin 0..360, hueMax 0..360, hueSoft 0..180, satMin 0..100, satMax 0..100, satSoft 0..100, lumMin 0..100, lumMax 0..100, lumSoft 0..100, denoise 0..100, blur 0..20, invert boolean, temperature -100..100, tint -100..100, contrast -100..100, sharpen 0..100, saturation -100..100, wheelX -1..1, wheelY -1..1, maskShape none|ellipse|rectangle, maskX 0..100, maskY 0..100, maskW 0..100, maskH 0..100, maskFeather 0..200, maskInvert boolean); camera-blur (radius 0..60); channel-blur (red 0..60, green 0..60, blue 0..60, alpha 0..60); tilt-shift (blur 0..40, angle 0..360, center 0..100, focus 0..100, falloff 1..100); luma-key (mode none|darker|brighter, threshold 0..100, softness 0..100); color-key (keyR 0..255, keyG 0..255, keyB 0..255, tolerance 0..100, softness 0..100, invert boolean); ultra-key (keyR 0..255, keyG 0..255, keyB 0..255, transparency 0..100, highlight 0..100, shadow 0..100, tolerance 0..100, pedestal 0..100, choke 0..100, soften 0..100, contrast 0..100, midPoint 0..100, desaturate 0..100, range 0..100, spill 0..100, luma 0..100, saturation 0..200, hue -180..180, luminance 0..200, output composite|alpha|color|source); alpha-adjust (opacity 0..100, ignore boolean, invert boolean, matte boolean); leave-color (keyR 0..255, keyG 0..255, keyB 0..255, amount 0..100, tolerance 0..100, softness 0..100); change-to-color (fromR 0..255, fromG 0..255, fromB 0..255, toR 0..255, toG 0..255, toB 0..255, tolerance 0..100, softness 0..100); solarize (threshold 0..100); levels (inBlack 0..254, inWhite 1..255, gamma 0.1..10, outBlack 0..255, outWhite 0..255); channel-mixer (rr -200..200, rg -200..200, rb -200..200, gr -200..200, gg -200..200, gb -200..200, br -200..200, bg -200..200, bb -200..200, mono boolean); tint-map (blackR 0..255, blackG 0..255, blackB 0..255, whiteR 0..255, whiteG 0..255, whiteB 0..255, amount 0..100); spherize (amount -100..100, radius 1..200, centerX 0..100, centerY 0..100); twirl (angle -720..720, radius 1..200, centerX 0..100, centerY 0..100); ripple (amplitude 0..200, wavelength 4..1000, angle 0..360, phase 0..360, speed -10..10, time 0..3600); turbulent-displace (amount 0..300, size 4..1000, complexity 1..4, evolution 0..1000, seed 0..9999); offset (shiftX -100..100, shiftY -100..100, edge wrap|clamp|transparent); corner-pin (x0 -100..200, y0 -100..200, x1 -100..200, y1 -100..200, x2 -100..200, y2 -100..200, x3 -100..200, y3 -100..200); polar-coordinates (mode rect-to-polar|polar-to-rect, amount 0..100); replicate (count 1..16); color-emboss (amount 0..100, angle 0..360, relief 0..10); noise (amount 0..100, size 1..32, mono boolean, time 0..3600, seed 0..9999); bevel-alpha (thickness 1..50, angle 0..360, intensity 0..100); four-color-gradient (c1R 0..255, c1G 0..255, c1B 0..255, c2R 0..255, c2G 0..255, c2B 0..255, c3R 0..255, c3G 0..255, c3B 0..255, c4R 0..255, c4G 0..255, c4B 0..255, opacity 0..100, blend normal|multiply|screen|add); lens-flare (centerX 0..100, centerY 0..100, brightness 0..200, size 1..200); strobe-light (flashR 0..255, flashG 0..255, flashB 0..255, opacity 0..100, period 0.05..10, duration 0..10, phase -10..10, blend normal|add, time 0..3600); grid (size 4..500, border 1..50, lineR 0..255, lineG 0..255, lineB 0..255, opacity 0..100); echo (echoTime -2..2, echoes 0..32, startIntensity 0..1, decay 0..1, operator add|maximum|minimum|screen|composite-back|composite-front); posterize-time (frameRate 0..120); vr-rotate-sphere (layout mono|over-under|side-by-side, tilt -360..360, pan -360..360, roll -360..360); vr-projection (mode none|rectilinear|stereographic|fisheye, layout mono|over-under|side-by-side, fov 10..360, pan -360..360, tilt -360..360, roll -360..360, aspect 0.25..4); vr-blur (layout mono|over-under|side-by-side, radius 0..15); vr-plane-to-sphere (width 5..179, pan -360..360, tilt -360..360, roll -360..360, enabled boolean); vr-sharpen (layout mono|over-under|side-by-side, amount 0..100, radius 0.05..3); vr-glow (layout mono|over-under|side-by-side, threshold 0..100, radius 0.1..12, brightness 0..400, tintR 0..255, tintG 0..255, tintB 0..255); vr-chromatic-aberrations (layout mono|over-under|side-by-side, amount 0..100, pan -360..360, tilt -360..360); vr-digital-glitch (layout mono|over-under|side-by-side, intensity 0..100, seed 0..9999, rate 1..24, time 0..3600); vr-de-noise (layout mono|over-under|side-by-side, amount 0..100, radius 0.1..3). Prefer the pro type where one supersedes a legacy effect (gaussian-blur over blur, mosaic over shader pixelate, mirror over shader mirror, lens-distortion over shader fisheye, posterize over shader posterize, vhs-glitch over shader vhs); the legacy types still render in existing projects. Omitted legacy params also take the editor's visible defaults. Pro effect params can be keyframed with add_keyframe property fx:<effectId>:<param> (effectId from get_clip or list_effect_params). Set effectType to 'shader' to run a GPU shader effect from the Motion shader library (only category 'effect' shaders, e.g. the Paper Design catalog like paper-halftone-dots or paper-liquid-metal — use list_motion_shaders with category 'effect' to discover ids); for shader effects, params MUST include a valid shaderId plus optional numeric params (name/value pairs from the shader's params) and an optional numeric time. Shader effects no-op gracefully when WebGL2 is unavailable.
+- **add_video_effect** — Add a video effect to a clip. Standard effectType values include brightness, contrast, saturation, blur, sharpen, vignette, grain, temperature, tint, shadow, glow, motion-blur, radial-blur, chromatic-aberration. Pro effect types (params validated against their ranges; omitted params take the same defaults as adding the effect in the editor UI): mosaic (size 1..200); posterize (levels 2..256); mirror (mode none|horizontal|vertical|quad, center 0..100); lens-distortion (amount -100..100, zoom 10..400, compensate boolean); directional-blur (angle 0..360, length 0..200); find-edges (amount 0..100, invert boolean); emboss (amount 0..100, angle 0..360, relief 0..10); exposure (exposure -5..5, offset -0.5..0.5, gamma 0.2..3); threshold (level 0..255, mix 0..100); halftone (dotSize 2..100, angle 0..360, amount 0..100, invert boolean); vhs-glitch (scanlines 0..100, rgbSplit 0..100, jitter 0..200, noise 0..100, time 0..3600, seed 0..9999); unsharp-mask (amount 0..500, radius 0.1..50, threshold 0..255); gaussian-blur (blurX 0..100, blurY 0..100); crop (left 0..100, top 0..100, right 0..100, bottom 0..100, feather 0..100); vibrance (vibrance -100..100, saturation -100..100); skew (skewX -60..60, skewY -60..60); hsl-secondary (hueMin 0..360, hueMax 0..360, hueSoft 0..180, satMin 0..100, satMax 0..100, satSoft 0..100, lumMin 0..100, lumMax 0..100, lumSoft 0..100, denoise 0..100, blur 0..20, invert boolean, temperature -100..100, tint -100..100, contrast -100..100, sharpen 0..100, saturation -100..100, wheelX -1..1, wheelY -1..1, maskShape none|ellipse|rectangle, maskX 0..100, maskY 0..100, maskW 0..100, maskH 0..100, maskFeather 0..200, maskInvert boolean); camera-blur (radius 0..60); channel-blur (red 0..60, green 0..60, blue 0..60, alpha 0..60); tilt-shift (blur 0..40, angle 0..360, center 0..100, focus 0..100, falloff 1..100); luma-key (mode none|darker|brighter, threshold 0..100, softness 0..100); color-key (keyR 0..255, keyG 0..255, keyB 0..255, tolerance 0..100, softness 0..100, invert boolean); ultra-key (keyR 0..255, keyG 0..255, keyB 0..255, transparency 0..100, highlight 0..100, shadow 0..100, tolerance 0..100, pedestal 0..100, choke 0..100, soften 0..100, contrast 0..100, midPoint 0..100, desaturate 0..100, range 0..100, spill 0..100, luma 0..100, saturation 0..200, hue -180..180, luminance 0..200, output composite|alpha|color|source); alpha-adjust (opacity 0..100, ignore boolean, invert boolean, matte boolean); leave-color (keyR 0..255, keyG 0..255, keyB 0..255, amount 0..100, tolerance 0..100, softness 0..100); change-to-color (fromR 0..255, fromG 0..255, fromB 0..255, toR 0..255, toG 0..255, toB 0..255, tolerance 0..100, softness 0..100); solarize (threshold 0..100); levels (inBlack 0..254, inWhite 1..255, gamma 0.1..10, outBlack 0..255, outWhite 0..255); channel-mixer (rr -200..200, rg -200..200, rb -200..200, gr -200..200, gg -200..200, gb -200..200, br -200..200, bg -200..200, bb -200..200, mono boolean); tint-map (blackR 0..255, blackG 0..255, blackB 0..255, whiteR 0..255, whiteG 0..255, whiteB 0..255, amount 0..100); spherize (amount -100..100, radius 1..200, centerX 0..100, centerY 0..100); twirl (angle -720..720, radius 1..200, centerX 0..100, centerY 0..100); ripple (amplitude 0..200, wavelength 4..1000, angle 0..360, phase 0..360, speed -10..10, time 0..3600); turbulent-displace (amount 0..300, size 4..1000, complexity 1..4, evolution 0..1000, seed 0..9999); offset (shiftX -100..100, shiftY -100..100, edge wrap|clamp|transparent); corner-pin (x0 -100..200, y0 -100..200, x1 -100..200, y1 -100..200, x2 -100..200, y2 -100..200, x3 -100..200, y3 -100..200); polar-coordinates (mode rect-to-polar|polar-to-rect, amount 0..100); replicate (count 1..16); color-emboss (amount 0..100, angle 0..360, relief 0..10); noise (amount 0..100, size 1..32, mono boolean, time 0..3600, seed 0..9999); bevel-alpha (thickness 1..50, angle 0..360, intensity 0..100); four-color-gradient (c1R 0..255, c1G 0..255, c1B 0..255, c2R 0..255, c2G 0..255, c2B 0..255, c3R 0..255, c3G 0..255, c3B 0..255, c4R 0..255, c4G 0..255, c4B 0..255, opacity 0..100, blend normal|multiply|screen|add); lens-flare (centerX 0..100, centerY 0..100, brightness 0..200, size 1..200); strobe-light (flashR 0..255, flashG 0..255, flashB 0..255, opacity 0..100, period 0.05..10, duration 0..10, phase -10..10, blend normal|add, time 0..3600); grid (size 4..500, border 1..50, lineR 0..255, lineG 0..255, lineB 0..255, opacity 0..100); dehaze (amount -100..100, radius 1..40, skyProtection 0..100); deflicker (window 3..31, luma 0..100, color 0..100, sensitivity 0..100, limit 0..100); deband (threshold 0..32, radius 1..64, iterations 1..4, dither 0..100); echo (echoTime -2..2, echoes 0..32, startIntensity 0..1, decay 0..1, operator add|maximum|minimum|screen|composite-back|composite-front); posterize-time (frameRate 0..120); vr-rotate-sphere (layout mono|over-under|side-by-side, tilt -360..360, pan -360..360, roll -360..360); vr-projection (mode none|rectilinear|stereographic|fisheye, layout mono|over-under|side-by-side, fov 10..360, pan -360..360, tilt -360..360, roll -360..360, aspect 0.25..4); vr-blur (layout mono|over-under|side-by-side, radius 0..15); vr-plane-to-sphere (width 5..179, pan -360..360, tilt -360..360, roll -360..360, enabled boolean); vr-sharpen (layout mono|over-under|side-by-side, amount 0..100, radius 0.05..3); vr-glow (layout mono|over-under|side-by-side, threshold 0..100, radius 0.1..12, brightness 0..400, tintR 0..255, tintG 0..255, tintB 0..255); vr-chromatic-aberrations (layout mono|over-under|side-by-side, amount 0..100, pan -360..360, tilt -360..360); vr-digital-glitch (layout mono|over-under|side-by-side, intensity 0..100, seed 0..9999, rate 1..24, time 0..3600); vr-de-noise (layout mono|over-under|side-by-side, amount 0..100, radius 0.1..3). Prefer the pro type where one supersedes a legacy effect (gaussian-blur over blur, mosaic over shader pixelate, mirror over shader mirror, lens-distortion over shader fisheye, posterize over shader posterize, vhs-glitch over shader vhs); the legacy types still render in existing projects. Omitted legacy params also take the editor's visible defaults. Pro effect params can be keyframed with add_keyframe property fx:<effectId>:<param> (effectId from get_clip or list_effect_params). Set effectType to 'shader' to run a GPU shader effect from the Motion shader library (only category 'effect' shaders, e.g. the Paper Design catalog like paper-halftone-dots or paper-liquid-metal — use list_motion_shaders with category 'effect' to discover ids); for shader effects, params MUST include a valid shaderId plus optional numeric params (name/value pairs from the shader's params) and an optional numeric time. Shader effects no-op gracefully when WebGL2 is unavailable.
 - **remove_video_effect** — Remove a clip's video effect.
 - **update_video_effect** — Update a video effect's params. Pro effect params (see list_pro_effects) are range-checked.
 - **toggle_video_effect** — Enable/disable a video effect.
@@ -563,7 +563,17 @@ The agent exposes **494 tools** spanning read/observe, project, track, clip, tra
     "color",
     "luminosity",
     "add",
-    "linear-dodge"
+    "linear-dodge",
+    "linear-burn",
+    "darker-color",
+    "lighter-color",
+    "linear-light",
+    "vivid-light",
+    "pin-light",
+    "hard-mix",
+    "subtract",
+    "divide",
+    "dissolve"
   ],
   "videoFilterTypes": [
     "brightness",
@@ -601,7 +611,14 @@ The agent exposes **494 tools** spanning read/observe, project, track, clip, tra
     "enhanceSpeech",
     "reduceReverb",
     "fadeIn",
-    "fadeOut"
+    "fadeOut",
+    "chorus",
+    "flanger",
+    "phaser",
+    "distortion",
+    "stereoWidth",
+    "invertPolarity",
+    "channelMap"
   ],
   "transitionTypes": [
     "crossfade",
@@ -1864,7 +1881,17 @@ The agent exposes **494 tools** spanning read/observe, project, track, clip, tra
       "color",
       "luminosity",
       "add",
-      "linear-dodge"
+      "linear-dodge",
+      "linear-burn",
+      "darker-color",
+      "lighter-color",
+      "linear-light",
+      "vivid-light",
+      "pin-light",
+      "hard-mix",
+      "subtract",
+      "divide",
+      "dissolve"
     ],
     "effectTypes": [
       "blur",
@@ -4629,6 +4656,135 @@ The agent exposes **494 tools** spanning read/observe, project, track, clip, tra
           "max": 100,
           "step": 1,
           "default": 60,
+          "neutral": 0
+        }
+      ]
+    },
+    {
+      "type": "dehaze",
+      "label": "Dehaze",
+      "category": "Repair",
+      "params": [
+        {
+          "key": "amount",
+          "kind": "number",
+          "min": -100,
+          "max": 100,
+          "step": 1,
+          "default": 50,
+          "neutral": 0
+        },
+        {
+          "key": "radius",
+          "kind": "number",
+          "min": 1,
+          "max": 40,
+          "step": 1,
+          "default": 8,
+          "neutral": 8
+        },
+        {
+          "key": "skyProtection",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 60,
+          "neutral": 60
+        }
+      ]
+    },
+    {
+      "type": "deflicker",
+      "label": "Deflicker",
+      "category": "Repair",
+      "params": [
+        {
+          "key": "window",
+          "kind": "number",
+          "min": 3,
+          "max": 31,
+          "step": 2,
+          "default": 15,
+          "neutral": 15
+        },
+        {
+          "key": "luma",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 100,
+          "neutral": 0
+        },
+        {
+          "key": "color",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 40,
+          "neutral": 0
+        },
+        {
+          "key": "sensitivity",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 50,
+          "neutral": 50
+        },
+        {
+          "key": "limit",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 40,
+          "neutral": 40
+        }
+      ]
+    },
+    {
+      "type": "deband",
+      "label": "Deband",
+      "category": "Repair",
+      "params": [
+        {
+          "key": "threshold",
+          "kind": "number",
+          "min": 0,
+          "max": 32,
+          "step": 0.5,
+          "default": 6,
+          "neutral": 0
+        },
+        {
+          "key": "radius",
+          "kind": "number",
+          "min": 1,
+          "max": 64,
+          "step": 1,
+          "default": 16,
+          "neutral": 16
+        },
+        {
+          "key": "iterations",
+          "kind": "number",
+          "min": 1,
+          "max": 4,
+          "step": 1,
+          "default": 2,
+          "neutral": 2
+        },
+        {
+          "key": "dither",
+          "kind": "number",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "default": 50,
           "neutral": 0
         }
       ]

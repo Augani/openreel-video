@@ -24,6 +24,16 @@ import {
   copyExportRun,
   prepareAudioCopy,
 } from "./ipc/export";
+import {
+  cancelAllSegmentExports,
+  cancelSegmentExport,
+  segmentAudioChunk,
+  segmentAudioFinish,
+  segmentWorkerFail,
+  segmentWorkerInit,
+  segmentWorkerNext,
+  startSegmentExport,
+} from "./ipc/segment-export";
 import { encodeDolbyAudio } from "./ipc/dolby-audio";
 import {
   cancelAuroraPreviewSession,
@@ -448,6 +458,17 @@ app.whenReady().then(() => {
   handle(CHANNELS.exportFinishAudio, z.object({ jobId: z.string() }), finishAudio);
   handle(CHANNELS.exportEncodeDolbyAudio, encodeDolbyAudioArgsSchema, encodeDolbyAudio);
   handle(CHANNELS.exportCancel, z.object({ jobId: z.string() }), cancelExport);
+  ipcMain.handle(CHANNELS.exportSegmentsStart, (e, raw) => startSegmentExport(e.sender, raw));
+  handle(CHANNELS.exportSegmentsCancel, z.object({ sessionId: z.string() }), cancelSegmentExport);
+  handle(CHANNELS.exportSegmentsInit, z.object({ sessionId: z.string() }), segmentWorkerInit);
+  handle(CHANNELS.exportSegmentsNext, z.object({ sessionId: z.string() }), segmentWorkerNext);
+  handle(
+    CHANNELS.exportSegmentsAudioChunk,
+    z.object({ sessionId: z.string(), chunk: z.instanceof(ArrayBuffer), position: z.number().int().nonnegative() }),
+    segmentAudioChunk,
+  );
+  handle(CHANNELS.exportSegmentsAudioFinish, z.object({ sessionId: z.string() }), segmentAudioFinish);
+  handle(CHANNELS.exportSegmentsFail, z.object({ sessionId: z.string(), message: z.string() }), segmentWorkerFail);
   handle(CHANNELS.exportProbeSource, z.object({ path: z.string().min(1) }), ({ path: p }) => probeSource(p));
   handle(
     CHANNELS.exportProbeGopTypes,
@@ -602,6 +623,7 @@ app.on("will-quit", () => {
   projectLocks.releaseAllSync(fsSync);
   disposeAuroraClient();
   nativeDecodeService().dispose();
+  cancelAllSegmentExports();
   cancelAllExports();
   stopIngestQueue();
   cancelProjectManagerJobs();

@@ -387,7 +387,7 @@ test("user flow: Rec.2020 then HDR graphics white from Preview options, and the 
   await page.getByRole("button", { name: "Preview options" }).click();
   // Graphics white is an HDR setting: it is disabled while the project works in Rec.709.
   await expect(page.getByRole("menuitem", { name: "HDR graphics white" })).toHaveAttribute("aria-disabled", "true");
-  await page.getByRole("menuitem", { name: "Working color space" }).click();
+  await page.getByRole("menuitem", { name: "Sequence color space" }).click();
   await page.getByRole("menuitemcheckbox", { name: "Rec.2020" }).click();
   await expect.poll(async () => (await settings()).workingColorSpace).toBe("rec2020");
 

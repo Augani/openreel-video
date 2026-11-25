@@ -584,6 +584,9 @@ function couldBeLinked(
     clip.mediaId !== undefined &&
     clip.mediaId === other.mediaId &&
     (own.type === "audio") !== (track.type === "audio");
+  // Merge Clips pairs two different files: they stay linked by group, not by a shared origin.
+  const group = clip.metadata?.mergeGroupId;
+  if (typeof group === "string" && group === other.metadata?.mergeGroupId) return overlapOf(clip, other) > LINK_EPS;
   if (!explicit && !legacy) return false;
   if (
     Math.abs(speed - otherSpeed) > LINK_EPS ||

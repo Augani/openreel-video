@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { ScopesPanel } from "./ScopesPanel";
 import { useUIStore } from "../../../stores/ui-store";
 import { useColorMonitorStore } from "../../../stores/color-monitor-store";
+import { useProjectStore } from "../../../stores/project-store";
 import { keyboardShortcuts } from "../../../services/keyboard-shortcuts";
 
 const created: Array<{ terminate: ReturnType<typeof vi.fn> }> = [];
@@ -135,5 +136,46 @@ describe("scopes shortcut", () => {
       off();
       keyboardShortcuts.stopListening();
     }
+  });
+});
+
+describe("ScopesPanel on an HDR sequence", () => {
+  const original = useProjectStore.getState().project.settings;
+  const setSettings = (patch: Record<string, unknown>) =>
+    act(() => {
+      const state = useProjectStore.getState();
+      useProjectStore.setState({ project: { ...state.project, settings: { ...state.project.settings, ...patch } } });
+    });
+
+  beforeEach(() => {
+    vi.stubGlobal("Worker", FakeWorker);
+    useUIStore.setState({ scopesVisible: true, scopesKind: "waveform", scopesScale: "ire" });
+  });
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    act(() => {
+      const state = useProjectStore.getState();
+      useProjectStore.setState({ project: { ...state.project, settings: original } });
+    });
+  });
+
+  it("an SDR sequence keeps the IRE selector", () => {
+    render(<ScopesPanel />);
+    expect(screen.getByLabelText("Waveform scale")).toBeTruthy();
+    expect(screen.queryByTestId("scopes-hdr-scale")).toBeNull();
+  });
+
+  it("a Rec.2100 PQ sequence reads in nits: labelled, no IRE selector", () => {
+    setSettings({ workingColorSpace: "rec2020", sequenceColorSpace: "rec2100pq" });
+    render(<ScopesPanel />);
+    expect(screen.getByTestId("scopes-hdr-scale").textContent).toContain("PQ sequence");
+    expect(screen.queryByLabelText("Waveform scale")).toBeNull();
+  });
+
+  it("a Rec.2100 HLG sequence is labelled HLG", () => {
+    setSettings({ workingColorSpace: "rec2020", sequenceColorSpace: "rec2100hlg" });
+    render(<ScopesPanel />);
+    expect(screen.getByTestId("scopes-hdr-scale").textContent).toContain("HLG sequence");
   });
 });

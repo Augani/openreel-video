@@ -36,6 +36,7 @@ import type {
 } from "./nested-sequence-engine";
 import { getCompoundClipId } from "./timeline-items";
 import { findLinkedPartners } from "../editing/split-edit";
+import { splitAt } from "../editing/premiere-edits";
 import { graphicInstanceOfClip, expectedMemberIds } from "../graphic-templates/instances";
 import { resolveTimelinePlacement } from "./timeline-placement";
 
@@ -725,4 +726,27 @@ export function moveSequencesToBin(input: Project, sequenceIds: readonly string[
     return binId === null ? rest : { ...rest, binId };
   });
   return { ok: true, project: replaceSequences(project, sequences) };
+}
+
+/**
+ * Make Subsequence: the span `range` (the In/Out marks, or the selection's extent) becomes a new nested sequence in
+ * place. Clips crossing the span's edges are split there first, so exactly the marked picture is nested; the nest
+ * takes the span's place on the timeline and opens as its own sequence. Built on `nestClips`: one project, one undo step.
+ */
+export function makeSubsequence(input: Project, range: { start: number; end: number }, name?: string): SequenceEditResult {
+  if (!(range.end - range.start > RANGE_EPS)) return fail("Mark an In and Out range (or select clips) to make a subsequence.");
+  const base = syncActiveSequence(ensureSequences(input));
+  const tracks = base.timeline.tracks.filter((track) => !track.locked && track.type !== "text" && track.type !== "graphics");
+  const ids = tracks.map((track) => track.id);
+  const counter = { n: 0 };
+  const operationId = newId("subseq");
+  let work = splitAt(base, ids, range.start, operationId, counter);
+  work = splitAt(work, ids, range.end, operationId, counter);
+  const inside = new Set(ids);
+  const picked = work.timeline.tracks
+    .filter((track) => inside.has(track.id))
+    .flatMap((track) => track.clips.filter((clip) => clip.startTime >= range.start - RANGE_EPS && clip.startTime + clip.duration <= range.end + RANGE_EPS))
+    .map((clip) => clip.id);
+  if (!picked.length) return fail("There are no clips inside that range.");
+  return nestClips(work, picked, name ?? "Subsequence");
 }

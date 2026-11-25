@@ -33,11 +33,18 @@ export async function runNewTransitionParity(page: Page): Promise<ParityRow[]> {
       g.fillRect(0, 0, W, H);
       return canvas;
     };
+    // The engine draws on the GPU when it can, and a WebGPU canvas has no 2D context: copy it to a 2D canvas to read it.
+    const readBack = (canvas: OffscreenCanvas, w: number, h: number) => {
+      const copy = new OffscreenCanvas(w, h);
+      const g = copy.getContext("2d", { willReadFrequently: true })!;
+      g.drawImage(canvas, 0, 0);
+      return g.getImageData(0, 0, w, h).data;
+    };
     const engine = t.engine.createTransitionEngine(W, H);
     const draw = async (type: string, params: Record<string, unknown>, p: number) => {
       const transition = { id: "t", clipAId: "a", clipBId: "b", type, duration: 1, params: { ...t.engine.getDefaultTransitionParams(type), ...params } };
       const canvas: OffscreenCanvas = await engine.renderTransitionToCanvas(solid(A), solid(B), transition, p);
-      return canvas.getContext("2d")!.getImageData(0, 0, W, H).data;
+      return readBack(canvas, W, H);
     };
     const compare = (actual: Uint8ClampedArray, expected: Float64Array) => {
       let sum = 0;
@@ -132,11 +139,18 @@ export async function runPeelShadow(page: Page): Promise<number> {
       g.fillRect(0, 0, 320, 180);
       return canvas;
     };
+    // The engine draws on the GPU when it can, and a WebGPU canvas has no 2D context: copy it to a 2D canvas to read it.
+    const readBack = (canvas: OffscreenCanvas, w: number, h: number) => {
+      const copy = new OffscreenCanvas(w, h);
+      const g = copy.getContext("2d", { willReadFrequently: true })!;
+      g.drawImage(canvas, 0, 0);
+      return g.getImageData(0, 0, w, h).data;
+    };
     const engine = t.engine.createTransitionEngine(320, 180);
     const render = async (shadow: number) => {
       const transition = { id: "t", clipAId: "a", clipBId: "b", type: "pagePeel", duration: 1, params: { corner: "bottomRight", shadow } };
       const canvas: OffscreenCanvas = await engine.renderTransitionToCanvas(solid([220, 40, 40]), solid([40, 60, 220]), transition, 0.4);
-      return canvas.getContext("2d")!.getImageData(0, 0, 320, 180).data;
+      return readBack(canvas, 320, 180);
     };
     const plain = await render(0);
     const shaded = await render(1);
@@ -320,4 +334,114 @@ export async function reopenWithClips(page: Page, names: string[]): Promise<stri
   }
   await settle(page);
   return ids;
+}
+
+export interface GpuParityRow {
+  label: string;
+  type: string;
+  p: number;
+  mad: number;
+  max: number;
+  path: string;
+  letterboxed: boolean;
+}
+
+/**
+ * The WebGPU transition renderer against the Canvas2D engine it replaces (the reference), for every transition type
+ * and its variants at progress 0, 0.25, 0.5, 0.75 and 1, on two textured shots (so a mis-sampled coordinate shows) and
+ * once with shots of another aspect (the letterbox). Returns one row per frame with the mean and max absolute
+ * 0-255 difference over RGB, and which renderer the engine used for it.
+ */
+export async function runGpuTransitionParity(page: Page): Promise<{ rows: GpuParityRow[]; gpuActive: boolean }> {
+  return page.evaluate(async (progressValues) => {
+    const hook = (window as unknown as { __openreelE2E: { core: Record<string, any> } }).__openreelE2E.core;
+    const t = await hook.loadTransitions();
+    const W = 320;
+    const H = 180;
+    const card = (w: number, h: number, hue: number): OffscreenCanvas => {
+      const c = new OffscreenCanvas(w, h);
+      const g = c.getContext("2d")!;
+      const grad = g.createLinearGradient(0, 0, w, h);
+      grad.addColorStop(0, `hsl(${hue}, 85%, 50%)`);
+      grad.addColorStop(0.5, `hsl(${hue + 120}, 70%, 45%)`);
+      grad.addColorStop(1, `hsl(${hue + 240}, 80%, 55%)`);
+      g.fillStyle = grad;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = "#101010";
+      g.fillRect(w * 0.1, h * 0.12, w * 0.28, h * 0.4);
+      g.fillStyle = "#f5f5f5";
+      g.beginPath();
+      g.arc(w * 0.68, h * 0.5, h * 0.28, 0, Math.PI * 2);
+      g.fill();
+      g.strokeStyle = "#202020";
+      g.lineWidth = Math.max(2, h / 40);
+      for (let i = 0; i < 6; i++) {
+        g.beginPath();
+        g.moveTo(0, (h / 6) * i);
+        g.lineTo(w, (h / 6) * (i + 1) - h / 12);
+        g.stroke();
+      }
+      return c;
+    };
+    const readBack = (canvas: OffscreenCanvas) => {
+      const copy = new OffscreenCanvas(canvas.width, canvas.height);
+      const g = copy.getContext("2d", { willReadFrequently: true })!;
+      g.drawImage(canvas, 0, 0);
+      return g.getImageData(0, 0, canvas.width, canvas.height).data;
+    };
+    const gpuEngine = t.engine.createTransitionEngine(W, H);
+    const gpuActive: boolean = await gpuEngine.ensureGpu();
+    const refEngine = new t.engine.TransitionEngine({ width: W, height: H, useGPU: false });
+    const types: string[] = gpuEngine.getAvailableTransitionTypes().filter((type: string) => type !== "morphCut");
+    const variants: Record<string, Record<string, unknown>[]> = {
+      wipe: [{}, { direction: "right" }, { direction: "up" }, { direction: "down" }, { direction: "diagonal" }, { direction: "left", softness: 0.5 }, { direction: "down", softness: 0.4 }],
+      slide: [{}, { direction: "right" }, { direction: "up", pushOut: true }, { direction: "down" }],
+      push: [{}, { direction: "right" }, { direction: "up" }, { direction: "down" }],
+      whipPan: [{}, { direction: "down" }],
+      pageTurn: [{}, { direction: "right" }],
+      blinds: [{}, { direction: "horizontal" }],
+      flip: [{}, { axis: "vertical" }],
+      splitReveal: [{}, { orientation: "vertical" }],
+      radialWipe: [{}, { clockwise: false, startAngle: 30 }],
+      dipToBlack: [{}, { holdDuration: 0.6 }],
+    };
+    const rows: any[] = [];
+    const shots = [
+      { w: W, h: H, letterboxed: false },
+      { w: 180, h: 180, letterboxed: true },
+    ];
+    for (const shot of shots) {
+      const A = card(shot.w, shot.h, 10);
+      const B = card(shot.w, shot.h, 200);
+      const runTypes = shot.letterboxed ? ["crossfade", "wipe", "zoom", "circleReveal", "cubeSpin", "pagePeel", "checkerboard"].filter((x) => types.includes(x)) : types;
+      for (const type of runTypes) {
+        for (const params of shot.letterboxed ? [{}] : variants[type] ?? [{}]) {
+          for (const p of progressValues) {
+            const transition = { id: "t", clipAId: "a", clipBId: "b", type, duration: 1, params: { ...t.engine.getDefaultTransitionParams(type), ...params } };
+            const ref = readBack(await refEngine.renderTransitionToCanvas(A, B, transition, p));
+            const actual = readBack(await gpuEngine.renderTransitionToCanvas(A, B, transition, p));
+            let sum = 0;
+            let max = 0;
+            for (let i = 0; i < ref.length; i += 4) {
+              for (let c = 0; c < 3; c++) {
+                const d = Math.abs(actual[i + c] - ref[i + c]);
+                sum += d;
+                if (d > max) max = d;
+              }
+            }
+            rows.push({
+              label: `${type} ${JSON.stringify(params)}${shot.letterboxed ? " letterboxed" : ""} p=${p}`,
+              type,
+              p,
+              mad: sum / ((ref.length / 4) * 3),
+              max,
+              path: gpuEngine.lastRenderPath,
+              letterboxed: shot.letterboxed,
+            });
+          }
+        }
+      }
+    }
+    return { rows, gpuActive };
+  }, PROGRESS);
 }

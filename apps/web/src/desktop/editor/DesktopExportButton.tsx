@@ -205,6 +205,7 @@ export function DesktopExportButton({ compact = false }: { compact?: boolean } =
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
         onExport={handleExport}
+        onExportAudio={(id) => window.dispatchEvent(new CustomEvent("openreel:menu:quick-export", { detail: { preset: id } }))}
         onAddToQueue={addDialogExportToQueue}
         duration={project?.timeline?.duration ?? 0}
         projectWidth={project?.settings?.width ?? 1920}

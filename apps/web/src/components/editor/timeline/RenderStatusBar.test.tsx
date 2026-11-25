@@ -5,6 +5,7 @@ import type { Project, RenderCacheSnapshot } from "@openreel/core";
 const mocks = vi.hoisted(() => ({
   project: null as unknown,
   snapshot: null as unknown,
+  idle: { kind: "off" } as unknown,
   render: vi.fn(),
   cancel: vi.fn(),
   del: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock("../../../stores/timeline-store", () => ({
 }));
 vi.mock("../../../services/render-cache-service", () => ({
   useRenderCacheSnapshot: () => mocks.snapshot,
+  useIdleRenderState: () => mocks.idle,
   renderCacheService: {
     stats: { mean: () => undefined },
     renderInToOut: (...args: unknown[]) => mocks.render(...args),
@@ -120,6 +122,7 @@ async function flush() {
 beforeEach(() => {
   mocks.project = project();
   mocks.snapshot = snapshot();
+  mocks.idle = { kind: "off" };
   mocks.render.mockReset();
   mocks.cancel.mockReset();
   mocks.del.mockReset();
@@ -146,6 +149,26 @@ describe("RenderStatusBar", () => {
       ["cached", "2.000", "3.000"],
       ["heavy", "3.000", "4.000"],
     ]);
+  });
+});
+
+describe("RenderStatusBar background progress", () => {
+  it("draws progress over the chunk being rendered in the background and flags the bar", async () => {
+    mocks.idle = { kind: "rendering", range: { start: 2, end: 3 } };
+    mocks.snapshot = snapshot({ phase: "rendering", progress: { done: 15, total: 30, range: { start: 2, end: 3 } } });
+    render(<RenderStatusBar pixelsPerSecond={100} width={400} />);
+    await flush();
+    const progress = screen.getByTestId("render-status-progress");
+    expect(progress.style.left).toBe("200px");
+    expect(progress.style.width).toBe("50px");
+    expect(progress.dataset.idle).toBe("true");
+    expect(screen.getByTestId("render-status-bar").dataset.idleRender).toBe("rendering");
+  });
+
+  it("shows no progress strip when nothing is rendering", async () => {
+    render(<RenderStatusBar pixelsPerSecond={100} width={400} />);
+    await flush();
+    expect(screen.queryByTestId("render-status-progress")).toBeNull();
   });
 });
 

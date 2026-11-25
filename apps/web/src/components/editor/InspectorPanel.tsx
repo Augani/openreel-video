@@ -42,28 +42,32 @@ import {
 import { InspectorClipHeader } from "./inspector/shell/InspectorClipHeader";
 import { InspectorTabErrorBoundary } from "./inspector/shell/InspectorTabErrorBoundary";
 import { InspectorSection } from "./inspector/shell/InspectorSection";
-import { ColorTab } from "./inspector/tabs/ColorTab";
-import { AudioTab } from "./inspector/tabs/AudioTab";
 import { TransformTab } from "./inspector/tabs/TransformTab";
-import { SpeedTab } from "./inspector/tabs/SpeedTab";
-import { AnimateTab } from "./inspector/tabs/AnimateTab";
-import { StyleTab } from "./inspector/tabs/StyleTab";
-import { EffectsTab } from "./inspector/tabs/EffectsTab";
-import { AiTab } from "./inspector/tabs/AiTab";
-import { TransitionInspector } from "./inspector/TransitionInspector";
-import { MultiClipInspector } from "./inspector/MultiClipInspector";
+import {
+  AiTab,
+  AnimateTab,
+  AudioTab,
+  ColorTab,
+  EffectsTab,
+  GraphicInspector,
+  MultiClipInspector,
+  SpeedTab,
+  StyleTab,
+  TransitionInspector,
+  prefetchInspectorPanels,
+} from "./inspector/lazy-inspector-panels";
 import { QuickEditBar } from "./QuickEditBar";
 import { useInspectorNavigationStore } from "../../stores/inspector-navigation-store";
 import { getTrackBadge } from "./timeline/track-badge";
 import { resetClipTransform } from "../../services/reset-clip-transform";
-import { GraphicInspector } from "./graphics/GraphicInspector";
 import { selectedGraphicInstance } from "../../services/graphic-commands";
 import { linkedInstanceOfBakedClip } from "@openreel/core";
+import { lazyWithRetry } from "./inspector/lazy-retry";
 
-const SubtitleInspector = React.lazy(() =>
+const SubtitleInspector = lazyWithRetry(() =>
   import("./inspector/SubtitleInspector").then((module) => ({ default: module.SubtitleInspector })),
 );
-const MultiCameraPanel = React.lazy(
+const MultiCameraPanel = lazyWithRetry(
   () => import("./inspector/MultiCameraPanel"),
 );
 
@@ -1212,6 +1216,9 @@ const InspectorPanelBody = React.memo(function InspectorPanelBody({ selectedItem
 });
 
 export const InspectorPanel: React.FC = () => {
+  useEffect(() => {
+    prefetchInspectorPanels();
+  }, []);
   // Deferred: the timeline paints the new selection first, the (large) inspector tree follows
   // in a low-priority pass that React can interrupt if another click arrives. The tree lives in a
   // memoised body fed the deferred value, so the urgent selection render stops at this shell

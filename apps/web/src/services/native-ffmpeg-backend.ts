@@ -1,4 +1,5 @@
 import { isVrProperties } from "@openreel/core/vr/vr-properties";
+import { chaptersMetadataFor } from "./export-chapters-metadata";
 import {
   broadcastAudioTrackCount,
   cleanTailFrames,
@@ -14,6 +15,7 @@ import {
   outputColorForExport,
   rgbaToYuv420,
   rgbaToYuv444,
+  rgbaToI420Bt709,
   takeHdrPayload,
   snapFrameRate,
   withBitDepth10,
@@ -29,7 +31,53 @@ import type {
   VideoExportSettings,
   Project,
 } from "@openreel/core";
+import type { GpuFrameReader, GpuReadbackTicket } from "@openreel/core/video/gpu-frame-readback";
 import { NativeSourceFiles } from "./native-source-staging";
+
+/** Settings for which the pipe may carry GPU-converted 4:2:0 instead of RGBA (H.264 / H.265, plain SDR, one pass, even size). */
+export function yuvInputEligible(settings: VideoExportSettings): boolean {
+  if (settings.codec !== "h264" && settings.codec !== "h265") return false;
+  if (settings.format === "mxf" || settings.broadcast) return false;
+  if (settings.width % 2 !== 0 || settings.height % 2 !== 0) return false;
+  if (exportWritesAlpha(settings)) return false;
+  if (effectiveRateControl(settings) === "vbr2") return false;
+  // The GPU converter misses the 45 dB release target on noisy H.264 footage.
+  // Keep FFmpeg's conversion for normal exports, including parallel segments.
+  try {
+    return typeof localStorage !== "undefined" && localStorage.getItem("openreel-yuv-input") === "on";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * True when this window can convert frames to I420 on its GPU for `settings` (the parallel-export orchestrator asks
+ * before it starts a session whose workers send I420). Probes by building the converter, so a missing WebGPU says no.
+ */
+export async function gpuYuvInputAvailable(settings: VideoExportSettings): Promise<boolean> {
+  if (gpuReadbackSwitchedOff() || !yuvInputEligible(settings)) return false;
+  try {
+    const reader = await import("@openreel/core/video/gpu-frame-readback").then((module) =>
+      module.GpuFrameReader.create(settings.width, settings.height, 1, "i420"),
+    );
+    reader?.dispose();
+    return reader !== null;
+  } catch {
+    return false;
+  }
+}
+
+/** Frames in flight in the GPU readback ring: the export loop queues 3, so the ring never starves it. */
+const GPU_READBACK_DEPTH = 4;
+
+/** `localStorage["openreel-gpu-readback"] = "off"` keeps the CPU (getImageData) readback, for A/B runs and as an escape hatch. */
+function gpuReadbackSwitchedOff(): boolean {
+  try {
+    return typeof localStorage !== "undefined" && localStorage.getItem("openreel-gpu-readback") === "off";
+  } catch {
+    return false;
+  }
+}
 
 type ExportPortMessage =
   | { type: "progress"; frame: number }
@@ -74,7 +122,7 @@ const BITS_PER_SAMPLE = 16;
 const INT16_MAX = 0x7fff;
 const INT16_MIN = -0x8000;
 
-function buildWavHeader(
+export function buildWavHeader(
   totalFrames: number,
   channelCount: number,
   sampleRate: number,
@@ -175,6 +223,42 @@ export function dolbyStartFields(settings: VideoExportSettings): { audioCodec?: 
   return { audioCodec: audio.format, dialnorm: resolveDialnorm(audio) };
 }
 
+type NativeStartArgs = Parameters<NonNullable<Window["openreel"]>["export"]["start"]>[0];
+
+/** The start request every native export shares: the picture and audio settings, encoder choice and rate control. */
+export function nativeStartFields(settings: VideoExportSettings, outputPath: string, totalFrames: number, monoTracks = 0, rawYuv420 = false): NativeStartArgs {
+  const rateControl = effectiveRateControl(settings);
+  return {
+    width: settings.width,
+    height: settings.height,
+    frameRate: settings.frameRate,
+    codec: settings.codec,
+    format: settings.format,
+    bitrateKbps: settings.bitrate,
+    ...(rateControl !== "quality" ? { rateControl } : {}),
+    ...(rateControl !== "quality" && settings.maxBitrate ? { maxBitrateKbps: settings.maxBitrate } : {}),
+    outputPath,
+    totalFrames,
+    audioSampleRate: settings.audioSettings.sampleRate,
+    audioChannels: monoTracks || settings.audioSettings.channels,
+    encodeMode: settings.encodeMode ?? "balanced",
+    ...(settings.encoderChoice && settings.encoderChoice !== "auto" ? { encoderChoice: settings.encoderChoice } : {}),
+    quality: settings.quality,
+    proresProfile: settings.proresProfile,
+    ...(settings.codec === "dnxhr" ? { dnxhrProfile: settings.dnxhrProfile ?? "hq" } : {}),
+    ...(exportWritesAlpha(settings) ? { alpha: true } : {}),
+    ...(rawYuv420 ? { rawYuv420: true } : {}),
+    keyframeInterval: settings.keyframeInterval,
+    audioBitrateKbps: settings.audioSettings.bitrate,
+  };
+}
+
+/** Frames of a parallel-export segment (the engine renders only these, numbered from 0). */
+const segmentFrameCount = (settings: VideoExportSettings, fallback: number): number => {
+  const window = settings.segmentWindow;
+  return window ? Math.max(1, window.endFrame - window.startFrame) : fallback;
+};
+
 export class NativeFFmpegBackend implements EncoderBackend {
   readonly requiresWebCodecsClamping = false;
   // Native FFmpeg applies backpressure through frame credits. Clearing the
@@ -243,6 +327,8 @@ export class NativeFFmpegBackend implements EncoderBackend {
   private frameChain: Promise<void> = Promise.resolve();
   private readbackMsTotal = 0;
   private creditWaitMsTotal = 0;
+  private postMsTotal = 0;
+  private convertMsTotal = 0;
   private frameCount = 0;
 
   private done: Promise<void> = Promise.resolve();
@@ -252,8 +338,24 @@ export class NativeFFmpegBackend implements EncoderBackend {
   private readback: OffscreenCanvas | null = null;
   private readbackCtx: OffscreenCanvasRenderingContext2D | null = null;
 
-  constructor(resolveOutputPath: () => string) {
+  /** GPU readback ring (WebGPU, async map): created on the first frame, null once it failed or is switched off. */
+  private gpuReader: Promise<GpuFrameReader | null> | null = null;
+  private gpuReadbackOff = false;
+  private gpuReadbackEnabled = true;
+  private gpuReadbackFrames = 0;
+  private beginChain: Promise<unknown> = Promise.resolve();
+  /**
+   * The pipe carries planar 4:2:0 YCbCr (BT.709, limited range) converted on the GPU instead of RGBA, so 1.5 instead of
+   * 4 bytes per pixel go over the IPC port and ffmpeg skips its own RGB to YUV conversion.
+   */
+  private yuvInput = false;
+
+  /** Set for a worker of a parallel export: the encoder is the session's segment, not a whole export. */
+  private readonly segment?: { sessionId: string; index: number };
+
+  constructor(resolveOutputPath: () => string, segment?: { sessionId: string; index: number }) {
     this.resolveOutputPath = resolveOutputPath;
+    this.segment = segment;
   }
 
   getBytesWritten(): number {
@@ -285,11 +387,29 @@ export class NativeFFmpegBackend implements EncoderBackend {
     this.failed = false;
     this.aborted = false;
     this.frameChain = Promise.resolve();
+    this.beginChain = Promise.resolve();
+    this.gpuReader = null;
+    this.gpuReadbackOff = false;
+    this.gpuReadbackFrames = 0;
+    this.gpuReadbackEnabled = !gpuReadbackSwitchedOff() && !exportWritesAlpha(settings);
     this.readbackMsTotal = 0;
     this.creditWaitMsTotal = 0;
+    this.postMsTotal = 0;
+    this.convertMsTotal = 0;
     this.frameCount = 0;
 
     this.colorOutput = await this.resolveColorOutput(settings, project);
+    this.yuvInput = false;
+    if (!this.segment && this.gpuReadbackEnabled && !this.colorOutput && !this.smartPlan && yuvInputEligible(settings)) {
+      // Only when the GPU can do the conversion: the CPU fallback would cost more than ffmpeg's own.
+      const reader = await import("@openreel/core/video/gpu-frame-readback").then((module) =>
+        module.GpuFrameReader.create(this.width, this.height, GPU_READBACK_DEPTH, "i420"),
+      );
+      if (reader) {
+        this.gpuReader = Promise.resolve(reader);
+        this.yuvInput = true;
+      }
+    }
 
     const smart = this.smartPlan?.encodeMatch ? this.smartPlan : null;
     const totalFrames = smart
@@ -325,28 +445,13 @@ export class NativeFFmpegBackend implements EncoderBackend {
       this.embeddedCaptions = { tracks: captions.length, warnings: plan.warnings };
     }
 
-    const rateControl = effectiveRateControl(settings);
+    const chaptersMetadata = await chaptersMetadataFor(project, settings, this.timelineDurationSec);
+
     const session = await bridge.export.start({
-      width: settings.width,
-      height: settings.height,
-      frameRate: settings.frameRate,
-      codec: settings.codec,
-      format: settings.format,
-      bitrateKbps: settings.bitrate,
-      ...(rateControl !== "quality" ? { rateControl } : {}),
-      ...(rateControl !== "quality" && settings.maxBitrate ? { maxBitrateKbps: settings.maxBitrate } : {}),
-      outputPath,
-      totalFrames,
-      audioSampleRate: settings.audioSettings.sampleRate,
-      audioChannels: monoTracks || settings.audioSettings.channels,
-      encodeMode: settings.encodeMode ?? "balanced",
-      ...(settings.encoderChoice && settings.encoderChoice !== "auto" ? { encoderChoice: settings.encoderChoice } : {}),
-      quality: settings.quality,
-      proresProfile: settings.proresProfile,
-      ...(settings.codec === "dnxhr" ? { dnxhrProfile: settings.dnxhrProfile ?? "hq" } : {}),
-      ...(exportWritesAlpha(settings) ? { alpha: true } : {}),
-      keyframeInterval: settings.keyframeInterval,
-      audioBitrateKbps: settings.audioSettings.bitrate,
+      ...nativeStartFields(settings, outputPath, this.segment ? segmentFrameCount(settings, totalFrames) : totalFrames, monoTracks),
+      ...(this.segment ? { segment: this.segment } : {}),
+      // A segment worker takes the session's choice from the start result; the session decided it for every worker.
+      ...(this.yuvInput && !this.segment ? { rawYuv420: true } : {}),
       ...dolbyStartFields(settings),
       ...broadcastStartFields(settings),
       ...vrStartFields(settings, project),
@@ -361,6 +466,7 @@ export class NativeFFmpegBackend implements EncoderBackend {
           }
         : {}),
       ...(captions && captions.length ? { captions } : {}),
+      ...(chaptersMetadata ? { chaptersMetadata } : {}),
       ...(smart?.encodeMatch
         ? {
             smartRender: {
@@ -379,6 +485,8 @@ export class NativeFFmpegBackend implements EncoderBackend {
 
     const port = await portPromise;
     this.jobId = session.jobId;
+    if (this.segment) this.yuvInput = session.rawYuv420 === true;
+
     this.port = port;
     this.credits = 0;
 
@@ -638,18 +746,57 @@ export class NativeFFmpegBackend implements EncoderBackend {
     frame: ImageBitmap,
     timestampSec: number,
   ): Promise<void> {
+    // The GPU copy of this frame starts now (in call order) instead of when its turn on the frame chain comes, so
+    // it overlaps the previous frame's credit wait and post and the next frame's render.
+    const ticket = this.beginGpuReadback(frame);
     // Serialise so concurrent callers post frames in call order and never
     // compete for the single credit waiter.
     const run = this.frameChain.then(() =>
-      this.sendVideoFrame(frame, timestampSec),
+      this.sendVideoFrame(frame, timestampSec, ticket),
     );
     this.frameChain = run.catch(() => undefined);
     return run;
   }
 
+  /**
+   * Queues the frame on the WebGPU readback ring. Resolves to null when this frame must use the CPU readback (no
+   * WebGPU, alpha or colour-managed export, a size mismatch, or the ring failed earlier).
+   */
+  private beginGpuReadback(frame: ImageBitmap): Promise<GpuReadbackTicket | null> {
+    if (!this.gpuReadbackEnabled || this.gpuReadbackOff || this.colorOutput || frame.width !== this.width || frame.height !== this.height) {
+      return Promise.resolve(null);
+    }
+    const begun = this.beginChain.then(async (): Promise<GpuReadbackTicket | null> => {
+      if (this.gpuReadbackOff || this.aborted) return null;
+      const started = performance.now();
+      try {
+        this.gpuReader ??= import("@openreel/core/video/gpu-frame-readback").then((module) =>
+          module.GpuFrameReader.create(this.width, this.height, GPU_READBACK_DEPTH, this.yuvInput ? "i420" : "rgba"),
+        );
+        const reader = await this.gpuReader;
+        if (!reader) {
+          this.gpuReadbackOff = true;
+          return null;
+        }
+        const ticket = await reader.begin(frame);
+        this.gpuReadbackFrames++;
+        return ticket;
+      } catch (error) {
+        console.warn("GPU frame readback failed, the CPU readback takes over", error);
+        this.gpuReadbackOff = true;
+        return null;
+      } finally {
+        this.readbackMsTotal += performance.now() - started;
+      }
+    });
+    this.beginChain = begun.catch(() => undefined);
+    return begun;
+  }
+
   private async sendVideoFrame(
     frame: ImageBitmap,
     timestampSec: number,
+    ticket: Promise<GpuReadbackTicket | null>,
   ): Promise<void> {
     try {
       const port = this.port;
@@ -667,8 +814,29 @@ export class NativeFFmpegBackend implements EncoderBackend {
       // Scene-referred HDR: the engine already encoded the float image to this export's planes, so the 8-bit
       // canvas read-back (which cannot hold highlights above SDR white) is skipped.
       const hdr = this.colorOutput ? this.hdrPlanes(frame, this.colorOutput) : null;
-      const rgbaBuffer = hdr ? null : this.readbackFrame(frame);
+      let rgbaBuffer: ArrayBuffer | null = null;
+      let gpuTicket: GpuReadbackTicket | null = null;
+      if (!hdr) {
+        gpuTicket = await ticket;
+        if (gpuTicket) {
+          const readStart = performance.now();
+          try {
+            rgbaBuffer = await gpuTicket.bytes;
+          } catch (error) {
+            console.warn("GPU frame readback failed, the CPU readback takes over", error);
+            this.gpuReadbackOff = true;
+          }
+          this.readbackMsTotal += performance.now() - readStart;
+        }
+        if (!rgbaBuffer) {
+          const cpu = this.readbackFrame(frame);
+          // The pipe expects I420 for this export: same arithmetic as the GPU converter, slower.
+          rgbaBuffer = this.yuvInput ? rgbaToI420Bt709(new Uint8Array(cpu), this.width, this.height) : cpu;
+        }
+      }
+      const convertStart = performance.now();
       const rgba = hdr ?? (this.colorOutput ? this.convertFrame(rgbaBuffer!, this.colorOutput) : rgbaBuffer!);
+      this.convertMsTotal += performance.now() - convertStart;
       this.frameCount += 1;
       this.credits -= 1;
       this.bytesSent += rgba.byteLength;
@@ -676,7 +844,11 @@ export class NativeFFmpegBackend implements EncoderBackend {
       // The renderer<->MessagePortMain bridge does not deliver a message whose
       // payload is sent in the transfer list (it arrives as null on the main
       // side), so the RGBA buffer is structured-cloned rather than transferred.
+      const postStart = performance.now();
       port.postMessage({ type: "frame", ts: timestampSec, buffer: rgba });
+      this.postMsTotal += performance.now() - postStart;
+      // postMessage cloned the bytes (see above), so the buffer is free for the next frame.
+      if (gpuTicket && rgbaBuffer === rgba) gpuTicket.recycle(rgba);
     } finally {
       frame.close();
     }
@@ -703,11 +875,17 @@ export class NativeFFmpegBackend implements EncoderBackend {
     return yuv.data.buffer as ArrayBuffer;
   }
 
+  private lightLevel: { maxCll: number; maxFall: number } | null = null;
+
+  setHdrLightLevel(level: { maxCll: number; maxFall: number }): void {
+    this.lightLevel = { maxCll: level.maxCll, maxFall: level.maxFall };
+  }
+
   async finalize(): Promise<void> {
     if (!this.port) {
       throw new Error("NativeFFmpegBackend not started");
     }
-    this.port.postMessage({ type: "finish" });
+    this.port.postMessage({ type: "finish", ...(this.lightLevel ? { lightLevel: this.lightLevel } : {}) });
     try {
       await this.done;
       if (this.frameCount > 0) {
@@ -715,6 +893,9 @@ export class NativeFFmpegBackend implements EncoderBackend {
           `[export] frames=${this.frameCount} ` +
             `readback=${(this.readbackMsTotal / this.frameCount).toFixed(1)}ms/f ` +
             `creditWait=${(this.creditWaitMsTotal / this.frameCount).toFixed(1)}ms/f ` +
+            `convert=${(this.convertMsTotal / this.frameCount).toFixed(1)}ms/f ` +
+            `post=${(this.postMsTotal / this.frameCount).toFixed(1)}ms/f ` +
+            `gpuReadback=${this.gpuReadbackFrames} ` +
             `bytes=${this.bytesSent}`,
         );
       }
@@ -903,5 +1084,87 @@ export class NativeFFmpegBackend implements EncoderBackend {
     }
     this.readback = null;
     this.readbackCtx = null;
+    const reader = this.gpuReader;
+    this.gpuReader = null;
+    void reader?.then((r) => r?.dispose());
   }
+}
+
+/**
+ * The audio of a parallel export. One worker renders the whole timeline's audio (no picture) and writes it as the
+ * WAV the session muxes with the joined segments, so there is no seam where one segment ends and the next begins.
+ */
+export class SegmentAudioBackend implements EncoderBackend {
+  readonly requiresWebCodecsClamping = false;
+  readonly needsFrameThrottling = false;
+  readonly normalizesProResToH264 = false;
+  readonly audioBeforeVideo = true;
+  readonly drivesExternalEncoder = true;
+  private channels = 2;
+  private sampleRate = 48000;
+  private offset = WAV_HEADER_BYTES;
+  private framesWritten = 0;
+  private headerWritten = false;
+  private durationSec = 0;
+  private bytes = 0;
+
+  constructor(private readonly sessionId: string) {}
+
+  async start(settings: VideoExportSettings, project: Project): Promise<void> {
+    this.sampleRate = settings.audioSettings.sampleRate;
+    this.channels = broadcastAudioTrackCount(settings.broadcast) || settings.audioSettings.channels;
+    const range = settings.range;
+    this.durationSec = range ? range.endTime - range.startTime : project.timeline.duration;
+  }
+
+  private async header(buffer?: AudioBuffer): Promise<void> {
+    if (buffer && this.framesWritten === 0) {
+      this.sampleRate = buffer.sampleRate;
+      this.channels = Math.max(1, buffer.numberOfChannels);
+    }
+    if (this.headerWritten) return;
+    await window.openreel!.exportSegments!.writeAudioChunk(this.sessionId, buildWavHeader(0, this.channels, this.sampleRate), 0);
+    this.headerWritten = true;
+  }
+
+  async addAudioBuffer(buffer: AudioBuffer): Promise<void> {
+    await this.header(buffer);
+    const pcm = encodeAudioBufferToPcm16(buffer, this.channels);
+    await window.openreel!.exportSegments!.writeAudioChunk(this.sessionId, pcm, this.offset);
+    this.offset += pcm.byteLength;
+    this.framesWritten += buffer.length;
+    this.bytes += pcm.byteLength;
+  }
+
+  async closeAudio(): Promise<void> {
+    const bridge = window.openreel!.exportSegments!;
+    await this.header();
+    if (this.framesWritten === 0) {
+      // A timeline without sound still gets a track of the right length, as a serial export does.
+      let remaining = Math.max(1, Math.ceil(this.durationSec * this.sampleRate));
+      while (remaining > 0) {
+        const frames = Math.min(Math.max(1, this.sampleRate), remaining);
+        const silence = new ArrayBuffer(frames * this.channels * BYTES_PER_SAMPLE);
+        await bridge.writeAudioChunk(this.sessionId, silence, this.offset);
+        this.offset += silence.byteLength;
+        this.framesWritten += frames;
+        remaining -= frames;
+      }
+    }
+    await bridge.writeAudioChunk(this.sessionId, buildWavHeader(this.framesWritten, this.channels, this.sampleRate), 0);
+    await bridge.finishAudio(this.sessionId);
+  }
+
+  addVideoFrame(frame: ImageBitmap): Promise<void> {
+    frame.close();
+    return Promise.reject(new Error("The audio worker of a parallel export does not take frames."));
+  }
+
+  getBytesWritten(): number {
+    return this.bytes;
+  }
+
+  async finalize(): Promise<void> {}
+
+  async abort(): Promise<void> {}
 }

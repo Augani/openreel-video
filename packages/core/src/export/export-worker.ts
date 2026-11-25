@@ -1,4 +1,5 @@
-import type { VideoExportSettings } from "./types";
+import { browserAudioCodec } from "./browser-audio-codec";
+import { CODEC_MAP, type VideoExportSettings } from "./types";
 
 interface WorkerMessage {
   type:
@@ -72,7 +73,6 @@ async function initialize(
       VideoSampleSource,
       AudioSampleSource,
       getFirstEncodableVideoCodec,
-      getFirstEncodableAudioCodec,
       QUALITY_MEDIUM,
     } = mediabunny;
 
@@ -113,7 +113,7 @@ async function initialize(
     output = new Output({ format: outputFormat, target });
 
     const videoCodec = await getFirstEncodableVideoCodec(
-      outputFormat.getSupportedVideoCodecs(),
+      outputFormat.getSupportedVideoCodecs().filter((codec) => codec === CODEC_MAP[settings.codec as keyof typeof CODEC_MAP]),
       { width: settings.width, height: settings.height },
     );
 
@@ -121,21 +121,8 @@ async function initialize(
       throw new Error("No supported video codec found");
     }
 
-    const supportedAudioCodecs = outputFormat.getSupportedAudioCodecs();
-    let audioCodec = await getFirstEncodableAudioCodec(supportedAudioCodecs);
-
-    for (const fallbackCodec of ["aac", "mp3", "opus"]) {
-      if (!audioCodec) {
-        const found = supportedAudioCodecs.find((c: string) =>
-          String(c).toLowerCase().includes(fallbackCodec) ||
-          (fallbackCodec === "aac" && String(c).toLowerCase().includes("mp4a"))
-        );
-        if (found) {
-          audioCodec = found;
-          break;
-        }
-      }
-    }
+    const audio = await browserAudioCodec(mediabunny, settings, outputFormat.getSupportedAudioCodecs());
+    if (!audio) throw new Error(`Cannot encode audio for ${settings.format.toUpperCase()} with these settings.`);
 
     videoSource = new VideoSampleSource({
       codec: videoCodec,
@@ -145,8 +132,9 @@ async function initialize(
     });
 
     audioSource = new AudioSampleSource({
-      codec: (audioCodec || "aac") as "aac" | "opus" | "mp3",
-      bitrate: settings.audioSettings.bitrate * 1000,
+      codec: audio.codec,
+      bitrate: audio.bitrate,
+      ...(audio.codec === "aac" ? { fullCodecString: "mp4a.40.2" } : {}),
     });
 
     output.addVideoTrack(videoSource);

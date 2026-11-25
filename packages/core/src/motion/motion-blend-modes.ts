@@ -1,4 +1,5 @@
 import { BLEND_MODES, type BlendMode } from "../video/types";
+import { getNativeCanvasBlendOperation, needsCpuBlend } from "../video/blend-reference";
 
 interface MotionBlendModeOption {
   readonly id: BlendMode;
@@ -15,31 +16,26 @@ export function getMotionCanvasBlendMode(
   blendMode: BlendMode | undefined,
 ): GlobalCompositeOperation {
   const mode = blendMode ?? "normal";
-  const modeMap: Record<BlendMode, GlobalCompositeOperation> = {
-    normal: "source-over",
-    multiply: "multiply",
-    screen: "screen",
-    overlay: "overlay",
-    darken: "darken",
-    lighten: "lighten",
-    "color-dodge": "color-dodge",
-    "color-burn": "color-burn",
-    "hard-light": "hard-light",
-    "soft-light": "soft-light",
-    difference: "difference",
-    exclusion: "exclusion",
-    hue: "hue",
-    saturation: "saturation",
-    color: "color",
-    luminosity: "luminosity",
-    add: "lighter",
-    "linear-dodge": "lighter",
-  };
-  return modeMap[mode] ?? "source-over";
+  return getNativeCanvasBlendOperation(mode) ?? "source-over";
 }
 
 type MotionCssBlendMode =
-  | Exclude<BlendMode, "normal" | "add" | "linear-dodge">
+  | Exclude<
+      BlendMode,
+      | "normal"
+      | "add"
+      | "linear-dodge"
+      | "linear-burn"
+      | "darker-color"
+      | "lighter-color"
+      | "linear-light"
+      | "vivid-light"
+      | "pin-light"
+      | "hard-mix"
+      | "subtract"
+      | "divide"
+      | "dissolve"
+    >
   | "plus-lighter";
 
 export function buildMotionCssBlendMode(
@@ -49,7 +45,8 @@ export function buildMotionCssBlendMode(
   if (blendMode === "add" || blendMode === "linear-dodge") {
     return "plus-lighter";
   }
-  return blendMode;
+  if (needsCpuBlend(blendMode)) return undefined;
+  return blendMode as MotionCssBlendMode;
 }
 
 function formatBlendModeName(mode: BlendMode): string {

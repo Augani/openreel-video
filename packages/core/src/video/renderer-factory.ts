@@ -18,6 +18,8 @@ export interface RenderLayer {
   borderRadius: number;
   /** Sequence pixel aspect ratio the layer transform is laid out in (display space, then squeezed). Default 1. */
   pixelAspect?: number;
+  /** Layer blend against the frame so far (WebGPU composites it in its own pass). A `blend` effect resolves to the same. */
+  blendMode?: import("./types").BlendMode;
 }
 
 export interface Renderer {

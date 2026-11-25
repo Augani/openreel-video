@@ -1,5 +1,6 @@
 import { KWeightingFilter } from "./k-weighting";
 import { TruePeakMeter, linearToDb } from "./true-peak";
+import { SpeechGate } from "./dialogue-gate";
 
 /**
  * Streaming ITU-R BS.1770-4 / EBU R128 loudness meter.
@@ -30,6 +31,8 @@ export interface LoudnessMeterOptions {
   readonly channelWeights?: readonly number[];
   /** Treat a mono input as dual-mono (+3.01 LU), as for playback on stereo. */
   readonly dualMono?: boolean;
+  /** Also measure dialogue-gated loudness (speech blocks only), see `SpeechGate`. */
+  readonly dialogueGate?: boolean;
 }
 
 export interface LoudnessSnapshot {
@@ -45,6 +48,10 @@ export interface LoudnessSnapshot {
   readonly samplePeak: number;
   /** Audio duration analysed so far, seconds. */
   readonly duration: number;
+  /** Integrated loudness of the dialogue blocks only (-Infinity when none); present when the gate ran. */
+  readonly dialogueIntegrated?: number;
+  /** Share (0..1) of the program-gated blocks classified as dialogue; present when the gate ran. */
+  readonly dialogueFraction?: number;
 }
 
 export function defaultChannelWeights(channels: number): number[] {
@@ -80,6 +87,14 @@ export function gatedLoudness(blockEnergies: ArrayLike<number>, count = blockEne
     }
   }
   return n2 === 0 ? SILENCE_LUFS : energyToLufs(sum2 / n2);
+}
+
+/** Loudness of every block, with no absolute or relative gating. */
+export function ungatedLoudness(blockEnergies: ArrayLike<number>, count = blockEnergies.length): number {
+  if (count === 0) return SILENCE_LUFS;
+  let sum = 0;
+  for (let i = 0; i < count; i++) sum += blockEnergies[i];
+  return energyToLufs(sum / count);
 }
 
 /** EBU Tech 3342 loudness range (LU) from short-term window energies. */
@@ -125,6 +140,8 @@ export class LoudnessMeter {
   private readonly recent = new Float64Array(SUBBLOCKS_PER_SHORT_TERM);
   private subblockCount = 0;
   private blockEnergies: number[] = [];
+  private readonly speechGate?: SpeechGate;
+  private dialogueFlags: boolean[] = [];
   private shortTermEnergies: number[] = [];
   private momentaryEnergy = 0;
   private shortTermEnergy = 0;
@@ -143,6 +160,7 @@ export class LoudnessMeter {
     this.filters = Array.from({ length: channels }, () => new KWeightingFilter(sampleRate));
     this.truePeakMeter = new TruePeakMeter(channels);
     this.subblockLength = Math.max(1, Math.round(sampleRate * 0.1));
+    if (options.dialogueGate) this.speechGate = new SpeechGate(sampleRate);
   }
 
   /** Feed one chunk (one array per channel, equal lengths). */
@@ -164,6 +182,13 @@ export class LoudnessMeter {
           acc += y * y;
         }
         sum += w * acc;
+      }
+      if (this.speechGate) {
+        for (let k = i; k < i + take; k++) {
+          let mono = 0;
+          for (let c = 0; c < n; c++) mono += channels[c][k];
+          this.speechGate.push(mono / n);
+        }
       }
       this.subblockSum += sum;
       this.subblockFill += take;
@@ -189,6 +214,7 @@ export class LoudnessMeter {
     if (this.subblockCount >= SUBBLOCKS_PER_MOMENTARY) {
       this.momentaryEnergy = meanOfLast(SUBBLOCKS_PER_MOMENTARY);
       this.blockEnergies.push(this.momentaryEnergy);
+      if (this.speechGate) this.dialogueFlags.push(this.speechGate.isSpeech());
       if (this.momentaryEnergy > this.momentaryMaxEnergy) this.momentaryMaxEnergy = this.momentaryEnergy;
     }
     if (this.subblockCount >= SUBBLOCKS_PER_SHORT_TERM) {
@@ -208,6 +234,31 @@ export class LoudnessMeter {
 
   integrated(): number {
     return gatedLoudness(this.blockEnergies);
+  }
+
+  /** Loudness with no gating at all (every 400 ms block counts). */
+  ungatedIntegrated(): number {
+    return ungatedLoudness(this.blockEnergies);
+  }
+
+  /** BS.1770 gated loudness over the dialogue blocks only; -Infinity without dialogue. */
+  dialogueIntegrated(): number {
+    const kept: number[] = [];
+    for (let i = 0; i < this.blockEnergies.length; i++) if (this.dialogueFlags[i]) kept.push(this.blockEnergies[i]);
+    return gatedLoudness(kept);
+  }
+
+  /** Fraction of the blocks above the absolute gate that are dialogue. */
+  dialogueFraction(): number {
+    const absGate = lufsToEnergy(ABSOLUTE_GATE_LUFS);
+    let audible = 0;
+    let speech = 0;
+    for (let i = 0; i < this.blockEnergies.length; i++) {
+      if (this.blockEnergies[i] <= absGate) continue;
+      audible++;
+      if (this.dialogueFlags[i]) speech++;
+    }
+    return audible === 0 ? 0 : speech / audible;
   }
 
   loudnessRange(): number {
@@ -234,6 +285,9 @@ export class LoudnessMeter {
       truePeak: this.truePeak(),
       samplePeak: this.samplePeak(),
       duration: this.totalSamples / this.sampleRate,
+      ...(this.speechGate
+        ? { dialogueIntegrated: this.dialogueIntegrated(), dialogueFraction: this.dialogueFraction() }
+        : {}),
     };
   }
 
@@ -246,6 +300,8 @@ export class LoudnessMeter {
     this.recent.fill(0);
     this.subblockCount = 0;
     this.blockEnergies = [];
+    this.dialogueFlags = [];
+    this.speechGate?.reset();
     this.shortTermEnergies = [];
     this.momentaryEnergy = 0;
     this.shortTermEnergy = 0;

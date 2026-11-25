@@ -1,4 +1,6 @@
 import React, {
+  Suspense,
+  lazy,
   useCallback,
   useMemo,
   useEffect,
@@ -49,7 +51,10 @@ import { commitRoutingPlan } from "./routing-ui";
 import { AudioOutputSelect } from "../editor/settings/AudioOutputSelect";
 import { exportStemsAsDownloads } from "../../services/audio-stems";
 import { toast } from "../../stores/notification-store";
+import { automationRecorder, startAutomationRecorder } from "../../services/automation-recorder";
 import { createMixerChannelSelector } from "../../services/audio-mixer-channels";
+
+const MixerSnapshots = lazy(() => import("./MixerSnapshots"));
 
 interface AudioMixerProps {
   /** Whether the mixer panel is visible */
@@ -185,6 +190,11 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
   // Local state for track volumes and pans (stored per-track)
   const [trackVolumes, setTrackVolumes] = useState<Record<string, number>>({});
   const [trackPans, setTrackPans] = useState<Record<string, number>>({});
+  // Fader / pan moves are recorded into the lanes of tracks in Write / Touch / Latch while the mixer is open.
+  useEffect(() => startAutomationRecorder(), []);
+  const handleControlTouch = useCallback((trackId: string, lane: "volume" | "pan", value: number) => {
+    automationRecorder.touch(trackId, lane, value);
+  }, []);
   useEffect(() => {
     try {
       audioGraphRef.current = getRealtimeAudioGraph();
@@ -271,6 +281,7 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
       muted: track.muted,
       solo: track.solo,
       soloSafe: track.soloSafe === true,
+      automationMode: track.automationMode,
       rack: track.audioRack,
       output: track.output,
       sends: track.sends,
@@ -288,6 +299,7 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
       [trackId]: volume,
     }));
     audioGraphRef.current?.updateTrackVolume(trackId, volume);
+    automationRecorder.move(trackId, "volume", volume);
   }, []);
 
   const commitRackField = useCallback(
@@ -298,6 +310,8 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
   );
   const handleVolumeCommit = useCallback(
     (trackId: string, volume: number) =>
+      // During a recording pass the move belongs to the pass (one undo step at the end), not to the rack.
+      automationRecorder.commit(trackId, "volume") ||
       commitRackField(
         trackId,
         useProjectStore.getState().project.timeline.tracks.find((t) => t.id === trackId)?.audioRack,
@@ -308,6 +322,7 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
   );
   const handlePanCommit = useCallback(
     (trackId: string, pan: number) =>
+      automationRecorder.commit(trackId, "pan") ||
       commitRackField(
         trackId,
         useProjectStore.getState().project.timeline.tracks.find((t) => t.id === trackId)?.audioRack,
@@ -334,6 +349,7 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
       [trackId]: pan,
     }));
     audioGraphRef.current?.updateTrackPan(trackId, pan);
+    automationRecorder.move(trackId, "pan", pan);
   }, []);
 
   // Handle mute toggle (Requirement 20.5)
@@ -489,6 +505,9 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
           >
             Dialogue / Music / FX
           </Button>
+          <Suspense fallback={null}>
+            <MixerSnapshots />
+          </Suspense>
           <Button
             type="button"
             variant="outline"
@@ -531,6 +550,7 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
                 onPanChange={handlePanChange}
                 onVolumeCommit={handleVolumeCommit}
                 onPanCommit={handlePanCommit}
+                onControlTouch={handleControlTouch}
                 onMuteToggle={handleMuteToggle}
                 onSoloToggle={handleSoloToggle}
                 hasSoloedTracks={hasSoloedTracks}

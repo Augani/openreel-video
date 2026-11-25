@@ -29,6 +29,8 @@ import {
 } from "./pro-effects";
 import { PRO_EFFECT_SHADER_DEFS } from "./pro-effect-shaders";
 import { EXTRA_PRO_EFFECT_TYPES } from "./pro-effects-extra";
+import { REPAIR_PRO_EFFECT_TYPES } from "./repair-effects";
+import { CREATIVE_PRO_EFFECT_TYPES } from "./creative-effects";
 import { TEMPORAL_PRO_EFFECT_TYPES, isTemporalEffectType } from "./temporal-effects";
 
 function makeImage(width: number, height: number): Uint8ClampedArray {
@@ -88,6 +90,8 @@ describe("pro effects registration", () => {
         "skew",
         "hsl-secondary",
         ...EXTRA_PRO_EFFECT_TYPES,
+        ...REPAIR_PRO_EFFECT_TYPES,
+        ...CREATIVE_PRO_EFFECT_TYPES,
         ...TEMPORAL_PRO_EFFECT_TYPES,
         ...VR_PRO_EFFECT_TYPES,
         ...VR_IMAGE_EFFECT_TYPES,
@@ -118,8 +122,10 @@ describe("pro effects neutral-parameter identity", () => {
       expect(isProEffectNeutral(type, {})).toBe(true);
     });
 
-    // Temporal effects choose frames, not pixels: their pixel pass is the identity (temporal-effects.test.ts).
-    it.skipIf(isTemporalEffectType(type))(`${type} changes the image with its default params and is not neutral`, () => {
+    // Temporal effects choose frames, not pixels: their pixel pass is the identity (temporal-effects.test.ts). Deflicker's
+    // gain comes from neighbour frames (deflicker.test.ts), and Deband only rewrites pixels whose neighbours are within
+    // its threshold, so it leaves this hard-edged noise card alone by design (repair-effects.test.ts).
+    it.skipIf(isTemporalEffectType(type) || type === "deflicker" || type === "deband")(`${type} changes the image with its default params and is not neutral`, () => {
       const original = makeImage(W, H);
       const data = new Uint8ClampedArray(original);
       // Effects whose defaults are neutral (every VR effect, as in Premiere) are given a non-neutral value first.

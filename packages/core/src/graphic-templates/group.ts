@@ -8,6 +8,7 @@ import type { Project } from "../types/project";
 import { EASING_TYPES, type EasingType } from "../types/timeline";
 import type { ShapeClip, SVGClip } from "../graphics/types";
 import type { TextClip } from "../text/types";
+import { clipRuns, hasRunOverrides, scaleRuns } from "../text/rich-text";
 import { clampGraphicDuration, designFrame } from "./expand";
 import { commitGraphicInstance, graphicInstanceOfClip, type GraphicEditResult } from "./instances";
 import {
@@ -106,7 +107,11 @@ function textLayer(clip: TextClip, id: string, project: Project, start: number, 
     ...(animation && keyframes.length === 0
       ? { textAnimation: { preset: animation.preset, inDuration: animation.inDuration, outDuration: animation.outDuration, ...(animation.stagger !== undefined ? { stagger: animation.stagger } : {}), ...(animation.unit ? { unit: animation.unit } : {}), params: animation.params as never } }
       : {}),
-    text: { text: clip.text, style: styleOut as never },
+    text: {
+      text: clip.text,
+      style: styleOut as never,
+      ...(hasRunOverrides(clip.runs) ? { runs: scaleRuns(clipRuns(clip), 1 / ds.scale) } : {}),
+    },
   };
 }
 

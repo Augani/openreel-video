@@ -87,6 +87,12 @@ describe("videoEncodeArgs with colour", () => {
     expect(after(args, "-pix_fmt")).toBe("yuv444p10le");
   });
 
+  it("ProRes 422 HQ takes the renderer's 4:4:4 planes down to 4:2:2 10-bit", () => {
+    const args = videoEncodeArgs({ ...plan, codec: "prores", encoder: "prores_ks", proresProfile: "hq", color: PRORES_PQ });
+    expect(after(args, "-profile:v")).toBe("3");
+    expect(after(args, "-pix_fmt")).toBe("yuv422p10le");
+  });
+
   it("without colour nothing changes (Rec.709 SDR stays argument for argument)", () => {
     const args = videoEncodeArgs({ ...plan, codec: "hevc", encoder: "libx265" });
     expect(args).not.toContain("-x265-params");
@@ -135,7 +141,7 @@ describe("encoder selection for colour exports", () => {
     expect(selectColorEncoder("h264", SDR2020, all, "darwin", "balanced")).not.toBe("");
   });
 
-  it("resolveExportArgs carries the colour and forces ProRes XQ for HDR", () => {
+  it("resolveExportArgs carries the colour; HDR ProRes keeps 422 HQ / 4444 and raises the coarse profiles", () => {
     const start = {
       width: 1920, height: 1080, frameRate: 30, codec: "prores", format: "mov", bitrateKbps: 0,
       outputPath: "/tmp/o.mov", totalFrames: 10, audioSampleRate: 48000, audioChannels: 2,
@@ -143,7 +149,10 @@ describe("encoder selection for colour exports", () => {
     };
     const resolved = resolveExportArgs(start, "darwin", all, "/tmp/a.wav");
     expect(resolved.encoder).toBe("prores_ks");
-    expect(resolved.proresProfile).toBe("4444xq");
+    expect(resolved.proresProfile).toBe("hq");
+    expect(resolveExportArgs({ ...start, proresProfile: "lt" }, "darwin", all, "/tmp/a.wav").proresProfile).toBe("hq");
+    expect(resolveExportArgs({ ...start, proresProfile: undefined }, "darwin", all, "/tmp/a.wav").proresProfile).toBe("4444xq");
+    expect(resolveExportArgs({ ...start, proresProfile: "4444" }, "darwin", all, "/tmp/a.wav").proresProfile).toBe("4444");
     expect(resolved.color).toEqual(PRORES_PQ);
     expect(() => resolveExportArgs({ ...start, color: { nope: 1 } as never }, "darwin", all, "/tmp/a.wav")).toThrow(/colour/);
   });

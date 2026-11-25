@@ -200,15 +200,18 @@ export function repairWarmupSeconds(type: RepairEffectType): number {
 
 export const REPAIR_TYPES_LIST = REPAIR_EFFECT_TYPES;
 
-type WorkletKind = (type: string) => boolean;
-const repairOnly: WorkletKind = (type) => isRepairEffectType(type);
+type WorkletKind = (type: string, params?: Record<string, unknown>) => boolean;
+/** A compressor with a sidechain key runs in the worklet (the keyed linked compressor), in stereo as well as 5.1. */
+const isKeyedCompressor = (type: string, params?: Record<string, unknown>): boolean =>
+  type === "compressor" && typeof params?.keySource === "string" && params.keySource.length > 0;
+const repairOnly: WorkletKind = (type, params) => isRepairEffectType(type) || isKeyedCompressor(type, params);
 /** A 5.1 mix also runs compressors and limiters in the worklet (the linked six-channel compressor). */
 const repairOrLinkedDynamics: WorkletKind = (type) => isRepairEffectType(type) || type === "compressor" || type === "limiter";
 
 const rackUsesRepair = (rack: AudioRack | undefined, kind: WorkletKind): boolean =>
-  !!rack && rack.effects.some((fx) => !fx.bypassed && kind(fx.type));
+  !!rack && rack.effects.some((fx) => !fx.bypassed && kind(fx.type, fx.params));
 const effectsUseRepair = (effects: readonly Effect[] | undefined, kind: WorkletKind): boolean =>
-  !!effects && effects.some((fx) => fx.enabled && kind(fx.type));
+  !!effects && effects.some((fx) => fx.enabled && kind(fx.type, fx.params as Record<string, unknown>));
 
 const timelineUsesRepair = (timeline: Pick<Timeline, "tracks" | "audioBuses" | "masterAudioRack">, kind: WorkletKind): boolean =>
   rackUsesRepair(timeline.masterAudioRack, kind) ||

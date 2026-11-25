@@ -246,6 +246,7 @@ const SOCIAL_MEDIA_PRESETS: PlatformExportPreset[] = [
       quality: 85,
       keyframeInterval: 60,
       audioSettings: {
+        channelLayout: "stereo",
         format: "aac",
         sampleRate: 44100,
         bitDepth: 16,

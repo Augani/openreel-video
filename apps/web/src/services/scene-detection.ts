@@ -1,12 +1,21 @@
 import { backgroundTasks } from "@openreel/core/tasks/task-registry";
 import {
-  detectScenes,
-  initializeMediaEngine,
   createAbortError,
+  createSubclipItem,
+  detectSceneTransitions,
+  detectSceneTransitionsInWorker,
+  initializeMediaEngine,
+  resolveSubclipParent,
   type Clip,
+  type FadeRange,
+  type MediaItem,
+  type MessagePortLike,
   type Project,
   type SceneCut,
   type SceneDetectionProgress,
+  type SceneEdit,
+  type SceneWorkerOptions,
+  type TransitionRange,
 } from "@openreel/core";
 import { useProjectStore } from "../stores/project-store";
 import { useTimelineStore } from "../stores/timeline-store";
@@ -28,6 +37,10 @@ export interface SceneDetectionRunOptions {
   sensitivity: number;
   /** Seconds. */
   minSceneLength: number;
+  /** Find cross-dissolves as well as hard cuts. Default true. */
+  detectDissolves?: boolean;
+  /** Find fades to and from black. Default true. */
+  detectFades?: boolean;
   signal?: AbortSignal;
   onProgress?: (progress: SceneDetectionProgress) => void;
 }
@@ -37,17 +50,28 @@ export interface SceneAnalysis {
   readonly projectId: string;
   readonly clipId: string;
   readonly mediaId: string;
+  /** Hard cuts. */
   readonly cuts: readonly SceneCut[];
+  readonly dissolves?: readonly TransitionRange[];
+  readonly fades?: readonly FadeRange[];
+  /** Every scene edit in source time (hard cuts, dissolves, fades through black). Derived from `cuts` when absent. */
+  readonly edits?: readonly SceneEdit[];
 }
 
 export interface ApplySceneCutsOptions {
+  /** Add cuts: split the clip (and linked clips) at every edit. */
   splitClip: boolean;
+  /** Add a timeline marker at every edit. */
   addMarkers: boolean;
+  /** Create a bin subclip for every detected scene. */
+  createSubclips?: boolean;
 }
 
 export interface ApplySceneCutsResult {
   splits: number;
   markers: number;
+  /** Bin subclips created. */
+  subclips: number;
   /** Linked clips on locked tracks that were left untouched. */
   skippedLockedLinked: number;
   /** Cuts that no longer fall inside the clip as it is now. */
@@ -122,6 +146,16 @@ export function analyseClipScenes(
   });
 }
 
+/** The analysis runs in a worker; without Worker support (tests, very old browsers) it runs in-thread. */
+function openSceneWorker(): Worker | null {
+  if (typeof Worker === "undefined") return null;
+  try {
+    return new Worker(new URL("../workers/scene-detection.worker.ts", import.meta.url), { type: "module", name: "openreel-scenes" });
+  } catch {
+    return null;
+  }
+}
+
 async function runSceneAnalysis(
   clipId: string,
   options: SceneDetectionRunOptions,
@@ -136,6 +170,7 @@ async function runSceneAnalysis(
 
   const engine = await initializeMediaEngine();
   const decoderId = `scene-detect-${crypto.randomUUID()}`;
+  let worker: Worker | null = null;
   try {
     const decoder = await engine.createExportDecoder(
       decoderId,
@@ -144,33 +179,45 @@ async function runSceneAnalysis(
     );
     if (!decoder) throw new Error("This video cannot be decoded for analysis.");
     if (signal?.aborted) throw createAbortError();
-    const result = await detectScenes({
-      sampler: async (time) => {
-        const canvas = await decoder.getFrame(time);
-        const context = canvas?.getContext("2d", { willReadFrequently: true });
-        if (!canvas || !context) return null;
-        const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
-        return {
-          data: pixels.data,
-          width: pixels.width,
-          height: pixels.height,
-        };
-      },
+    const sampler = async (time: number) => {
+      const canvas = await decoder.getFrame(time);
+      const context = canvas?.getContext("2d", { willReadFrequently: true });
+      if (!canvas || !context) return null;
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+      return { data: pixels.data, width: pixels.width, height: pixels.height };
+    };
+    const sourceRate = media.metadata.frameRate;
+    const detection: SceneWorkerOptions = {
       startTime: clip.inPoint,
       endTime: clip.outPoint,
+      frameRate: Number.isFinite(sourceRate) && sourceRate >= 1 && sourceRate <= 120 ? sourceRate : project.settings.frameRate || 30,
       sampleRate: SCENE_SAMPLE_RATE,
       sensitivity: options.sensitivity,
       minSceneLength: options.minSceneLength,
-      signal,
-      onProgress: options.onProgress,
-    });
+      detectDissolves: options.detectDissolves ?? true,
+      detectFades: options.detectFades ?? true,
+    };
+    worker = openSceneWorker();
+    const result = worker
+      ? await detectSceneTransitionsInWorker({
+          port: worker as unknown as MessagePortLike,
+          sampler,
+          options: detection,
+          signal,
+          onProgress: options.onProgress,
+        })
+      : await detectSceneTransitions({ ...detection, sampler, signal, onProgress: options.onProgress });
     return {
       projectId: project.id,
       clipId,
       mediaId: clip.mediaId,
       cuts: result.cuts,
+      dissolves: result.dissolves,
+      fades: result.fades,
+      edits: result.edits,
     };
   } finally {
+    worker?.terminate();
     engine.disposeExportDecoder(decoderId);
   }
 }
@@ -178,6 +225,9 @@ async function runSceneAnalysis(
 export interface ScenePlan {
   /** Ascending timeline times, snapped to the project frame grid. */
   times: number[];
+  /** The edit each time came from, and its source time, in the same order. */
+  kinds: SceneEdit["kind"][];
+  sourceTimes: number[];
   droppedCuts: number;
   /** Clips (the source first) that will be split. */
   splitTargets: Clip[];
@@ -201,8 +251,13 @@ export function planSceneCuts(
   const frame = 1 / Math.max(1, project.settings.frameRate || 30);
   const end = clip.startTime + clip.duration;
   const times: number[] = [];
+  const kinds: SceneEdit["kind"][] = [];
+  const sourceTimes: number[] = [];
   let droppedCuts = 0;
-  for (const cut of [...analysis.cuts].sort((a, b) => a.time - b.time)) {
+  const edits: readonly SceneEdit[] =
+    analysis.edits ??
+    analysis.cuts.map((c) => ({ kind: "cut" as const, time: c.time, start: c.time, end: c.time, score: c.score }));
+  for (const cut of [...edits].sort((a, b) => a.time - b.time)) {
     const raw = sourceToTimelineTime(clip, cut.time);
     const snapped = Math.round(raw / frame) * frame;
     const last = times[times.length - 1];
@@ -216,6 +271,8 @@ export function planSceneCuts(
       continue;
     }
     times.push(snapped);
+    kinds.push(cut.kind);
+    sourceTimes.push(cut.time);
   }
   const ids = getLinkedTimelineSelection(project, [clip.id], linked).filter(
     (id) => id !== clip.id,
@@ -233,7 +290,7 @@ export function planSceneCuts(
     if (entry.locked) skippedLockedLinked++;
     else splitTargets.push(entry.clip);
   }
-  return { times, droppedCuts, splitTargets, skippedLockedLinked };
+  return { times, kinds, sourceTimes, droppedCuts, splitTargets, skippedLockedLinked };
 }
 
 function assertEditable(project: Project, clipId: string): void {
@@ -262,6 +319,7 @@ export async function applySceneCuts(
   const result: ApplySceneCutsResult = {
     splits: 0,
     markers: 0,
+    subclips: 0,
     skippedLockedLinked: 0,
     droppedCuts: 0,
   };
@@ -320,15 +378,44 @@ export async function applySceneCuts(
     const existing = session.getProject().timeline.markers;
     for (const [index, time] of plan.times.entries()) {
       if (existing.some((m) => Math.abs(m.time - time) < EPSILON)) continue;
+      const kind = plan.kinds[index];
+      const noun = kind === "cut" ? "Cut" : kind === "dissolve" ? "Dissolve" : "Fade";
       await apply("marker/add", {
         time,
-        label: `Cut ${index + 1}`,
+        label: `${noun} ${index + 1}`,
         color: MARKER_COLOR,
       });
       result.markers++;
     }
   }
-  if (result.splits === 0 && result.markers === 0) return result;
+  if (options.createSubclips) {
+    const source = plan.splitTargets[0];
+    let library: MediaItem[] = [...session.getProject().mediaLibrary.items];
+    const parent = library.find((m) => m.id === source.mediaId);
+    if (parent) {
+      const root = resolveSubclipParent(library, parent);
+      const base = root.name.replace(/\.[^.]+$/, "");
+      // One subclip per scene: the clip's source window cut at every detected edit.
+      const bounds = [source.inPoint, ...plan.sourceTimes, source.outPoint];
+      const added: MediaItem[] = [];
+      for (let i = 0; i + 1 < bounds.length; i++) {
+        if (bounds[i + 1] - bounds[i] <= 1e-3) continue;
+        const item = createSubclipItem(library, parent, {
+          id: crypto.randomUUID(),
+          inPoint: bounds[i],
+          outPoint: bounds[i + 1],
+          name: `${base} Scene ${i + 1}`,
+        });
+        added.push(item);
+        library = [...library, item];
+      }
+      if (added.length) {
+        await apply("media/organize", { label: "Create subclips", addItems: added });
+        result.subclips = added.length;
+      }
+    }
+  }
+  if (result.splits === 0 && result.markers === 0 && result.subclips === 0) return result;
   await session.commitTransaction(transaction, "Scene edit detection");
   return result;
 }

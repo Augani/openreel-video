@@ -19,6 +19,8 @@ import {
 import { selectOption } from "../../test/select-option";
 import { ExportDialog } from "./ExportDialog";
 import { useProjectStore } from "../../stores/project-store";
+import { getQuickExportPresets } from "../../services/quick-export-presets";
+import { resetExportSdrChoices } from "./export-hdr-choice";
 
 vi.mock("@openreel/core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@openreel/core")>();
@@ -36,6 +38,7 @@ vi.mock("@openreel/core", async (importOriginal) => {
       seconds: 5,
       confidence: "rough",
     })),
+    probeHdrExportSupport: vi.fn(async () => ({ supported: true })),
     runBenchmark: vi.fn(),
     shouldRecommendBenchmark: vi.fn(() => true),
     formatDeviceSummary: vi.fn(
@@ -307,6 +310,51 @@ describe("full export controls", () => {
     } finally {
       useProjectStore.setState({ project: before });
     }
+  });
+
+  it("keeps an explicit SDR choice for an HDR sequence when the dialog is reopened", async () => {
+    resetExportSdrChoices();
+    const before = useProjectStore.getState().project;
+    useProjectStore.setState({
+      project: { ...before, settings: { ...before.settings, workingColorSpace: "rec2020", sequenceColorSpace: "rec2100pq" } },
+    });
+    try {
+      const first = mount();
+      chooseTab("Custom Settings");
+      // The HDR default applies on open.
+      await waitFor(() => expect(screen.getByRole("combobox", { name: "Color and HDR" })).toHaveTextContent(/HDR10/));
+      await selectOption(screen.getByRole("combobox", { name: "Color and HDR" }), /^SDR/);
+      expect(screen.getByRole("combobox", { name: "Color and HDR" })).toHaveTextContent(/SDR/);
+      // Close and reopen the dialog.
+      first.rerender(<ExportDialog isOpen={false} duration={6} onExport={first.onExport} onClose={first.onClose} />);
+      await act(async () => {});
+      first.rerender(<ExportDialog isOpen duration={6} onExport={first.onExport} onClose={first.onClose} />);
+      await act(async () => {});
+      chooseTab("Custom Settings");
+      expect(screen.getByRole("combobox", { name: "Color and HDR" })).toHaveTextContent(/SDR/);
+      expect(screen.getByRole("combobox", { name: "Color and HDR" })).not.toHaveTextContent(/HDR10/);
+      // Choosing HDR again forgets the SDR choice.
+      await selectOption(screen.getByRole("combobox", { name: "Color and HDR" }), /HDR10/);
+      expect(screen.getByRole("combobox", { name: "Color and HDR" })).toHaveTextContent(/HDR10/);
+    } finally {
+      useProjectStore.setState({ project: before });
+      resetExportSdrChoices();
+    }
+  });
+
+  it("offers Broadcast WAV description and originator, which the quick export preset carries", async () => {
+    window.localStorage.removeItem("openreel.export.bwf");
+    const onExportAudio = vi.fn();
+    mount({ onExportAudio });
+    chooseTab("Custom Settings");
+    fireEvent.change(screen.getByTestId("export-bwf-description"), { target: { value: "Reel 4 mix" } });
+    fireEvent.change(screen.getByTestId("export-bwf-originator"), { target: { value: "Studio B" } });
+    const preset = getQuickExportPresets({ width: 1920, height: 1080, frameRate: 30 }).find((p) => p.id === "bwf");
+    expect(preset?.kind).toBe("audio");
+    expect(preset?.settings).toMatchObject({ format: "wav", bwf: { enabled: true, description: "Reel 4 mix", originator: "Studio B" } });
+    fireEvent.click(screen.getByTestId("export-bwf-run"));
+    expect(onExportAudio).toHaveBeenCalledWith("bwf");
+    window.localStorage.removeItem("openreel.export.bwf");
   });
 
   it("shows two-pass VBR disabled with the reason in the browser", async () => {

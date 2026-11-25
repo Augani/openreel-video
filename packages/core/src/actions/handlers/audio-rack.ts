@@ -3,7 +3,7 @@ import type { Action, ValidationResult } from "../../types/actions";
 import type { AudioRack } from "../../types/timeline";
 import type { MutableTimeline } from "../../utils/immutable-updates";
 import {
-  MAX_RACK_EFFECTS,
+  getMaxRackEffects,
   isAudioRackEffectType,
   sanitizeAudioRack,
 } from "../../audio/track-audio-rack";
@@ -44,10 +44,10 @@ const audioRackSet: ActionHandler = {
       if (typeof rack !== "object" || !Array.isArray(rack.effects)) {
         errors.push({ code: "INVALID_PARAMS", message: "rack.effects must be an array" });
       } else {
-        if (rack.effects.length > MAX_RACK_EFFECTS) {
+        if (rack.effects.length > getMaxRackEffects()) {
           errors.push({
             code: "INVALID_PARAMS",
-            message: `A rack holds at most ${MAX_RACK_EFFECTS} effects`,
+            message: `A rack holds at most ${getMaxRackEffects()} effects`,
           });
         }
         if (rack.effects.some((e) => !e || !isAudioRackEffectType(e.type))) {

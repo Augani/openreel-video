@@ -569,6 +569,13 @@ export const AUDIO_EFFECT_TYPES = [
   "reduceReverb",
   "fadeIn",
   "fadeOut",
+  "chorus",
+  "flanger",
+  "phaser",
+  "distortion",
+  "stereoWidth",
+  "invertPolarity",
+  "channelMap",
 ] as const;
 
 export const TRANSITION_TYPES = [

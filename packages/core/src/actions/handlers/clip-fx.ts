@@ -1,4 +1,6 @@
 import type { Action, ValidationResult } from "../../types/actions";
+import { isObjectRemovalSettings } from "../../video/content-aware-fill/types";
+import { isWarpAnalysis } from "../../video/stabilization/warp/types";
 import type { Project } from "../../types/project";
 import { registerActionHandler } from "../registry";
 import type { ActionHandler } from "../registry";
@@ -160,10 +162,14 @@ const handlers = [
     type: "clip/setStabilization",
     paramKey: "stabilization",
     field: "stabilization",
-    validateValue: (v) =>
-      v == null || typeof v === "object"
-        ? null
-        : "stabilization must be an object",
+    validateValue: (v) => {
+      if (v == null) return null;
+      if (typeof v !== "object") return "stabilization must be an object";
+      const { warp, warpAnalysis } = v as { warp?: unknown; warpAnalysis?: unknown };
+      if (warp !== undefined && (warp === null || typeof warp !== "object")) return "stabilization.warp must be an object";
+      if (warpAnalysis !== undefined && !isWarpAnalysis(warpAnalysis)) return "stabilization.warpAnalysis is not a valid analysis";
+      return null;
+    },
   }),
   makeClipFieldHandler({
     type: "clip/setChromaKey",
@@ -171,6 +177,14 @@ const handlers = [
     field: "chromaKey",
     validateValue: (v) =>
       v == null || typeof v === "object" ? null : "chromaKey must be an object",
+  }),
+  makeClipFieldHandler({
+    type: "clip/setObjectRemoval",
+    paramKey: "objectRemoval",
+    field: "objectRemoval",
+    transform: (v) => (v == null ? undefined : v),
+    validateValue: (v) =>
+      v == null || isObjectRemovalSettings(v) ? null : "objectRemoval must be { enabled, maskId, dilate, feather, analysisKey? } within range",
   }),
   makeClipFieldHandler({
     type: "speed/setKeyframes",

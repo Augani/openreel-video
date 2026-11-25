@@ -2,7 +2,12 @@ import { Suspense, lazy, memo, useCallback, useState } from "react";
 import {
   AUDIO_RACK_EFFECT_DEFINITIONS,
   AUDIO_RACK_EFFECT_TYPES,
-  MAX_RACK_EFFECTS,
+  MASTER_OWNER,
+  busOwnerId,
+  getMaxRackEffects,
+  listSidechainCandidates,
+  trackOwnerId,
+  compressorKeySource,
   createRackEffect,
   effectLatencySamples,
   getRealtimeAudioGraph,
@@ -97,6 +102,7 @@ const RackEffectParams = memo(function RackEffectParams({
   const [draft, setDraft] = useState<Record<string, number | string | boolean>>(
     effect.params,
   );
+  const timeline = useProjectStore((state) => state.project.timeline);
   if (definition.repair && isRepairEffectType(effect.type)) {
     const apply = (params: Record<string, number>, commit: boolean) => {
       const next = { ...effect, params };
@@ -116,7 +122,9 @@ const RackEffectParams = memo(function RackEffectParams({
       </div>
     );
   }
-  const update = (key: string, value: number, commit: boolean) => {
+  const ownerId = target === "master" ? MASTER_OWNER : timeline.audioBuses?.some((b) => b.id === target) ? busOwnerId(target) : trackOwnerId(target);
+  const keyCandidates = effect.type === "compressor" ? listSidechainCandidates(timeline, ownerId) : [];
+  const update = (key: string, value: number | string, commit: boolean) => {
     const params = sanitizeRackEffectParams(effect.type, { ...draft, [key]: value });
     setDraft(params);
     const next = { ...effect, params };
@@ -132,12 +140,65 @@ const RackEffectParams = memo(function RackEffectParams({
   return (
     <div className="flex flex-col gap-3" data-testid={`rack-params-${effect.id}`}>
       <span className="text-xs font-semibold text-fg">{definition.label}</span>
+      {definition.description && <p className="text-[11px] text-fg-muted">{definition.description}</p>}
+      {effect.type === "compressor" && (
+        <label className="flex flex-col gap-1 text-xs text-fg-muted">
+          <span>Sidechain key</span>
+          <select
+            className="h-7 rounded border border-border bg-bg-1 px-1 text-xs text-fg"
+            aria-label="Compressor sidechain key"
+            data-testid={`rack-key-${effect.id}`}
+            value={compressorKeySource(draft) ?? ""}
+            onChange={(event) => update("keySource", event.target.value, true)}
+          >
+            <option value="">None (own signal)</option>
+            {keyCandidates.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.kind === "bus" ? "Bus: " : "Track: "}
+                {candidate.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {effect.type === "eq" && <EqCurve params={draft} />}
       {(effect.type === "compressor" || effect.type === "limiter") && (
         <GainReductionMeter effectId={effect.id} active={!effect.bypassed} />
       )}
       {definition.params.map((spec) => {
         const value = Number(draft[spec.key] ?? spec.default);
+        if (spec.options) {
+          return (
+            <label key={spec.key} className="flex flex-col gap-1 text-xs text-fg-muted">
+              <span>{spec.label}</span>
+              <select
+                className="h-7 rounded border border-border bg-bg-1 px-1 text-xs text-fg"
+                aria-label={`${definition.label} ${spec.label}`}
+                value={Math.round(value)}
+                onChange={(event) => update(spec.key, Number(event.target.value), true)}
+              >
+                {spec.options.map((option, index) => (
+                  <option key={option} value={index}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+          );
+        }
+        if (spec.toggle) {
+          return (
+            <label key={spec.key} className="flex items-center justify-between text-xs text-fg-muted">
+              <span>{spec.label}</span>
+              <input
+                type="checkbox"
+                aria-label={`${definition.label} ${spec.label}`}
+                checked={value >= 0.5}
+                onChange={(event) => update(spec.key, event.target.checked ? 1 : 0, true)}
+              />
+            </label>
+          );
+        }
         return (
           <div key={spec.key} className="flex flex-col gap-1">
             <div className="flex items-center justify-between text-xs text-fg-muted">
@@ -163,7 +224,7 @@ const RackEffectParams = memo(function RackEffectParams({
 });
 
 /**
- * Premiere-style effect rack: up to five ordered slots with per-slot bypass,
+ * Premiere-style effect rack: ordered slots (twelve by default) with per-slot bypass,
  * a parameter popover, reorder and remove. Every edit dispatches one
  * `audioRack/set` action (one undo step); slider drags preview live in the
  * audio graph and commit on release.
@@ -175,7 +236,8 @@ export const AudioRackSection = memo(function AudioRackSection({
 }: AudioRackSectionProps) {
   const setAudioRack = useProjectStore((state) => state.setAudioRack);
   const effects = rack?.effects ?? [];
-  const full = effects.length >= MAX_RACK_EFFECTS;
+  const maxEffects = getMaxRackEffects();
+  const full = effects.length >= maxEffects;
 
   const commit = useCallback(
     (nextEffects: AudioRackEffect[]) => {
@@ -210,7 +272,7 @@ export const AudioRackSection = memo(function AudioRackSection({
     >
       <div className="flex items-center justify-between gap-1">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">
-          Effects {effects.length}/{MAX_RACK_EFFECTS}
+          Effects {effects.length}/{maxEffects}
         </span>
         {rackLatencyMs > 0 && (
           <span

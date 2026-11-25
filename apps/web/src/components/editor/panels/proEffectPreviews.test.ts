@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { PRO_EFFECT_TYPES } from "@openreel/core";
+import { PRO_EFFECT_DEFAULTS, PRO_EFFECT_SPECS, PRO_EFFECT_TYPES, isProEffectNeutral } from "@openreel/core";
 import { EDITOR_EFFECT_PREVIEWS, SUPERSEDED_EFFECT_PREVIEW_IDS } from "./EffectsTransitionsPanel";
-import { PRO_EFFECT_PREVIEWS } from "./proEffectPreviews";
+import { PRO_EFFECT_PREVIEWS, REPAIR_PRESETS } from "./proEffectPreviews";
 
 describe("pro effects in the effects browser", () => {
   it("lists every pro effect with an animated preview style", () => {
@@ -47,5 +47,31 @@ describe("pro effects in the effects browser", () => {
   it("keeps the old Pixelate search term finding Mosaic", () => {
     const mosaic = EDITOR_EFFECT_PREVIEWS.find((effect) => effect.id === "pro-mosaic");
     expect(`${mosaic?.label} ${mosaic?.description}`.toLowerCase()).toContain("pixelate");
+  });
+});
+
+describe("repair effects in the effects browser", () => {
+  it("lists Dehaze, Deflicker and Deband under the Repair filter", () => {
+    for (const type of ["dehaze", "deflicker", "deband"] as const) {
+      const entry = EDITOR_EFFECT_PREVIEWS.find((effect) => effect.id === `pro-${type}`);
+      expect(entry?.category, type).toBe("Repair");
+    }
+  });
+
+  it("offers presets whose parameters are valid for their effect and act on the picture", () => {
+    expect(REPAIR_PRESETS.length).toBeGreaterThanOrEqual(6);
+    for (const preset of REPAIR_PRESETS) {
+      const entry = EDITOR_EFFECT_PREVIEWS.find((effect) => effect.id === preset.id);
+      expect(entry, preset.id).toBeDefined();
+      expect(entry?.type).toBe(preset.type);
+      const specs = PRO_EFFECT_SPECS[preset.type].params;
+      for (const [key, value] of Object.entries(preset.params)) {
+        const spec = specs.find((p) => p.key === key);
+        expect(spec, `${preset.id}.${key}`).toBeDefined();
+        expect(value).toBeGreaterThanOrEqual(spec?.min ?? -Infinity);
+        expect(value).toBeLessThanOrEqual(spec?.max ?? Infinity);
+      }
+      expect(isProEffectNeutral(preset.type, { ...PRO_EFFECT_DEFAULTS[preset.type], ...preset.params }), preset.id).toBe(false);
+    }
   });
 });

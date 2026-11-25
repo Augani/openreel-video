@@ -7,6 +7,9 @@ export * from "./canvas-fit";
 export * from "./video-effects-engine";
 export * from "./pro-effects";
 export * from "./temporal-effects";
+export * from "./repair-effects";
+export * from "./creative-effects";
+export * from "./deflicker";
 export * from "./echo-compositor";
 export * from "./hsl-secondary";
 export * from "./ultra-key";
@@ -33,6 +36,19 @@ export * from "./transform-animator";
 export * from "./mask-engine";
 export * from "./mask-path";
 export * from "./composite-engine";
+export {
+  BLEND_MODE_GROUPS,
+  blendPixelBuffers,
+  compositeReferencePixel,
+  dissolveNoise,
+  drawImageWithBlend,
+  drawOverlayLayerWithBlend,
+  getNativeCanvasBlendOperation,
+  isBlendMode,
+  needsCpuBlend,
+  referenceBlend,
+  type BlendModeGroup,
+} from "./blend-reference";
 export * from "./speed-engine";
 export * from "./speed-presets";
 // The interpolators themselves (optical flow, blending, scene cuts) are not re-exported: VideoEngine loads
@@ -83,3 +99,5 @@ export * from "./motion-track-data";
 export * from "./planar-homography";
 export * from "./planar-track";
 export * from "./gl-context";
+
+export * from "./frame-stage-profile";

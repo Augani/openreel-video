@@ -147,7 +147,9 @@ const DNXHR_PROFILE_NAME: Record<DnxhrProfile, string> = {
 };
 /** Pixel format handed to the encoder for a colour-managed export. */
 function colorPixelFormat(plan: EncodePlan, color: NativeColorOutput): string {
-  if (plan.codec === "prores") return color.chroma === "444" ? "yuv444p10le" : "yuv422p10le";
+  // ProRes 4444 / 4444 XQ keep the renderer's 4:4:4 planes; 422 HQ (and the other 422 profiles) take them down to 4:2:2
+  // here, a chroma-only conversion (the planes are already in the output colour space and tagged by setparams).
+  if (plan.codec === "prores") return proresProfileIs444(plan.proresProfile) && color.chroma === "444" ? "yuv444p10le" : "yuv422p10le";
   if (color.bitDepth === 10) {
     // VideoToolbox takes 10-bit input as p010; the stream is still Main10 4:2:0 10-bit.
     return plan.encoder.endsWith("_videotoolbox") ? "p010le" : "yuv420p10le";

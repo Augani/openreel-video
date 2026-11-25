@@ -1,4 +1,4 @@
-import { getChannelLayout, getRealtimeAudioGraph, hasAudioRouting, hasTrackAutomation, type AudioBus, type AudioRack, type AudioSend, type ChannelLayout, type Track } from "@openreel/core";
+import { getChannelLayout, getRealtimeAudioGraph, hasAudioRouting, hasEffectiveTrackAutomation, type AudioBus, type AudioRack, type AudioSend, type ChannelLayout, type Track } from "@openreel/core";
 import { useProjectStore } from "../stores/project-store";
 import { getPluginRackPreview } from "./plugin-rack-preview";
 
@@ -14,7 +14,7 @@ export function startAudioRackSync(): () => void {
   // identity so only real edits reach the graph; projects that never used
   // routing never create an AudioContext here.
   let appliedBuses: AudioBus[] | undefined;
-  let appliedRouting = new Map<string, readonly [string | undefined, AudioSend[] | undefined, Track["automation"]]>();
+  let appliedRouting = new Map<string, readonly [string | undefined, AudioSend[] | undefined, Track["automation"], Track["automationMode"]]>();
   let routingApplied = false;
   let routingGraph: ReturnType<typeof getRealtimeAudioGraph> | null = null;
   // Sequence channel layout (Stereo / 5.1) and where clips and tracks sit in the 5.1 room.
@@ -77,7 +77,7 @@ export function startAudioRackSync(): () => void {
     for (const id of [...applied.keys()]) {
       if (!seen.has(id)) applied.delete(id);
     }
-    const routing = new Map(routingTimeline.tracks.map((t) => [t.id, [t.output, t.sends, t.automation] as const]));
+    const routing = new Map(routingTimeline.tracks.map((t) => [t.id, [t.output, t.sends, t.automation, t.automationMode] as const]));
     // Playback re-initialises the graph singleton: re-apply routing to the new one.
     let graphReplaced = false;
     if (routingApplied) {
@@ -93,10 +93,10 @@ export function startAudioRackSync(): () => void {
       routing.size !== appliedRouting.size ||
       [...routing].some(([id, value]) => {
         const prev = appliedRouting.get(id);
-        return !prev || prev[0] !== value[0] || prev[1] !== value[1] || prev[2] !== value[2];
+        return !prev || prev[0] !== value[0] || prev[1] !== value[1] || prev[2] !== value[2] || prev[3] !== value[3];
       });
     if (routingChanged) {
-      const automated = routingTimeline.tracks.some(hasTrackAutomation);
+      const automated = routingTimeline.tracks.some(hasEffectiveTrackAutomation);
       const needed = hasAudioRouting(routingTimeline) || automated || routingApplied;
       appliedBuses = routingTimeline.audioBuses;
       appliedRouting = routing;

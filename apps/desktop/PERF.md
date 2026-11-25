@@ -60,6 +60,21 @@ that is the import-time price of the project). Every run records the 1-minute lo
 judged when the load is below 4** (`wallClockJudged` in the JSON). Above that the table still prints them but flags them
 and the CPU-time rows are the numbers to compare (CPU time moves far less with machine load than input-to-paint timings).
 
+### WebGPU grade chain (round 30)
+
+The per-clip effect / grade chain (Lumetri Basic Correction, wheels, curves, HSL bands, LUTs and input LUT, vignette, white
+balance, Premiere-order hue curves, HSL Secondary, Lumetri Creative, Lens Correction, Dehaze, Deband, Deflicker gains) runs as
+WGSL passes (`packages/core/src/video/gpu-grade-*.ts`): one `copyExternalImageToTexture` upload, every pass between two
+resident rgba8unorm textures (8-bit rounding between passes exactly where the Canvas2D path rounds), one present pass into a
+WebGPU canvas, `transferToImageBitmap` back. No `getImageData` / `createImageBitmap(canvas)` per stage, no readback. A clip with
+an effect that has no WGSL port (blur, glow ...) keeps the old path for the whole clip so effect order never changes; the same
+code is the fallback when WebGPU is missing or the device is lost. Preview (effects bridge) and export (VideoEngine) share the
+shaders.
+
+`perf:playback` takes `--grade-every-clip` (a full grade on every video clip) and `--grade-renderer canvas2d` (the A side: the
+old path; same switch as `localStorage["openreel-grade-renderer"] = "canvas2d"`). The result carries `gradeChain` (frames the
+chain rendered during the pass, fallbacks, readbacks).
+
 ### Round 24 results (heavy project, 30 s playback, machine load 9-14: CPU rows are the comparable ones)
 
 Same generated project, same machine, base = `5e165883f` build vs this branch. Wall-clock rows were NOT judged (load >= 4):
@@ -79,6 +94,33 @@ Fixed so far: the LUT and white-balance kernels (bit-identical output, unit-test
 shown small decode small, decoders open in parallel and ahead of a cut. Open: the 1.1-1.5 s frame gap at the first
 transition frame (timeline 11.5 s, the first transition render), the per-layer bitmap round trips
 (`createImageBitmap` / GC) and the CPU grading itself (a GPU LUT path would remove the rest of `applyLutToData`).
+
+## Export pipeline (round 32)
+
+Profile first (`apps/desktop/scripts/export-parallel-bench.mjs --grade-all`, opt-in `localStorage["openreel-stage-profile"] = "1"` prints an
+`[export-stages]` line per export; `--res 2160 --src 2160` for 4K, `--encoder hardware`, `--clean` for footage without the noise filter). On the
+heavy generated project with a Lumetri grade on every clip the renderer was never the bottleneck: `VideoEngine.renderFrame` is 2-4 ms per frame at
+1080p and 11-30 ms at 4K, the grade chain 0.5-7 ms of that. The costs that mattered were the final readback (`drawImage` into a CPU canvas +
+`getImageData`, a synchronous GPU stall: 11 ms/frame at 1080p, 35-50 ms at 4K), the 4 B/pixel RGBA frame crossing the IPC port into ffmpeg's stdin
+(8.3 MB at 1080p, 33 MB at 4K: structured clone, main-process receive, pipe write, 20-70 s of Browser-process CPU per export) and ffmpeg's own
+RGB to YUV conversion.
+
+| Change | Where |
+|---|---|
+| Frames are read back through a ring of MAP_READ buffers (`copyExternalImageToTexture` + `copyTextureToBuffer` + `mapAsync`), begun in call order and awaited later, so the GPU copy of frame N overlaps the render of N + 1 and the encoder write of N - 1; packed buffers are recycled after `postMessage` (which clones). Byte-identical to `getImageData` (e2e asserts it at padded and unpadded widths) | `packages/core/src/video/gpu-frame-readback.ts`, `NativeFFmpegBackend.addVideoFrame` |
+| Experimental single-pass H.264 / H.265 conversion (bench flag `--yuv-on`): the same pass converts to planar 4:2:0 (BT.709 limited, swscale's chroma subsampling: pair mean, 8-tap bicubic vertical, fixed-point luma) so 1.5 B/pixel go over the port and ffmpeg runs no conversion (`rawYuv420` start field, `-vf setparams` instead of `scale`). CPU reference and fallback: `rgbaToI420Bt709`. Main process refuses the mode for ProRes / DNxHR / alpha / colour-managed / two-pass / smart render / broadcast, and rejects a frame of the wrong size | `export/yuv420-sdr.ts`, `sidecar/raw-yuv420.ts`, `ipc/export.ts`, `segment-args.ts` |
+| Parallel segment workers take the session's pipe format from the start result (the orchestrator probes the GPU path once) | `parallel-segment-export.ts`, preload `export.start` |
+| Escape hatches for A/B: `localStorage["openreel-gpu-readback"] = "off"` (CPU readback), `localStorage["openreel-yuv-input"] = "on"` (opt in to experimental I420) | |
+
+ProRes, DNxHR, alpha, HDR / colour-managed, two-pass and smart render keep the RGBA pipe and ffmpeg's conversion, so their output is unchanged
+(ProRes frame MD5s equal the previous build's). The WebCodecs backend already builds a `VideoFrame` straight from the bitmap (no readback) and is untouched.
+Experimental I420 H.264 output differs from the previous build by the conversion arithmetic (about 1 code value on 0.15 % of luma samples, chroma within 1 on ~99 %): PSNR
+against the previous export is 48-49 dB on ordinary footage and 44-45 dB on the noise-filtered stress pattern, where any change of input makes x264 diverge.
+Files on that experimental path are tagged BT.709 primaries and transfer as well as matrix (they were `unknown`).
+
+Measured on an M2 Pro, machine load 5-12, interleaved A/B in one build (a = old readback + RGBA, c = experimental I420): H.264 hardware 1080p 14.4 -> 7.1 s (CPU 52 -> 31 s),
+H.264 software 4K 48.2 -> 28.5 s, H.264 hardware 4K 40.6 -> 18.6 s (CPU 131 -> 81 s). The shipped RGBA readback (b) saves 0-5 % wall, 5-14 % CPU; ProRes (RGBA, step b only) 1080p
+15.9 -> 15.3 s. Software encoders at 1080p are bound by libx264 itself (creditWait is the encoder), so the wall gain there is the CPU the pipe no longer burns.
 
 ## Budget check
 

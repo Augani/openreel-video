@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { ensureFontFamily } from "../../../services/project-fonts";
 import {
   Button, Card, Input, Label, RadioGroup, RadioGroupItem,
@@ -49,6 +49,11 @@ import {
 } from "./ShaderControls";
 import { ShaderPreviewBrowser } from "../../shaders/ShaderPreviewBrowser";
 import { useTextFontEdit } from "./useTextFontEdit";
+import { useTextSelectionStore } from "../../../stores/text-selection-store";
+import { lazyWithRetry } from "./lazy-retry";
+
+// Gradient / run / stroke editors load on first use so the plain title path stays small.
+const RichTextSection = lazyWithRetry(() => import("./RichTextSection"));
 
 const textControlClassName = "flex h-8 w-full min-w-0 rounded-[7px] border border-border bg-bg-1 px-2.5 py-1.5 text-[13px] font-medium text-fg-2 outline-none transition-colors placeholder:text-fg-muted focus:border-accent disabled:cursor-not-allowed disabled:opacity-50";
 const textIconButtonClassName = "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50";
@@ -397,10 +402,20 @@ export const TextSection: React.FC<TextSectionProps> = ({ clipId, clipIds }) => 
             rows={4}
             value={text}
             onChange={(event) => handleTextChange(event.currentTarget.value)}
+            onSelect={(event) => {
+              const { selectionStart, selectionEnd } = event.currentTarget;
+              useTextSelectionStore.getState().setSelection(clipId, selectionStart, selectionEnd);
+            }}
             placeholder="Enter text..."
             style={{ fontFamily: style.fontFamily }}
           />
         </div>
+      )}
+
+      {!isBatch && (
+        <Suspense fallback={null}>
+          <RichTextSection clipId={clipId} clip={textClip} />
+        </Suspense>
       )}
 
       <Card className="min-w-0 rounded-[7px] border border-transparent bg-bg-2 p-3 text-fg shadow-none">

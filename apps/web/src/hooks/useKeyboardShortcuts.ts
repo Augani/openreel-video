@@ -27,6 +27,7 @@ import {
 } from "../utils/timeline-item-actions";
 import { stepEditingFrame, editingFrameStepSeconds } from "../components/editor/editing-frame-rate";
 import { editableTimelineIds, editTimelineSelection } from "../services/linked-timeline-edit";
+import { groupSelectedClips, ungroupSelectedClips } from "../services/sequence-commands";
 import { getLinkedTimelineSelection } from "../utils/linked-timeline-selection";
 import { resolvePlaybackLoop } from "../utils/playback-loop";
 import { openMediaImport } from "../services/open-media-import";
@@ -86,6 +87,7 @@ import {
   dynamicTrimShuttle,
   isDynamicTrimActive,
 } from "../services/dynamic-trim";
+import { toggleTrimMonitor, trimMonitorKeyApplies } from "../services/trim-monitor";
 import {
   extendSelectedEdit,
   makeSplitEdit,
@@ -478,6 +480,8 @@ export function useKeyboardShortcuts() {
       ["editing.lCut", () => runWithToast("L-cut", () => makeSplitEdit("l"))],
       ["editing.addEditAllTracks", () => runWithToast("Add edit", addEditToAllTracks)],
       ["editing.addEdit", () => runWithToast("Add edit", addEditToTargetedTracks)],
+      ["editing.group", () => void groupSelectedClips()],
+      ["editing.ungroup", () => void ungroupSelectedClips()],
       ["editing.applyDefaultTransition", () => void runEdit("Apply default transition", async () => {
         // Lazy: the transition engine and preset service stay out of the entry chunk.
         const { applyDefaultTransition } = await import("../services/transition-presets");
@@ -529,6 +533,11 @@ export function useKeyboardShortcuts() {
       ["file.import", openMediaImport],
       ["file.export", () => { if (window.openreel?.platform === "desktop") window.dispatchEvent(new CustomEvent("openreel:menu:export")); else useUIStore.getState().openModal("export"); }],
       ["tools.addText", () => {
+        // T opens the Trim Monitor when an edit point is selected (or closes it); otherwise it adds a title.
+        if (trimMonitorKeyApplies()) {
+          runWithToast("Trim Monitor", toggleTrimMonitor);
+          return;
+        }
         const time = useTimelineStore.getState().playheadPosition;
         void runEdit("Add title", async () => {
           const created = await insertTimelineOverlay(time, 5, (trackId) =>

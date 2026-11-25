@@ -26,6 +26,9 @@ import {
 } from "@openreel/core";
 import { toast } from "../../../stores/notification-store";
 import { useProjectStore } from "../../../stores/project-store";
+import { useEngineStore } from "../../../stores/engine-store";
+import { commitAutoReframe, computeSubjectReframe } from "../../../services/auto-reframe-subject";
+import type { ReframeMotionPreset, ReframeSubjectMode } from "@openreel/core";
 
 interface AutoReframeSectionProps {
   clipId: string;
@@ -44,13 +47,21 @@ const PLATFORM_ICONS: Record<PlatformPreset, React.ElementType> = {
   linkedin: Monitor,
 };
 
+const MOTION_OPTIONS: Array<{ id: ReframeMotionPreset; label: string }> = [
+  { id: "slower", label: "Slower" },
+  { id: "default", label: "Default" },
+  { id: "faster", label: "Faster" },
+];
+
+const SUBJECT_OPTIONS: Array<{ id: ReframeSubjectMode; label: string }> = [
+  { id: "auto", label: "Auto" },
+  { id: "person", label: "Person" },
+];
+
 export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
   clipId,
   onReframeComplete,
 }) => {
-  const updateProjectDimensions = useProjectStore(
-    (state) => state.updateSettings,
-  );
   const [reframeSettings, setReframeSettings] = useState<ReframeSettings>(
     DEFAULT_REFRAME_SETTINGS,
   );
@@ -58,6 +69,9 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isApplied, setIsApplied] = useState(false);
+  const [trackingSource, setTrackingSource] = useState<
+    "person" | "heuristic" | "none" | null
+  >(null);
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState("");
   const [selectedPlatform, setSelectedPlatform] =
@@ -134,31 +148,54 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
         throw new Error("Engine not available");
       }
 
-      setProgressMessage("Configuring reframe settings...");
-      setProgress(30);
-
-      await new Promise((resolve) => setTimeout(resolve, 300));
-
-      setProgressMessage("Applying smart crop configuration...");
-      setProgress(60);
-
       const targetConfig =
         ASPECT_RATIO_PRESETS[reframeSettings.targetAspectRatio];
 
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      const projectState = useProjectStore.getState();
+      const clip = projectState.project.timeline.tracks
+        .flatMap((track) => track.clips)
+        .find((candidate) => candidate.id === clipId);
+      const media = clip
+        ? projectState.project.mediaLibrary.items.find(
+            (item) => item.id === clip.mediaId,
+          )
+        : undefined;
+      const videoEngine = useEngineStore.getState().getVideoEngine();
+      if (!clip || !media || !videoEngine) {
+        throw new Error("Clip or video engine not available");
+      }
 
-      setProgressMessage("Updating project settings...");
-      setProgress(80);
-
-      await updateProjectDimensions({
-        width: targetConfig.width,
-        height: targetConfig.height,
+      const output = await computeSubjectReframe({
+        clip,
+        media,
+        videoEngine,
+        projectWidth: targetConfig.width,
+        projectHeight: targetConfig.height,
+        subject: reframeSettings.subjectMode,
+        motion: reframeSettings.motion,
+        follow: reframeSettings.followSubject,
+        centerBias: reframeSettings.centerBias,
+        onProgress: (percent, message) => {
+          setProgress(percent);
+          setProgressMessage(message);
+        },
       });
 
-      setProgressMessage("Finalizing...");
-      setProgress(90);
-
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      // Resize + keyframes commit as ONE undo step; preview and export both read clip keyframes.
+      setProgressMessage("Applying project size and keyframes...");
+      await commitAutoReframe({
+        clipId,
+        width: targetConfig.width,
+        height: targetConfig.height,
+        keyframes: output.keyframes,
+      });
+      setTrackingSource(
+        output.personFrames > 0
+          ? "person"
+          : output.heuristicFrames > 0
+            ? "heuristic"
+            : "none",
+      );
 
       setProgress(100);
       setProgressMessage("Complete!");
@@ -197,7 +234,7 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
     reframeSettings,
     selectedPlatform,
     onReframeComplete,
-    updateProjectDimensions,
+    clipId,
   ]);
 
   return (
@@ -248,29 +285,64 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
           </div>
         </div>
 
-        <PropertySlider
-          label="Tracking Speed"
-          min={0}
-          max={100}
-          step={1}
-          value={reframeSettings.trackingSpeed * 100}
-          onChange={(value: number) =>
-            updateLocalSettings({
-              trackingSpeed: value / 100,
-            })
-          }
-          formatValue={(value) => `${Math.round(value)}%`}
-        />
+        <div>
+          <span className="text-fg-2 font-normal mb-2 block text-[10px]">
+            Motion
+          </span>
+          <div className="grid grid-cols-3 gap-1" role="radiogroup" aria-label="Motion preset">
+            {MOTION_OPTIONS.map((option) => (
+              <Button
+                variant="ghost"
+                key={option.id}
+                type="button"
+                role="radio"
+                aria-checked={reframeSettings.motion === option.id}
+                aria-label={`${option.label} motion`}
+                onClick={() => updateLocalSettings({ motion: option.id })}
+                className={cn(
+                  "h-auto rounded-[7px] border p-2 text-[9px] transition-colors",
+                  reframeSettings.motion === option.id
+                    ? "bg-primary/20 border-primary text-fg"
+                    : "bg-bg-1 hover:bg-bg-2 border-transparent text-fg-2",
+                )}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+        </div>
 
-        <PropertySlider
-          label="Smoothing"
-          min={0}
-          max={100}
-          step={1}
-          value={reframeSettings.smoothing * 100}
-          onChange={(value: number) => updateLocalSettings({ smoothing: value / 100 })}
-          formatValue={(value) => `${Math.round(value)}%`}
-        />
+        <div>
+          <span className="text-fg-2 font-normal mb-2 block text-[10px]">
+            Subject
+          </span>
+          <div className="grid grid-cols-2 gap-1" role="radiogroup" aria-label="Subject">
+            {SUBJECT_OPTIONS.map((option) => (
+              <Button
+                variant="ghost"
+                key={option.id}
+                type="button"
+                role="radio"
+                aria-checked={reframeSettings.subjectMode === option.id}
+                aria-label={`Subject ${option.label}`}
+                onClick={() => updateLocalSettings({ subjectMode: option.id })}
+                className={cn(
+                  "h-auto rounded-[7px] border p-2 text-[9px] transition-colors",
+                  reframeSettings.subjectMode === option.id
+                    ? "bg-primary/20 border-primary text-fg"
+                    : "bg-bg-1 hover:bg-bg-2 border-transparent text-fg-2",
+                )}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+          <span className="text-fg-2 font-normal mt-1 block text-[9px]">
+            {reframeSettings.subjectMode === "person"
+              ? "Follows the person matte only."
+              : "Follows people, falling back to skin-tone detection when none is found."}
+          </span>
+        </div>
 
         <PropertySlider
           label="Center Bias"
@@ -342,6 +414,16 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
                 ? "Applied - Click to Reanalyze"
                 : "Analyze & Reframe"}</span>
         </Button>
+
+        {trackingSource && (
+          <span className="text-fg-2 font-normal text-center text-[9px]" data-testid="reframe-tracking-source">
+            {trackingSource === "person"
+              ? "Tracked with person detection"
+              : trackingSource === "heuristic"
+                ? "Person detection unavailable, used skin-tone fallback"
+                : "No subject found, centred"}
+          </span>
+        )}
 
         <span className="text-fg-2 font-normal text-center text-[9px]">
           Output:{" "}

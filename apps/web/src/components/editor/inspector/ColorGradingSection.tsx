@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useCallback, useEffect, useMemo } from "react";
+import React, { Suspense, useCallback, useEffect, useMemo } from "react";
 import { Button } from "@openreel/ui";
 import { Card } from "@openreel/ui";
 
@@ -37,8 +37,9 @@ import { MatchColorPopover } from "./MatchColorPopover";
 import { measureAutoTone } from "../../../services/color-sampling";
 import { useClipLookScene } from "./looks/useClipLookScene";
 import { LookCompareProvider } from "./looks/compare-context";
+import { lazyWithRetry } from "./lazy-retry";
 
-const WhiteBalancePresets = lazy(() => import("./looks/WhiteBalancePresets"));
+const WhiteBalancePresets = lazyWithRetry(() => import("./looks/WhiteBalancePresets"));
 
 const WHITE_BALANCE_PRESETS: Array<{
   label: string;

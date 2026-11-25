@@ -16,7 +16,7 @@ import {
   DropdownMenuTrigger,
   Input,
 } from "@openreel/ui";
-import { ChevronRight, Columns3, FolderPlus, FolderInput, FolderSearch, LayoutGrid, List, Search } from "@/icons/lucide-compat";
+import { ChevronRight, Columns3, FolderPlus, FolderInput, FolderSearch, LayoutGrid, List, ListVideo, Search } from "@/icons/lucide-compat";
 import {
   MEDIA_COLUMNS,
   binDeletionImpact,
@@ -48,6 +48,7 @@ import { RawSourceSettingsDialog } from "./RawSourceSettingsDialog";
 import type { ProjectPanelData } from "./useProjectPanelData";
 
 // VR Properties loads when the dialog is opened.
+const AutomateToSequenceDialog = React.lazy(() => import("./AutomateToSequenceDialog").then((m) => ({ default: m.AutomateToSequenceDialog })));
 const VrPropertiesDialog = React.lazy(() => import("../VrPropertiesDialog").then((m) => ({ default: m.VrPropertiesDialog })));
 
 const iconButton = "h-[26px] w-[26px] shrink-0 border border-bg-3 bg-[#1c1d21] text-fg-3 hover:text-fg";
@@ -240,6 +241,19 @@ export const ProjectPanelBar: React.FC<{ data: ProjectPanelData; selectionCount:
       >
         <FolderInput size={14} aria-hidden />
       </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className={iconButton}
+        aria-label="Automate to Sequence"
+        title="Automate to Sequence"
+        data-testid="automate-to-sequence"
+        disabled={selectionCount === 0}
+        onClick={() => useProjectPanelStore.getState().openDialog({ kind: "automate-to-sequence" })}
+      >
+        <ListVideo size={14} aria-hidden />
+      </Button>
       <SmartBinsMenu data={data} />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -336,7 +350,7 @@ export const ProjectPanelDialogs: React.FC = () => {
       return;
     }
     if (!dialog || !media) return;
-    setText(dialog.kind === "rename-media" ? media.name : dialog.kind === "delete-bin" || dialog.kind === "interpret-footage" || dialog.kind === "raw-settings" || dialog.kind === "vr-properties" ? "" : (media[dialog.kind] ?? ""));
+    setText(dialog.kind === "rename-media" ? media.name : dialog.kind === "delete-bin" || dialog.kind === "automate-to-sequence" || dialog.kind === "interpret-footage" || dialog.kind === "raw-settings" || dialog.kind === "vr-properties" ? "" : (media[dialog.kind] ?? ""));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dialog?.kind, media?.id]);
 
@@ -397,6 +411,14 @@ export const ProjectPanelDialogs: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    );
+  }
+
+  if (dialog?.kind === "automate-to-sequence") {
+    return (
+      <React.Suspense fallback={null}>
+        <AutomateToSequenceDialog onClose={close} />
+      </React.Suspense>
     );
   }
 
