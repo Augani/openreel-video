@@ -5,6 +5,8 @@ import {
   toVideoColorSpace,
   type OutputColorSpec,
 } from "./color-output";
+import { rgbaToI420Bt709 } from "./yuv420-sdr";
+import { isSoftwareGpuAdapter } from "../video/renderer-factory";
 import { takeHdrPayload } from "../color/hdr-payload";
 import { CODEC_MAP, type VideoExportSettings, type ExportError } from "./types";
 import type { Project } from "../types/project";
@@ -84,6 +86,7 @@ export class WebCodecsBackend implements EncoderBackend {
   private settings: VideoExportSettings | null = null;
   /** Non-null when the export converts to and tags a BT.2020 / HDR colour space (see color-output.ts). */
   private outputColor: OutputColorSpec | null = null;
+  private useCpuFrames = false;
   private colorCanvas: OffscreenCanvas | null = null;
   private encoder: VideoEncoder | null = null;
   private encoderOpening: Promise<void> | null = null;
@@ -276,6 +279,8 @@ export class WebCodecsBackend implements EncoderBackend {
     if (this.smartEnabled && videoCodec !== "avc") {
       throw { code: "UNSUPPORTED_CODEC", message: "Smart render needs H.264 output.", phase: "preparing", recoverable: false } satisfies ExportError;
     }
+    const adapter = await globalThis.navigator?.gpu?.requestAdapter?.({ powerPreference: "high-performance" }).catch(() => null);
+    this.useCpuFrames = !!adapter && isSoftwareGpuAdapter(adapter);
     this.outputColor = outputColorForExport(project, settings.hdr);
     if (this.outputColor && this.smartEnabled) {
       throw { code: "INVALID_SETTINGS", message: "Smart render copies untagged source packets, so it cannot be combined with Rec.2020 or HDR output.", phase: "preparing", recoverable: false } satisfies ExportError;
@@ -406,14 +411,7 @@ export class WebCodecsBackend implements EncoderBackend {
         colorSpace: toVideoColorSpace(spec) as unknown as VideoColorSpaceInit,
       });
     }
-    if (!this.colorCanvas || this.colorCanvas.width !== frame.width || this.colorCanvas.height !== frame.height) {
-      this.colorCanvas = new OffscreenCanvas(frame.width, frame.height);
-    }
-    const ctx = this.colorCanvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) throw new Error("Could not read the frame for colour conversion.");
-    ctx.clearRect(0, 0, frame.width, frame.height);
-    ctx.drawImage(frame, 0, 0);
-    const pixels = ctx.getImageData(0, 0, frame.width, frame.height);
+    const pixels = this.readPixels(frame);
     const yuv = rgbaToYuv420(pixels.data, frame.width, frame.height, spec);
     return new VideoSample(yuv.data, {
       format: yuv.format as VideoPixelFormat,
@@ -423,6 +421,28 @@ export class WebCodecsBackend implements EncoderBackend {
       duration: durationSec,
       // TypeScript's DOM lib predates the "bt2020-ncl" matrix and "pq"/"hlg" transfers browsers accept.
       colorSpace: toVideoColorSpace(spec) as unknown as VideoColorSpaceInit,
+    });
+  }
+
+  private readPixels(frame: ImageBitmap): ImageData {
+    if (!this.colorCanvas || this.colorCanvas.width !== frame.width || this.colorCanvas.height !== frame.height) {
+      this.colorCanvas = new OffscreenCanvas(frame.width, frame.height);
+    }
+    const ctx = this.colorCanvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) throw new Error("Could not read the frame for colour conversion.");
+    ctx.clearRect(0, 0, frame.width, frame.height);
+    ctx.drawImage(frame, 0, 0);
+    return ctx.getImageData(0, 0, frame.width, frame.height);
+  }
+
+  private softwareFrame(frame: ImageBitmap, timestampSec: number, durationSec: number): VideoFrame {
+    // SwiftShader can leave GPU-backed input stuck in the WebCodecs queue. A
+    // CPU-backed frame also lets the social presets retain limited-range 4:2:0.
+    const pixels = this.readPixels(frame);
+    const init = { codedWidth: frame.width, codedHeight: frame.height, timestamp: Math.round(timestampSec * 1e6), duration: Math.round(durationSec * 1e6) };
+    if (frame.width % 2 || frame.height % 2) return new VideoFrame(pixels.data, { ...init, format: "RGBA" });
+    return new VideoFrame(rgbaToI420Bt709(pixels.data, frame.width, frame.height), {
+      ...init, format: "I420", colorSpace: { primaries: "bt709", transfer: "bt709", matrix: "bt709", fullRange: false },
     });
   }
 
@@ -438,10 +458,9 @@ export class WebCodecsBackend implements EncoderBackend {
     const { VideoSample } = this.mediabunny;
     const videoSample = this.outputColor
       ? this.toColorManagedSample(frame, timestampSec, durationSec, this.outputColor)
-      : new VideoSample(frame, {
-          timestamp: timestampSec,
-          duration: durationSec,
-        });
+      : this.useCpuFrames
+        ? new VideoSample(this.softwareFrame(frame, timestampSec, durationSec))
+        : new VideoSample(frame, { timestamp: timestampSec, duration: durationSec });
     let released = false;
     const release = () => {
       if (released) return;
@@ -498,15 +517,11 @@ export class WebCodecsBackend implements EncoderBackend {
 
   async abort(): Promise<void> {
     for (const release of this.pendingFrameReleases) release();
+    // Output.cancel force-closes each attached source. A subsequent source.close
+    // asks WebCodecs to flush that already-closed encoder.
     try { await this.output?.cancel(); } catch {}
-    this.videoSource?.close();
-    this.packetSource?.close();
     try { if (this.encoder && this.encoder.state !== "closed") this.encoder.close(); } catch {}
     this.encoder = null;
-    this.audioSource?.close();
-    for (const track of this.captionTracks) {
-      try { track.source.close(); } catch {}
-    }
     try {
       await this.writableStream?.abort();
     } catch {}
@@ -621,10 +636,9 @@ export class WebCodecsBackend implements EncoderBackend {
       }
       const encoder = this.encoder!;
       while (encoder.encodeQueueSize > 8) await new Promise((resolve) => setTimeout(resolve, 1));
-      const videoFrame = new VideoFrame(frame, {
-        timestamp: Math.round(timestampSec * 1e6),
-        duration: Math.round(durationSec * 1e6),
-      });
+      const videoFrame = this.useCpuFrames
+        ? this.softwareFrame(frame, timestampSec, durationSec)
+        : new VideoFrame(frame, { timestamp: Math.round(timestampSec * 1e6), duration: Math.round(durationSec * 1e6) });
       try {
         encoder.encode(videoFrame, { keyFrame: this.forceKeyFrame });
         this.forceKeyFrame = false;
