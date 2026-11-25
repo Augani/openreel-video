@@ -47,6 +47,21 @@ describe("captureNativeVideoFrame", () => {
     expect(create).toHaveBeenCalledTimes(2);
   });
 
+  it("allows presentation to catch up when a ready element still has no current frame", async () => {
+    vi.useFakeTimers();
+    const { video } = fakeVideo(2);
+    let presented = false;
+    create.mockImplementation(async () => {
+      if (!presented) throw notUsable();
+      return bitmap;
+    });
+    const pending = captureNativeVideoFrame(video);
+    setTimeout(() => { presented = true; }, 16);
+    await vi.runAllTimersAsync();
+    await expect(pending).resolves.toBe(bitmap);
+    expect(create).toHaveBeenCalledTimes(2);
+  });
+
   it("gives up after the bounded number of attempts and rethrows", async () => {
     vi.useFakeTimers();
     const { video } = fakeVideo(4);

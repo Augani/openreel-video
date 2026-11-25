@@ -2780,7 +2780,11 @@ export const Preview: React.FC = () => {
         // unavailable" (what the Retry button does): a slow or software
         // decoder can leave a just-created element unusable for this frame.
         let retried = false;
-        let fallbackMediaTime: number | null = null;
+        const sourceTime = getSpeedEngine().getSourceTimeAtPlaybackTime(clip.id, time - clip.startTime);
+        const isStabilized = vidstab.hasStabilized(clip.id);
+        const mediaTime = isStabilized ? sourceTime : (clip.inPoint || 0) + sourceTime;
+        const cacheKey = isStabilized ? `${clip.mediaId}:stabilized` : clip.mediaId;
+        let fallbackMediaTime = pausedSeekTime(mediaTime, Infinity);
         const decodePausedFrame = async (): Promise<void> => {
           decodeDebounceRef.current = null;
           decodeDebounceResolveRef.current = null;
@@ -2791,15 +2795,6 @@ export const Preview: React.FC = () => {
           }
 
           try {
-            const clipLocalTime = time - clip.startTime;
-            const speedEngine = getSpeedEngine();
-            const adjustedLocalTime = speedEngine.getSourceTimeAtPlaybackTime(
-              clip.id,
-              clipLocalTime,
-            );
-            const isStabilized = vidstab.hasStabilized(clip.id);
-            const mediaTime = isStabilized ? adjustedLocalTime : (clip.inPoint || 0) + adjustedLocalTime;
-            const cacheKey = isStabilized ? `${clip.mediaId}:stabilized` : clip.mediaId;
             let cached = videoElementCacheRef.current.get(cacheKey);
             if (cached && cached.blob !== mediaBlob) {
               releaseVideoElement(cached);
@@ -2864,29 +2859,26 @@ export const Preview: React.FC = () => {
           } catch (error) {
             if (!isStaleRequest()) {
               console.warn("Paused video frame decoding failed", error);
-              const cached = videoElementCacheRef.current.get(clip.mediaId);
+              const cached = videoElementCacheRef.current.get(cacheKey);
               if (cached?.blob === mediaBlob) {
                 releaseVideoElement(cached);
-                videoElementCacheRef.current.delete(clip.mediaId);
+                videoElementCacheRef.current.delete(cacheKey);
               }
               if (!retried) {
-                // A slow or software decoder can fail once on a fresh element (metadata or seek timeout). Only a
-                // second failure on a new element means the proxy cannot play; disabling it on the first
-                // would drop a working proxy for good.
                 retried = true;
                 await decodePausedFrame();
                 return;
               }
-              failProxyPlayback(clip.mediaId, mediaBlob);
+              // A video element can fail to present a valid proxy on a software decoder.
+              // Keep the proxy selected if the independent packet decoder can display it.
+              const fallback = await decodeFrameWithWebCodecs(mediaBlob, fallbackMediaTime).catch((fallbackError: unknown) => {
+                console.warn("WebCodecs paused-frame fallback failed", fallbackError);
+                return null;
+              });
+              if (isStaleRequest()) { fallback?.close(); finish(null); return; }
               scheduleScrubVideoRelease();
-              if (fallbackMediaTime !== null) {
-                const fallback = await decodeFrameWithWebCodecs(mediaBlob, fallbackMediaTime).catch((fallbackError: unknown) => {
-                  console.warn("WebCodecs paused-frame fallback failed", fallbackError);
-                  return null;
-                });
-                if (fallback && isStaleRequest()) fallback.close();
-                else if (fallback) { finish(fallback); return; }
-              }
+              if (fallback) { finish(fallback); return; }
+              failProxyPlayback(clip.mediaId, mediaBlob);
             }
             finish(null);
           }
