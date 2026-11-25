@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@openreel/ui";
+import { Button, Select, Switch, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@openreel/ui";
 import { FolderOpen, RotateCcw, Trash2 } from "@/icons/lucide-compat";
 import type { OpenReelRenderCacheSettings } from "../../../types/global";
 import { renderCacheService, useRenderCacheSnapshot } from "../../../services/render-cache-service";
@@ -121,6 +121,23 @@ export default function RenderCachePanel() {
             {capChoices.map((bytes) => <SelectItem key={bytes} value={String(bytes)}>{capLabel(bytes)}</SelectItem>)}
           </SelectContent>
         </Select>
+      </section>
+
+      <section className="space-y-2" aria-labelledby="idle-heading">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h4 id="idle-heading" className="text-xs font-medium">Render in background when idle</h4>
+            <p className="text-[11px] text-text-secondary">
+              After a few quiet seconds, renders the yellow and red parts of the render bar nearest the playhead. Any edit, playback or scrub stops it at once.
+              It also pauses under memory pressure and on a low battery.
+            </p>
+          </div>
+          <Switch
+            aria-labelledby="idle-heading"
+            checked={prefs.idleRender}
+            onCheckedChange={(value) => setPrefs(writeRenderCachePrefs({ idleRender: value }))}
+          />
+        </div>
       </section>
 
       <section className="space-y-2" aria-labelledby="res-heading">

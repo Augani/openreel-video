@@ -28,8 +28,11 @@ export interface RepairProcessor {
   /** Current gain reduction in dB (>= 0) for effects that have a meter. */
   readonly meter: number;
   setParams(params: RepairParams): void;
-  /** Process `frames` samples; inputs/outputs hold one Float32Array per channel. */
-  process(inputs: Float32Array[], outputs: Float32Array[], frames: number): void;
+  /**
+   * Process `frames` samples; inputs/outputs hold one Float32Array per channel. `key` is the external sidechain
+   * input (one array per channel) for processors that have one; every other processor ignores it.
+   */
+  process(inputs: Float32Array[], outputs: Float32Array[], frames: number, key?: Float32Array[]): void;
   reset(): void;
 }
 
@@ -987,6 +990,18 @@ export const LINKED_COMPRESSOR_DEFAULTS = {
   makeupGain: 0,
 } as const;
 
+/** RBJ second-order high-pass (the sidechain key filter). */
+export function highpassCoefficients(sampleRate: number, frequency: number, q: number): RepairBiquadCoefficients {
+  const w0 = (2 * Math.PI * frequency) / sampleRate;
+  const alpha = Math.sin(w0) / (2 * q);
+  const cos = Math.cos(w0);
+  const a0 = 1 + alpha;
+  return { b0: (1 + cos) / 2 / a0, b1: -(1 + cos) / a0, b2: (1 + cos) / 2 / a0, a1: (-2 * cos) / a0, a2: (1 - alpha) / a0 };
+}
+
+/** Key high-pass at or below this is treated as "off" (the key reaches the detector unfiltered). */
+export const KEY_HPF_OFF_HZ = 20;
+
 /** The fixed 6 ms lookahead of Web Audio's DynamicsCompressorNode, so the two are interchangeable for delay compensation. */
 export const linkedCompressorLookaheadSamples = (sampleRate: number): number => Math.floor(0.006 * sampleRate);
 
@@ -1011,6 +1026,10 @@ export class LinkedCompressorProcessor implements RepairProcessor {
   private reduction = 0;
   private delay: Float32Array[] = [];
   private delayPos = 0;
+  /** Sidechain: detect on the external key input instead of the signal. */
+  private keyed = false;
+  private keyFilters: RepairBiquad[] = [];
+  private keyCoefficients: RepairBiquadCoefficients | null = null;
 
   constructor(private readonly sampleRate: number, params: RepairParams = {}) {
     this.latency = linkedCompressorLookaheadSamples(sampleRate);
@@ -1027,6 +1046,13 @@ export class LinkedCompressorProcessor implements RepairProcessor {
     const release = clamp(num(params, "release", d.release), 0.01, 3);
     this.attackCoeff = Math.exp(-1 / (attack * this.sampleRate));
     this.releaseCoeff = Math.exp(-1 / (release * this.sampleRate));
+    this.keyed = num(params, "keyed", 0) >= 0.5;
+    const hpf = clamp(num(params, "keyHpf", KEY_HPF_OFF_HZ), KEY_HPF_OFF_HZ, 2000);
+    const next = hpf > KEY_HPF_OFF_HZ ? highpassCoefficients(this.sampleRate, hpf, Math.SQRT1_2) : null;
+    if (next?.b0 !== this.keyCoefficients?.b0 || next?.a1 !== this.keyCoefficients?.a1) {
+      this.keyCoefficients = next;
+      for (const f of this.keyFilters) if (next) f.c = next;
+    }
   }
 
   /** Static gain reduction (dB, >= 0) for an input level in dB: soft knee, then ratio. */
@@ -1041,16 +1067,27 @@ export class LinkedCompressorProcessor implements RepairProcessor {
     return slope * over;
   }
 
-  process(inputs: Float32Array[], outputs: Float32Array[], frames: number): void {
+  process(inputs: Float32Array[], outputs: Float32Array[], frames: number, key?: Float32Array[]): void {
     const channels = inputs.length;
     const size = Math.max(1, this.latency);
     while (this.delay.length < channels) this.delay.push(new Float32Array(size));
+    const keyChannels = this.keyed ? (key?.length ?? 0) : 0;
+    while (this.keyCoefficients && this.keyFilters.length < keyChannels) this.keyFilters.push(new RepairBiquad(this.keyCoefficients));
     let maxReduction = 0;
     for (let i = 0; i < frames; i += 1) {
       let peak = 0;
-      for (let c = 0; c < channels; c += 1) {
-        const x = Math.abs(inputs[c][i]);
-        if (x > peak) peak = x;
+      if (this.keyed) {
+        // Sidechain: only the key is detected. No key (or silence) means no reduction.
+        for (let c = 0; c < keyChannels; c += 1) {
+          const sample = key?.[c]?.[i] ?? 0;
+          const x = Math.abs(this.keyCoefficients ? this.keyFilters[c].process(sample) : sample);
+          if (x > peak) peak = x;
+        }
+      } else {
+        for (let c = 0; c < channels; c += 1) {
+          const x = Math.abs(inputs[c][i]);
+          if (x > peak) peak = x;
+        }
       }
       const target = peak > 1e-9 ? this.computeReduction(linToDb(peak)) : 0;
       const coeff = target > this.reduction ? this.attackCoeff : this.releaseCoeff;
@@ -1073,6 +1110,7 @@ export class LinkedCompressorProcessor implements RepairProcessor {
     this.delayPos = 0;
     this.reduction = 0;
     this.meter = 0;
+    this.keyFilters = [];
   }
 }
 

@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
 import { Button } from "@openreel/ui";
 import { GraphicsEngine, TitleEngine } from "@openreel/core";
@@ -8,6 +8,7 @@ import { createEmptyProject } from "../../stores/project/project-helpers";
 import { useProjectStore } from "../../stores/project-store";
 import { SearchModal } from "./SearchModal";
 import { InspectorPanel } from "./InspectorPanel";
+import { loadInspectorPanels } from "./inspector/lazy-inspector-panels";
 import { useEngineStore } from "../../stores/engine-store";
 import { useInspectorNavigationStore } from "../../stores/inspector-navigation-store";
 
@@ -22,6 +23,10 @@ function SearchInspector() {
 
 
 describe("SearchModal inspector routing", () => {
+  beforeAll(async () => {
+    await loadInspectorPanels();
+  });
+
   beforeEach(() => {
     useInspectorNavigationStore.getState().clearRequest();
     useUIStore.setState({

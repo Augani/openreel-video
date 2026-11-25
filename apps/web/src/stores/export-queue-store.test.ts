@@ -181,6 +181,61 @@ describe("export queue store", () => {
     expect(seen.timeline.tracks[0].clips).toEqual([{ id: "c", volume: 1 }]);
   });
 
+  it("keeps editing while a job is exporting: the running job keeps its snapshot, the next queued job takes the edited project", async () => {
+    const live = makeProject(1);
+    hoisted.project.current = live;
+    useExportQueueStore.getState().enqueue({ settings, presetLabel: "A" });
+    useExportQueueStore.getState().start();
+    await flush();
+    expect(status()).toEqual(["A:running"]);
+
+    // The user edits in place while A renders, then queues B.
+    live.timeline.tracks[0].clips[0].volume = 0.25;
+    live.timeline.tracks[0].clips.push({ id: "added", volume: 1 });
+    useExportQueueStore.getState().enqueue({ settings, presetLabel: "B" });
+    live.timeline.tracks[0].clips[0].volume = 0.9;
+    await flush();
+
+    // One export at a time, however many are queued.
+    expect(hoisted.runs).toHaveLength(1);
+    const running = hoisted.runs[0].project as ReturnType<typeof makeProject>;
+    expect(running.timeline.tracks[0].clips).toEqual([{ id: "c", volume: 1 }]);
+
+    hoisted.runs[0].resolve(done);
+    await flush();
+    await flush();
+    expect(hoisted.runs).toHaveLength(2);
+    const second = hoisted.runs[1].project as ReturnType<typeof makeProject>;
+    expect(second.timeline.tracks[0].clips).toEqual([{ id: "c", volume: 0.25 }, { id: "added", volume: 1 }]);
+    // The snapshot is a copy: B is unaffected by the edit made after it was queued.
+    expect(second.timeline.tracks[0].clips[0].volume).toBe(0.25);
+    expect(status()).toEqual(["A:completed", "B:running"]);
+  });
+
+  it("never runs two jobs at once, whatever the order of enqueue, cancel and retry", async () => {
+    const store = useExportQueueStore.getState();
+    for (const label of ["A", "B", "C"]) store.enqueue({ settings, presetLabel: label });
+    useExportQueueStore.getState().start();
+    await flush();
+    const concurrent = () => useExportQueueStore.getState().queue.jobs.filter((job) => job.status === "running").length;
+    expect(concurrent()).toBe(1);
+    const [a, b] = useExportQueueStore.getState().queue.jobs;
+    useExportQueueStore.getState().cancel(b.id);
+    expect(concurrent()).toBe(1);
+    useExportQueueStore.getState().cancel(a.id);
+    // The cancelled encode unwinds, then the queue moves on to the next job.
+    const { ExportJobCancelled } = await import("../services/export-queue/export-queue-runner");
+    hoisted.runs[0].reject(new ExportJobCancelled());
+    await flush();
+    await flush();
+    expect(concurrent()).toBe(1);
+    expect(status()).toEqual(["A:cancelled", "B:cancelled", "C:running"]);
+    useExportQueueStore.getState().retry(b.id);
+    await flush();
+    expect(concurrent()).toBe(1);
+    expect(status()).toEqual(["A:cancelled", "C:running", "B:queued"]);
+  });
+
   it("shows an ETA that stays hidden early, converges on the real remaining time (fake clock) and ends at zero", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     try {

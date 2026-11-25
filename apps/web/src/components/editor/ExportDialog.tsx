@@ -7,6 +7,7 @@ import React, {
   useMemo,
   useRef,
 } from "react";
+import { hasExportSdrChoice, rememberExportSdrChoice } from "./export-hdr-choice";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
 import { ExportStemsSection } from "./ExportStemsSection";
@@ -109,6 +110,7 @@ import {
   MAX_LOUDNESS_TARGET_LUFS,
   MIN_LOUDNESS_TARGET_LUFS,
   isValidLoudnessTarget,
+  loudnessTargetFromPreset,
   getChannelLayout,
   type LoudnessTargetSettings,
   type DeviceProfile,
@@ -118,6 +120,7 @@ import {
   type HdrExportSupport,
   probeHdrExportSupport,
   resolveWorkingColorSpace,
+  sequenceHdrTransfer,
 } from "@openreel/core";
 import { EDITING_FRAME_RATE_OPTIONS } from "./editing-frame-rate";
 import type { ExportDeliveryMode } from "../../services/export-runner";
@@ -128,6 +131,7 @@ import { usePhoneEditor } from "../../hooks/usePhoneEditor";
 import { ExportCaptionOptions } from "./ExportCaptionOptions";
 import { ExportStillPanel } from "./ExportStillPanel";
 import { ExportBroadcastOptions } from "./ExportBroadcastOptions";
+import { ExportBwfSection } from "./ExportBwfSection";
 import { ExportDolbyOptions } from "./ExportDolbyOptions";
 import { saveCaptionSidecars, sidecarFilesFor } from "../../services/caption-sidecar";
 import { exportFilename } from "../../services/export-runner";
@@ -163,6 +167,8 @@ interface ExportDialogProps {
   sourceMatch?: SourceExportMatch | null;
   hasAudio?: boolean;
   markedRange?: VideoExportSettings["range"] | null;
+  /** When set, the Custom tab offers an audio-only Broadcast WAV export (a quick export preset id). */
+  onExportAudio?: (preset: "bwf") => void;
 }
 
 type AspectRatioType = "vertical" | "square" | "horizontal";
@@ -447,6 +453,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   sourceMatch = null,
   hasAudio = true,
   markedRange = null,
+  onExportAudio,
 }) => {
   const phone = usePhoneEditor();
   const [advanced, setAdvanced] = useState(false);
@@ -524,6 +531,8 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   const subtitles = useProjectStore((state) => state.project.timeline.subtitles);
   const projectName = useProjectStore((state) => state.project.name);
   const [captionExport, setCaptionExport] = useState<CaptionExportSettings>({ tracks: [] });
+  const [embedChapters, setEmbedChapters] = useState(true);
+  const chapterMarkerCount = useProjectStore((state) => state.project.timeline.markers.filter((m) => m.kind === "chapter").length);
   const [timecodeBurnIn, setTimecodeBurnIn] = useState<TimecodeBurnInSettings>({ enabled: false });
   const loudnessInvalid =
     activeTab === "custom" && loudness.enabled && !isValidLoudnessTarget(loudness);
@@ -551,10 +560,12 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
           : undefined,
       // One click, on every video tab: the sequence timecode is drawn into each frame.
       burnInTimecode: timecodeBurnIn.enabled && activeTab !== "stills" ? { ...timecodeBurnIn } : undefined,
+      // MP4 / MOV: chapter markers become chapters of the file.
+      ...(activeTab === "custom" && embedChapters && chapterMarkerCount > 0 ? { embedChapters: true } : {}),
       // On unless switched off: the engine copies untouched spans whenever the export matches the sources.
       ...(smartRenderOn ? {} : { smartRender: false }),
     }),
-    [exportSection, validMarkedRange, loudness, activeTab, captionExport, timecodeBurnIn, sequenceIsSurround, audioChannelChoice, smartRenderOn],
+    [exportSection, validMarkedRange, loudness, activeTab, captionExport, timecodeBurnIn, sequenceIsSurround, audioChannelChoice, smartRenderOn, embedChapters, chapterMarkerCount],
   );
 
   /** Sidecar caption files are independent of the render: save them when the export starts. */
@@ -605,6 +616,21 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
       sharpening: 0.3,
     },
   });
+  // An HDR sequence (Rec.2100 PQ / HLG) exports to its own transfer by default, as 10-bit HEVC, once the encoder probe
+  // says it can. Choosing "SDR" in the Color / HDR control afterwards sticks (the effect only runs when the dialog opens
+  // or the probe / sequence changes).
+  const sequenceHdr = useProjectStore((state) => sequenceHdrTransfer(state.project.settings));
+  const exportSequenceKey = useProjectStore((state) => state.project.activeSequenceId ?? "project");
+  useEffect(() => {
+    if (!isOpen || !sequenceHdr || !hdrSupport?.supported) return;
+    // An explicit SDR choice made earlier for this sequence stays, also across closing and reopening the dialog.
+    if (hasExportSdrChoice(exportSequenceKey)) return;
+    setCustomSettings((prev) =>
+      prev.hdr && prev.hdr !== "none"
+        ? prev
+        : { ...prev, hdr: sequenceHdr, codec: "h265", format: prev.format === "webm" || prev.format === "mkv" ? "mp4" : prev.format },
+    );
+  }, [isOpen, sequenceHdr, hdrSupport?.supported, exportSequenceKey]);
 
   useEffect(() => {
     setCustomSettings((current) => ({
@@ -2048,6 +2074,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                       value={customSettings.hdr ?? "none"}
                       onValueChange={(value) => {
                         const hdr = value as NonNullable<VideoExportSettings["hdr"]>;
+                        rememberExportSdrChoice(exportSequenceKey, hdr === "none");
                         setCustomSettings(
                           hdr === "none"
                             ? { ...customSettings, hdr: undefined }
@@ -2106,12 +2133,15 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                         data-testid="export-hdr-unavailable"
                       >
                         HDR output unavailable. {hdrSupport.reason}
+                        {sequenceHdr ? " This sequence is HDR, so the export will be a tone-mapped SDR file (BT.2020 primaries, BT.709 transfer)." : ""}
                       </p>
                     )}
                     {customSettings.hdr && customSettings.hdr !== "none" && (
                       <p className="text-[10px] leading-snug text-fg-3">
                         {customSettings.codec === "prores"
-                          ? "Writes ProRes 4444 XQ (10-bit 4:4:4)"
+                          ? customSettings.proresProfile === "hq"
+                            ? "Writes ProRes 422 HQ (10-bit 4:2:2)"
+                            : "Writes ProRes 4444 XQ (10-bit 4:4:4)"
                           : "Writes 10-bit H.265 (Main10)"}{" "}
                         tagged BT.2020 with a{" "}
                         {customSettings.hdr === "pq" ? "PQ" : "HLG"} transfer
@@ -2676,9 +2706,14 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                             );
                             if (preset)
                               setLoudness((current) => ({
-                                ...current,
-                                targetLufs: preset.targetLufs,
-                                truePeakCeilingDb: preset.truePeakCeilingDb,
+                                ...loudnessTargetFromPreset(preset),
+                                enabled: current.enabled,
+                              }));
+                            else
+                              setLoudness((current) => ({
+                                enabled: current.enabled,
+                                targetLufs: current.targetLufs,
+                                truePeakCeilingDb: current.truePeakCeilingDb,
                               }));
                           }}
                         >
@@ -2723,8 +2758,9 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                           onChange={(event) => {
                             setLoudnessPreset("custom");
                             setLoudness((current) => ({
-                              ...current,
+                              enabled: current.enabled,
                               targetLufs: event.target.valueAsNumber,
+                              truePeakCeilingDb: current.truePeakCeilingDb,
                             }));
                           }}
                         />
@@ -2747,12 +2783,25 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                           onChange={(event) => {
                             setLoudnessPreset("custom");
                             setLoudness((current) => ({
-                              ...current,
+                              enabled: current.enabled,
+                              targetLufs: current.targetLufs,
                               truePeakCeilingDb: event.target.valueAsNumber,
                             }));
                           }}
                         />
                       </div>
+                      {loudness.specId && (
+                        <p
+                          className="col-span-3 text-[10px] text-fg-muted"
+                          data-testid="export-loudness-spec-note"
+                        >
+                          {loudness.gating === "dialogue"
+                            ? "Measured on the dialogue only. "
+                            : "Measured over the whole program. "}
+                          Compliance tolerance ±{loudness.toleranceLu} LU; the
+                          result is checked after export.
+                        </p>
+                      )}
                       {loudnessInvalid && (
                         <p
                           className="col-span-3 text-[10px] text-status-error"
@@ -2769,6 +2818,22 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
               </section>
 
               <ExportStemsSection onQueued={onClose} />
+
+              {onExportAudio && hasAudio && (
+                <ExportBwfSection onExport={() => { onExportAudio("bwf"); onClose(); }} />
+              )}
+
+              {chapterMarkerCount > 0 && (customSettings.format === "mp4" || customSettings.format === "mov") && (
+                <section className="mt-3 flex items-center justify-between gap-3 rounded-md border border-border bg-bg-2 px-3 py-2" data-testid="export-chapters">
+                  <div>
+                    <Label htmlFor="export-embed-chapters" className="text-[12px] font-semibold text-fg">Chapters</Label>
+                    <p className="text-[10px] text-fg-muted">
+                      Write the {chapterMarkerCount} chapter marker{chapterMarkerCount === 1 ? "" : "s"} as chapters of the file
+                    </p>
+                  </div>
+                  <Switch id="export-embed-chapters" aria-label="Write chapter markers as file chapters" checked={embedChapters} onCheckedChange={setEmbedChapters} />
+                </section>
+              )}
 
               <ExportCaptionOptions
                 subtitles={subtitles}

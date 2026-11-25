@@ -14,6 +14,10 @@ import type {
 import { DEFAULT_AUDIO_CONFIG } from "./types";
 import { AudioEffectsEngine } from "./audio-effects-engine";
 import { ensureRepairWorklet } from "./repair/repair-node";
+import { hasModulatedCreativeFx, offlineClipChainClockOffset, resampleToTimelineRate } from "./clip-chain-clock";
+import { ensureCreativeFxWorklet } from "./creative/creative-fx-node";
+import { projectUsesCreativeFx } from "./creative/creative-fx-usage";
+import { MASTER_OWNER, SidechainKeyHub, timelineHasSidechain } from "./sidechain";
 import { isRepairEffectType } from "./repair/repair-dsp";
 import { projectUsesRepairEffects, repairWarmupSeconds } from "./repair/repair-definitions";
 import {
@@ -51,6 +55,7 @@ import { channelMapNeedsWideSource, mapAudioBuffer, resolveClipChannelMap, wideD
 import { createSurroundPanner, fallbackDecodeChannels, isSurroundLayout, mixChannelCount, resolveSurroundPan } from "./surround";
 import {
   createRackBus,
+  rackHasAutomation,
   estimateRackTailSeconds,
   rackHasProcessing,
   rackVolume,
@@ -372,6 +377,8 @@ export class AudioEngine {
     );
     // Repair effects live in an AudioWorklet module that must be loaded into this context first.
     if (projectUsesRepairEffects(project, surround)) await ensureRepairWorklet(offlineContext);
+    // Creative effects (chorus, phaser, distortion, ...) are a second, lazily loaded worklet.
+    if (projectUsesCreativeFx(project)) await ensureCreativeFxWorklet(offlineContext);
     const mixBuses = this.buildOfflineRackBuses(offlineContext, project, { start: startTime, duration }, pdc.trackDelay, surround);
     const sunkTracks = new Set(project.timeline.tracks.filter(isSunkTrack).map((t) => t.id));
     for (const trackInfo of audioTracks) {
@@ -796,6 +803,16 @@ export class AudioEngine {
       playSpeed = 1;
       processDuration = processingBuffer.duration;
     }
+    // Modulated effects (chorus, flanger, phaser) hear the signal after the speed change, as in the live chain: when the
+    // speed is applied by playbackRate (no pitch-preserving stretch), bring the excerpt to timeline rate first.
+    if (!stretch && playSpeed !== 1 && hasModulatedCreativeFx(clipInfo.effects)) {
+      const excerpt = this.extractAudioSegment(processingBuffer, processingOffset, processDuration);
+      const channelData = Array.from({ length: excerpt.numberOfChannels }, (_, c) => excerpt.getChannelData(c));
+      processingBuffer = this.buildStretchBuffer(resampleToTimelineRate(channelData, playSpeed), excerpt.sampleRate);
+      processingOffset = 0;
+      playSpeed = 1;
+      processDuration = processingBuffer.duration;
+    }
     const processedClip = await this.processClipBuffer(processingBuffer, { ...clipInfo, sourceTime: processingOffset, duration: processDuration });
     source.buffer = processedClip.buffer;
     source.playbackRate.value = playSpeed;
@@ -891,6 +908,7 @@ export class AudioEngine {
       const result = await this.effectsEngine.applyEffectChain(
         processedBuffer,
         realtimeEffects,
+        { timelineStart: offlineClipChainClockOffset(clipInfo.timelineStartTime) },
       );
       processedBuffer = result.buffer;
     }
@@ -1158,10 +1176,15 @@ export class AudioEngine {
   ): { trackInput(trackId: string): AudioNode } {
     const master = project.timeline.masterAudioRack;
     let masterIn: AudioNode = context.destination;
+    // Sidechain keys (a compressor listening to another track or bus) meet in one hub per render.
+    const keys = timelineHasSidechain(project.timeline) ? new SidechainKeyHub(context) : undefined;
+    keys?.setTimeline(project.timeline);
     if (master && (rackHasProcessing(master) || rackVolume(master) !== 1)) {
       const volume = context.createGain();
       volume.gain.value = rackVolume(master);
-      const bus = createRackBus(context, master, { live: false, surround });
+      const bus = createRackBus(context, master, { live: false, surround, sidechain: keys ? { hub: keys, ownerId: MASTER_OWNER } : undefined });
+      if (window) bus.anchorTimeline?.(window.start, 0);
+      if (window && rackHasAutomation(master)) bus.scheduleAutomation?.(window.start, window.duration, 0);
       volume.connect(bus.input);
       bus.output.connect(context.destination);
       masterIn = volume;
@@ -1169,12 +1192,12 @@ export class AudioEngine {
     // Projects without buses/sends skip the routing graph entirely, so their
     // node graph (and samples) are exactly what they were before routing existed.
     const routing = hasAudioRouting(project.timeline)
-      ? new AudioRoutingGraph(context, masterIn, { live: false, surround, window: { timelineStart: window.start, duration: window.duration } })
+      ? new AudioRoutingGraph(context, masterIn, { live: false, surround, sidechain: keys, window: { timelineStart: window.start, duration: window.duration } })
       : null;
     routing?.configure(project.timeline);
     const inputs = new Map<string, AudioNode>();
     for (const track of project.timeline.tracks) {
-      const input = buildOfflineTrackChain(context, routing, track, masterIn, routing ? 0 : (trackDelay?.get(track.id) ?? 0), surround, window ? { timelineStart: window.start, duration: window.duration } : undefined);
+      const input = buildOfflineTrackChain(context, routing, track, masterIn, routing ? 0 : (trackDelay?.get(track.id) ?? 0), surround, window ? { timelineStart: window.start, duration: window.duration } : undefined, keys);
       if (input) inputs.set(track.id, input);
     }
     return { trackInput: (trackId) => inputs.get(trackId) ?? masterIn };

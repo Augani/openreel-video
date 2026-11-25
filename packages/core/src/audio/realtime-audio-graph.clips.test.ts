@@ -261,7 +261,7 @@ describe("each scheduled clip owns its effects and nodes", () => {
     const tailNode = context.createGain();
     const passthrough = context.createGain();
     (graph as unknown as { buildEffectChain: () => unknown }).buildEffectChain = () => ({
-      allNodes: [passthrough, tailNode], tailSeconds: 1, effectChainInput: passthrough, effectChainOutput: tailNode,
+      allNodes: [passthrough, tailNode], tailSeconds: 1, creativeChains: [], effectChainInput: passthrough, effectChainOutput: tailNode,
       compressor: null, eqFilters: [], noiseReductionNodes: [], reverbNodes: null, delayNodes: null,
     });
     const effects = [{ id: "r", type: "reverb", enabled: true, params: {} }] as unknown as AudioClipSchedule["effects"];

@@ -80,13 +80,13 @@ function fakeContext() {
 }
 
 describe("rack sanitising", () => {
-  it("clamps params, drops unknown ones and caps the rack at five slots", () => {
+  it("clamps params, drops unknown ones and caps the rack at the slot limit", () => {
     const params = sanitizeRackEffectParams("compressor", { threshold: -999, ratio: 99, bogus: 1 });
     expect(params.threshold).toBe(-60);
     expect(params.ratio).toBe(20);
     expect(params.bogus).toBeUndefined();
     const rack = sanitizeAudioRack({
-      effects: Array.from({ length: 9 }, () => ({ type: "gain", params: {}, bypassed: false })),
+      effects: Array.from({ length: MAX_RACK_EFFECTS + 4 }, () => ({ type: "gain", params: {}, bypassed: false })),
       volume: 9,
       pan: -3,
     });
@@ -147,11 +147,11 @@ describe("audioRack/set action", () => {
     expect(project.timeline.masterAudioRack).toBeUndefined();
   });
 
-  it("rejects unknown tracks, more than five slots and unknown effects", async () => {
+  it("rejects unknown tracks, more slots than the limit and unknown effects", async () => {
     const executor = new ActionExecutor();
     const project = makeProject();
     expect((await executor.execute(act({ target: "nope", rack: { effects: [] } }), project)).success).toBe(false);
-    const six = Array.from({ length: 6 }, () => createRackEffect("gain"));
+    const six = Array.from({ length: MAX_RACK_EFFECTS + 1 }, () => createRackEffect("gain"));
     expect((await executor.execute(act({ target: "a1", rack: { effects: six } }), project)).success).toBe(false);
     expect((await executor.execute(act({ target: "a1", rack: { effects: [{ id: "x", type: "wah", params: {}, bypassed: false }] } }), project)).success).toBe(false);
   });

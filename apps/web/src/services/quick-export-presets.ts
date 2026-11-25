@@ -1,6 +1,7 @@
+import { readBwfPrefs } from "./export-bwf-prefs";
 import type { AudioExportSettings, VideoExportSettings } from "@openreel/core";
 
-export type QuickExportPresetId = "mp4" | "4k" | "1080p-high" | "1080p-60" | "wav" | "ac3" | "eac3";
+export type QuickExportPresetId = "mp4" | "4k" | "1080p-high" | "1080p-60" | "wav" | "bwf" | "ac3" | "eac3";
 export type QuickVideoExportSettings = Pick<VideoExportSettings, "width" | "height" | "frameRate" | "format" | "codec"> & Partial<VideoExportSettings>;
 
 type QuickExportPreset = {
@@ -46,6 +47,12 @@ export function getQuickExportPresets(project: {
       extension: "wav",
     },
     {
+      id: "bwf", label: "Audio Only (Broadcast WAV)", kind: "audio",
+      description: "48 kHz · stereo · 24-bit PCM · bext time reference and iXML track names",
+      settings: bwfSettings(),
+      extension: "wav",
+    },
+    {
       id: "ac3", label: "Audio Only (Dolby Digital)", kind: "audio",
       description: "48 kHz · .ac3 · stereo 192 kbps, or 5.1 at 448 kbps for a 5.1 sequence",
       settings: { format: "ac3", sampleRate: 48000, channels: 2, bitDepth: 24, bitrate: 192 },
@@ -58,4 +65,15 @@ export function getQuickExportPresets(project: {
       extension: "ec3",
     },
   ];
+}
+
+/** Description and originator come from the export dialog's Broadcast WAV fields; empty ones fall back to the defaults. */
+function bwfSettings(): Partial<AudioExportSettings> {
+  const prefs = readBwfPrefs();
+  const description = prefs.description.trim();
+  const originator = prefs.originator.trim();
+  return {
+    format: "wav", sampleRate: 48000, channels: 2, bitDepth: 24,
+    bwf: { enabled: true, ...(description ? { description } : {}), ...(originator ? { originator } : {}) },
+  };
 }

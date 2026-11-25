@@ -1,3 +1,4 @@
+import { BlendModeSelectItems } from "./BlendModeSelectItems";
 import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
   Button,
@@ -6,12 +7,9 @@ import {
   SelectTrigger,
   SelectValue,
   SelectContent,
-  SelectItem,
 } from "@openreel/ui";
 import {
   evaluateKeyframesAt,
-  getAvailableBlendModes,
-  getBlendModeName,
   type Transform,
   type BlendMode,
   type Keyframe,
@@ -419,11 +417,7 @@ export function PrimaryVideoProperties({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {getAvailableBlendModes().map((v) => (
-                  <SelectItem key={v} value={v}>
-                    {getBlendModeName(v)}
-                  </SelectItem>
-                ))}
+                <BlendModeSelectItems />
               </SelectContent>
             </Select>
           </Row>

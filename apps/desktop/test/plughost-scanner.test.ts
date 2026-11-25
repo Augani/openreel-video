@@ -19,7 +19,7 @@ describe("helper process isolation", () => {
   it("turns a segfault into a rejected request naming the signal", async () => {
     const helper = new HelperProcess(spawnOptions());
     await helper.start();
-    await expect(helper.request({ type: "probe", id: "au:aufx:cras:mock" }, 5000)).rejects.toMatchObject({ kind: "crash", message: expect.stringMatching(/SIGSEGV/) });
+    await expect(helper.request({ type: "probe", id: "au:aufx:cras:mock" }, 5000)).rejects.toMatchObject({ kind: "crash", message: expect.stringMatching(/SIGSEGV|access violation/) });
     expect(helper.alive).toBe(false);
   });
 
@@ -77,7 +77,7 @@ describe("sandboxed scan", () => {
     const byId = new Map(result.plugins.map((p) => [p.id, p]));
     expect(byId.get("au:aufx:gain:mock")).toMatchObject({ status: "ok", latencySamples: 0, parameterCount: 1 });
     expect(byId.get("au:aufx:lkah:mock")).toMatchObject({ status: "ok", latencySamples: 300 });
-    expect(byId.get("au:aufx:cras:mock")).toMatchObject({ status: "blocked", statusReason: expect.stringMatching(/SIGSEGV/) });
+    expect(byId.get("au:aufx:cras:mock")).toMatchObject({ status: "blocked", statusReason: expect.stringMatching(/SIGSEGV|access violation/) });
     expect(byId.get("au:aufx:hang:mock")).toMatchObject({ status: "blocked", statusReason: expect.stringMatching(/did not answer/) });
     expect(byId.get("au:aufx:junk:mock")?.status).toBe("blocked");
     expect(byId.get("au:aufx:bad_:mock")).toMatchObject({ status: "blocked", statusReason: expect.stringMatching(/does not accept/) });

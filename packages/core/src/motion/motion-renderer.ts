@@ -32,6 +32,7 @@ import {
 } from "./motion-camera";
 import type { BlendMode } from "../video/types";
 import { getMotionCanvasBlendMode } from "./motion-blend-modes";
+import { drawImageWithBlend, needsCpuBlend } from "../video/blend-reference";
 import type { MotionThreeRenderer } from "./motion-three-renderer";
 import { sampleMotionObjectMeshFrame } from "./motion-object-sampling";
 import type { MotionRenderQuality } from "./motion-render-quality";
@@ -787,7 +788,8 @@ export class MotionRenderer {
       }
       if (
         layerUsesAdvancedMotionMasks(renderLayer) ||
-        layerNeedsBufferedEffects(renderLayer)
+        layerNeedsBufferedEffects(renderLayer) ||
+        needsCpuBlend(renderLayer.blendMode)
       ) {
         await this.renderVisualLayerWithAdvancedMasks(
           ctx,
@@ -932,8 +934,7 @@ export class MotionRenderer {
 
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.globalCompositeOperation = getMotionCanvasBlendMode(layer.blendMode);
-    ctx.drawImage(contentBuffer.canvas, 0, 0);
+    drawImageWithBlend(ctx, contentBuffer.canvas, layer.blendMode);
     ctx.restore();
   }
 
@@ -1113,8 +1114,7 @@ export class MotionRenderer {
 
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.globalCompositeOperation = getMotionCanvasBlendMode(layer.blendMode);
-    ctx.drawImage(contentBuffer.canvas, 0, 0);
+    drawImageWithBlend(ctx, contentBuffer.canvas, layer.blendMode);
     ctx.restore();
   }
 
@@ -1547,8 +1547,7 @@ export class MotionRenderer {
       ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     }
     ctx.globalAlpha = opacity;
-    ctx.globalCompositeOperation = getMotionCanvasBlendMode(layer.blendMode);
-    ctx.drawImage(buffer.canvas, 0, 0);
+    drawImageWithBlend(ctx, buffer.canvas, layer.blendMode);
     ctx.restore();
   }
 
@@ -1614,8 +1613,7 @@ export class MotionRenderer {
 
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.globalCompositeOperation = getMotionCanvasBlendMode(layer.blendMode);
-    ctx.drawImage(layerBuffer.canvas, 0, 0);
+    drawImageWithBlend(ctx, layerBuffer.canvas, layer.blendMode);
     ctx.restore();
   }
 

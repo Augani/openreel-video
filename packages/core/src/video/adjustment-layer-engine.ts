@@ -60,6 +60,16 @@ const BLEND_MODE_INFO: Record<
     name: "Linear Dodge",
     description: "Additive lighten (clamped sum)",
   },
+  "linear-burn": { name: "Linear Burn", description: "Darkens by subtracting the inverse" },
+  "darker-color": { name: "Darker Color", description: "Keeps the darker of the two colors" },
+  "lighter-color": { name: "Lighter Color", description: "Keeps the lighter of the two colors" },
+  "linear-light": { name: "Linear Light", description: "Linear burn or dodge by source" },
+  "vivid-light": { name: "Vivid Light", description: "Color burn or dodge by source" },
+  "pin-light": { name: "Pin Light", description: "Replaces colors by source brightness" },
+  "hard-mix": { name: "Hard Mix", description: "Posterizes to pure channel values" },
+  subtract: { name: "Subtract", description: "Subtracts the source from the base" },
+  divide: { name: "Divide", description: "Divides the base by the source" },
+  dissolve: { name: "Dissolve", description: "Seeded noise dither of the source" },
 };
 
 function generateId(): string {

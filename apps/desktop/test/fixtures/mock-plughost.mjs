@@ -44,7 +44,10 @@ const out = (json, bin = Buffer.alloc(0)) => {
 let session = null;
 let blocks = 0;
 const params = (s) => [{ key: "0", name: "Gain", min: 0, max: 4, value: s?.gain ?? 1, unitName: "" }];
-const crash = () => process.kill(process.pid, "SIGSEGV");
+const crash = () => {
+  if (process.platform === "win32") process.exit(0xc0000005);
+  process.kill(process.pid, "SIGSEGV");
+};
 
 function handle(json, bin) {
   const reply = (type, fields = {}, payload) => out({ type, reqId: json.reqId, ...fields }, payload);

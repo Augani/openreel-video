@@ -16,6 +16,7 @@ import "./timeline-tool-edit";
 import "./audio-rack";
 import "./audio-plugin-rack";
 import "./audio-routing";
+import "./audio-mixer-snapshot";
 import "./track-automation";
 import "./audio-surround";
 import "./clip-markers";

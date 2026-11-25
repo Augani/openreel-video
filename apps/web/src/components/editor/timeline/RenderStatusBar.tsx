@@ -1,3 +1,4 @@
+import React from "react";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Clapperboard, Trash2, X } from "lucide-react";
 import { Button } from "@openreel/ui";
@@ -8,7 +9,7 @@ import {
 } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
-import { renderCacheService, useRenderCacheSnapshot } from "../../../services/render-cache-service";
+import { renderCacheService, useIdleRenderState, useRenderCacheSnapshot } from "../../../services/render-cache-service";
 
 const LEVEL_COLOR: Record<Exclude<RenderStatusLevel, "none">, string> = {
   cached: "#3fb950",
@@ -50,7 +51,7 @@ export function useRenderStatusSegments(): RenderStatusSegment[] {
   return segments;
 }
 
-export function RenderStatusBar({
+export const RenderStatusBar = React.memo(function RenderStatusBar({
   pixelsPerSecond,
   width,
 }: {
@@ -59,11 +60,13 @@ export function RenderStatusBar({
 }) {
   const segments = useRenderStatusSegments();
   const snapshot = useRenderCacheSnapshot();
+  const idle = useIdleRenderState();
   const visible = useMemo(() => segments.filter((segment) => segment.level !== "none"), [segments]);
   return (
     <div
       data-testid="render-status-bar"
       data-rendering={snapshot.phase === "rendering" || undefined}
+      data-idle-render={idle.kind === "rendering" ? "rendering" : idle.kind === "paused" ? idle.reason : undefined}
       aria-label="Render status"
       role="img"
       style={{ position: "relative", height: RENDER_STATUS_BAR_HEIGHT, width }}
@@ -91,9 +94,30 @@ export function RenderStatusBar({
           />
         );
       })}
+      {snapshot.phase === "rendering" && snapshot.progress && snapshot.progress.total > 0 ? (
+        <div
+          data-testid="render-status-progress"
+          data-idle={idle.kind === "rendering" || undefined}
+          title={idle.kind === "rendering" ? "Rendering in the background" : "Rendering"}
+          style={{
+            position: "absolute",
+            top: 0,
+            height: RENDER_STATUS_BAR_HEIGHT,
+            left: snapshot.progress.range.start * pixelsPerSecond,
+            width: Math.max(
+              2,
+              (snapshot.progress.range.end - snapshot.progress.range.start) *
+                pixelsPerSecond *
+                Math.min(1, snapshot.progress.done / snapshot.progress.total),
+            ),
+            background: "#58a6ff",
+            opacity: idle.kind === "rendering" ? 0.7 : 0.9,
+          }}
+        />
+      ) : null}
     </div>
   );
-}
+});
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
@@ -102,7 +126,7 @@ function formatBytes(bytes: number): string {
 }
 
 /** Toolbar cluster: Render In to Out, cancellable progress, Delete render files. */
-export function RenderCacheControls() {
+export const RenderCacheControls = React.memo(function RenderCacheControls() {
   const snapshot = useRenderCacheSnapshot();
   const hasRange = useTimelineStore((state) => state.loopEnd > state.loopStart);
   const rendering = snapshot.phase === "rendering";
@@ -166,4 +190,4 @@ export function RenderCacheControls() {
       </Button>
     </div>
   );
-}
+});

@@ -1,6 +1,7 @@
 import { Pen } from "@/icons/lucide-compat";
 import { Button } from "@openreel/ui";
 import { useMaskPenStore } from "../../../stores/mask-pen-store";
+import { useObjectMaskStore } from "../../../stores/object-mask-store";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
 import { toast } from "../../../stores/notification-store";
@@ -31,6 +32,7 @@ export function toggleMaskPen(): void {
     );
     return;
   }
+  useObjectMaskStore.getState().disarm();
   pen.arm(clipId, null);
 }
 

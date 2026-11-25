@@ -34,6 +34,16 @@ export const BLEND_MODES = [
   "luminosity",
   "add",
   "linear-dodge",
+  "linear-burn",
+  "darker-color",
+  "lighter-color",
+  "linear-light",
+  "vivid-light",
+  "pin-light",
+  "hard-mix",
+  "subtract",
+  "divide",
+  "dissolve",
 ] as const;
 
 export type BlendMode = (typeof BLEND_MODES)[number];

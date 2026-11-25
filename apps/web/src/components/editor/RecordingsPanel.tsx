@@ -1,5 +1,6 @@
 import { Button } from "@openreel/ui";
-import { Circle, Film, Plus } from "lucide-react";
+import { Circle, Film, Mic, Plus } from "lucide-react";
+import { isVoiceOverMediaName } from "../../services/voiceover/voiceover-logic";
 import type { MediaItem } from "@openreel/core";
 
 /** Projects recorded before takes carried provenance have only the Screen_/Webcam_<timestamp>.webm name. */
@@ -7,6 +8,7 @@ const TAKE_NAME = /^(Screen|Webcam)_\d{8}T\d{6}\.webm$/;
 
 /** A take is anything the in-app recorder imported (tagged in metadata, so renaming never hides it). */
 export function isRecordingTake(item: Pick<MediaItem, "name" | "type"> & { metadata?: Partial<MediaItem["metadata"]> }): boolean {
+  if (item.type === "audio") return item.metadata?.recordedTake === "voiceover" || isVoiceOverMediaName(item.name);
   if (item.type !== "video") return false;
   return !!item.metadata?.recordedTake || TAKE_NAME.test(item.name);
 }
@@ -30,21 +32,26 @@ function takeLabel(name: string): string {
 export function RecordingsPanel({
   items,
   onRecord,
+  onVoiceOver,
   onAddToTimeline,
   onOpenInSource,
 }: {
   items: readonly MediaItem[];
   onRecord: () => void;
+  onVoiceOver: () => void;
   onAddToTimeline: (item: MediaItem) => void;
   onOpenInSource: (item: MediaItem) => void;
 }) {
   const takes = items.filter(isRecordingTake).reverse();
   return (
     <div className="workspace-recordings" data-testid="recordings-panel">
-      <div className="px-2.5 pb-2.5 pt-2.5">
+      <div className="grid gap-1.5 p-2.5">
+        <Button variant="secondary" className="h-[30px] w-full gap-1.5 text-[13px]" onClick={onVoiceOver}>
+          <Mic size={14} aria-hidden /> Record voice-over
+        </Button>
         <Button variant="secondary" className="h-[30px] w-full gap-1.5 text-[13px]" onClick={onRecord}>
           <Circle size={12} className="fill-red-500 text-red-500" aria-hidden />
-          New recording
+          Record screen or camera
         </Button>
       </div>
       {takes.length ? (
@@ -52,7 +59,7 @@ export function RecordingsPanel({
           {takes.map((item) => (
             <div key={item.id} className="workspace-recording-row" onDoubleClick={() => onOpenInSource(item)}>
               <div className="thumb">
-                {item.thumbnailUrl ? (
+                {item.type === "audio" ? <Mic size={16} aria-hidden /> : item.thumbnailUrl ? (
                   <img src={item.thumbnailUrl} alt="" />
                 ) : (
                   <div className="workspace-media-skeleton" />
@@ -81,7 +88,7 @@ export function RecordingsPanel({
         <div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-6 pb-8 text-center text-[12px] text-fg-muted">
           <Film size={20} aria-hidden />
           <strong className="text-fg-2">No recordings yet</strong>
-          <span>Screen and webcam takes you record appear here.</span>
+          <span>Voice-over, screen and camera takes appear here.</span>
         </div>
       )}
     </div>

@@ -7,9 +7,6 @@ import {
   CollapsibleTrigger,
   Select,
   SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@openreel/ui";
@@ -35,7 +32,9 @@ import {
   findAdvancedOwner,
   type AdvancedLayerScope,
 } from "../../../services/advanced-layer-edit";
+import { isBlendMode } from "@openreel/core";
 import type { AdjustmentLayer, BlendMode, Effect } from "@openreel/core";
+import { BlendModeSelectItems } from "./BlendModeSelectItems";
 interface AdjustmentLayerSectionProps {
   clipId: string;
 }
@@ -250,26 +249,6 @@ const EFFECT_PRESETS: Array<{
   },
 ];
 
-const BLEND_MODES: Array<{ id: BlendMode; name: string; group: string }> = [
-  { id: "normal", name: "Normal", group: "Basic" },
-  { id: "multiply", name: "Multiply", group: "Darken" },
-  { id: "screen", name: "Screen", group: "Lighten" },
-  { id: "overlay", name: "Overlay", group: "Contrast" },
-  { id: "darken", name: "Darken", group: "Darken" },
-  { id: "lighten", name: "Lighten", group: "Lighten" },
-  { id: "color-dodge", name: "Color Dodge", group: "Lighten" },
-  { id: "color-burn", name: "Color Burn", group: "Darken" },
-  { id: "hard-light", name: "Hard Light", group: "Contrast" },
-  { id: "soft-light", name: "Soft Light", group: "Contrast" },
-  { id: "difference", name: "Difference", group: "Inversion" },
-  { id: "exclusion", name: "Exclusion", group: "Inversion" },
-  { id: "hue", name: "Hue", group: "Component" },
-  { id: "saturation", name: "Saturation", group: "Component" },
-  { id: "color", name: "Color", group: "Component" },
-  { id: "luminosity", name: "Luminosity", group: "Component" },
-  { id: "add", name: "Add", group: "Lighten" },
-  { id: "linear-dodge", name: "Linear Dodge", group: "Lighten" },
-];
 
 function adjustmentEffectPreviewStyle(type: string): React.CSSProperties {
   switch (type) {
@@ -572,7 +551,7 @@ const AdjustmentCard = memo(function AdjustmentCard({
               value={layer.blendMode}
               disabled={disabled}
               onValueChange={(value) => {
-                if (BLEND_MODES.some((mode) => mode.id === value))
+                if (isBlendMode(value))
                   update({ blendMode: value as BlendMode });
               }}
             >
@@ -583,20 +562,7 @@ const AdjustmentCard = memo(function AdjustmentCard({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {[...new Set(BLEND_MODES.map((mode) => mode.group))].map(
-                  (group) => (
-                    <SelectGroup key={group}>
-                      <SelectLabel>{group}</SelectLabel>
-                      {BLEND_MODES.filter((mode) => mode.group === group).map(
-                        (mode) => (
-                          <SelectItem key={mode.id} value={mode.id}>
-                            {mode.name}
-                          </SelectItem>
-                        ),
-                      )}
-                    </SelectGroup>
-                  ),
-                )}
+                <BlendModeSelectItems />
               </SelectContent>
             </Select>
           </div>

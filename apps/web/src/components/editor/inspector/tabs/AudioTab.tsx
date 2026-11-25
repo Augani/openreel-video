@@ -3,7 +3,7 @@ import { EssentialSoundSection } from "../EssentialSoundSection";
 import { SurroundPanSection } from "../SurroundPanSection";
 import { AudioChannelsSection } from "../AudioChannelsSection";
 import { EnhanceSpeechSection } from "../EnhanceSpeechSection";
-import React, { Suspense, lazy } from "react";
+import React, { Suspense } from "react";
 import { getChannelLayout } from "@openreel/core";
 import { useProjectStore } from "../../../../stores/project-store";
 import {
@@ -16,12 +16,13 @@ import {
 } from "../";
 import { VoiceOverPanel } from "../VoiceOverPanel";
 import { InspectorSection } from "../shell/InspectorSection";
+import { lazyWithRetry } from "../lazy-retry";
 
 // The spectral editor (spectrogram, selection tools, worker client) loads when its section is first opened, never with the editor shell.
-const NativePluginsSection = lazy(() => import("../NativePluginsSection").then((m) => ({ default: m.NativePluginsSection })));
+const NativePluginsSection = lazyWithRetry(() => import("../NativePluginsSection").then((m) => ({ default: m.NativePluginsSection })));
 // Reduce Reverb (section, service, job status) loads when the Audio tab renders it, never with the editor shell.
-const ReduceReverbSection = lazy(() => import("../ReduceReverbSection"));
-const SpectralEditor = lazy(() => import("../../../audio-spectral/SpectralEditor"));
+const ReduceReverbSection = lazyWithRetry(() => import("../ReduceReverbSection"));
+const SpectralEditor = lazyWithRetry(() => import("../../../audio-spectral/SpectralEditor"));
 
 interface AudioTabProps {
   clipId: string;

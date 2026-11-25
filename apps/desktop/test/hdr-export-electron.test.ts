@@ -245,7 +245,13 @@ d("source colour management and HDR export in real Electron", () => {
     expect(streams[0]).toMatchObject({ codec_name: "hevc", profile: "Main 10", pix_fmt: "yuv420p10le", color_primaries: "bt2020", color_transfer: "smpte2084", color_space: "bt2020nc" });
     const side = frames[0].side_data_list ?? [];
     expect(side.find((s) => s.side_data_type === "Mastering display metadata")).toMatchObject({ max_luminance: "10000000/10000", min_luminance: "1/10000" });
-    expect(side.find((s) => s.side_data_type === "Content light level metadata")).toMatchObject({ max_content: 1000, max_average: 400 });
+    // The HLG test bars reach about 3.8 times SDR white (203 nits). The mix of
+    // saturated colours produces a lower frame average than the brightest pixel.
+    const light = side.find((s) => s.side_data_type === "Content light level metadata");
+    expect(light?.max_content).toBeGreaterThan(730);
+    expect(light?.max_content).toBeLessThan(810);
+    expect(light?.max_average).toBeGreaterThan(640);
+    expect(light?.max_average).toBeLessThan(Number(light?.max_content));
   }, 300_000);
 
   it("HDR10 (PQ) export keeps highlights above SDR white: decoded 10-bit luma passes the SDR reference white code", async () => {

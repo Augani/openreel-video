@@ -343,11 +343,10 @@ export async function saveTake(blob: Blob, extension: string, startTime: number,
   if (blob.size === 0) throw new Error("The microphone recording was empty.");
   const store = useProjectStore.getState();
   const name = takeName(nextTakeNumber(store.project.mediaLibrary.items.map((item) => item.name)));
-  const before = new Set(store.project.mediaLibrary.items.map((item) => item.id));
   const file = new File([blob], `${name}.${extension}`, { type: blob.type, lastModified: Date.now() });
-  const imported = await store.importMedia(file);
+  const imported = await store.importMedia(file, undefined, { recordedTake: "voiceover" });
   if (!imported.success) throw new Error(imported.error?.message ?? "Could not import the recording.");
-  const media = useProjectStore.getState().project.mediaLibrary.items.find((item) => !before.has(item.id));
+  const media = useProjectStore.getState().project.mediaLibrary.items.find((item) => item.id === imported.actionId);
   if (!media) throw new Error("The recorded audio could not be found after import.");
 
   const prefs = useVoiceOverStore.getState().prefs;

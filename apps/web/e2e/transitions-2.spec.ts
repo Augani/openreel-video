@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 import { openHookPage } from "./helpers";
 import { openWithClips } from "./lumetri-basic-lib";
 import { ensureTransitionFixtures } from "./custom-transitions-lib";
-import { applyLibraryPresetAndExport, reopenWithClips, runNewTransitionParity, runPeelShadow, saveSplitToLibrary, storedLibraryPresets } from "./transitions-2-lib";
+import { applyLibraryPresetAndExport, reopenWithClips, runGpuTransitionParity, runNewTransitionParity, runPeelShadow, saveSplitToLibrary, storedLibraryPresets } from "./transitions-2-lib";
 
 // Real-browser coverage of the second round of Premiere-style transitions: the Canvas2D TransitionEngine (the renderer
 // preview and export share) against the software reference at 0, 0.25, 0.5, 0.75 and 1 for every new type and each
@@ -80,3 +80,29 @@ test("a library preset survives a reload, applies and undoes, and the export mat
     expect(row.filter(([rr, gg, bb]) => Math.min(rr, gg, bb) > 100).length, `${label} shows the white border strips`).toBeGreaterThanOrEqual(2);
   }
 });
+
+test("the WebGPU transition renderer matches the Canvas2D engine for every transition at 0, 0.25, 0.5, 0.75 and 1", async ({ page }) => {
+  test.setTimeout(300_000);
+  const warnings: string[] = [];
+  page.on("console", (message) => {
+    if (message.text().includes("TransitionGpu") || message.text().includes("TransitionEngine")) warnings.push(message.text());
+  });
+  await openHookPage(page);
+  const { rows, gpuActive } = await runGpuTransitionParity(page);
+  expect(gpuActive, "WebGPU transitions are active in the gpu project").toBe(true);
+  const worst = [...rows].sort((a, b) => b.mad - a.mad).slice(0, 8);
+  console.log(`[transitions-gpu] ${rows.length} frames; worst mad: ${worst.map((r) => `${r.label}=${r.mad.toFixed(2)}/${r.max}`).join("; ")}`);
+  expect(rows.length).toBeGreaterThan(300);
+  for (const row of rows) {
+    expect(row.path, `${row.label} drew on the GPU (${warnings.join(" | ")})`).toBe("gpu");
+    expect(row.mad, `${row.label} mean abs diff`).toBeLessThan(GPU_MAD_LIMIT[row.type] ?? DEFAULT_GPU_MAD);
+  }
+});
+
+/** Mean absolute 0-255 difference allowed between a GPU frame and the Canvas2D reference. */
+const DEFAULT_GPU_MAD = 1.5;
+const GPU_MAD_LIMIT: Record<string, number> = {
+  // A 64-tap gaussian against the browser's own blur filter: the same look, a different kernel.
+  blur: 3,
+  whipPan: 3.5,
+};

@@ -210,8 +210,11 @@ export function createClipFragment(
     ...ownerMetadata(clip.metadata, clip.id, id),
     splitSourceClipId: clip.metadata?.splitSourceClipId ?? clip.id,
   };
+  // Remove Object's analysis belongs to one clip id and starts at that clip's first frame, so a new piece (the right
+  // half of a split, a pasted copy) cannot reuse it; export would stop on the missing analysis. It is analysed again.
+  const { objectRemoval: _ownRemoval, ...rest } = clip;
   return {
-    ...clip,
+    ...(sameId ? clip : rest),
     id,
     startTime: slice.startTime,
     duration: slice.duration,

@@ -51,6 +51,7 @@ import {
 } from "./smart-render-audio";
 import type { SmartRenderMuxer } from "./encoder-backend";
 import {
+  LoudnessMeter,
   LoudnessNormalizer,
   measureRenderedLoudness,
   planNormalization,
@@ -60,6 +61,9 @@ import {
   activeLoudnessTarget,
   audioBufferChannels,
   buildLoudnessReport,
+  completeLoudnessReport,
+  createOutputMeter,
+  targetNeedsDialogueGate,
   createAudioBufferFromChannels,
   normalizeAudioBuffer,
   type LoudnessExportReport,
@@ -74,6 +78,7 @@ import {
   type BroadcastDeliverySettings,
 } from "./broadcast";
 import { exportRenderTime, frameStartTime } from "../video/frame-time";
+import { addStageTime, resetStageProfile, stageProfileSnapshot } from "../video/frame-stage-profile";
 import { isolateStem, planStems } from "./stem-export";
 import { resolveWebCodecsExportLimits } from "./webcodecs-limits";
 import { checkBrowserExportCapability, getVideoExportValidationError, getMissingExportMedia } from "./browser-capabilities";
@@ -354,10 +359,13 @@ export class ExportEngine {
       }
       checkCancelled();
       phase("capability");
-      await this.initializeGPUForExport(fullSettings.width, fullSettings.height);
-      phase("gpu-init");
+      const shouldUpscale = this.shouldApplyUpscaling(project, fullSettings);
+      if (shouldUpscale) {
+        await this.initializeGPUForExport(fullSettings.width, fullSettings.height);
+        phase("gpu-init");
+      }
       checkCancelled();
-      let smartPlan = await this.planSmartRenderFor(project, fullSettings, backend, exportStart, totalFrames);
+      let smartPlan = fullSettings.segmentWindow ? null : await this.planSmartRenderFor(project, fullSettings, backend, exportStart, totalFrames);
       checkCancelled();
       if (smartPlan?.eligible && backend.smartRender?.prepare) {
         const prepared = await backend.smartRender.prepare(smartPlan, (mediaId) => project.mediaLibrary.items.find((item) => item.id === mediaId)?.blob ?? undefined);
@@ -405,7 +413,9 @@ export class ExportEngine {
       // mixdown (23 s for a minute of a 120-clip timeline) before the first frame. The muxer
       // interleaves the two tracks as they arrive. Only the loop's own progress is reported.
       let audioTask: Promise<void> | undefined;
-      if (backend.audioBeforeVideo) {
+      const segmentWindow = fullSettings.segmentWindow;
+      const withAudio = segmentWindow?.role !== "video";
+      if (backend.audioBeforeVideo && withAudio) {
         audioTask = (async () => {
           try {
             await this.encodeTimelineAudioToBackend(project, backend, fullSettings.audioSettings, exportStart, exportDuration, abortController.signal, fullSettings.broadcast, audioSkip);
@@ -425,7 +435,7 @@ export class ExportEngine {
 
       const mediaEngine = getMediaEngine();
       const videoMediaIds: string[] = [];
-      for (const track of project.timeline.tracks) {
+      for (const track of segmentWindow?.role === "audio" ? [] : project.timeline.tracks) {
         for (const clip of track.clips) {
           if (range && (clip.startTime >= range.endTime || clip.startTime + clip.duration <= range.startTime)) continue;
           const mediaItem = project.mediaLibrary.items.find(
@@ -452,13 +462,19 @@ export class ExportEngine {
       }
 
       phase("decoders");
+      resetStageProfile();
       let renderMsTotal = 0;
       const pipelined = backend.supportsPipelining === true;
       const pipelineDepth = pipelined ? EXPORT_PIPELINE_DEPTH : 1;
       const pendingEncodes: Promise<void>[] = [];
+      const windowStart = segmentWindow?.role === "video" ? Math.max(0, Math.min(totalFrames, segmentWindow.startFrame)) : 0;
       const segments: SmartRenderPlan["segments"] = smartCopy
         ? smartPlan!.segments
-        : [{ kind: "encode", startFrame: 0, endFrame: totalFrames }];
+        : segmentWindow
+          ? segmentWindow.role === "video"
+            ? [{ kind: "encode", startFrame: windowStart, endFrame: Math.max(windowStart, Math.min(totalFrames, segmentWindow.endFrame)) }]
+            : []
+          : [{ kind: "encode", startFrame: 0, endFrame: totalFrames }];
       let copiedFramesDone = 0;
       let copiedRuns = 0;
       const copiedFramesPlanned = smartCopy ? smartPlan!.copiedFrames : 0;
@@ -489,7 +505,8 @@ export class ExportEngine {
       for (let frame = segment.startFrame; frame < segment.endFrame; frame++) {
         checkCancelled();
 
-        const time = frameStartTime(frame, fullSettings.frameRate);
+        // A segment worker's output starts at its own frame 0; the render time below stays absolute.
+        const time = frameStartTime(frame - windowStart, fullSettings.frameRate);
         // The sequence frame on screen at this export instant (the project rate's frame, conformed to the export rate).
         const renderTime = exportRenderTime(frame, fullSettings.frameRate, project.settings.frameRate, exportStart);
         const renderStart = performance.now();
@@ -538,7 +555,9 @@ export class ExportEngine {
         pending.catch(() => undefined);
         pendingEncodes.push(pending);
         if (pendingEncodes.length >= pipelineDepth) {
+          const waitStart = performance.now();
           await pendingEncodes.shift();
+          addStageTime("encode-queue-wait", performance.now() - waitStart);
         }
 
         this.currentExport!.framesRendered = frame + 1;
@@ -570,10 +589,12 @@ export class ExportEngine {
           `[export] render=${(renderMsTotal / totalFrames).toFixed(1)}ms/f frames=${totalFrames}`,
         );
       }
+      const stageSnapshot = stageProfileSnapshot();
+      if (stageSnapshot) console.info(`[export-stages] ${JSON.stringify({ frames: totalFrames, renderMsTotal: Math.round(renderMsTotal), stages: stageSnapshot })}`);
 
       if (audioTask) {
         await audioTask;
-      } else {
+      } else if (withAudio) {
         try {
           await this.encodeTimelineAudioToBackend(project, backend, fullSettings.audioSettings, exportStart, exportDuration, abortController.signal, fullSettings.broadcast, audioSkip);
         } finally {
@@ -600,6 +621,8 @@ export class ExportEngine {
       );
 
       checkCancelled();
+      const measuredLight = hdrTarget?.meter?.result();
+      if (measuredLight) backend.setHdrLightLevel?.(measuredLight);
       // External encoders (native ffmpeg) may legitimately take minutes to drain
       // buffered frames and rewrite the file, so only WebCodecs keeps the watchdog.
       const externalEncoder =
@@ -893,6 +916,7 @@ export class ExportEngine {
 
       if (fullSettings.format === "wav") {
         blob = this.encodeWav(audioBuffer, fullSettings);
+        if (fullSettings.bwf?.enabled) blob = await this.embedBwf(blob, project, fullSettings, audioBuffer.numberOfChannels);
       } else if (isDolbyFormat(fullSettings.format)) {
         blob = await this.encodeDolbyAudioBlob(audioBuffer, fullSettings, this.abortController?.signal);
       } else {
@@ -1293,6 +1317,7 @@ export class ExportEngine {
           ...DEFAULT_VIDEO_SETTINGS,
           ...VIDEO_QUALITY_PRESETS["720p"],
           codec: "h264",
+          audioSettings: { ...DEFAULT_VIDEO_SETTINGS.audioSettings, channelLayout: "stereo" },
         },
       },
       {
@@ -1351,6 +1376,19 @@ export class ExportEngine {
           format: "wav",
           bitDepth: 24,
           sampleRate: 48000,
+        },
+      },
+      {
+        id: "audio-bwf",
+        name: "Broadcast WAV (BWF)",
+        description: "24-bit WAV with bext time reference from the sequence start timecode and iXML track names",
+        category: "broadcast",
+        settings: {
+          ...DEFAULT_AUDIO_SETTINGS,
+          format: "wav",
+          bitDepth: 24,
+          sampleRate: 48000,
+          bwf: { enabled: true },
         },
       },
       {
@@ -1482,6 +1520,7 @@ export class ExportEngine {
     audioSettings: AudioExportSettings,
     rangeStart: number,
     rangeDuration: number,
+    dialogueGate: boolean,
     signal: AbortSignal | undefined = this.abortController?.signal,
   ): Promise<LoudnessSnapshot> {
     return measureRenderedLoudness({
@@ -1489,6 +1528,7 @@ export class ExportEngine {
       channels: audioSettings.channels,
       duration: rangeDuration,
       chunkSeconds: ExportEngine.AUDIO_EXPORT_CHUNK_DURATION_SECONDS,
+      dialogueGate,
       signal,
       render: async (start, duration) => {
         const buffer = await this.renderTimelineAudio(project, rangeStart + start, duration, audioSettings);
@@ -1550,13 +1590,20 @@ export class ExportEngine {
         (track) => !track.muted && trackHasAudioItems(project, track.id),
       );
       if (hasAudio) {
-        const measured = await this.measureMixdownLoudness(project, audioSettings, rangeStart, timelineDuration, signal);
+        const measured = await this.measureMixdownLoudness(project, audioSettings, rangeStart, timelineDuration, targetNeedsDialogueGate(loudnessTarget), signal);
         const plan = planNormalization(measured, loudnessTarget);
         normalizer = new LoudnessNormalizer(plan, loudnessTarget, audioSettings.sampleRate, audioSettings.channels);
         this.loudnessReport = buildLoudnessReport(loudnessTarget, measured, plan, normalizer);
       }
     }
 
+    // Pass 2 also measures what the normalizer emits, for the post-export compliance readout.
+    let outputMeter: LoudnessMeter | undefined;
+    const meterOutput = (channels: Float32Array[], sampleRate: number): void => {
+      if (!normalizer || !loudnessTarget || channels.length === 0) return;
+      outputMeter ??= createOutputMeter(loudnessTarget, sampleRate, channels.length);
+      outputMeter.process(channels);
+    };
     const emit = async (channels: Float32Array[], sampleRate: number): Promise<void> => {
       const out = createAudioBufferFromChannels(channels, sampleRate);
       if (out) await backend.addAudioBuffer(out);
@@ -1599,6 +1646,7 @@ export class ExportEngine {
       if (normalizer) {
         lastSampleRate = audioBuffer.sampleRate;
         const processed = normalizer.process(audioBufferChannels(audioBuffer));
+        meterOutput(processed, audioBuffer.sampleRate);
         // Loudness applies to the stereo mix; the extra tracks of a broadcast layout are silent with it (validated).
         await emit(trackCount > 0 ? layoutBroadcastChannels(channelPlan, processed, [], processed[0]?.length ?? 0) : processed, audioBuffer.sampleRate);
       } else if (trackCount > 0) {
@@ -1619,10 +1667,14 @@ export class ExportEngine {
     if (normalizer) {
       // The look-ahead limiter holds back a few milliseconds; write them out.
       const tail = normalizer.flush();
+      meterOutput(tail, lastSampleRate);
       if (tail.length) await emit(trackCount > 0 ? layoutBroadcastChannels(channelPlan, tail, [], tail[0]?.length ?? 0) : tail, lastSampleRate);
       // Reflect the final limiter reduction in the report.
       if (this.loudnessReport) {
         this.loudnessReport = { ...this.loudnessReport, maxGainReductionDb: normalizer.maxGainReductionDb };
+        if (outputMeter && loudnessTarget) {
+          this.loudnessReport = completeLoudnessReport(this.loudnessReport, loudnessTarget, outputMeter.snapshot());
+        }
       }
     }
   }
@@ -1699,6 +1751,28 @@ export class ExportEngine {
       params: { codec, channels, bitrateKbps: settings.bitrate, sampleRate: buffer.sampleRate, dialnorm: settings.dialnorm ?? DEFAULT_DIALNORM },
     }, signal);
     return new Blob([bytes.buffer as ArrayBuffer], { type: dolbyMimeType(codec) });
+  }
+
+  /** Broadcast Wave: adds the bext and iXML chunks (lazy: the module is only fetched for BWF deliveries). */
+  private async embedBwf(wav: Blob, project: Project, settings: AudioExportSettings, channelCount: number): Promise<Blob> {
+    const { applyBwfMetadata } = await import("./bwf");
+    const channels = Math.min(channelCount, settings.channels);
+    const names = channels === 1 ? ["Mix"] : channels === 2 ? ["Mix L", "Mix R"] : ["Mix L", "Mix R", "Mix C", "Mix LFE", "Mix Ls", "Mix Rs"].slice(0, channels);
+    const sources = project.timeline.tracks
+      .filter((t) => (t.type === "audio" || t.type === "video") && t.clips.length > 0 && !t.muted)
+      .map((t) => t.name);
+    const bytes = applyBwfMetadata(new Uint8Array(await wav.arrayBuffer()), {
+      projectName: project.name,
+      description: settings.bwf?.description,
+      originator: settings.bwf?.originator,
+      sampleRate: settings.sampleRate,
+      startTimecode: project.settings.startTimecode,
+      frameRate: project.settings.frameRate,
+      sourceTrackNames: sources,
+      channelNames: names,
+      bitDepth: settings.bitDepth,
+    });
+    return new Blob([bytes.buffer as ArrayBuffer], { type: "audio/wav" });
   }
 
   private encodeWav(buffer: AudioBuffer, settings: AudioExportSettings): Blob {

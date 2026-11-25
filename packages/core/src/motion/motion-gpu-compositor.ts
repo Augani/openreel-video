@@ -50,7 +50,7 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
   let backdrop = textureSample(backdropTex, pointSampler, in.uv);
   var layer = textureSample(layerTex, pointSampler, in.uv);
   layer.a = clamp(layer.a * params.opacity, 0.0, 1.0);
-  return motionComposite(backdrop, layer, params.mode);
+  return motionComposite(backdrop, layer, params.mode, vec2<u32>(u32(in.pos.x), u32(in.pos.y)));
 }
 `;
 }

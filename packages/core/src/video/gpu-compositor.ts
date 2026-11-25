@@ -247,17 +247,8 @@ export class GPUCompositor {
         }
       }
 
+      // The blend mode needs the backdrop: the renderer composites the layer in its own pass (RenderLayer.blendMode).
       const effectsToApply = [...layer.effects];
-
-      if (layer.blendMode !== "normal") {
-        effectsToApply.push({
-          id: `blend-${layer.id}`,
-          type: "blend",
-          enabled: true,
-          params: { mode: layer.blendMode },
-        });
-      }
-
       if (effectsToApply.length > 0) {
         texture = this.renderer.applyEffects(texture, effectsToApply);
       }
@@ -266,6 +257,7 @@ export class GPUCompositor {
         texture,
         transform: layer.transform,
         effects: [],
+        blendMode: layer.blendMode,
         opacity: layer.opacity,
         borderRadius: layer.borderRadius,
       };

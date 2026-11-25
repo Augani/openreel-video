@@ -16,13 +16,38 @@ import type {
   Track,
 } from "../types";
 import { SURROUND_CHANNELS } from "./surround";
+import { hasRackEffectAutomation, isAutomatableRackParam, sanitizeRackEffectAutomation, scheduleParamAutomation } from "./rack-effect-automation";
 import { createLinkedCompressorStage, createMultichannelConvolver, needsMultichannelNodes, pinChannels } from "./multichannel-fx";
 import { createNoiseReductionNodeChain } from "./audio-effects-engine";
 import { REPAIR_EFFECT_DEFINITIONS, sanitizeRepairParams, repairWarmupSeconds } from "./repair/repair-definitions";
 import { createRepairChainNode, registerGainReductionSource } from "./repair/repair-node";
 import { isRepairEffectType as isRepairType, REPAIR_EFFECT_TYPES, type RepairEffectType } from "./repair/repair-dsp";
+import {
+  CREATIVE_FX_DEFINITIONS,
+  CREATIVE_FX_TYPES,
+  creativeFxTailSeconds,
+  isCreativeFxType,
+  sanitizeCreativeParams,
+  type CreativeFxType,
+} from "./creative/creative-fx-definitions";
+import { createCreativeFxNode } from "./creative/creative-fx-node";
+import { KEY_HPF_PARAM, KEY_SOURCE_PARAM, compressorKeySource, parseKeySource, type SidechainKeyHub } from "./sidechain";
 
-export const MAX_RACK_EFFECTS = 5;
+/** Default number of effect slots in a rack (Premiere shows five; creative effects make longer chains normal). */
+export const MAX_RACK_EFFECTS = 12;
+/** Hard ceiling for `setMaxRackEffects`: every slot is a live node chain, so the cap stays bounded. */
+export const RACK_EFFECTS_HARD_LIMIT = 32;
+let configuredMaxRackEffects = MAX_RACK_EFFECTS;
+
+/** Slots a rack may hold right now (default `MAX_RACK_EFFECTS`). */
+export const getMaxRackEffects = (): number => configuredMaxRackEffects;
+
+/** Makes the per-rack slot cap configurable (clamped to 1..RACK_EFFECTS_HARD_LIMIT). Returns the value applied. */
+export function setMaxRackEffects(count: number): number {
+  const next = Number.isFinite(count) ? Math.max(1, Math.min(RACK_EFFECTS_HARD_LIMIT, Math.floor(count))) : MAX_RACK_EFFECTS;
+  configuredMaxRackEffects = next;
+  return next;
+}
 export const RACK_MAX_VOLUME = 4;
 
 export const AUDIO_RACK_EFFECT_TYPES: readonly AudioRackEffectType[] = [
@@ -34,6 +59,7 @@ export const AUDIO_RACK_EFFECT_TYPES: readonly AudioRackEffectType[] = [
   "delay",
   "noiseReduction",
   ...REPAIR_EFFECT_TYPES,
+  ...CREATIVE_FX_TYPES,
 ];
 
 export interface RackParamSpec {
@@ -46,6 +72,8 @@ export interface RackParamSpec {
   readonly unit: string;
   /** Rendered as an on/off switch (value 0/1). */
   readonly toggle?: boolean;
+  /** Value is an index into these labels (rendered as a select). */
+  readonly options?: readonly string[];
 }
 
 export interface RackEffectDefinition {
@@ -54,6 +82,10 @@ export interface RackEffectDefinition {
   readonly params: readonly RackParamSpec[];
   /** True for the worklet-backed repair effects (DeHum, DeClick, DeClip, DeEss, DeReverb, Gate). */
   readonly repair?: boolean;
+  /** True for the worklet-backed creative / utility effects (Chorus, Flanger, Phaser, Distortion, ...). */
+  readonly creative?: boolean;
+  /** One line shown under the effect name. */
+  readonly description?: string;
 }
 
 const repairDefinitions = Object.fromEntries(
@@ -62,6 +94,13 @@ const repairDefinitions = Object.fromEntries(
     return [type, { type, label: def.label, params: def.params, repair: true } satisfies RackEffectDefinition];
   }),
 ) as Record<RepairEffectType, RackEffectDefinition>;
+
+const creativeDefinitions = Object.fromEntries(
+  CREATIVE_FX_TYPES.map((type) => {
+    const def = CREATIVE_FX_DEFINITIONS[type];
+    return [type, { type, label: def.label, params: def.params, creative: true, description: def.description } satisfies RackEffectDefinition];
+  }),
+) as Record<CreativeFxType, RackEffectDefinition>;
 
 const p = (
   key: string,
@@ -103,7 +142,9 @@ export const AUDIO_RACK_EFFECT_DEFINITIONS: Record<
       p("release", "Release", 0.01, 3, 0.01, 0.25, "s"),
       p("knee", "Knee", 0, 40, 0.5, 30, "dB"),
       p("makeupGain", "Makeup gain", 0, 24, 0.1, 0, "dB"),
+      p(KEY_HPF_PARAM, "Key high-pass", 20, 2000, 10, 20, "Hz"),
     ],
+    description: "Pick a track or bus as the sidechain key and the compressor detects on it instead of its own signal.",
   },
   limiter: {
     type: "limiter",
@@ -143,6 +184,7 @@ export const AUDIO_RACK_EFFECT_DEFINITIONS: Record<
     ],
   },
   ...repairDefinitions,
+  ...creativeDefinitions,
 };
 
 const NOISE_FOCUS = new Set([
@@ -181,6 +223,7 @@ export function sanitizeRackEffectParams(
   raw: Record<string, unknown> | undefined,
 ): Record<string, number | string | boolean> {
   if (isRepairType(type)) return sanitizeRepairParams(type, raw);
+  if (isCreativeFxType(type)) return sanitizeCreativeParams(type, raw);
   const out = defaultRackEffectParams(type);
   for (const spec of AUDIO_RACK_EFFECT_DEFINITIONS[type].params) {
     const v = raw?.[spec.key];
@@ -191,6 +234,10 @@ export function sanitizeRackEffectParams(
   if (type === "noiseReduction") {
     const focus = raw?.focus;
     if (typeof focus === "string" && NOISE_FOCUS.has(focus)) out.focus = focus;
+  }
+  if (type === "compressor") {
+    const key = raw?.[KEY_SOURCE_PARAM];
+    if (typeof key === "string" && key.length <= 160 && parseKeySource(key)) out[KEY_SOURCE_PARAM] = key;
   }
   return out;
 }
@@ -221,12 +268,16 @@ export function sanitizeAudioRack(raw: unknown): AudioRack | undefined {
   const seen = new Set<string>();
   if (Array.isArray(r.effects)) {
     for (const e of r.effects) {
-      if (effects.length >= MAX_RACK_EFFECTS) break;
+      if (effects.length >= getMaxRackEffects()) break;
       if (!e || typeof e !== "object" || !isAudioRackEffectType(e.type)) continue;
       let id =
         typeof e.id === "string" && e.id.length > 0 ? e.id : createRackEffect(e.type).id;
       while (seen.has(id)) id = `${id}-${effects.length}`;
       seen.add(id);
+      const automation = sanitizeRackEffectAutomation(e.type, e.automation, (key) => {
+        const spec = AUDIO_RACK_EFFECT_DEFINITIONS[e.type].params.find((x) => x.key === key);
+        return spec ? { min: spec.min, max: spec.max } : undefined;
+      });
       effects.push({
         id,
         type: e.type,
@@ -235,6 +286,7 @@ export function sanitizeAudioRack(raw: unknown): AudioRack | undefined {
           e.params as Record<string, unknown> | undefined,
         ),
         bypassed: e.bypassed === true,
+        ...(automation ? { automation } : {}),
       });
     }
   }
@@ -262,6 +314,10 @@ export const rackPan = (rack: AudioRack | undefined): number => rack?.pan ?? 0;
 
 export const rackHasProcessing = (rack: AudioRack | undefined): boolean =>
   !!rack && rack.effects.some((e) => !e.bypassed);
+
+/** True when any non-bypassed effect carries param keyframes. */
+export const rackHasAutomation = (rack: AudioRack | undefined): boolean =>
+  !!rack && rack.effects.some((e) => !e.bypassed && hasRackEffectAutomation(e));
 
 /** Migration: sanitise racks on load; old projects without racks are returned untouched. */
 export function normalizeProjectAudioRacks(project: Project): Project {
@@ -334,6 +390,7 @@ export function estimateRackTailSeconds(
         tail += repairWarmupSeconds(fx.type) + 2048 / sampleRate;
         break;
       default:
+        if (isCreativeFxType(fx.type)) tail += creativeFxTailSeconds(fx.type, fx.params);
         break;
     }
   }
@@ -345,6 +402,7 @@ export function estimateRackTailSeconds(
 /* ------------------------------------------------------------------ */
 
 const dbToLinear = (db: number) => Math.pow(10, db / 20);
+const identity = (value: number) => value;
 
 /** Deterministic PRNG so live and offline reverbs use the same impulse. */
 function mulberry32(seed: number): () => number {
@@ -421,6 +479,12 @@ interface EffectVoice {
   update(params: AudioRackEffect["params"], smooth: boolean): boolean;
   /** Optional teardown for voices that own worklet nodes. */
   dispose?(): void;
+  /** Timeline clock for modulated effects: seconds to add to the context time to get timeline time. */
+  setClockOffset?(seconds: number): void;
+  /** Worklet-backed voices: called once the worklet node exists (its AudioParams then appear in `automatable`). */
+  onReady?(fn: () => void): void;
+  /** AudioParams that can carry keyframes, by param key; `toParam` maps the param's own unit to the AudioParam value. */
+  readonly automatable?: Record<string, { readonly param: AudioParam; readonly toParam: (native: number) => number }>;
 }
 
 const num = (params: AudioRackEffect["params"], key: string, def: number) => {
@@ -453,6 +517,65 @@ function linkedDynamicsParams(fx: AudioRackEffect["type"], p: AudioRackEffect["p
   };
 }
 
+/** Where a rack bus finds sidechain keys: the shared hub, and the id of the track/bus/master that owns the rack. */
+export interface RackSidechain {
+  readonly hub: SidechainKeyHub;
+  readonly ownerId: string;
+}
+
+/** The sidechain key a compressor really listens to (configured and legal right now), or null. */
+function resolveRackKey(fx: AudioRackEffect, sidechain: RackSidechain | undefined): string | null {
+  if (fx.type !== "compressor" || !sidechain) return null;
+  const key = compressorKeySource(fx.params);
+  return key && sidechain.hub.isValidKey(sidechain.ownerId, key) ? key : null;
+}
+
+/** Keyed compressor params: the linked compressor's dynamics plus the key high-pass. */
+function keyedCompressorParams(p: AudioRackEffect["params"]): Record<string, number> {
+  return { ...linkedDynamicsParams("compressor", p), [KEY_HPF_PARAM]: clamp(num(p, KEY_HPF_PARAM, 20), 20, 2000) };
+}
+
+/**
+ * A compressor that detects on a sidechain key (another track or bus) instead of its own signal. Runs the linked
+ * worklet compressor (same 6 ms lookahead as the native node, so delay compensation is unchanged) with a second
+ * input for the key; its dynamics settings are AudioParams, so keyframe automation reaches them like the native one.
+ */
+function createKeyedCompressorVoice(
+  ctx: BaseAudioContext,
+  fx: AudioRackEffect,
+  channels: number,
+  sidechain: RackSidechain,
+  keySource: string,
+): EffectVoice {
+  const chain = createRepairChainNode(ctx, "linkedCompressor", keyedCompressorParams(fx.params), { channels, meterId: fx.id, keyed: true });
+  const tap = sidechain.hub.tap(keySource);
+  if (chain.keyInput) tap.connect(chain.keyInput);
+  return {
+    input: chain.input,
+    output: chain.output,
+    nodes: chain.nodes,
+    onReady: (fn) => chain.onAttach?.(fn),
+    get automatable() {
+      const params = chain.getParams?.();
+      if (!params) return undefined;
+      return Object.fromEntries(Object.entries(params).map(([key, param]) => [key, { param, toParam: identity }]));
+    },
+    update(next) {
+      if (compressorKeySource(next) !== keySource) return false;
+      chain.update(keyedCompressorParams(next));
+      return true;
+    },
+    dispose() {
+      try {
+        if (chain.keyInput) tap.disconnect(chain.keyInput);
+      } catch {
+        /* already disconnected */
+      }
+      chain.dispose();
+    },
+  };
+}
+
 /**
  * One effect as Web Audio nodes. `channels` is what flows through the rack: 2 for a stereo rack (the exact
  * nodes it always had), 6 in a 5.1 sequence, where dynamics and convolution run on all channels at once
@@ -462,9 +585,14 @@ function createVoice(
   ctx: BaseAudioContext,
   fx: AudioRackEffect,
   channels = 2,
+  sidechain?: RackSidechain,
 ): EffectVoice {
   const params = fx.params;
   const multi = needsMultichannelNodes(channels);
+  if (isCreativeFxType(fx.type)) return createCreativeVoice(ctx, fx.type, params, channels);
+  // A key that is gone or would close a feedback loop is ignored: the compressor then detects on its own signal.
+  const keySource = resolveRackKey(fx, sidechain);
+  if (keySource && sidechain) return createKeyedCompressorVoice(ctx, fx, channels, sidechain, keySource);
   switch (fx.type) {
     case "gain": {
       const gain = pinChannels(ctx.createGain(), channels);
@@ -473,6 +601,7 @@ function createVoice(
         input: gain,
         output: gain,
         nodes: [gain],
+        automatable: { gainDb: { param: gain.gain, toParam: dbToLinear } },
         update(next, smooth) {
           setParam(gain.gain, dbToLinear(num(next, "gainDb", 0)), ctx, smooth);
           return true;
@@ -502,6 +631,13 @@ function createVoice(
         input: low,
         output: high,
         nodes: [low, mid, high],
+        automatable: {
+          lowGain: { param: low.gain, toParam: identity },
+          midGain: { param: mid.gain, toParam: identity },
+          midFreq: { param: mid.frequency, toParam: identity },
+          midQ: { param: mid.Q, toParam: identity },
+          highGain: { param: high.gain, toParam: identity },
+        },
         update(next, smooth) {
           apply(next, smooth);
           return true;
@@ -587,6 +723,16 @@ function createVoice(
         input: comp,
         output: makeup,
         nodes: shaper ? [comp, shaper, makeup] : [comp, makeup],
+        automatable: isLimiter
+          ? undefined
+          : {
+              threshold: { param: comp.threshold, toParam: identity },
+              ratio: { param: comp.ratio, toParam: identity },
+              attack: { param: comp.attack, toParam: identity },
+              release: { param: comp.release, toParam: identity },
+              knee: { param: comp.knee, toParam: identity },
+              makeupGain: { param: makeup.gain, toParam: dbToLinear },
+            },
         update(next, smooth) {
           apply(next, smooth);
           return true;
@@ -708,6 +854,34 @@ function createVoice(
   }
 }
 
+function createCreativeVoice(
+  ctx: BaseAudioContext,
+  type: CreativeFxType,
+  params: AudioRackEffect["params"],
+  channels: number,
+): EffectVoice {
+  const chain = createCreativeFxNode(ctx, type, { ...params }, { channels });
+  return {
+    input: chain.input,
+    output: chain.output,
+    nodes: chain.nodes,
+    onReady: (fn) => chain.onAttach(fn),
+    setClockOffset: (seconds) => chain.setClockOffset(seconds),
+    get automatable() {
+      const lanes = chain.getParams();
+      if (!lanes) return undefined;
+      const out: Record<string, { readonly param: AudioParam; readonly toParam: (native: number) => number }> = {};
+      for (const [key, param] of Object.entries(lanes)) if (isAutomatableRackParam(type, key)) out[key] = { param, toParam: identity };
+      return out;
+    },
+    update(next) {
+      chain.update({ ...next });
+      return true;
+    },
+    dispose: () => chain.dispose(),
+  };
+}
+
 interface RackSlot {
   effect: AudioRackEffect;
   readonly input: GainNode;
@@ -715,6 +889,8 @@ interface RackSlot {
   readonly wet: GainNode;
   readonly output: GainNode;
   voice: EffectVoice | null;
+  /** The sidechain key the current voice was built for (compressors), so a key change rebuilds it. */
+  keyedWith: string | null;
   /** True once `output` has been connected downstream (so rewiring must disconnect it). */
   wired: boolean;
 }
@@ -731,6 +907,8 @@ export interface AudioRackBusOptions {
   readonly surround?: boolean;
   /** Channels carried by the bus (default 2). `createRackBus` sets 6 for surround. */
   readonly channels?: number;
+  /** Sidechain keys for compressors in this rack (the hub shared by every rack of one graph, and the rack's owner id). */
+  readonly sidechain?: RackSidechain;
 }
 
 /** What the mixer, routing graph and realtime graph need from a rack bus (stereo or 5.1). */
@@ -741,6 +919,13 @@ export interface RackBusLike {
   readonly rebuildCount: number;
   getSlotCount(): number;
   update(next: AudioRack | undefined): void;
+  /** Place effect param keyframes: timeline `timelineStart` plays at context time `ctxStart` for `duration` seconds. */
+  scheduleAutomation?(timelineStart: number, duration: number, ctxStart: number): void;
+  /** Tell modulated effects (chorus, flanger, phaser) that timeline second `timelineStart` plays at context time `ctxStart`. */
+  anchorTimeline?(timelineStart: number, ctxStart: number): void;
+  stopAutomation?(): void;
+  /** Drop every keyframe schedule and return the params to their static values (automation mode Off). */
+  clearAutomation?(): void;
   dispose(): void;
 }
 
@@ -757,6 +942,8 @@ export class AudioRackBus {
   private slots: RackSlot[] = [];
   private rack: AudioRack = { effects: [] };
   private inputWired = false;
+  /** Where keyframed effect params play from (set by scheduleAutomation); automation is only placed once known. */
+  private automationWindow: { timelineStart: number; duration: number; ctxStart: number } | null = null;
   /** Counts structural graph operations; tests use it to prove incrementality. */
   rebuildCount = 0;
   private readonly channels: number;
@@ -803,6 +990,69 @@ export class AudioRackBus {
     this.slots = nextSlots;
     this.rack = rack;
     if (!sameOrder || this.rebuildCount === 0) this.rewire();
+    if (this.automationWindow) this.applyAutomation();
+  }
+
+  /** Where the timeline clock of modulated effects points: seconds to add to context time (null until anchored). */
+  private clockOffset: number | null = null;
+
+  /**
+   * Anchors the LFO of chorus / flanger / phaser to the timeline: timeline second `timelineStart` plays at context time
+   * `ctxStart`. Live buses call this on play and seek, offline renders once with ctxStart 0 and the (pre-rolled) window
+   * start, so preview and export modulate identically at every timeline position.
+   */
+  anchorTimeline(timelineStart: number, ctxStart: number): void {
+    this.clockOffset = timelineStart - ctxStart;
+    for (const slot of this.slots) slot.voice?.setClockOffset?.(this.clockOffset);
+  }
+
+  /**
+   * Places the keyframes of every effect param: timeline second `timelineStart` plays at context time `ctxStart`
+   * for `duration` seconds. Live buses call this on play, seek and lane edits; offline renders once with ctxStart 0.
+   */
+  scheduleAutomation(timelineStart: number, duration: number, ctxStart: number): void {
+    this.automationWindow = { timelineStart, duration, ctxStart };
+    this.applyAutomation();
+  }
+
+  /** Forget the playing window (pause/stop): later rack edits keep the static values instead of re-playing the lanes. */
+  stopAutomation(): void {
+    this.automationWindow = null;
+  }
+
+  clearAutomation(): void {
+    this.automationWindow = null;
+    const now = this.ctx.currentTime;
+    for (const slot of this.slots) {
+      for (const [key, target] of Object.entries(slot.voice?.automatable ?? {})) {
+        if (!slot.effect.automation?.[key]?.length) continue;
+        const stored = slot.effect.params[key];
+        target.param.cancelScheduledValues(0);
+        target.param.setValueAtTime(target.toParam(typeof stored === "number" ? stored : 0), now);
+      }
+    }
+  }
+
+  private applyAutomation(): void {
+    let window = this.automationWindow;
+    if (!window) return;
+    if (this.options.live) {
+      // Re-anchor to "now" so a rack edit during playback continues the curve instead of replaying the past.
+      const elapsed = Math.max(0, Math.min(window.duration, this.ctx.currentTime - window.ctxStart));
+      window = { timelineStart: window.timelineStart + elapsed, duration: window.duration - elapsed, ctxStart: this.ctx.currentTime };
+    }
+    for (const slot of this.slots) {
+      const automatable = slot.voice?.automatable;
+      if (!automatable) continue;
+      const lanes = slot.effect.automation;
+      for (const [key, target] of Object.entries(automatable)) {
+        const points = lanes?.[key];
+        if (!points || points.length === 0) continue;
+        const stored = slot.effect.params[key];
+        const base = typeof stored === "number" ? stored : 0;
+        scheduleParamAutomation(target.param, points, base, target.toParam, window.timelineStart, window.duration, window.ctxStart);
+      }
+    }
   }
 
   private rewire(): void {
@@ -828,6 +1078,7 @@ export class AudioRackBus {
       wet: pinned(),
       output: pinned(),
       voice: null,
+      keyedWith: null,
       wired: false,
     };
     slot.input.connect(slot.dry);
@@ -841,10 +1092,15 @@ export class AudioRackBus {
 
   private buildVoice(slot: RackSlot): void {
     this.releaseVoice(slot);
-    const voice = createVoice(this.ctx, slot.effect, this.channels);
+    slot.keyedWith = resolveRackKey(slot.effect, this.options.sidechain);
+    const voice = createVoice(this.ctx, slot.effect, this.channels, this.options.sidechain);
+    voice.onReady?.(() => {
+      if (this.automationWindow && slot.voice === voice) this.applyAutomation();
+    });
     slot.input.connect(voice.input);
     voice.output.connect(slot.wet);
     slot.voice = voice;
+    if (this.clockOffset !== null) voice.setClockOffset?.(this.clockOffset);
   }
 
   private releaseVoice(slot: RackSlot): void {
@@ -874,11 +1130,26 @@ export class AudioRackBus {
       setParam(slot.dry.gain, fx.bypassed ? 1 : 0, this.ctx, smooth);
       setParam(slot.wet.gain, fx.bypassed ? 0 : 1, this.ctx, smooth);
     }
-    if (slot.voice && !paramsEqual(prev.params, fx.params)) {
+    if (prev.automation !== fx.automation && slot.voice?.automatable) this.clearRemovedAutomation(slot, prev, fx);
+    if (slot.voice && fx.type === "compressor" && resolveRackKey(fx, this.options.sidechain) !== slot.keyedWith) {
+      this.buildVoice(slot);
+      this.rebuildCount += 1;
+    } else if (slot.voice && !paramsEqual(prev.params, fx.params)) {
       if (!slot.voice.update(fx.params, smooth)) {
         this.buildVoice(slot);
         this.rebuildCount += 1;
       }
+    }
+  }
+
+  /** A lane that was removed returns its param to the static value instead of holding the old curve. */
+  private clearRemovedAutomation(slot: RackSlot, prev: AudioRackEffect, next: AudioRackEffect): void {
+    for (const [key, target] of Object.entries(slot.voice?.automatable ?? {})) {
+      if (!prev.automation?.[key]?.length || next.automation?.[key]?.length) continue;
+      const stored = next.params[key];
+      if (typeof stored !== "number") continue;
+      target.param.cancelScheduledValues(0);
+      target.param.setValueAtTime(target.toParam(stored), this.ctx.currentTime);
     }
   }
 
@@ -916,6 +1187,6 @@ function paramsEqual(
 /** The rack bus for a layout: the unchanged stereo `AudioRackBus`, or the 5.1 pair-split one. */
 export function createRackBus(ctx: BaseAudioContext, rack: AudioRack | undefined, options: AudioRackBusOptions): RackBusLike {
   return options.surround
-    ? new AudioRackBus(ctx, rack, { live: options.live, channels: SURROUND_CHANNELS })
+    ? new AudioRackBus(ctx, rack, { live: options.live, channels: SURROUND_CHANNELS, sidechain: options.sidechain })
     : new AudioRackBus(ctx, rack, options);
 }

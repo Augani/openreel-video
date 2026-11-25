@@ -3,8 +3,8 @@ import { blendRGBA, type RGBAFrame } from "../time-interpolation/frame-blend";
 import { synthesizeFrame } from "../time-interpolation/optical-flow-cpu";
 import { psnr, renderScene, texture } from "../time-interpolation/synthetic-scenes";
 import { alignFrames, applySimilarity, fitSimilarity, invertSimilarity, similarityRotationDeg, similarityScale } from "./alignment";
-import { analyseMorphCut, composeFields, cpuDenseBackend } from "./analysis";
-import { runMorphCutAnalysis, morphCutCacheKey } from "./analyse-job";
+import { analyseMorphCut, composeFields, cpuDenseBackend, MorphCutCancelled } from "./analysis";
+import { cancelMorphCutAnalysis, restartMorphCutAnalysis, runMorphCutAnalysis, morphCutCacheKey } from "./analyse-job";
 import { getMorphCutRegistry } from "./registry";
 import { fieldToFlowPair } from "./render";
 import { darkBlob, eyePosition, gradientCorrelation, headOutlineMask, jumpCut, NEUTRAL_CAMERA, type CameraPose, type FacePose } from "./synthetic-faces";
@@ -249,6 +249,80 @@ describe("Morph Cut: analysis job, registry and cache", () => {
     registry.clear();
     await runMorphCutAnalysis({ transitionId: "nf", key: "nf-key", quality: "low", loadFrames: async () => null });
     expect(registry.getState("nf").status).toBe("failed");
+    registry.clear();
+  });
+});
+
+const lumaOf = (f: RGBAFrame): Float32Array => {
+  const out = new Float32Array(f.width * f.height);
+  for (let i = 0; i < out.length; i++) out[i] = 0.2126 * f.data[i * 4] + 0.7152 * f.data[i * 4 + 1] + 0.0722 * f.data[i * 4 + 2];
+  return out;
+};
+/** Mean absolute luma change between two consecutive output frames. */
+const lumaStep = (x: RGBAFrame, y: RGBAFrame): number => {
+  const a = lumaOf(x);
+  const b = lumaOf(y);
+  let sum = 0;
+  for (let i = 0; i < a.length; i++) sum += Math.abs(a[i] - b[i]);
+  return sum / a.length;
+};
+
+describe("Morph Cut: temporal smoothness of a talking-head jump cut", () => {
+  it("the largest per-frame luma jump across the transition is at least 3x smaller than the hard cut", async () => {
+    const { cut, analysis } = await analyse(A, B);
+    expect(analysis.ok).toBe(true);
+    const N = 12;
+    const hard = lumaStep(cut.a, cut.b);
+    const frames: RGBAFrame[] = [cut.a];
+    for (let i = 1; i < N; i++) frames.push(morphAt(cut, analysis, i / N));
+    frames.push(cut.b);
+    let maxStep = 0;
+    for (let i = 1; i < frames.length; i++) maxStep = Math.max(maxStep, lumaStep(frames[i - 1], frames[i]));
+    console.log(`[morph-cut] hard cut luma jump ${hard.toFixed(3)}, max per-frame jump across ${N}-frame morph ${maxStep.toFixed(3)} (${(hard / maxStep).toFixed(1)}x)`);
+    expect(hard).toBeGreaterThan(0.5);
+    expect(hard / maxStep).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("Morph Cut: cancelling the analysis", () => {
+  it("analyseMorphCut rejects with MorphCutCancelled when its signal is aborted", async () => {
+    const cut = jumpCut(W, H, A, B);
+    const controller = new AbortController();
+    controller.abort();
+    await expect(analyseMorphCut(cut.a, cut.b, { key: "c", quality: "low", backend: cpuDenseBackend, signal: controller.signal })).rejects.toBeInstanceOf(MorphCutCancelled);
+  });
+
+  it("cancelling a running job publishes cancelled, caches nothing, and is not restarted until asked", async () => {
+    const registry = getMorphCutRegistry();
+    registry.clear();
+    const cut = jumpCut(W, H, A, B);
+    const key = "cancel-key";
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const job = { transitionId: "tc", key, quality: "low" as const, loadFrames: async () => { await gate; return { a: cut.a, b: cut.b }; } };
+    const pending = runMorphCutAnalysis(job);
+    expect(registry.getState("tc").status).toBe("analysing");
+    expect(cancelMorphCutAnalysis("tc")).toBe(true);
+    release();
+    expect(await pending).toBeNull();
+    expect(registry.getState("tc").status).toBe("cancelled");
+    expect(registry.hasResult(key)).toBe(false);
+    expect(registry.resolve("tc")).toBeNull();
+    expect(cancelMorphCutAnalysis("tc")).toBe(false);
+
+    // the background scan asking again for the same cut does not restart it
+    let loads = 0;
+    const again = { ...job, loadFrames: async () => { loads++; return { a: cut.a, b: cut.b }; } };
+    expect(await runMorphCutAnalysis(again)).toBeNull();
+    expect(loads).toBe(0);
+
+    // Analyse again clears the cancelled state and the same job then completes and caches
+    restartMorphCutAnalysis("tc");
+    expect(registry.getState("tc").status).toBe("idle");
+    const done = await runMorphCutAnalysis(again);
+    expect(done?.ok).toBe(true);
+    expect(loads).toBe(1);
+    expect(registry.getState("tc").status).toBe("ready");
     registry.clear();
   });
 });

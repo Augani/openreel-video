@@ -121,7 +121,8 @@ describe("deferred preview 3D renderer", () => {
 
   it("does not allocate a late GPU renderer after preview cleanup and can render when reopened", async () => {
     const s = fixture;
-    const title3d: TextClip = { ...text, blendMode: "multiply" };
+    // Blend modes no longer route through THREE (they composite per pixel like export); a 3D rotation still does.
+    const title3d: TextClip = { ...text, transform: { ...text.transform, rotate3d: { x: 25, y: 10, z: 0 } } };
     const frame = s.api.renderTextClipToCanvas(s.ctx, title3d, 640, 360, 1);
     await vi.waitFor(() => expect(s.moduleLoad).toHaveBeenCalledOnce());
     s.api.disposePreview3DRenderer();

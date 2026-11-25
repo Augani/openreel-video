@@ -1,8 +1,12 @@
 import {
+  LoudnessMeter,
   LoudnessNormalizer,
+  evaluateCompliance,
   isValidLoudnessTarget,
   measureLoudness,
   planNormalization,
+  type ComplianceResult,
+  type LoudnessGating,
   type LoudnessSnapshot,
   type LoudnessTargetSettings,
   type NormalizationPlan,
@@ -23,6 +27,54 @@ export interface LoudnessExportReport {
   readonly maxGainReductionDb: number;
   /** The mixdown was silent, so nothing could be normalized. */
   readonly silent: boolean;
+  /** Delivery spec the target came from, when one was chosen. */
+  readonly specId?: string;
+  /** Measurement the gain was derived from. */
+  readonly basis: LoudnessGating;
+  /** Integrated loudness of the dialogue only in the mixdown, when the spec gates on dialogue. */
+  readonly measuredDialogueLufs?: number;
+  /** A dialogue-gated spec found no dialogue, so the program loudness was normalized instead. */
+  readonly dialogueFallback: boolean;
+  /** The normalized output as measured after processing (what is encoded, before codec rounding). */
+  readonly output?: {
+    readonly integrated: number;
+    readonly dialogueIntegrated?: number;
+    readonly loudnessRange: number;
+    readonly truePeak: number;
+  };
+  /** Pass / fail of `output` against the delivery spec. */
+  readonly compliance?: ComplianceResult;
+}
+
+/** True when the target's spec is measured on dialogue, so the meters must run the speech gate. */
+export const targetNeedsDialogueGate = (target: Pick<LoudnessTargetSettings, "gating">): boolean =>
+  target.gating === "dialogue";
+
+/** A meter configured to measure the normalized output the way the target is specified. */
+export function createOutputMeter(
+  target: Pick<LoudnessTargetSettings, "gating">,
+  sampleRate: number,
+  channels: number,
+): LoudnessMeter {
+  return new LoudnessMeter(sampleRate, channels, { dialogueGate: targetNeedsDialogueGate(target) });
+}
+
+/** Adds the measured output and its pass / fail readout to a report. */
+export function completeLoudnessReport(
+  report: LoudnessExportReport,
+  target: LoudnessTargetSettings,
+  output: LoudnessSnapshot,
+): LoudnessExportReport {
+  return {
+    ...report,
+    output: {
+      integrated: output.integrated,
+      ...(output.dialogueIntegrated !== undefined ? { dialogueIntegrated: output.dialogueIntegrated } : {}),
+      loudnessRange: output.loudnessRange,
+      truePeak: output.truePeak,
+    },
+    compliance: evaluateCompliance(target, output),
+  };
 }
 
 export function activeLoudnessTarget(
@@ -47,6 +99,10 @@ export function buildLoudnessReport(
     limiterEngaged: plan.limiterRequired,
     maxGainReductionDb: normalizer.maxGainReductionDb,
     silent: plan.silent,
+    ...(target.specId ? { specId: target.specId } : {}),
+    basis: plan.basis,
+    ...(measured.dialogueIntegrated !== undefined ? { measuredDialogueLufs: measured.dialogueIntegrated } : {}),
+    dialogueFallback: plan.dialogueFallback,
   };
 }
 
@@ -71,7 +127,8 @@ export function normalizeAudioBuffer(
   target: LoudnessTargetSettings,
 ): { buffer: AudioBuffer; report: LoudnessExportReport } {
   const channels = audioBufferChannels(buffer);
-  const measured = measureLoudness(channels, buffer.sampleRate);
+  const dialogueGate = targetNeedsDialogueGate(target);
+  const measured = measureLoudness(channels, buffer.sampleRate, { dialogueGate });
   const plan = planNormalization(measured, target);
   const normalizer = new LoudnessNormalizer(plan, target, buffer.sampleRate, channels.length);
   const head = normalizer.process(channels);
@@ -83,5 +140,8 @@ export function normalizeAudioBuffer(
     return out;
   });
   const normalized = createAudioBufferFromChannels(merged, buffer.sampleRate) ?? buffer;
-  return { buffer: normalized, report: buildLoudnessReport(target, measured, plan, normalizer) };
+  const outputMeter = createOutputMeter(target, buffer.sampleRate, merged.length);
+  outputMeter.process(merged);
+  const report = completeLoudnessReport(buildLoudnessReport(target, measured, plan, normalizer), target, outputMeter.snapshot());
+  return { buffer: normalized, report };
 }

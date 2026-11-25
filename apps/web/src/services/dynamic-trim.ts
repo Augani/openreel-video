@@ -1,7 +1,6 @@
 import {
   applyTimelineToolEdits,
   isEditPointValid,
-  planEditPointTrim,
   reconcileMulticamAudio,
   type Project,
   type TimelineToolPlan,
@@ -9,9 +8,8 @@ import {
 import { useProjectStore } from "../stores/project-store";
 import { useTimelineStore } from "../stores/timeline-store";
 import { useUIStore } from "../stores/ui-store";
-import { useEditorWorkspaceStore } from "../stores/editor-workspace-store";
 import { useEditPointStore, type DynamicTrimSession } from "../stores/edit-point-store";
-import { getLinkedTimelineSelection } from "../utils/linked-timeline-selection";
+import { planSelectedEditTrim } from "./trim-monitor-plan";
 import { trimSelectedEditPoint } from "./edit-point-commands";
 import type { CommandOutcome } from "./premiere-edit-commands";
 
@@ -61,14 +59,7 @@ function planFor(requested: number): { plan: TimelineToolPlan; project: Project 
   const selection = selectedEdit();
   if (!selection || requested === 0) return null;
   const project = useProjectStore.getState().getFullProject();
-  const plan = planEditPointTrim(project, {
-    clipId: selection.clipId,
-    edge: selection.edge,
-    frames: requested,
-    kind: selection.kind,
-    linkedIds: getLinkedTimelineSelection(project, [selection.clipId], useEditorWorkspaceStore.getState().linkedSelection)
-      .filter((id) => id !== selection.clipId),
-  });
+  const plan = planSelectedEditTrim(project, selection, requested);
   return { plan, project };
 }
 

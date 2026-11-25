@@ -103,8 +103,16 @@ describe("render cache preferences", () => {
     expect(readRenderCachePrefs().resolution).toBe("full");
   });
 
+  it("renders in the background by default on desktop only, and honours an explicit choice", () => {
+    expect(readRenderCachePrefs().idleRender).toBe(false);
+    (window as unknown as { openreel: unknown }).openreel = { platform: "desktop" };
+    expect(readRenderCachePrefs().idleRender).toBe(true);
+    expect(writeRenderCachePrefs({ idleRender: false }).idleRender).toBe(false);
+    expect(readRenderCachePrefs().idleRender).toBe(false);
+  });
+
   it("round-trips, clamps the cap and maps resolution to a width", () => {
-    expect(writeRenderCachePrefs({ resolution: "full", webCapBytes: 1 })).toEqual({ resolution: "full", webCapBytes: MIN_WEB_CAP_BYTES });
+    expect(writeRenderCachePrefs({ resolution: "full", webCapBytes: 1 })).toEqual({ resolution: "full", webCapBytes: MIN_WEB_CAP_BYTES, idleRender: false });
     expect(readRenderCachePrefs().resolution).toBe("full");
     expect(writeRenderCachePrefs({ webCapBytes: 1e15 }).webCapBytes).toBe(MAX_WEB_CAP_BYTES);
     expect(maxWidthFor("full")).toBe(Number.POSITIVE_INFINITY);

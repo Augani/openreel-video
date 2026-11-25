@@ -4,7 +4,15 @@ import { volumeToDb, formatDb, formatPan } from "./types";
 import { Button, Slider, cn } from "@openreel/ui";
 import { Film, Music } from "@/icons/lucide-compat";
 
-import { isTrackSoloSuppressed, resolveSurroundPan, type AudioBus } from "@openreel/core";
+import {
+  isTrackSoloSuppressed,
+  resolveSurroundPan,
+  TRACK_AUTOMATION_MODES,
+  TRACK_AUTOMATION_MODE_LABELS,
+  type AudioBus,
+  type TrackAutomationMode,
+} from "@openreel/core";
+import { useAutomationRecording } from "../../services/automation-recorder";
 import { useProjectStore } from "../../stores/project-store";
 import { SurroundPanner } from "./SurroundPanner";
 import { setSurroundPan } from "../../services/surround-audio";
@@ -19,6 +27,8 @@ interface ChannelStripProps {
   /** Fired when a fader/pan drag ends so the value is persisted as one undo step. */
   onVolumeCommit?: (trackId: string, volume: number) => void;
   onPanCommit?: (trackId: string, pan: number) => void;
+  /** Fired when a fader / pan is grabbed, so Touch and Latch passes know when to start writing. */
+  onControlTouch?: (trackId: string, lane: "volume" | "pan", value: number) => void;
   onMuteToggle: (trackId: string) => void;
   onSoloToggle: (trackId: string) => void;
   hasSoloedTracks: boolean;
@@ -36,12 +46,14 @@ export const Fader: React.FC<{
   value: number;
   onChange: (value: number) => void;
   onCommit?: (value: number) => void;
+  /** Pointer went down on the control (before any move). */
+  onTouch?: (value: number) => void;
   disabled?: boolean;
-}> = ({ label, value, onChange, onCommit, disabled }) => {
+}> = ({ label, value, onChange, onCommit, onTouch, disabled }) => {
   const dbValue = volumeToDb(value);
 
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div className="flex flex-col items-center gap-1" onPointerDownCapture={() => onTouch?.(value)}>
       <span className="text-xs text-fg-muted font-mono w-16 whitespace-nowrap text-center">
         {formatDb(dbValue)} dB
       </span>
@@ -70,10 +82,11 @@ export const PanKnob: React.FC<{
   value: number;
   onChange: (value: number) => void;
   onCommit?: (value: number) => void;
+  onTouch?: (value: number) => void;
   disabled?: boolean;
-}> = ({ label, value, onChange, onCommit, disabled }) => {
+}> = ({ label, value, onChange, onCommit, onTouch, disabled }) => {
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div className="flex flex-col items-center gap-1" onPointerDownCapture={() => onTouch?.(value)}>
       <span className="text-xs text-fg-muted font-mono">
         {formatPan(value)}
       </span>
@@ -95,6 +108,61 @@ export const PanKnob: React.FC<{
 
 const NO_BUSES: readonly AudioBus[] = [];
 
+const MODE_TITLES: Record<TrackAutomationMode, string> = {
+  off: "Off: the automation lanes are ignored",
+  read: "Read: play the automation lanes",
+  write: "Write: record fader and pan moves over the lanes while playing",
+  touch: "Touch: record while a control is held, then return to the existing curve",
+  latch: "Latch: start recording on touch and hold the last value until playback stops",
+};
+
+/**
+ * Automation mode picker: red while a Write pass is recording, yellow when Touch / Latch is armed or recording.
+ * Choosing a mode is one undo step.
+ */
+export const AutomationModeSelect: React.FC<{ trackId: string; trackName: string; mode: TrackAutomationMode }> = ({
+  trackId,
+  trackName,
+  mode,
+}) => {
+  const armed = useAutomationRecording((state) => state.armed[trackId] === true);
+  const writing = useAutomationRecording((state) => state.writing[trackId] === true);
+  const recordingMode = mode === "write" || mode === "touch" || mode === "latch";
+  const tone = !recordingMode
+    ? "border-border-strong bg-bg text-fg-muted"
+    : mode === "write"
+      ? "border-status-error bg-status-error/20 text-status-error"
+      : "border-status-warning bg-status-warning/20 text-status-warning";
+  return (
+    <div className="flex w-full items-center gap-1">
+      <span
+        aria-hidden
+        data-testid={`automation-state-${trackId}`}
+        data-state={writing ? "writing" : armed && recordingMode ? "armed" : "idle"}
+        className={cn(
+          "size-2 shrink-0 rounded-full",
+          writing ? (mode === "write" ? "bg-status-error animate-pulse" : "bg-status-warning animate-pulse") : "bg-border-strong",
+          armed && !writing && recordingMode && (mode === "write" ? "bg-status-error/50" : "bg-status-warning/50"),
+        )}
+      />
+      <select
+        aria-label={`Automation mode ${trackName}`}
+        title={MODE_TITLES[mode]}
+        data-testid={`automation-mode-${trackId}`}
+        value={mode}
+        onChange={(event) => void useProjectStore.getState().setTrackAutomationMode(trackId, event.target.value as TrackAutomationMode)}
+        className={cn("h-6 min-w-0 flex-1 rounded border px-1 text-[11px] font-semibold", tone)}
+      >
+        {TRACK_AUTOMATION_MODES.map((option) => (
+          <option key={option} value={option}>
+            {TRACK_AUTOMATION_MODE_LABELS[option]}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+};
+
 /**
  * ChannelStrip component
  *
@@ -111,6 +179,7 @@ export const ChannelStrip = memo(
     onPanChange,
     onVolumeCommit,
     onPanCommit,
+    onControlTouch,
     onMuteToggle,
     onSoloToggle,
     hasSoloedTracks,
@@ -138,6 +207,15 @@ export const ChannelStrip = memo(
     const handlePanCommit = useCallback(
       (pan: number) => onPanCommit?.(channel.trackId, pan),
       [channel.trackId, onPanCommit],
+    );
+
+    const handleVolumeTouch = useCallback(
+      (volume: number) => onControlTouch?.(channel.trackId, "volume", volume),
+      [channel.trackId, onControlTouch],
+    );
+    const handlePanTouch = useCallback(
+      (pan: number) => onControlTouch?.(channel.trackId, "pan", pan),
+      [channel.trackId, onControlTouch],
     );
 
     const handleMuteClick = useCallback(() => {
@@ -195,6 +273,7 @@ export const ChannelStrip = memo(
             value={channel.pan}
             onChange={handlePanChange}
             onCommit={handlePanCommit}
+            onTouch={handlePanTouch}
             disabled={isEffectivelyMuted}
           />
         )}
@@ -205,8 +284,12 @@ export const ChannelStrip = memo(
           value={channel.volume}
           onChange={handleVolumeChange}
           onCommit={handleVolumeCommit}
+          onTouch={handleVolumeTouch}
           disabled={channel.muted}
         />
+
+        {/* Track automation mode (Off / Read / Write / Touch / Latch) */}
+        <AutomationModeSelect trackId={channel.trackId} trackName={channel.trackName} mode={channel.automationMode ?? "read"} />
 
         {/* Output assignment and sends (Audio Track Mixer routing) */}
         <div className="flex w-full flex-col gap-1">
@@ -301,6 +384,7 @@ export const ChannelStrip = memo(
       a.muted === b.muted &&
       a.solo === b.solo &&
       a.soloSafe === b.soloSafe &&
+      a.automationMode === b.automationMode &&
       a.levels === b.levels &&
       a.rack === b.rack &&
       a.output === b.output &&
@@ -310,6 +394,7 @@ export const ChannelStrip = memo(
       previous.buses === next.buses &&
       previous.onVolumeCommit === next.onVolumeCommit &&
       previous.onPanCommit === next.onPanCommit &&
+      previous.onControlTouch === next.onControlTouch &&
       previous.hasSoloedTracks === next.hasSoloedTracks &&
       previous.onVolumeChange === next.onVolumeChange &&
       previous.onPanChange === next.onPanChange &&

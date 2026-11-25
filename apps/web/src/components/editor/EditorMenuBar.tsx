@@ -250,6 +250,8 @@ export function EditorMenuBar({
       { label: "Extract In/Out range", action: command("editing.extract"), shortcut: "'" },
       { label: "Add edit to all tracks", action: command("editing.addEditAllTracks"), shortcut: "⇧⌘K" },
       { label: "Add edit to targeted tracks", action: command("editing.addEdit"), shortcut: "⇧K" },
+      { label: "Group", action: command("editing.group"), shortcut: "⌘G" },
+      { label: "Ungroup", action: command("editing.ungroup"), shortcut: "⇧⌘G" },
       { label: "Apply default transition", action: command("editing.applyDefaultTransition"), shortcut: "⇧⌘D" },
       { label: "Paste insert", action: command("editing.pasteInsert"), shortcut: "⇧⌘V" },
       { label: "Toggle track target", action: command("tracks.toggleTarget"), shortcut: "⇧T" },

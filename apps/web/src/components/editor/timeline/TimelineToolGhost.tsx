@@ -1,5 +1,6 @@
+import React from "react";
 import { useTimelineToolPreview } from "./timeline-tool-preview";
-export function TimelineToolGhost({
+export const TimelineToolGhost = React.memo(function TimelineToolGhost({
   trackId,
   pixelsPerSecond,
 }: {
@@ -52,4 +53,4 @@ export function TimelineToolGhost({
       ))}
     </>
   );
-}
+});

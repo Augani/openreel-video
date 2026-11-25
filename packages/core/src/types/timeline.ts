@@ -31,6 +31,36 @@ export interface Timeline {
    * every track then plays straight into the master, exactly as before.
    */
   readonly audioBuses?: AudioBus[];
+  /** Saved Audio Track Mixer states (faders, pans, mute/solo, effect racks). Absent on old projects. */
+  readonly mixerSnapshots?: MixerSnapshot[];
+}
+
+/** Mixer state of one track inside a snapshot. */
+export interface MixerTrackState {
+  readonly muted: boolean;
+  readonly solo: boolean;
+  readonly soloSafe?: boolean;
+  readonly audioRack?: AudioRack;
+}
+
+/** Mixer state of one submix bus inside a snapshot. */
+export interface MixerBusState {
+  readonly muted: boolean;
+  readonly solo: boolean;
+  readonly rack?: AudioRack;
+}
+
+/**
+ * A saved Audio Track Mixer state. Recall restores fader, pan, mute, solo and effect rack of every track and bus
+ * that still exists and the master rack; routing (outputs, sends) and clips are never touched.
+ */
+export interface MixerSnapshot {
+  readonly id: string;
+  readonly name: string;
+  readonly createdAt: number;
+  readonly tracks: Record<string, MixerTrackState>;
+  readonly buses: Record<string, MixerBusState>;
+  readonly masterRack?: AudioRack;
 }
 
 export type AudioBusRole = "general" | "dialogue" | "music" | "effects";
@@ -85,7 +115,14 @@ export type AudioRackEffectType =
   | "deReverb"
   | "gate"
   | "brickwallLimiter"
-  | "lowPass";
+  | "lowPass"
+  | "chorus"
+  | "flanger"
+  | "phaser"
+  | "distortion"
+  | "stereoWidth"
+  | "invertPolarity"
+  | "channelMap";
 
 /** One slot of a track/master effect rack. Bypass keeps the slot and its params. */
 export interface AudioRackEffect {
@@ -93,6 +130,11 @@ export interface AudioRackEffect {
   readonly type: AudioRackEffectType;
   readonly params: Record<string, number | string | boolean>;
   readonly bypassed: boolean;
+  /**
+   * Parameter automation in timeline seconds, keyed by param key (gain, EQ and compressor params).
+   * Values are in the param's own unit (dB for gains) and replace the static param while they play.
+   */
+  readonly automation?: Record<string, AutomationPoint[]>;
 }
 
 /**
@@ -134,6 +176,13 @@ export interface TimelineBeatAnalysis {
   readonly sourceClipId?: string;
   readonly analyzedAt: number;
 }
+
+/**
+ * Premiere-style track automation mode. Off ignores the lanes; Read plays them; Write overwrites the lanes
+ * from the start of a pass; Touch writes while a control is held and returns to the existing curve on release;
+ * Latch starts writing on touch and holds the last value to the end of the pass. Absent = read.
+ */
+export type TrackAutomationMode = "off" | "read" | "write" | "touch" | "latch";
 
 export interface TrackAutomation {
   readonly volume?: AutomationPoint[];
@@ -189,6 +238,8 @@ export interface Track {
    * replaces the rack fader while it plays; pan is -1..1 and replaces the rack pan.
    */
   readonly automation?: TrackAutomation;
+  /** How the lanes behave during playback (see TrackAutomationMode). Absent = read. */
+  readonly automationMode?: TrackAutomationMode;
   /** Aux sends to buses (in addition to the main output). */
   readonly sends?: AudioSend[];
   /** 5.1 sequences: the default surround position of this track's clips. Absent = front centre. */
@@ -390,9 +441,15 @@ export interface Clip {
     analyzed?: boolean;
     analysisVersion?: number;
     profile?: StabilizationProfile;
+    /** Warp Stabilizer settings (Result, Smoothness, Method, Framing, Rolling Shutter, Crop Less / Smooth More). */
+    warp?: import("../video/stabilization/warp/types").WarpSettings;
+    /** The measured camera motion of the clip's range; present once analysed. Settings are derived from it. */
+    warpAnalysis?: import("../video/stabilization/warp/types").WarpAnalysis;
   };
   readonly emphasisAnimation?: EmphasisAnimation;
   readonly chromaKey?: ChromaKeySettings;
+  /** Content-Aware Fill (Remove Object): the tracked object mask whose area is filled from other frames and the surroundings. */
+  readonly objectRemoval?: import("../video/content-aware-fill/types").ObjectRemovalSettings;
   readonly speedKeyframes?: SpeedKeyframe[];
   readonly freezeFrames?: FreezeFrame[];
   readonly pitchCorrection?: boolean;
@@ -422,6 +479,11 @@ export interface Clip {
    */
   readonly markers?: Marker[];
   readonly metadata?: ClipMetadata;
+  /**
+   * Clip group (Premiere's Group, Cmd+G): clips sharing a `groupId` select, move and delete together. Trims stay
+   * per clip. Absent on every clip of a project saved before groups existed.
+   */
+  readonly groupId?: string;
 }
 
 export interface Effect {

@@ -24,7 +24,7 @@ import { isPluginEffectType, pluginIdFromEffectType } from "../plugins/manifest"
 import { getPluginRegistry } from "../plugins/registry";
 import { hasPluginKeyframes, hasTimeDrivenPluginEffects, samplePluginEffects } from "../plugins/plugin-keyframes";
 
-export type VideoEffectSource = Pick<Clip, "id"> & Partial<Pick<Clip, "effects" | "keyframes" | "transform" | "mediaId" | "startTime" | "inPoint">>;
+export type VideoEffectSource = Pick<Clip, "id"> & Partial<Pick<Clip, "effects" | "keyframes" | "transform" | "mediaId" | "startTime" | "inPoint" | "stabilization">>;
 const effectPropertyMap: ReadonlyArray<{ keyframeProp: string; effectType: string; paramKey: string }> = [
   // Older entry/exit presets stored bare blur; the explicit effect property wins when both are present.
   { keyframeProp: "blur", effectType: "blur", paramKey: "radius" },

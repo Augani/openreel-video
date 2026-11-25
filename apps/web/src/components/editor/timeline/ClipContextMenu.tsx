@@ -28,6 +28,8 @@ import {
   Crosshair,
   FolderSearch,
   Tag,
+  Group,
+  Ungroup,
 } from "@/icons/lucide-compat";
 import { findLinkedPartners, effectiveTimeInterpolation, isTimeInterpolation, TIME_INTERPOLATION_LABELS, TIME_INTERPOLATION_MODES, type Clip, type Track } from "@openreel/core";
 import { setClipsTimeInterpolation, timeInterpolationTargets } from "../../../services/time-interpolation-edit";
@@ -50,13 +52,35 @@ import { LabelPickerItems } from "../project-panel/ProjectPanelMenus";
 import { AUDIO_TYPES, AUDIO_TYPE_LABELS, resolveClipLabel } from "@openreel/core";
 import { clearEssentialSound, tagAudioType } from "../../../services/essential-sound";
 import { runEnhanceSpeechCommand } from "../../../services/enhance-speech";
-import { nestSelectedClips, openNestClip } from "../../../services/sequence-commands";
+import { groupSelectedClips, makeSubsequenceCommand, nestSelectedClips, openNestClip, ungroupSelectedClips } from "../../../services/sequence-commands";
+import { synchronizeSelectedClips } from "../../../services/sync-clips-commands";
 
 /** Clip ids a label change applies to: the selected timeline clips when this one is among them. */
 function clipLabelTargets(clipId: string): string[] {
   const clips = new Set(useProjectStore.getState().project.timeline.tracks.flatMap((t) => t.clips.map((c) => c.id)));
   const selected = useUIStore.getState().selectedItems.map((s) => s.id).filter((id) => clips.has(id));
   return selected.includes(clipId) ? selected : [clipId];
+}
+
+/** Synchronize submenu: needs two or more selected clips including this one. */
+function SynchronizeItems({ clipId, disabled, onClose }: { clipId: string; disabled: boolean; onClose?: () => void }) {
+  const selected = useUIStore((state) => state.selectedItems);
+  const count = new Set([clipId, ...selected.map((s) => s.id)].filter((id) => useProjectStore.getState().getClip(id))).size;
+  const run = (mode: "audio" | "in-point" | "timecode") => {
+    const ids = useUIStore.getState().getSelectedClipIds();
+    void synchronizeSelectedClips(mode, ids.includes(clipId) ? [clipId, ...ids.filter((id) => id !== clipId)] : ids);
+    onClose?.();
+  };
+  return (
+    <ContextMenuSub>
+      <ContextMenuSubTrigger data-testid="clip-synchronize" disabled={disabled || count < 2}><Music size={14} aria-hidden />Synchronize</ContextMenuSubTrigger>
+      <ContextMenuSubContent>
+        <ContextMenuItem data-testid="sync-by-audio" onSelect={() => run("audio")}>By Audio</ContextMenuItem>
+        <ContextMenuItem data-testid="sync-by-in-point" onSelect={() => run("in-point")}>By In Point</ContextMenuItem>
+        <ContextMenuItem data-testid="sync-by-timecode" onSelect={() => run("timecode")}>By Timecode</ContextMenuItem>
+      </ContextMenuSubContent>
+    </ContextMenuSub>
+  );
 }
 
 interface ClipContextMenuProps {
@@ -252,6 +276,14 @@ export function ClipContextMenu({
         void nestSelectedClips();
         onClose?.();
       }}><Layers size={14} aria-hidden />Nest</ContextMenuItem>
+      <ContextMenuItem data-testid="make-subsequence-clips" disabled={editingDisabled} onSelect={() => {
+        if (!useUIStore.getState().getSelectedClipIds().includes(clip.id)) useUIStore.getState().select({ type: "clip", id: clip.id });
+        void makeSubsequenceCommand();
+        onClose?.();
+      }}><Layers size={14} aria-hidden />Make Subsequence</ContextMenuItem>
+      <ContextMenuItem data-testid="group-clips" disabled={editingDisabled} onSelect={() => { void groupSelectedClips(); onClose?.(); }}><Group size={14} aria-hidden />Group</ContextMenuItem>
+      <ContextMenuItem data-testid="ungroup-clips" disabled={editingDisabled || !clip.groupId} onSelect={() => { void ungroupSelectedClips(); onClose?.(); }}><Ungroup size={14} aria-hidden />Ungroup</ContextMenuItem>
+      <SynchronizeItems clipId={clip.id} disabled={editingDisabled} onClose={onClose} />
       <ContextMenuSeparator />
       <ContextMenuItem disabled={editingDisabled || !isPlayheadOnClip} onSelect={() => void handleSplit()}><Scissors size={14} aria-hidden />Split at Playhead</ContextMenuItem>
       <ContextMenuItem disabled={editingDisabled || !hasGapBeforeClip} onSelect={() => void handleCloseGap()}><ArrowLeftToLine size={14} aria-hidden />Close Gap to Previous</ContextMenuItem>

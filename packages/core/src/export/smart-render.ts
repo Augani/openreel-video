@@ -2,7 +2,10 @@ import type { Clip, MediaItem, Project, Transition } from "../types";
 import { frameConformFor } from "../media/interpretation";
 import { getCompoundClipId, getMediaItemCapabilities, getTimelineItems } from "../timeline/timeline-items";
 import type { VideoExportSettings } from "./types";
+import { snapFrameRate } from "../video/frame-time";
 import { effectiveTimeInterpolation } from "../video/time-interpolation/types";
+
+export { snapFrameRate };
 
 /**
  * Smart rendering: an export segment that is an untouched, contiguous run of
@@ -18,16 +21,6 @@ export type SmartRenderCodec = "avc" | "hevc" | "prores";
 
 const EPS = 1e-4;
 
-const NTSC_RATES = [24000 / 1001, 30000 / 1001, 48000 / 1001, 60000 / 1001, 120000 / 1001] as const;
-
-/**
- * The exact frame rate behind a rounded one: 29.97 is 30000/1001, and the
- * 0.003% difference is 1 ms after 30 s, enough to move a key frame to the
- * wrong output frame on a long timeline.
- */
-export function snapFrameRate(fps: number): number {
-  return NTSC_RATES.find((rate) => Math.abs(fps - rate) < 0.005) ?? fps;
-}
 /** Copy runs shorter than this are not worth two extra keyframes and parameter-set swaps. */
 export const MIN_COPY_FRAMES = 12;
 
@@ -422,6 +415,10 @@ export function planSmartRender(input: SmartRenderPlanInput): SmartRenderPlan {
   if (settings.upscaling?.enabled) return noPlan(totalFrames, ["upscaling is on"]);
   if (project.settings.width !== settings.width || project.settings.height !== settings.height) {
     return noPlan(totalFrames, ["export resolution differs from the project canvas"]);
+  }
+
+  if (Math.abs(snapFrameRate(project.settings.frameRate) - fps) > 1e-6) {
+    return noPlan(totalFrames, ["sequence frame rate requires resampling"]);
   }
 
   const items = getTimelineItems(project);

@@ -146,9 +146,22 @@ async function duplicateSelection(ids: string[]): Promise<boolean> {
       if (!replacements.has(id)) replacements.set(id, crypto.randomUUID());
       return replacements.get(id)!;
     };
-    const duplicates = clips.map(
-      (clip): Clip => ({
-        ...structuredClone(clip),
+    // A duplicated group becomes its own new group; a lone copy never joins the original's group.
+    const groupCounts = new Map<string, number>();
+    for (const clip of clips)
+      if (clip.groupId)
+        groupCounts.set(clip.groupId, (groupCounts.get(clip.groupId) ?? 0) + 1);
+    const newGroups = new Map<string, string>();
+    const duplicates = clips.map((clip): Clip => {
+      const { groupId, ...rest } = structuredClone(clip);
+      const copyGroup =
+        groupId && (groupCounts.get(groupId) ?? 0) >= 2
+          ? (newGroups.get(groupId) ??
+            newGroups.set(groupId, crypto.randomUUID()).get(groupId))
+          : undefined;
+      return {
+        ...rest,
+        ...(copyGroup ? { groupId: copyGroup } : {}),
         id: replacements.get(clip.id)!,
         startTime: clip.startTime + delta,
         metadata: {
@@ -160,8 +173,8 @@ async function duplicateSelection(ids: string[]): Promise<boolean> {
             ? { separatedFromClipId: remap(clip.metadata.separatedFromClipId) }
             : {}),
         },
-      }),
-    );
+      };
+    });
     session.replaceDraft({
       ...project,
       timeline: {

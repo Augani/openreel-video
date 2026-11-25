@@ -81,6 +81,11 @@ export interface EncoderBackend {
   addAudioBuffer(buffer: AudioBuffer): Promise<void>;
   closeAudio(): void | Promise<void>;
   getBytesWritten(): number;
+  /**
+   * PQ exports: the MaxCLL / MaxFALL measured from the rendered frames, offered just before finalize(). A backend that
+   * writes the file itself (native ffmpeg) puts them into the content light level metadata; others ignore it.
+   */
+  setHdrLightLevel?(level: { maxCll: number; maxFall: number }): void;
   finalize(): Promise<void>;
   abort(): Promise<void>;
 }

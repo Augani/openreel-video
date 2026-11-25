@@ -68,6 +68,7 @@ import {
   hasVideoEffectStackClipboard,
   subscribeToVideoEffectStackClipboard,
 } from "../../../utils/video-effect-stack-clipboard";
+import { lazyWithRetry } from "./lazy-retry";
 
 function shaderEffectNumberValue(
   value: unknown,
@@ -136,7 +137,7 @@ const EffectSlider: React.FC<{
   />
 );
 
-const UltraKeyControls = React.lazy(() =>
+const UltraKeyControls = lazyWithRetry(() =>
   import("./UltraKeyControls").then((m) => ({ default: m.UltraKeyControls })),
 );
 
@@ -300,7 +301,7 @@ const CornerPinMonitorToggle: React.FC<{ clipId: string; effectId: string }> = (
 };
 
 // VR Projection's "Fill sequence" button loads with the first VR Projection effect that is inspected.
-const VrFillSequenceButton = React.lazy(() => import("./VrFillSequenceButton").then((m) => ({ default: m.VrFillSequenceButton })));
+const VrFillSequenceButton = lazyWithRetry(() => import("./VrFillSequenceButton").then((m) => ({ default: m.VrFillSequenceButton })));
 
 /** Inspector controls for the pro effects library, generated from PRO_EFFECT_SPECS. */
 const ProEffectControls: React.FC<{

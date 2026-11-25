@@ -68,7 +68,7 @@ export const MORPH_CUT_CONSTANTS = {
 } as const;
 
 /** Per-transition status shown on the transition (inspector, timeline) and read by the renderer. */
-export type MorphCutStatus = "idle" | "analysing" | "ready" | "failed";
+export type MorphCutStatus = "idle" | "analysing" | "ready" | "failed" | "cancelled";
 
 export interface MorphCutState {
   readonly status: MorphCutStatus;
@@ -83,6 +83,8 @@ export interface MorphCutState {
   /** 0..1 overall confidence of a finished analysis (also reported for a failed one). */
   readonly confidence?: number;
 }
+
+export const MORPH_CUT_CANCELLED_MESSAGE = "Morph Cut analysis was cancelled";
 
 export const IDLE_MORPH_CUT_STATE: MorphCutState = { status: "idle", progress: 0, message: "" };
 

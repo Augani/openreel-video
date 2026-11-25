@@ -81,6 +81,7 @@ export type ProjectPanelDialog =
   | { kind: "interpret-footage"; mediaId: string }
   | { kind: "raw-settings"; mediaId: string }
   | { kind: "vr-properties"; mediaId: string }
+  | { kind: "automate-to-sequence" }
   | { kind: "delete-bin"; binId: string }
   | { kind: "rename-smart-bin"; smartBinId: string };
 

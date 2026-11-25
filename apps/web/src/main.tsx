@@ -9,6 +9,7 @@ import { setEncoderBackendFactory } from "@openreel/core/export/encoder-backend"
 import { installRawWorker } from "./services/raw-worker-client";
 import { startRawThumbnailSync } from "./services/raw-thumbnails";
 import { compositionIdFromHash } from "./services/linked-comp-protocol";
+import { segmentWorkerFromHash } from "./services/export-queue/segment-worker-protocol";
 
 performance.mark("openreel:entry");
 
@@ -80,6 +81,13 @@ async function renderCompositionWindow(compositionId: string): Promise<void> {
 }
 
 async function renderApplication(): Promise<void> {
+  // A hidden worker window of a parallel export renders segments or audio and shows nothing.
+  const worker = isDesktop ? segmentWorkerFromHash(window.location.hash) : null;
+  if (worker) {
+    await desktopNativeReady;
+    void import("./services/export-queue/segment-worker").then((module) => module.runSegmentWorker(worker.sessionId, worker.role));
+    return;
+  }
   // A linked composition window shows only that composition's editor (see linked-comp-bridge).
   const compositionId = compositionIdFromHash(window.location.hash);
   if (compositionId) {

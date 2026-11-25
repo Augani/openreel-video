@@ -25,7 +25,7 @@ import {
   applyEditorEffectToClip,
   setClipLutEnabled,
 } from "../../../services/editor-effect-application";
-import { PRO_EFFECT_PREVIEWS } from "./proEffectPreviews";
+import { CREATIVE_PRESET_PREVIEWS, PRO_EFFECT_PREVIEWS, REPAIR_PRESET_PREVIEWS } from "./proEffectPreviews";
 import { BURN_IN_PREVIEWS } from "./burnInPreviews";
 
 // ─── Effect & Transition catalogs ──────────────────────────────────
@@ -43,6 +43,7 @@ export type EffectCategory =
   | "Distort"
   | "Generate"
   | "Time"
+  | "Repair"
   | "Immersive Video";
 type EffectCategoryFilter =
   | "All"
@@ -53,6 +54,7 @@ type EffectCategoryFilter =
   | "Generate"
   | "Keying"
   | "Time"
+  | "Repair"
   | "Immersive"
   | "Plugins"
   | "Audio";
@@ -65,6 +67,7 @@ const workspaceEffectCategories: EffectCategoryFilter[] = [
   "Generate",
   "Keying",
   "Time",
+  "Repair",
   "Immersive",
   "Plugins",
   "Audio",
@@ -84,6 +87,7 @@ function matchesEffectCategory(
     (category === "Generate" && effect.category === "Generate") ||
     (category === "Keying" && effect.category === "Keying") ||
     (category === "Time" && effect.category === "Time") ||
+    (category === "Repair" && effect.category === "Repair") ||
     (category === "Immersive" && effect.category === "Immersive Video")
   );
 }
@@ -312,6 +316,8 @@ const ALL_EFFECT_PREVIEWS: EditorEffectPreviewDef[] = [
     }),
   },
   ...PRO_EFFECT_PREVIEWS,
+  ...REPAIR_PRESET_PREVIEWS,
+  ...CREATIVE_PRESET_PREVIEWS,
   ...BURN_IN_PREVIEWS,
   {
     id: "cinematic-punch",
@@ -522,6 +528,7 @@ export const EDITOR_EFFECT_CATEGORIES: EffectCategory[] = [
   "Distort",
   "Generate",
   "Time",
+  "Repair",
   "Immersive Video",
 ];
 

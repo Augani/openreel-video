@@ -27,6 +27,7 @@ import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
 import { useProjectPanelStore } from "../../../stores/project-panel-store";
 import { useSourceMonitorStore } from "../../../stores/source-monitor-store";
+import { mergeCandidates, mergeSelectedAssets } from "../../../services/sync-clips-commands";
 import { openSourceChannelsFor, selectedAudioMediaIds } from "../../../services/audio-channels";
 import {
   makeSubclipFromSource,
@@ -136,6 +137,9 @@ export const MediaOrganizeItems: React.FC<{ item: MediaItem; kind: MenuKind }> =
       <Item kind={kind} data-testid="menu-new-bin-from-selection" onSelect={() => { if (!useUIStore.getState().isSelected(item.id)) useUIStore.getState().select({ type: "clip", id: item.id }); void newBinFromSelection(); }}>
         New bin from selection
       </Item>
+      <Item kind={kind} data-testid="menu-automate-to-sequence" onSelect={() => { if (!useUIStore.getState().isSelected(item.id)) useUIStore.getState().select({ type: "clip", id: item.id }); openDialog({ kind: "automate-to-sequence" }); }}>
+        Automate to Sequence…
+      </Item>
       {canSubclip && (
         <Item
           kind={kind}
@@ -196,6 +200,19 @@ export const MediaOrganizeItems: React.FC<{ item: MediaItem; kind: MenuKind }> =
   );
 };
 
+/** Merge Clips: enabled when exactly one video and one audio asset are selected. */
+const MergeClipsItems: React.FC = () => {
+  const selected = useUIStore((state) => state.selectedItems);
+  const items = useProjectStore((state) => state.project.mediaLibrary.items);
+  const enabled = mergeCandidates(items, selected.map((s) => s.id)) !== null;
+  return (
+    <>
+      <ContextMenuItem data-testid="merge-clips" disabled={!enabled} onSelect={() => void mergeSelectedAssets({ muteCameraAudio: true })}>Merge Clips (mute camera audio)</ContextMenuItem>
+      <ContextMenuItem data-testid="merge-clips-keep" disabled={!enabled} onSelect={() => void mergeSelectedAssets({ muteCameraAudio: false })}>Merge Clips (keep camera audio)</ContextMenuItem>
+    </>
+  );
+};
+
 /** Right-click menu around any media tile or list row. */
 export const MediaItemContextMenu: React.FC<{
   item: MediaItem;
@@ -215,6 +232,7 @@ export const MediaItemContextMenu: React.FC<{
       <ContextMenuItem onSelect={onOpenInSource}>Open in Source monitor</ContextMenuItem>
       <ContextMenuItem onSelect={onAddToTimeline}>Add to timeline</ContextMenuItem>
       {item.type !== "image" && <ContextMenuItem data-testid="media-audio-channels" onSelect={() => { openSourceChannelsFor(selectedAudioMediaIds().includes(item.id) ? selectedAudioMediaIds() : [item.id]); }}>Audio channels…</ContextMenuItem>}
+      <MergeClipsItems />
       <MediaOrganizeItems item={item} kind="context" />
       <ContextMenuSeparator />
       <ContextMenuItem onSelect={onDelete}>Delete</ContextMenuItem>

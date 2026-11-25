@@ -69,3 +69,35 @@ export function descriptionBytes(description: AllowSharedBufferSource): Uint8Arr
   }
   return new Uint8Array(description as ArrayBuffer);
 }
+
+/** Some OpenH264 WebCodecs encoders duplicate both NAL headers in avcC.
+ * The encoded picture packets are valid, but strict MP4 readers reject this configuration. */
+export function repairEncoderAvcConfig(meta: EncodedVideoChunkMetadata | undefined): void {
+  const config = meta?.decoderConfig;
+  if (!config?.description || !/^avc[13]\./i.test(config.codec)) return;
+  const data = descriptionBytes(config.description);
+  // This encoder also clears the reserved bits. Require its complete signature before changing bytes.
+  if (data[4] !== 3 || data[5] !== 1) return;
+  const sets = parseAvcC(data);
+  if (!sets || sets.sps.length !== 1 || sets.pps.length !== 1) return;
+  const [sps] = sets.sps;
+  const [pps] = sets.pps;
+  if (sps.length < 6 || sps[0] !== 0x67 || sps[1] !== 0x67 ||
+      sps[2] !== data[1] || sps[3] !== data[2] || sps[4] !== data[3] ||
+      pps.length < 3 || pps[0] !== 0x68 || pps[1] !== 0x68) return;
+
+  const repaired = new Uint8Array(data.length - 2);
+  repaired.set(data.subarray(0, 6));
+  repaired[4] = 0xff;
+  repaired[5] = 0xe1;
+  const lengths = new DataView(repaired.buffer);
+  lengths.setUint16(6, sps.length - 1);
+  repaired.set(sps.subarray(1), 8);
+  const ppsCountOffset = 8 + sps.length - 1;
+  repaired[ppsCountOffset] = 1;
+  lengths.setUint16(ppsCountOffset + 1, pps.length - 1);
+  repaired.set(pps.subarray(1), ppsCountOffset + 3);
+  const suffix = 11 + sps.length + pps.length;
+  repaired.set(data.subarray(suffix), suffix - 2);
+  config.description = repaired;
+}

@@ -138,13 +138,13 @@ contextBridge.exposeInMainWorld("openreel", {
     start: (args: unknown) =>
       new Promise((resolve, reject) => {
         const onPort = (event: Electron.IpcRendererEvent, meta: unknown) => {
-          const { jobId } = meta as { jobId: string };
+          const { jobId, rawYuv420 } = meta as { jobId: string; rawYuv420?: boolean };
           const [port] = event.ports;
           // A live MessagePort cannot survive contextBridge serialization into
           // the main world, so forward it via window.postMessage transfer (the
           // documented Electron path) and resolve with just the jobId.
           window.postMessage({ __openreelExportPort: true, jobId }, "*", [port]);
-          resolve({ jobId });
+          resolve({ jobId, ...(rawYuv420 ? { rawYuv420: true } : {}) });
         };
         ipcRenderer.once("openreel:export-port", onPort);
         // A refused start (for example Hardware with Two-pass VBR) rejects here instead of waiting for a port that never arrives.
@@ -349,6 +349,25 @@ contextBridge.exposeInMainWorld("openreel", {
   },
   // Linked composition windows: the editor opens them, and edits flow over IPC to the
   // editor's stores. The main process only relays validated messages between the two.
+  /**
+   * Parallel segment export. The editor window starts a session and listens for its events; the hidden worker
+   * windows it opens (see main/ipc/segment-export.ts) take segments, write the one audio track and report failures.
+   */
+  exportSegments: {
+    start: (args: unknown) => ipcRenderer.invoke(CHANNELS.exportSegmentsStart, args),
+    cancel: (sessionId: string) => ipcRenderer.invoke(CHANNELS.exportSegmentsCancel, { sessionId }),
+    init: (sessionId: string) => ipcRenderer.invoke(CHANNELS.exportSegmentsInit, { sessionId }),
+    next: (sessionId: string) => ipcRenderer.invoke(CHANNELS.exportSegmentsNext, { sessionId }),
+    writeAudioChunk: (sessionId: string, chunk: ArrayBuffer, position: number) =>
+      ipcRenderer.invoke(CHANNELS.exportSegmentsAudioChunk, { sessionId, chunk, position }),
+    finishAudio: (sessionId: string) => ipcRenderer.invoke(CHANNELS.exportSegmentsAudioFinish, { sessionId }),
+    fail: (sessionId: string, message: string) => ipcRenderer.invoke(CHANNELS.exportSegmentsFail, { sessionId, message }),
+    onEvent: (callback: (event: unknown) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, payload: unknown) => callback(payload);
+      ipcRenderer.on(CHANNELS.exportSegmentsEvent, handler);
+      return () => ipcRenderer.removeListener(CHANNELS.exportSegmentsEvent, handler);
+    },
+  },
   linkedComp: {
     open: (compositionId: string) => ipcRenderer.invoke(CHANNELS.linkedCompOpen, { compositionId }),
     post: (message: unknown) => ipcRenderer.send(CHANNELS.linkedCompPost, message),

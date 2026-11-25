@@ -296,6 +296,11 @@ export type ClipAction =
   | {
       type: "clip/setChromaKey";
       params: { clipId: string; chromaKey?: ChromaKeySettings };
+    }
+  | {
+      type: "clip/setObjectRemoval";
+      /** `undefined` / null removes Remove Object from the clip. */
+      params: { clipId: string; objectRemoval?: Clip["objectRemoval"] | null };
     };
 
 // Speed / time-remap actions

@@ -16,7 +16,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createWriteStream, type WriteStream } from "node:fs";
 import { promises as fs } from "node:fs";
 import { resolveFfmpegPath } from "./ffmpeg-path";
-import { captionMuxArgs, parseProgressBlock, threadQueueSize, type ExportArgs } from "./export-job";
+import { captionMuxArgs, chapterMuxArgs, parseProgressBlock, threadQueueSize, type ExportArgs } from "./export-job";
 import { videoEncodeArgs } from "./encode-args";
 import { joinPcmTrack, validateAudioPlan, writeAacCopy, writePcmCopy, type SmartAudioCopyPlan } from "./smart-audio";
 
@@ -285,6 +285,8 @@ export interface AssembleArgs {
   dolby?: DolbyAudioPlan;
   format: string;
   captionInputs?: ExportArgs["captionInputs"];
+  /** `;FFMETADATA1` file whose chapters are written into the output (MP4 / MOV): muxed here, at the final join. */
+  chaptersPath?: string;
   /** MOV only: start timecode written as a timecode track. */
   startTimecode?: string;
 }
@@ -292,13 +294,16 @@ export interface AssembleArgs {
 /** Final pass: stream-copy the joined video, encode the audio, write the container. */
 export function buildAssembleArgs(a: AssembleArgs): string[] {
   const captions = captionMuxArgs({ format: a.format, captionInputs: a.captionInputs } as ExportArgs);
+  const chapters = chapterMuxArgs({ format: a.format, captionInputs: a.captionInputs, chaptersPath: a.chaptersPath } as ExportArgs);
   return [
     "-y",
     ...(a.concatList ? ["-f", "concat", "-safe", "0"] : []),
     "-i", a.videoPath,
     ...(a.audioInput ? a.audioInput.inputArgs : ["-i", a.audioWavPath]),
     ...captions.inputs,
+    ...chapters.inputs,
     ...(captions.outputs.length ? captions.outputs : ["-map", "0:v:0", "-map", "1:a:0"]),
+    ...chapters.outputs,
     "-c:v", "copy",
     ...(a.codec === "hevc" ? ["-tag:v", "hvc1"] : []),
     ...(a.dolby

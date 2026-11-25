@@ -427,6 +427,58 @@ interface ShaderProgram {
   attributes: Map<string, number>;
 }
 
+/** 256-entry 8-bit curve table (Catmull-Rom through the points) shared by the CPU stage and the WebGPU grade chain. */
+export function buildCurveLut8(points: CurvePoint[]): Uint8Array {
+  const lut = new Uint8Array(256);
+  const sorted = [...points].sort((a, b) => a.x - b.x);
+  if (sorted.length === 0 || sorted[0].x > 0) {
+    sorted.unshift({ x: 0, y: 0 });
+  }
+  if (sorted[sorted.length - 1].x < 1) {
+    sorted.push({ x: 1, y: 1 });
+  }
+  if (sorted.length === 2) {
+    for (let i = 0; i < 256; i++) {
+      const x = i / 255;
+      const t = (x - sorted[0].x) / (sorted[1].x - sorted[0].x);
+      const y = sorted[0].y + t * (sorted[1].y - sorted[0].y);
+      lut[i] = Math.round(Math.max(0, Math.min(255, y * 255)));
+    }
+    return lut;
+  }
+
+  // Catmull-Rom spline interpolation for smooth curves
+  for (let i = 0; i < 256; i++) {
+    const x = i / 255;
+    let y = x; // Default to linear
+    for (let j = 0; j < sorted.length - 1; j++) {
+      if (x >= sorted[j].x && x <= sorted[j + 1].x) {
+        const p0 = j > 0 ? sorted[j - 1] : sorted[j];
+        const p1 = sorted[j];
+        const p2 = sorted[j + 1];
+        const p3 = j + 2 < sorted.length ? sorted[j + 2] : sorted[j + 1];
+        const t = (x - p1.x) / (p2.x - p1.x);
+
+        // Catmull-Rom spline formula
+        const t2 = t * t;
+        const t3 = t2 * t;
+
+        y =
+          0.5 *
+          (2 * p1.y +
+            (-p0.y + p2.y) * t +
+            (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+            (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
+        break;
+      }
+    }
+
+    lut[i] = Math.round(Math.max(0, Math.min(255, y * 255)));
+  }
+
+  return lut;
+}
+
 export interface CpuGradingStages {
   tone?: ToneValues;
   vignette?: VignetteValues;
@@ -1030,54 +1082,7 @@ export class ColorGradingEngine {
   }
 
   private buildCurveLUT(points: CurvePoint[]): Uint8Array {
-    const lut = new Uint8Array(256);
-    const sorted = [...points].sort((a, b) => a.x - b.x);
-    if (sorted.length === 0 || sorted[0].x > 0) {
-      sorted.unshift({ x: 0, y: 0 });
-    }
-    if (sorted[sorted.length - 1].x < 1) {
-      sorted.push({ x: 1, y: 1 });
-    }
-    if (sorted.length === 2) {
-      for (let i = 0; i < 256; i++) {
-        const x = i / 255;
-        const t = (x - sorted[0].x) / (sorted[1].x - sorted[0].x);
-        const y = sorted[0].y + t * (sorted[1].y - sorted[0].y);
-        lut[i] = Math.round(Math.max(0, Math.min(255, y * 255)));
-      }
-      return lut;
-    }
-
-    // Catmull-Rom spline interpolation for smooth curves
-    for (let i = 0; i < 256; i++) {
-      const x = i / 255;
-      let y = x; // Default to linear
-      for (let j = 0; j < sorted.length - 1; j++) {
-        if (x >= sorted[j].x && x <= sorted[j + 1].x) {
-          const p0 = j > 0 ? sorted[j - 1] : sorted[j];
-          const p1 = sorted[j];
-          const p2 = sorted[j + 1];
-          const p3 = j + 2 < sorted.length ? sorted[j + 2] : sorted[j + 1];
-          const t = (x - p1.x) / (p2.x - p1.x);
-
-          // Catmull-Rom spline formula
-          const t2 = t * t;
-          const t3 = t2 * t;
-
-          y =
-            0.5 *
-            (2 * p1.y +
-              (-p0.y + p2.y) * t +
-              (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
-              (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
-          break;
-        }
-      }
-
-      lut[i] = Math.round(Math.max(0, Math.min(255, y * 255)));
-    }
-
-    return lut;
+    return buildCurveLut8(points);
   }
 
   /**

@@ -61,6 +61,16 @@ export interface AnalyseOptions {
   readonly backend?: DenseFlowBackend;
   /** 0..1, called as the stages finish. */
   readonly onProgress?: (fraction: number) => void;
+  /** Aborting stops the analysis at the next stage boundary; the returned promise rejects with MorphCutCancelled. */
+  readonly signal?: AbortSignal;
+}
+
+/** Thrown by analyseMorphCut when its signal is aborted. */
+export class MorphCutCancelled extends Error {
+  constructor() {
+    super("Morph Cut analysis cancelled");
+    this.name = "MorphCutCancelled";
+  }
 }
 
 const nowMs = (): number => (typeof performance !== "undefined" ? performance.now() : Date.now());
@@ -224,7 +234,12 @@ export async function analyseMorphCut(a: RGBAFrame, b: RGBAFrame, options: Analy
   const backend = options.backend ?? cpuDenseBackend;
   const quality = options.quality ?? "medium";
   const settings = MORPH_CUT_FLOW[quality];
-  const progress = options.onProgress ?? (() => undefined);
+  const report = options.onProgress ?? (() => undefined);
+  const progress = (fraction: number): void => {
+    if (options.signal?.aborted) throw new MorphCutCancelled();
+    report(fraction);
+  };
+  progress(0);
   if (a.width !== b.width || a.height !== b.height) {
     return { key: options.key, ok: false, reason: "the two frames differ in size", field: null, metrics: failedMetrics("size"), backend: backend.name, analysisMs: nowMs() - started };
   }

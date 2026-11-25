@@ -1,5 +1,13 @@
 import type { Effect, Transform } from "../types/timeline";
 
+/** Older WebGPU implementations put the fallback flag on the adapter itself. */
+export function isSoftwareGpuAdapter(adapter: {
+  readonly isFallbackAdapter?: boolean;
+  readonly info?: { readonly isFallbackAdapter?: boolean; readonly architecture?: string };
+}): boolean {
+  return adapter.info?.isFallbackAdapter === true || adapter.isFallbackAdapter === true || adapter.info?.architecture === "swiftshader";
+}
+
 export type RendererType = "webgpu" | "canvas2d";
 
 export interface RendererConfig {
@@ -18,6 +26,8 @@ export interface RenderLayer {
   borderRadius: number;
   /** Sequence pixel aspect ratio the layer transform is laid out in (display space, then squeezed). Default 1. */
   pixelAspect?: number;
+  /** Layer blend against the frame so far (WebGPU composites it in its own pass). A `blend` effect resolves to the same. */
+  blendMode?: import("./types").BlendMode;
 }
 
 export interface Renderer {

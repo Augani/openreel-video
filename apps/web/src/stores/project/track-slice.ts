@@ -24,7 +24,10 @@ type TrackSlice = Pick<
   | "setTrackSoloSafe"
   | "setAudioRack"
   | "applyAudioRouting"
+  | "applyMixerSnapshot"
   | "setTrackAutomation"
+  | "setTrackAutomationMode"
+  | "recordTrackAutomation"
   | "groupTracks"
   | "getTrack"
   | "consolidateTrack"
@@ -266,6 +269,24 @@ export function createTrackSlice(set: Set, get: Get): TrackSlice {
       return result;
     },
 
+    applyMixerSnapshot: async (plan) => {
+      if (!plan.ok) {
+        return { success: false, error: { code: "INVALID_PARAMS", message: plan.message } } as ActionResult;
+      }
+      const { project, actionExecutor } = get();
+      const action: Action = {
+        type: "audioMixer/snapshot",
+        id: uuidv4(),
+        timestamp: Date.now(),
+        params: { ...plan.params, label: plan.label } as unknown as Action["params"],
+      };
+      const result = await actionExecutor.execute(action, project);
+      if (result.success) {
+        set({ project: { ...project } });
+      }
+      return result;
+    },
+
     setTrackAutomation: async (trackId, lane, points) => {
       const { project, actionExecutor } = get();
       const action: Action = {
@@ -273,6 +294,36 @@ export function createTrackSlice(set: Set, get: Get): TrackSlice {
         id: uuidv4(),
         timestamp: Date.now(),
         params: { trackId, lane, points },
+      };
+      const result = await actionExecutor.execute(action, project);
+      if (result.success) {
+        set({ project: { ...project } });
+      }
+      return result;
+    },
+
+    setTrackAutomationMode: async (trackId, mode) => {
+      const { project, actionExecutor } = get();
+      const action: Action = {
+        type: "trackAutomation/setMode",
+        id: uuidv4(),
+        timestamp: Date.now(),
+        params: { trackId, mode },
+      };
+      const result = await actionExecutor.execute(action, project);
+      if (result.success) {
+        set({ project: { ...project } });
+      }
+      return result;
+    },
+
+    recordTrackAutomation: async (passes) => {
+      const { project, actionExecutor } = get();
+      const action: Action = {
+        type: "trackAutomation/record",
+        id: uuidv4(),
+        timestamp: Date.now(),
+        params: { passes } as unknown as Action["params"],
       };
       const result = await actionExecutor.execute(action, project);
       if (result.success) {

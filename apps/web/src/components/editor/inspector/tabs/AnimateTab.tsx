@@ -9,9 +9,10 @@ import {
 import { InspectorSection } from "../shell/InspectorSection";
 import { TextScrollSection } from "../TextScrollSection";
 import { SavedStylesSection } from "../SavedStylesSection";
+import { lazyWithRetry } from "../lazy-retry";
 
 // gsap (~280 KB) is only needed once a clip's Motion Path section is shown.
-const MotionPathSection = React.lazy(() => import("../MotionPathSection").then((module) => ({ default: module.MotionPathSection })));
+const MotionPathSection = lazyWithRetry(() => import("../MotionPathSection").then((module) => ({ default: module.MotionPathSection })));
 
 interface AnimateTabProps {
   clipId: string;

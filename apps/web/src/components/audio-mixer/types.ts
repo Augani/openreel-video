@@ -1,4 +1,4 @@
-import type { AudioRack, AudioSend, SurroundPan } from "@openreel/core";
+import type { AudioRack, AudioSend, SurroundPan, TrackAutomationMode } from "@openreel/core";
 import type { StereoSignalLevels } from "../../services/audio-mixer-meter";
 
 /**
@@ -14,6 +14,8 @@ export interface ChannelStripState {
   readonly solo: boolean;
   /** Solo Safe: stays audible while other tracks are soloed. */
   readonly soloSafe?: boolean;
+  /** Automation mode (Off, Read, Write, Touch, Latch). Absent = Read. */
+  readonly automationMode?: TrackAutomationMode;
   readonly levels: StereoSignalLevels;
   readonly rack?: AudioRack;
   /** Output assignment: a bus id, absent = master. */

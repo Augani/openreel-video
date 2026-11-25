@@ -1,7 +1,7 @@
 interface Box { type: string; bytes: Uint8Array }
 const decoder = new TextDecoder();
 
-function children(bytes: Uint8Array): Box[] {
+export function children(bytes: Uint8Array): Box[] {
   const boxes: Box[] = [];
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   for (let offset = 8; offset < bytes.length;) {
@@ -14,7 +14,7 @@ function children(bytes: Uint8Array): Box[] {
   return boxes;
 }
 
-function box(type: string, payloads: Uint8Array[]): Uint8Array {
+export function box(type: string, payloads: Uint8Array[]): Uint8Array {
   const size = 8 + payloads.reduce((total, bytes) => total + bytes.length, 0);
   const bytes = new Uint8Array(size);
   new DataView(bytes.buffer).setUint32(0, size);
@@ -25,8 +25,8 @@ function box(type: string, payloads: Uint8Array[]): Uint8Array {
 }
 
 function view(bytes: Uint8Array): DataView { return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength); }
-function timescale(header: Uint8Array): number { return view(header).getUint32(header[8] === 1 ? 28 : 20); }
-function duration(header: Uint8Array, track = false): number {
+export function timescale(header: Uint8Array): number { return view(header).getUint32(header[8] === 1 ? 28 : 20); }
+export function duration(header: Uint8Array, track = false): number {
   const offset = track ? (header[8] === 1 ? 36 : 28) : (header[8] === 1 ? 32 : 24);
   return header[8] === 1 ? Number(view(header).getBigUint64(offset)) : view(header).getUint32(offset);
 }

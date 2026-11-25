@@ -74,6 +74,13 @@ const EFFECT_BASE_MS: Readonly<Record<string, number>> = {
   "lens-flare": 6,
   noise: 7,
   "color-emboss": 7,
+  // repair effects: dehaze and deband are multi-tap passes; deflicker reads its neighbour frames
+  dehaze: 10,
+  deband: 6,
+  deflicker: 8,
+  // creative: lumetri-creative is one 3x3 pass, lens-correction three bilinear taps
+  "lumetri-creative": 5,
+  "lens-correction": 6,
 };
 
 function paramNumber(params: Record<string, unknown>, ...keys: string[]): number {
@@ -174,6 +181,11 @@ function costAt(project: Project, t: number): IntervalCost {
         processing = true;
         ms += 1.5 * pixelScale;
         reasons.push("blend mode");
+      }
+      if (clip.objectRemoval?.enabled) {
+        processing = true;
+        ms += 3 * pixelScale;
+        reasons.push("remove object");
       }
       if (clip.stabilization?.enabled) {
         processing = true;

@@ -1,3 +1,4 @@
+import React from "react";
 import { useState } from "react";
 import { useEditPointStore } from "../../../stores/edit-point-store";
 import { toast } from "../../../stores/notification-store";
@@ -12,7 +13,7 @@ import {
  * Enter. Appears only while an edit point is selected. The Ripple/Roll button
  * does what Cmd/Ctrl-clicking the edit point does.
  */
-export function EditPointTrimEntry() {
+export const EditPointTrimEntry = React.memo(function EditPointTrimEntry() {
   const kind = useEditPointStore((s) => (s.selection?.type === "edit" ? s.selection.kind : null));
   const [text, setText] = useState("");
   const dynamicEnabled = useEditPointStore((s) => s.dynamicTrimEnabled);
@@ -78,4 +79,4 @@ export function EditPointTrimEntry() {
       />
     </div>
   );
-}
+});

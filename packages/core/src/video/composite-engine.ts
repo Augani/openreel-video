@@ -1,20 +1,11 @@
-import type { BlendMode } from "./types";
+import { BLEND_MODES, type BlendMode } from "./types";
+import { BLEND_MODE_GROUPS } from "./blend-reference";
 
+/** Every blend mode, in the order of Premiere's grouped menu. */
 export function getAvailableBlendModes(): BlendMode[] {
-  return [
-    "normal",
-    "multiply",
-    "screen",
-    "overlay",
-    "darken",
-    "lighten",
-    "color-dodge",
-    "color-burn",
-    "hard-light",
-    "soft-light",
-    "difference",
-    "exclusion",
-  ];
+  const grouped = BLEND_MODE_GROUPS.flatMap((group) => group.modes);
+  const missing = BLEND_MODES.filter((mode) => !grouped.includes(mode));
+  return [...grouped, ...missing];
 }
 
 export function getBlendModeName(mode: BlendMode): string {
@@ -37,6 +28,16 @@ export function getBlendModeName(mode: BlendMode): string {
     luminosity: "Luminosity",
     add: "Add",
     "linear-dodge": "Linear Dodge",
+    "linear-burn": "Linear Burn",
+    "darker-color": "Darker Color",
+    "lighter-color": "Lighter Color",
+    "linear-light": "Linear Light",
+    "vivid-light": "Vivid Light",
+    "pin-light": "Pin Light",
+    "hard-mix": "Hard Mix",
+    subtract: "Subtract",
+    divide: "Divide",
+    dissolve: "Dissolve",
   };
   return names[mode] || mode;
 }

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { getMaxRackEffects } from "@openreel/core/audio/track-audio-rack";
 import { HeadlessHost } from "./headless-host";
 import { executeTool } from "./executor";
 import { getTool } from "./registry";
@@ -52,14 +53,14 @@ describe("agent track audio rack tools", () => {
     expect(orphan.ok).toBe(false);
   });
 
-  it("works on the master bus and rejects a sixth effect, bad types and unknown tracks", async () => {
+  it("works on the master bus and rejects an effect past the slot limit, bad types and unknown tracks", async () => {
     const host = new HeadlessHost(makeProjectWithClip());
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < getMaxRackEffects(); i++) {
       expect((await executeTool("add_track_audio_effect", { target: "master", effectType: "gain" }, host)).ok).toBe(true);
     }
-    expect(rackOf(host, "master")?.effects).toHaveLength(5);
-    const sixth = await executeTool("add_track_audio_effect", { target: "master", effectType: "gain" }, host);
-    expect(sixth.ok).toBe(false);
+    expect(rackOf(host, "master")?.effects).toHaveLength(getMaxRackEffects());
+    const overflow = await executeTool("add_track_audio_effect", { target: "master", effectType: "gain" }, host);
+    expect(overflow.ok).toBe(false);
     expect((await executeTool("add_track_audio_effect", { target: trackId(host), effectType: "wah" }, host)).ok).toBe(false);
     expect((await executeTool("add_track_audio_effect", { target: "nope", effectType: "gain" }, host)).ok).toBe(false);
   });

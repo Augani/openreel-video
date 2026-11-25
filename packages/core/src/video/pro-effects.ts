@@ -31,6 +31,24 @@ import {
   isExtraProEffectType,
 } from "./pro-effects-extra";
 import {
+  CREATIVE_EFFECTS_WRITING_ALPHA,
+  CREATIVE_PRO_EFFECT_SPECS,
+  CREATIVE_PRO_EFFECT_TYPES,
+  applyCreativeProEffect,
+  creativeProEffectGpuUniforms,
+  isCreativeNeutral,
+  isCreativeProEffectType,
+} from "./creative-effects";
+import {
+  REPAIR_EFFECTS_WRITING_ALPHA,
+  REPAIR_PRO_EFFECT_SPECS,
+  REPAIR_PRO_EFFECT_TYPES,
+  applyRepairProEffect,
+  isRepairNeutral,
+  isRepairProEffectType,
+  repairProEffectGpuUniforms,
+} from "./repair-effects";
+import {
   VR_EFFECTS_WRITING_ALPHA,
   VR_PRO_EFFECT_SPECS,
   VR_PRO_EFFECT_TYPES,
@@ -77,6 +95,8 @@ const BASE_PRO_EFFECT_TYPES = [
 export const PRO_EFFECT_TYPES = [
   ...BASE_PRO_EFFECT_TYPES,
   ...EXTRA_PRO_EFFECT_TYPES,
+  ...REPAIR_PRO_EFFECT_TYPES,
+  ...CREATIVE_PRO_EFFECT_TYPES,
   ...TEMPORAL_PRO_EFFECT_TYPES,
   ...VR_PRO_EFFECT_TYPES,
   ...VR_IMAGE_EFFECT_TYPES,
@@ -96,6 +116,8 @@ export const PRO_EFFECTS_WRITING_ALPHA: readonly ProEffectType[] = [
   "crop",
   "skew",
   ...EXTRA_EFFECTS_WRITING_ALPHA,
+  ...REPAIR_EFFECTS_WRITING_ALPHA,
+  ...CREATIVE_EFFECTS_WRITING_ALPHA,
   ...TEMPORAL_EFFECTS_WRITING_ALPHA,
   ...VR_EFFECTS_WRITING_ALPHA,
 ];
@@ -111,6 +133,7 @@ export type ProEffectCategory =
   | "Distort"
   | "Generate"
   | "Time"
+  | "Repair"
   | "Immersive Video";
 
 export interface ProEffectParamSpec {
@@ -173,6 +196,8 @@ const toggle = (
 
 export const PRO_EFFECT_SPECS: Readonly<Record<ProEffectType, ProEffectSpec>> = {
   ...EXTRA_PRO_EFFECT_SPECS,
+  ...REPAIR_PRO_EFFECT_SPECS,
+  ...CREATIVE_PRO_EFFECT_SPECS,
   ...TEMPORAL_PRO_EFFECT_SPECS,
   ...VR_PRO_EFFECT_SPECS,
   ...VR_IMAGE_EFFECT_SPECS,
@@ -664,6 +689,8 @@ export function isProEffectNeutral(
 ): boolean {
   const p = resolveProEffectParams(type, rawParams);
   if (isExtraProEffectType(type)) return isExtraNeutral(type, p);
+  if (isRepairProEffectType(type)) return isRepairNeutral(type, p);
+  if (isCreativeProEffectType(type)) return isCreativeNeutral(type, p);
   if (isTemporalEffectType(type)) return isTemporalNeutral(type, p);
   if (isVrProEffectType(type)) return isVrNeutral(type, p);
   if (isVrImageEffectType(type)) return isVrImageNeutral(type, p);
@@ -1474,6 +1501,14 @@ export function applyProEffect(
     applyExtraProEffect(type, p, data, width, height);
     return true;
   }
+  if (isRepairProEffectType(type)) {
+    applyRepairProEffect(type, p, params, data, width, height);
+    return true;
+  }
+  if (isCreativeProEffectType(type)) {
+    applyCreativeProEffect(type, p, data, width, height);
+    return true;
+  }
   // Temporal effects choose frames rather than recolour one: the pixel pass is the identity.
   if (isTemporalEffectType(type)) return true;
   if (isVrProEffectType(type)) {
@@ -1619,6 +1654,8 @@ export function proEffectGpuUniforms(
 ): Record<string, number> {
   const p = resolveProEffectParams(type, rawParams);
   if (isExtraProEffectType(type)) return extraProEffectGpuUniforms(type, p);
+  if (isRepairProEffectType(type)) return repairProEffectGpuUniforms(type, p, rawParams);
+  if (isCreativeProEffectType(type)) return creativeProEffectGpuUniforms(type, p);
   if (isTemporalEffectType(type)) return {};
   if (isVrProEffectType(type)) return requireVrRuntime(type).vrEffectGpuUniforms(type, p);
   if (isVrImageEffectType(type)) return requireVrRuntime(type).vrImageEffectGpuUniforms(type, p);

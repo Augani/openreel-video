@@ -18,6 +18,7 @@ import type {
   NestedSequenceEngine,
   AdjustmentLayerEngine,
 } from "@openreel/core";
+import "../services/content-fill-cache";
 import { loadEngineModules, loadOptionalEngineModules, onEngineModulesLoaded } from "../services/lazy-engines";
 import type { RenderedFrame } from "@openreel/core";
 

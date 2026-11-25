@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { LoudnessAnalysis } from "@openreel/core";
+import type { LoudnessAnalysis, LoudnessExportReport } from "@openreel/core";
 
 export type LoudnessAnalysisStatus = "idle" | "running" | "done" | "error";
 
@@ -14,6 +14,9 @@ interface LoudnessState {
   timelineRef: unknown;
   error: string | null;
   controller: AbortController | null;
+  /** Loudness report (output measurement + compliance) of the most recent normalized export. */
+  exportReport: LoudnessExportReport | null;
+  setExportReport: (report: LoudnessExportReport | null) => void;
   begin: (controller: AbortController, projectId?: string) => void;
   setProgress: (fraction: number) => void;
   finish: (analysis: LoudnessAnalysis, projectId?: string, timelineRef?: unknown) => void;
@@ -31,6 +34,8 @@ export const useLoudnessStore = create<LoudnessState>((set, get) => ({
   timelineRef: null,
   error: null,
   controller: null,
+  exportReport: null,
+  setExportReport: (exportReport) => set({ exportReport }),
   begin: (controller, projectId) =>
     set({ status: "running", progress: 0, error: null, controller, projectId: projectId ?? get().projectId }),
   setProgress: (progress) => set({ progress }),

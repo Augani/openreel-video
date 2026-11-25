@@ -48,6 +48,11 @@ export interface ProjectSettings {
   /** Absent = Rec.709. */
   readonly workingColorSpace?: WorkingColorSpace;
   /**
+   * HDR sequence colour space (Rec.2100 PQ or HLG). Absent = Rec.709 / SDR. Only honoured together with
+   * `workingColorSpace: "rec2020"`; see `color/sequence-color.ts`.
+   */
+  readonly sequenceColorSpace?: "rec2100pq" | "rec2100hlg";
+  /**
    * Project colour management. Absent / "display-referred": the classic display-referred pipeline, unchanged.
    * "aces": footage goes through an ACES Input Transform (IDT) to ACEScg, grading runs in ACEScct, and the picture
    * leaves through the ACES Output Transform (RRT + ODT). See `color/aces.ts`.
@@ -430,7 +435,7 @@ export interface MediaMetadata {
   /** Stable provenance for sound-library imports; independent of the file name. */
   readonly soundLibraryId?: string;
   /** Set when the file came straight from the in-app recorder; independent of the file name. */
-  readonly recordedTake?: "screen" | "webcam";
+  readonly recordedTake?: "screen" | "webcam" | "voiceover";
   readonly duration: number; // In seconds
   readonly width: number; // For video/image
   readonly height: number; // For video/image

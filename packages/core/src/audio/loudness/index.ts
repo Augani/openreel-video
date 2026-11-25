@@ -5,3 +5,5 @@ export * from "./true-peak-limiter";
 export * from "./loudness-normalizer";
 export * from "./project-loudness";
 export * from "./clip-normalize";
+export * from "./dialogue-gate";
+export * from "./loudness-compliance";

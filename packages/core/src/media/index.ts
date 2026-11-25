@@ -62,6 +62,18 @@ export type {
   SceneDetectionResult,
   FrameSignature,
 } from "./scene-detection";
+export { detectSceneTransitions, buildSceneEdits, classifyDenseWindow, computeFrameVector } from "./transition-detection";
+export type {
+  DenseFrame,
+  DenseTransition,
+  FadeRange,
+  SceneEdit,
+  TransitionDetectionOptions,
+  TransitionDetectionResult,
+  TransitionRange,
+} from "./transition-detection";
+export { detectSceneTransitionsInWorker, serveSceneDetection } from "./scene-detection-worker";
+export type { MessagePortLike, SceneWorkerOptions, WorkerDetectionRun } from "./scene-detection-worker";
 
 // Seek anchors (low-res frame index for instant click-seek)
 export {

@@ -77,7 +77,8 @@ export class HelperProcess extends EventEmitter {
     child.stdin?.on("error", () => undefined);
     child.once("error", (error) => this.end(new HelperError("spawn", `the plugin helper could not start: ${error.message}`)));
     child.once("exit", (code, signal) => {
-      const reason = signal ? `was killed by ${signal}` : `exited with code ${code}`;
+      const accessViolation = code !== null && (code >>> 0) === 0xc0000005;
+      const reason = signal ? `was killed by ${signal}` : `exited with code ${code}${accessViolation ? " (access violation)" : ""}`;
       this.end(new HelperError("crash", `the plugin helper ${reason}`, this.stderrTail.trim() || undefined));
     });
     const hello = await this.request({ type: "hello" }, timeoutMs);

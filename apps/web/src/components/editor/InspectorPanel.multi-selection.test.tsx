@@ -1,5 +1,5 @@
 import "../../test/install-local-storage-mock";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   cleanup,
   fireEvent,
@@ -13,6 +13,7 @@ import { useEngineStore } from "../../stores/engine-store";
 import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
 import { InspectorPanel } from "./InspectorPanel";
+import { loadInspectorPanels } from "./inspector/lazy-inspector-panels";
 
 const TRACK_ID = "batch-track";
 const CLIP_IDS = ["batch-a", "batch-b"];
@@ -105,6 +106,10 @@ function textClip(id: string, x: number): TextClip {
 }
 
 describe("InspectorPanel multi-clip workflow", () => {
+  beforeAll(async () => {
+    await loadInspectorPanels();
+  });
+
   beforeEach(() => {
     useEngineStore.getState().getTitleEngine()?.clear();
     useProjectStore.setState({ hasOpenProject: true, project: project() });

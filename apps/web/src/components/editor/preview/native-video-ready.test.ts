@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { seekVideoFrame } from "./native-video-ready";
+import { PAUSED_SEEK_NUDGE, pausedSeekTime, seekVideoFrame } from "./native-video-ready";
 
 type NativeFrameCallback = Parameters<
   HTMLVideoElement["requestVideoFrameCallback"]
@@ -125,5 +125,20 @@ describe("native paused-video readiness", () => {
     await vi.advanceTimersByTimeAsync(5000);
     await rejected;
     expect(video.callbacks.size).toBe(0);
+  });
+});
+
+describe("paused seek time", () => {
+  it("asks for a moment inside the frame, so a frame start that truncates below its timestamp still shows that frame", () => {
+    // frame 14 of a 30 fps clip starts at 466666.67 us; the exact time 0.4666666... s truncates to 466666 us (frame 13)
+    const exact = 14 / 30;
+    expect(Math.floor(exact * 1e6)).toBeLessThan(Math.round((14 / 30) * 1e6));
+    expect(Math.floor(pausedSeekTime(exact, 10) * 1e6)).toBeGreaterThanOrEqual(Math.round((14 / 30) * 1e6));
+    expect(pausedSeekTime(exact, 10) - exact).toBeCloseTo(PAUSED_SEEK_NUDGE, 9);
+  });
+  it("stays inside the media", () => {
+    expect(pausedSeekTime(-1, 10)).toBe(0);
+    expect(pausedSeekTime(10, 10)).toBeCloseTo(9.999, 6);
+    expect(pausedSeekTime(3, Number.NaN)).toBeCloseTo(3 + PAUSED_SEEK_NUDGE, 9);
   });
 });

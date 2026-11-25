@@ -59,7 +59,7 @@ import { useUIStore } from "../../stores/ui-store";
 import { toast } from "../../stores/notification-store";
 import { useEngineStore } from "../../stores/engine-store";
 import { getPlaybackBridge } from "../../bridges/playback-bridge";
-import { trackHasAudioItems, trackHasVisualItems, graphicMemberClipIds, expectedMemberIds, type GraphicInstance, type Project } from "@openreel/core";
+import { reconcileGroupSelection, trackHasAudioItems, trackHasVisualItems, graphicMemberClipIds, expectedMemberIds, type GraphicInstance, type Project } from "@openreel/core";
 import {
 
   getTimelineItemRanges,
@@ -402,6 +402,21 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
   const explicitClipIds = useMemo(() => selectedItems
     .filter((item) => item.type === "clip" || item.type === "text-clip" || item.type === "shape-clip")
     .map((item) => item.id), [selectedItems]);
+  // Grouped clips select and deselect together: a clip newly (de)selected brings its whole group along.
+  const lastClipSelection = useRef<string[]>([]);
+  useEffect(() => {
+    const reconciled = reconcileGroupSelection(project.timeline.tracks, lastClipSelection.current, explicitClipIds);
+    lastClipSelection.current = reconciled;
+    if (reconciled.length === explicitClipIds.length && reconciled.every((id) => explicitClipIds.includes(id))) return;
+    const keep = new Set(reconciled);
+    const have = new Set<string>();
+    const items = useUIStore.getState().selectedItems.filter((item) => {
+      const isClip = item.type === "clip" || item.type === "text-clip" || item.type === "shape-clip";
+      if (isClip && keep.has(item.id)) have.add(item.id);
+      return !isClip || keep.has(item.id);
+    });
+    useUIStore.getState().selectMultiple([...items, ...reconciled.filter((id) => !have.has(id)).map((id) => ({ type: "clip" as const, id }))]);
+  }, [project, explicitClipIds]);
   const selectedClipIds = useMemo(
     () => getLinkedTimelineSelection(project, explicitClipIds, linkedSelection),
     [project, explicitClipIds, linkedSelection],

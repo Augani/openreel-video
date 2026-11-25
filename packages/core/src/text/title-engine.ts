@@ -14,6 +14,9 @@ import { computeScrollAnchor, scrollProgress } from "./text-scroll";
 import { textAnimationEngine, type AnimatedTextState } from "./text-animation";
 import { MotionShaderRenderer } from "../motion/motion-shader-renderer";
 import { getMotionShaderDef } from "../motion/shaders";
+import { editRuns, isRichTextClip, migrateTextClipRuns, normalizeRuns, runsForText } from "./rich-text";
+import { blockBounds, drawRichText, layoutRichTextOnCanvas } from "./rich-text-render";
+import type { RichLayout } from "./rich-text-layout";
 
 interface CreateTextClipOptions {
   id?: string;
@@ -25,6 +28,7 @@ interface CreateTextClipOptions {
   transform?: Partial<Transform>;
   animation?: TextAnimation;
   metadata?: ClipMetadata;
+  runs?: import("./types").TextRun[];
 }
 
 interface UpdateTextClipOptions {
@@ -43,6 +47,8 @@ interface UpdateTextClipOptions {
   metadata?: ClipMetadata;
   /** Set or unset 3D extrusion settings for the text. */
   text3d?: import("./types").Text3DSettings | undefined;
+  /** Per-character style runs; `undefined` explicitly removes them (back to single-style text). */
+  runs?: import("./types").TextRun[] | undefined;
 }
 
 /** Caption layout uses project pixels, even when the preview renders smaller. */
@@ -109,6 +115,7 @@ export class TitleEngine {
       animation: options.animation,
       keyframes: [],
       metadata: options.metadata,
+      ...(options.runs ? { runs: normalizeRuns(options.runs) } : {}),
     };
 
     this.textClips.set(id, textClip);
@@ -161,6 +168,15 @@ export class TitleEngine {
       metadata: updates.metadata ?? existing.metadata,
       text3d: "text3d" in updates ? updates.text3d : existing.text3d,
     };
+    // Runs follow the text: an edit re-flows them (inserted characters inherit the style before the caret),
+    // an explicit `runs` update wins, and `runs: undefined` returns the clip to single-style text.
+    if ("runs" in updates) {
+      if (updates.runs) (updatedClip as { runs?: TextClip["runs"] }).runs = runsForText(updatedClip.text, updates.runs);
+      else delete (updatedClip as { runs?: TextClip["runs"] }).runs;
+    } else if (existing.runs && updates.text !== undefined && updates.text !== existing.text) {
+      const reflowed = editRuns(existing.runs, updates.text);
+      (updatedClip as { runs?: TextClip["runs"] }).runs = reflowed;
+    }
 
     this.textClips.set(id, updatedClip);
     return updatedClip;
@@ -292,7 +308,13 @@ export class TitleEngine {
     const captionWrapWidth = getCaptionWrapWidth(
       { ...clip, transform }, width, contentScale.x,
     );
-    const metrics = this.measureText(visibleText, style, captionWrapWidth ?? width);
+    // Styled titles lay out through the shared run layout; plain titles keep the original path untouched.
+    const richLayout: RichLayout | null = isRichTextClip({ runs: clip.runs, style })
+      ? layoutRichTextOnCanvas(ctx, runsForText(visibleText, clip.runs), style, captionWrapWidth)
+      : null;
+    const metrics = richLayout
+      ? this.richMetrics(richLayout)
+      : this.measureText(visibleText, style, captionWrapWidth ?? width);
 
     ctx.save();
 
@@ -303,9 +325,11 @@ export class TitleEngine {
       // Roll / crawl: shared by preview and export (both render through here).
       const sx = Math.abs(transform.scale.x * contentScale.x);
       const sy = Math.abs(transform.scale.y * contentScale.y);
-      const blockHeight = metrics.lines.length
-        ? metrics.lines.length * style.fontSize * style.lineHeight
-        : style.fontSize * style.lineHeight;
+      const blockHeight = richLayout
+        ? richLayout.height
+        : metrics.lines.length
+          ? metrics.lines.length * style.fontSize * style.lineHeight
+          : style.fontSize * style.lineHeight;
       const blockWidth = metrics.width + 20;
       const vAlign = style.verticalAlign;
       const hAlign = style.textAlign;
@@ -333,6 +357,13 @@ export class TitleEngine {
       transform.scale.y * contentScale.y,
     );
     ctx.globalAlpha = opacity;
+
+    if (richLayout) {
+      drawRichText(ctx, { layout: richLayout, style, opacity, characterStates });
+      ctx.restore();
+      this.applyTextShader(canvas, ctx, style.shader, time, width, height);
+      return { canvas, width, height, textMetrics: metrics };
+    }
 
     this.applyTextStyle(ctx, style);
 
@@ -439,6 +470,28 @@ export class TitleEngine {
       height,
       textMetrics: metrics,
     };
+  }
+
+  private richMetrics(layout: RichLayout): TextMetrics {
+    return {
+      width: layout.width,
+      height: layout.height,
+      lines: layout.lines.map((line) => ({
+        text: line.text,
+        width: line.width,
+        height: line.height,
+        baseline: line.baseline,
+      })),
+    };
+  }
+
+  /** Bounds of the styled block in clip space (before transform), for selection overlays. */
+  measureRichBounds(clip: TextClip, text: string = clip.text): { width: number; height: number; left: number; top: number } | null {
+    if (!isRichTextClip(clip)) return null;
+    if (!this.ctx) this.initialize();
+    const layout = layoutRichTextOnCanvas(this.ctx!, runsForText(text, clip.runs), clip.style);
+    const bounds = blockBounds(layout, clip.style);
+    return { width: bounds.right - bounds.left, height: layout.height, left: bounds.left, top: bounds.top };
   }
 
   measureText(text: string, style: TextStyle, maxWidth?: number): TextMetrics {
@@ -667,7 +720,7 @@ export class TitleEngine {
   loadTextClips(clips: TextClip[]): void {
     this.textClips.clear();
     for (const clip of clips) {
-      this.textClips.set(clip.id, clip);
+      this.textClips.set(clip.id, migrateTextClipRuns(clip));
     }
   }
 

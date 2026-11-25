@@ -5,11 +5,14 @@ import {
   toVideoColorSpace,
   type OutputColorSpec,
 } from "./color-output";
+import { rgbaToI420Bt709 } from "./yuv420-sdr";
+import { isSoftwareGpuAdapter } from "../video/renderer-factory";
 import { takeHdrPayload } from "../color/hdr-payload";
-import { CODEC_MAP, type VideoExportSettings, type AudioExportSettings, type ExportError } from "./types";
+import { CODEC_MAP, type VideoExportSettings, type ExportError } from "./types";
 import type { Project } from "../types/project";
 import type { EncoderBackend, SmartRenderMuxer } from "./encoder-backend";
-import { descriptionBytes, parameterSetKey, parseAvcC, prependParameterSets, type AvcParameterSets } from "./avc-config";
+import { descriptionBytes, parameterSetKey, parseAvcC, prependParameterSets, repairEncoderAvcConfig, type AvcParameterSets } from "./avc-config";
+import { browserAudioCodec } from "./browser-audio-codec";
 import { getAacEncoderPriming } from "./audio-priming";
 import { DOLBY_VIDEO_DESKTOP_ONLY_REASON, isDolbyFormat } from "./dolby";
 import { applyMp4AudioTiming, applyMovChannelLayout } from "./mp4-audio-timing";
@@ -63,6 +66,8 @@ export class WebCodecsBackend implements EncoderBackend {
   private tagMovChannelLayout = false;
   /** Six-channel AAC: the channel order the browser's encoder reads (see aac-surround-order.ts). Null = pass buffers through. */
   private aacInputOrder: readonly number[] | null = null;
+  private chapterMarkers: Project["timeline"]["markers"] = [];
+  private chapterRange: VideoExportSettings["range"];
   private movieMetadata: { bytes: Uint8Array; position: number } | null = null;
   /** VR sequence in an MP4 / MOV: the trailing moov gets st3d / sv3d spherical metadata so players treat the file as 360. */
   private sphericalVr: VrProperties | null = null;
@@ -81,6 +86,7 @@ export class WebCodecsBackend implements EncoderBackend {
   private settings: VideoExportSettings | null = null;
   /** Non-null when the export converts to and tags a BT.2020 / HDR colour space (see color-output.ts). */
   private outputColor: OutputColorSpec | null = null;
+  private useCpuFrames = false;
   private colorCanvas: OffscreenCanvas | null = null;
   private encoder: VideoEncoder | null = null;
   private encoderOpening: Promise<void> | null = null;
@@ -143,7 +149,6 @@ export class WebCodecsBackend implements EncoderBackend {
       VideoSampleSource,
       AudioBufferSource,
       getFirstEncodableVideoCodec,
-      getFirstEncodableAudioCodec,
       QUALITY_MEDIUM,
     } = this.mediabunny;
 
@@ -163,6 +168,9 @@ export class WebCodecsBackend implements EncoderBackend {
     this.audioSampleRate = settings.audioSettings.sampleRate;
     this.tagMovChannelLayout = settings.format === "mov" && settings.audioSettings.channels === 6;
     this.movieMetadata = null;
+    this.chapterMarkers = settings.embedChapters && (settings.format === "mp4" || settings.format === "mov")
+      ? project.timeline.markers.filter((marker) => marker.kind === "chapter") : [];
+    this.chapterRange = settings.range;
     this.sphericalVr = (settings.format === "mp4" || settings.format === "mov") && isVrProperties(project.settings.vr) ? normalizeVrProperties(project.settings.vr) : null;
     this.submittedVideoFrames = 0;
     this.encodedVideoFrames = 0;
@@ -234,21 +242,24 @@ export class WebCodecsBackend implements EncoderBackend {
     }
 
     const hasAudio = project.timeline.tracks.some((track) => trackHasAudioItems(project, track.id));
-    const audioCodecResult = hasAudio ? await this.findSupportedAudioCodec(
-      outputFormat,
-      settings.audioSettings,
-      getFirstEncodableAudioCodec,
-    ) : null;
+    const audioCodecResult = hasAudio
+      ? await browserAudioCodec(this.mediabunny, settings, outputFormat.getSupportedAudioCodecs())
+      : null;
+    if (hasAudio && !audioCodecResult) {
+      throw { code: "UNSUPPORTED_CODEC", message: `Cannot encode audio for ${settings.format.toUpperCase()} with these settings.`, phase: "preparing", recoverable: true } satisfies ExportError;
+    }
 
     if (audioCodecResult?.codec === "aac" && settings.format !== "webm") {
-      this.audioPriming = await getAacEncoderPriming(this.mediabunny, {
+      // The bundled FFmpeg AAC-LC encoder primes one 1024-sample frame. It
+      // accepts standard PCM channel order even on systems with no AAC decoder.
+      this.audioPriming = audioCodecResult.softwareAac ? 1024 : await getAacEncoderPriming(this.mediabunny, {
         sampleRate: settings.audioSettings.sampleRate,
         channels: settings.audioSettings.channels,
         bitrate: audioCodecResult.bitrate,
       });
     }
 
-    this.aacInputOrder = audioCodecResult?.codec === "aac" && settings.audioSettings.channels === 6
+    this.aacInputOrder = audioCodecResult?.codec === "aac" && !audioCodecResult.softwareAac && settings.audioSettings.channels === 6
       ? await resolveAacSurroundOrder(this.mediabunny, settings.audioSettings.sampleRate, audioCodecResult.bitrate)
       : null;
 
@@ -268,6 +279,8 @@ export class WebCodecsBackend implements EncoderBackend {
     if (this.smartEnabled && videoCodec !== "avc") {
       throw { code: "UNSUPPORTED_CODEC", message: "Smart render needs H.264 output.", phase: "preparing", recoverable: false } satisfies ExportError;
     }
+    const adapter = await globalThis.navigator?.gpu?.requestAdapter?.({ powerPreference: "high-performance" }).catch(() => null);
+    this.useCpuFrames = !!adapter && isSoftwareGpuAdapter(adapter);
     this.outputColor = outputColorForExport(project, settings.hdr);
     if (this.outputColor && this.smartEnabled) {
       throw { code: "INVALID_SETTINGS", message: "Smart render copies untagged source packets, so it cannot be combined with Rec.2020 or HDR output.", phase: "preparing", recoverable: false } satisfies ExportError;
@@ -302,6 +315,7 @@ export class WebCodecsBackend implements EncoderBackend {
       latencyMode: isWebKit ? "realtime" : "quality",
       ...(isHdr ? { fullCodecString: HDR_HEVC_CODEC_STRING } : {}),
       onEncodedPacket: (_packet, meta) => {
+        repairEncoderAvcConfig(meta);
         this.encodedVideoFrames++;
         // The container's colr box is written from the first packet's decoder config.
         if (outputColor && meta?.decoderConfig) {
@@ -311,7 +325,8 @@ export class WebCodecsBackend implements EncoderBackend {
     });
     const packetSource = this.smartEnabled ? new this.mediabunny.EncodedVideoPacketSource("avc") : null;
     const audioSource = audioCodecResult ? new AudioBufferSource({
-      codec: audioCodecResult.codec as "aac" | "opus" | "mp3",
+      codec: audioCodecResult.codec,
+      ...(audioCodecResult.codec === "aac" ? { fullCodecString: "mp4a.40.2" } : {}),
       bitrate: audioCodecResult.bitrate,
     }) : null;
     output.addVideoTrack((videoSource ?? packetSource)!);
@@ -396,14 +411,7 @@ export class WebCodecsBackend implements EncoderBackend {
         colorSpace: toVideoColorSpace(spec) as unknown as VideoColorSpaceInit,
       });
     }
-    if (!this.colorCanvas || this.colorCanvas.width !== frame.width || this.colorCanvas.height !== frame.height) {
-      this.colorCanvas = new OffscreenCanvas(frame.width, frame.height);
-    }
-    const ctx = this.colorCanvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) throw new Error("Could not read the frame for colour conversion.");
-    ctx.clearRect(0, 0, frame.width, frame.height);
-    ctx.drawImage(frame, 0, 0);
-    const pixels = ctx.getImageData(0, 0, frame.width, frame.height);
+    const pixels = this.readPixels(frame);
     const yuv = rgbaToYuv420(pixels.data, frame.width, frame.height, spec);
     return new VideoSample(yuv.data, {
       format: yuv.format as VideoPixelFormat,
@@ -413,6 +421,28 @@ export class WebCodecsBackend implements EncoderBackend {
       duration: durationSec,
       // TypeScript's DOM lib predates the "bt2020-ncl" matrix and "pq"/"hlg" transfers browsers accept.
       colorSpace: toVideoColorSpace(spec) as unknown as VideoColorSpaceInit,
+    });
+  }
+
+  private readPixels(frame: ImageBitmap): ImageData {
+    if (!this.colorCanvas || this.colorCanvas.width !== frame.width || this.colorCanvas.height !== frame.height) {
+      this.colorCanvas = new OffscreenCanvas(frame.width, frame.height);
+    }
+    const ctx = this.colorCanvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) throw new Error("Could not read the frame for colour conversion.");
+    ctx.clearRect(0, 0, frame.width, frame.height);
+    ctx.drawImage(frame, 0, 0);
+    return ctx.getImageData(0, 0, frame.width, frame.height);
+  }
+
+  private softwareFrame(frame: ImageBitmap, timestampSec: number, durationSec: number): VideoFrame {
+    // SwiftShader can leave GPU-backed input stuck in the WebCodecs queue. A
+    // CPU-backed frame also lets the social presets retain limited-range 4:2:0.
+    const pixels = this.readPixels(frame);
+    const init = { codedWidth: frame.width, codedHeight: frame.height, timestamp: Math.round(timestampSec * 1e6), duration: Math.round(durationSec * 1e6) };
+    if (frame.width % 2 || frame.height % 2) return new VideoFrame(pixels.data, { ...init, format: "RGBA" });
+    return new VideoFrame(rgbaToI420Bt709(pixels.data, frame.width, frame.height), {
+      ...init, format: "I420", colorSpace: { primaries: "bt709", transfer: "bt709", matrix: "bt709", fullRange: false },
     });
   }
 
@@ -428,10 +458,9 @@ export class WebCodecsBackend implements EncoderBackend {
     const { VideoSample } = this.mediabunny;
     const videoSample = this.outputColor
       ? this.toColorManagedSample(frame, timestampSec, durationSec, this.outputColor)
-      : new VideoSample(frame, {
-          timestamp: timestampSec,
-          duration: durationSec,
-        });
+      : this.useCpuFrames
+        ? new VideoSample(this.softwareFrame(frame, timestampSec, durationSec))
+        : new VideoSample(frame, { timestamp: timestampSec, duration: durationSec });
     let released = false;
     const release = () => {
       if (released) return;
@@ -462,7 +491,7 @@ export class WebCodecsBackend implements EncoderBackend {
       throw new Error(`The video encoder produced ${this.encodedVideoFrames} of ${this.submittedVideoFrames} frames. Retry with a lower resolution or a different codec.`);
     }
     const patchAudio = (this.audioPriming !== null || this.tagMovChannelLayout) && this.audioFrameCount > 0;
-    if (patchAudio || this.sphericalVr) {
+    if (patchAudio || this.sphericalVr || this.chapterMarkers.length) {
       if (!this.movieMetadata || !this.writableStream) throw new Error("MP4 movie metadata was not written.");
       const { bytes, position } = this.movieMetadata;
       let corrected = patchAudio && this.audioPriming !== null
@@ -474,24 +503,25 @@ export class WebCodecsBackend implements EncoderBackend {
         const { applySphericalToMoov } = await import("./spherical-metadata");
         corrected = applySphericalToMoov(corrected, this.sphericalVr);
       }
+      const chunks = this.chapterMarkers.length
+        ? (await import("./mp4-chapters")).addChapterTrack(corrected, position, this.chapterMarkers, this.chapterRange)
+        : [corrected];
       await this.writableStream.seek(position);
-      await this.writableStream.write(corrected as unknown as FileSystemWriteChunkType);
-      this.bytesWritten += corrected.byteLength;
+      for (const chunk of chunks) {
+        await this.writableStream.write(chunk as unknown as FileSystemWriteChunkType);
+        this.bytesWritten += chunk.byteLength;
+      }
     }
     await this.writableStream?.close();
   }
 
   async abort(): Promise<void> {
     for (const release of this.pendingFrameReleases) release();
+    // Output.cancel force-closes each attached source. A subsequent source.close
+    // asks WebCodecs to flush that already-closed encoder.
     try { await this.output?.cancel(); } catch {}
-    this.videoSource?.close();
-    this.packetSource?.close();
     try { if (this.encoder && this.encoder.state !== "closed") this.encoder.close(); } catch {}
     this.encoder = null;
-    this.audioSource?.close();
-    for (const track of this.captionTracks) {
-      try { track.source.close(); } catch {}
-    }
     try {
       await this.writableStream?.abort();
     } catch {}
@@ -583,6 +613,7 @@ export class WebCodecsBackend implements EncoderBackend {
         const data = new Uint8Array(chunk.byteLength);
         chunk.copyTo(data);
         const packet = new EncodedPacket(data, chunk.type === "key" ? "key" : "delta", chunk.timestamp / 1e6, (chunk.duration ?? 0) / 1e6);
+        repairEncoderAvcConfig(meta);
         const description = meta?.decoderConfig?.description;
         const sets = description
           ? parseAvcC(descriptionBytes(description))
@@ -605,10 +636,9 @@ export class WebCodecsBackend implements EncoderBackend {
       }
       const encoder = this.encoder!;
       while (encoder.encodeQueueSize > 8) await new Promise((resolve) => setTimeout(resolve, 1));
-      const videoFrame = new VideoFrame(frame, {
-        timestamp: Math.round(timestampSec * 1e6),
-        duration: Math.round(durationSec * 1e6),
-      });
+      const videoFrame = this.useCpuFrames
+        ? this.softwareFrame(frame, timestampSec, durationSec)
+        : new VideoFrame(frame, { timestamp: Math.round(timestampSec * 1e6), duration: Math.round(durationSec * 1e6) });
       try {
         encoder.encode(videoFrame, { keyFrame: this.forceKeyFrame });
         this.forceKeyFrame = false;
@@ -667,95 +697,6 @@ export class WebCodecsBackend implements EncoderBackend {
       return copied;
     } finally {
       input.dispose();
-    }
-  }
-
-  private async findSupportedAudioCodec(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    outputFormat: { getSupportedAudioCodecs: () => any[] },
-    audioSettings: AudioExportSettings,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    getFirstEncodableAudioCodec: (codecs: any[]) => Promise<string | null>,
-  ): Promise<{ codec: string; bitrate: number }> {
-    const supportedCodecs = outputFormat.getSupportedAudioCodecs();
-    const requestedBitrate = audioSettings.bitrate * 1000;
-
-    const bitrateFallbacks = [requestedBitrate, 192000, 128000, 96000].filter(
-      (b, i, arr) => arr.indexOf(b) === i,
-    );
-
-    for (const bitrate of bitrateFallbacks) {
-      const codec = await getFirstEncodableAudioCodec(supportedCodecs);
-      if (codec) {
-        const isSupported = await this.isAudioConfigSupported(
-          codec,
-          bitrate,
-          audioSettings.channels,
-          audioSettings.sampleRate,
-        );
-        if (isSupported) {
-          return { codec, bitrate };
-        }
-      }
-    }
-
-    for (const fallbackCodec of ["aac", "mp3", "opus"]) {
-      if (
-        supportedCodecs.some((c: string) =>
-          String(c).toLowerCase().includes(fallbackCodec) ||
-          (fallbackCodec === "aac" && String(c).toLowerCase().includes("mp4a")),
-        )
-      ) {
-        for (const bitrate of bitrateFallbacks) {
-          const isSupported = await this.isAudioConfigSupported(
-            fallbackCodec,
-            bitrate,
-            audioSettings.channels,
-            audioSettings.sampleRate,
-          );
-          if (isSupported) {
-            return { codec: fallbackCodec, bitrate };
-          }
-        }
-      }
-    }
-
-    throw { code: "UNSUPPORTED_CODEC", message: `No supported audio encoder for ${outputFormat.constructor.name}. Try WebM or another browser.`, phase: "preparing", recoverable: true } satisfies ExportError;
-  }
-
-  private async isAudioConfigSupported(
-    codec: string,
-    bitrate: number,
-    channels: number,
-    sampleRate: number,
-  ): Promise<boolean> {
-    if (typeof AudioEncoder === "undefined") {
-      return true;
-    }
-
-    try {
-      let codecString: string;
-      if (codec === "aac" || codec.includes("mp4a")) {
-        codecString = "mp4a.40.2";
-      } else if (codec === "opus") {
-        codecString = "opus";
-      } else if (codec === "mp3") {
-        codecString = "mp3";
-      } else {
-        codecString = codec;
-      }
-
-      const config: AudioEncoderConfig = {
-        codec: codecString,
-        sampleRate,
-        numberOfChannels: channels,
-        bitrate,
-      };
-
-      const support = await AudioEncoder.isConfigSupported(config);
-      return support.supported === true;
-    } catch {
-      return false;
     }
   }
 }

@@ -41,7 +41,7 @@ describe("VST3 scan through the helper", () => {
     const byName = new Map(result.plugins.map((p) => [p.path ? path.basename(p.path, ".vst3") : p.name, p]));
     expect(byName.get("MockGain")).toMatchObject({ id: `vst3:${classIdOf("MockGain")}`, format: "vst3", name: "MockGain", vendor: "MockVendor", version: "1.2.3", status: "ok", latencySamples: 0, parameterCount: 1, path: bundle("MockGain") });
     expect(byName.get("MockLatency")).toMatchObject({ status: "ok", latencySamples: 128 });
-    expect(byName.get("MockCrash")).toMatchObject({ format: "vst3", status: "blocked", statusReason: expect.stringMatching(/SIGSEGV/) });
+    expect(byName.get("MockCrash")).toMatchObject({ format: "vst3", status: "blocked", statusReason: expect.stringMatching(/SIGSEGV|access violation/) });
     expect(byName.get("MockHang")).toMatchObject({ status: "blocked", statusReason: expect.stringMatching(/did not answer/) });
     // a bundle the helper cannot load is reported for this scan only (a refusal, not a crash)
     expect(byName.get("NotAPlugin")).toMatchObject({ status: "blocked", statusReason: expect.stringMatching(/could not be loaded/) });
@@ -52,7 +52,7 @@ describe("VST3 scan through the helper", () => {
   it("remembers a crashing bundle and does not load it again on the next scan", async () => {
     const blocklist = new PluginBlocklist(path.join(work, "bl-scan2.json"));
     await scanPlugins({ helper: vst3Only, blocklist, vst3Roots: [folder], probeTimeoutMs: 4000 });
-    const crashId = blocklist.list().find((e) => /SIGSEGV/.test(e.reason))?.id;
+    const crashId = blocklist.list().find((e) => /SIGSEGV|access violation/.test(e.reason))?.id;
     expect(crashId).toMatch(/^vst3:/);
     const before = blocklist.get(crashId as string);
     const second = await scanPlugins({ helper: vst3Only, blocklist, vst3Roots: [folder], probeTimeoutMs: 4000 });
@@ -94,7 +94,7 @@ describe("VST3 render through the host service", () => {
     const id = `vst3:${classIdOf("MockLateCrash")}`;
     expect(host.usableIds().has(id)).toBe(true);
     const failed = await host.render("v2", request(id, [signal(20000)]));
-    expect(failed).toMatchObject({ ok: false, kind: "failed", message: expect.stringMatching(/SIGSEGV/) });
+    expect(failed).toMatchObject({ ok: false, kind: "failed", message: expect.stringMatching(/SIGSEGV|access violation/) });
     expect(host.usableIds().has(id)).toBe(false);
     expect(await host.render("v3", request(id, [signal(2000)]))).toMatchObject({ ok: false, kind: "unavailable" });
     expect(host.usableIds().has(`vst3:${classIdOf("MockGain")}`)).toBe(true);
@@ -137,7 +137,7 @@ describe("one protocol, two helpers", () => {
   });
 
   it("adds OPENREEL_VST3_PATH folders after the standard VST3 locations", () => {
-    const sep = path.delimiter;
+    const sep = path.posix.delimiter;
     expect(vst3SearchPaths({ platform: "darwin", home: "/Users/a", env: { OPENREEL_VST3_PATH: `/tmp/one${sep}/tmp/two` } })).toEqual(["/Library/Audio/Plug-Ins/VST3", "/Users/a/Library/Audio/Plug-Ins/VST3", "/tmp/one", "/tmp/two"]);
   });
 });

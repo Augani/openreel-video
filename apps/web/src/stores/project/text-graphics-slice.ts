@@ -13,6 +13,7 @@ import type {
   SVGClip,
   StickerClip,
   TextClip,
+  TextRun,
   Text3DSettings,
 } from "@openreel/core";
 import type { ProjectState } from "../project-store";
@@ -35,6 +36,7 @@ type TextGraphicsSlice = Pick<
   | "createTextClip"
   | "updateTextContent"
   | "updateTextStyle"
+  | "updateTextRuns"
   | "updateTextAnimation"
   | "updateTextTransform"
   | "updateTextBehindSubject"
@@ -243,6 +245,18 @@ export function createTextGraphicsSlice(
       const before = titleEngine.getTextClip(clipId);
       const beforeSnapshot = before ? cloneClipSnapshot(before) : undefined;
       const updatedClip = titleEngine.updateStyle(clipId, style);
+      if (updatedClip) {
+        recordOverlayUpdate("text", "textClips", clipId, updatedClip, beforeSnapshot);
+      }
+      return updatedClip || null;
+    },
+
+    updateTextRuns: (clipId: string, runs: TextRun[] | undefined) => {
+      const titleEngine = useEngineStore.getState().getTitleEngine();
+      if (!titleEngine) return null;
+      const before = titleEngine.getTextClip(clipId);
+      const beforeSnapshot = before ? cloneClipSnapshot(before) : undefined;
+      const updatedClip = titleEngine.updateTextClip(clipId, { runs });
       if (updatedClip) {
         recordOverlayUpdate("text", "textClips", clipId, updatedClip, beforeSnapshot);
       }

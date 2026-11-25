@@ -109,6 +109,28 @@ export interface Mask {
   matteSource?: "alpha" | "luminance" | "bounds";
   /** Combine mode against the previous masks on the clip. Default "intersect". */
   combine?: MaskCombineMode;
+  /**
+   * What the matte controls. "visibility" (default) cuts the clip itself: only the matte stays visible.
+   * "effects" keeps the whole clip visible and limits the clip's effects and colour grade to the matte
+   * (inside the mask, or outside it when `inverted`): the picture shows the processed frame where the matte is
+   * opaque and the unprocessed frame where it is clear.
+   */
+  appliesTo?: MaskTarget;
+  /**
+   * "source": the path is on the clip's decoded (unstabilized) picture, as the object mask tool tracks it. On a
+   * clip with Warp Stabilizer the path is moved with the stabilizing warp of each frame when it is drawn. Unset:
+   * the path is on the picture the monitor shows.
+   */
+  space?: "source";
+}
+
+export type MaskTarget = "visibility" | "effects";
+
+export const isEffectMask = (mask: Pick<Mask, "appliesTo">): boolean => mask.appliesTo === "effects";
+
+/** The masks that cut the clip, and the masks that only scope its effects. */
+export function splitMasksByTarget<T extends Pick<Mask, "appliesTo">>(masks: readonly T[]): { visibility: T[]; effects: T[] } {
+  return { visibility: masks.filter((mask) => !isEffectMask(mask)), effects: masks.filter(isEffectMask) };
 }
 
 interface MaskDefinition {
@@ -624,13 +646,8 @@ export class MaskEngine {
    * combine mode. The single code path used for preview and export. With only
    * "intersect" modes this equals applying the masks one after another.
    */
-  async applyMasks(
-    image: ImageBitmap,
-    masks: readonly Mask[],
-    time?: number,
-  ): Promise<MaskResult> {
-    const startTime = performance.now();
-    this.resizeTo(image.width, image.height);
+  /** The combined matte of `masks` at `time` on a canvas the size of the working canvases. */
+  private renderMatte(masks: readonly Mask[], time?: number): OffscreenCanvas {
     const matte = new OffscreenCanvas(this.width, this.height);
     const matteCtx = matte.getContext("2d")!;
     masks.forEach((mask, index) => {
@@ -649,6 +666,17 @@ export class MaskEngine {
       matteCtx.globalAlpha = 1;
       matteCtx.globalCompositeOperation = "source-over";
     });
+    return matte;
+  }
+
+  async applyMasks(
+    image: ImageBitmap,
+    masks: readonly Mask[],
+    time?: number,
+  ): Promise<MaskResult> {
+    const startTime = performance.now();
+    this.resizeTo(image.width, image.height);
+    const matte = this.renderMatte(masks, time);
     this.ctx.clearRect(0, 0, this.width, this.height);
     this.ctx.drawImage(image, 0, 0, this.width, this.height);
     this.ctx.globalCompositeOperation = "destination-in";
@@ -660,6 +688,34 @@ export class MaskEngine {
       processingTime: performance.now() - startTime,
       gpuAccelerated: false,
     };
+  }
+
+  /**
+   * Effect masks: the processed layer where the matte is opaque and the unprocessed layer where it is clear
+   * (a premultiplied cross-fade, so feathered edges blend the two pictures). Both layers are full-frame and
+   * already positioned by the clip's transform; the matte lives in the same composition space.
+   */
+  async composeEffectMasks(
+    processed: ImageBitmap | OffscreenCanvas,
+    base: ImageBitmap | OffscreenCanvas,
+    masks: readonly Mask[],
+    time?: number,
+  ): Promise<ImageBitmap> {
+    this.resizeTo(processed.width, processed.height);
+    const matte = this.renderMatte(masks, time);
+    const inside = new OffscreenCanvas(this.width, this.height);
+    const insideCtx = inside.getContext("2d")!;
+    insideCtx.drawImage(processed, 0, 0, this.width, this.height);
+    insideCtx.globalCompositeOperation = "destination-in";
+    insideCtx.drawImage(matte, 0, 0);
+    const outside = new OffscreenCanvas(this.width, this.height);
+    const outsideCtx = outside.getContext("2d")!;
+    outsideCtx.drawImage(base, 0, 0, this.width, this.height);
+    outsideCtx.globalCompositeOperation = "destination-out";
+    outsideCtx.drawImage(matte, 0, 0);
+    outsideCtx.globalCompositeOperation = "lighter";
+    outsideCtx.drawImage(inside, 0, 0);
+    return createImageBitmap(outside);
   }
 
   async applyMaskDefinition(

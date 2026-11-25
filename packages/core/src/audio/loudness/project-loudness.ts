@@ -68,6 +68,7 @@ export async function analyzeProjectLoudness(
     sampleRate,
     channels,
     duration: rangeDuration,
+    dialogueGate: true,
     signal: options.signal,
     onProgress: options.onProgress,
     render: async (start, duration) => {

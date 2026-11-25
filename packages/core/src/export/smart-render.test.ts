@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Clip, MediaItem, Project, Track } from "../types";
 import { cleanTailFrames, declineSmartRender, describePixelFormat, extendCopyTails, MIN_COPY_FRAMES, nativeProbeMismatch, planSmartRender, type SmartRenderSourceInfo } from "./smart-render";
-import { parameterSetKey, parseAvcC, prependParameterSets } from "./avc-config";
+import { parameterSetKey, parseAvcC, prependParameterSets, repairEncoderAvcConfig } from "./avc-config";
 
 const FPS = 30;
 
@@ -297,6 +297,20 @@ describe("native engine (desktop ffmpeg)", () => {
     expect(result.encodeMatch?.color?.matrix).toBe("bt709");
   });
 
+  it("renders the sequence cadence when a 29.97 source and export use a 30 fps timeline", () => {
+    const p = project([clip({ id: "clip", startTime: 0, duration: 10 })]);
+    const rate = 30000 / 1001;
+    for (const engine of ["native", "webcodecs"] as const) {
+      const result = planSmartRender({
+        project: p, engine, exportStart: 0, totalFrames: 300,
+        settings: { ...settings, frameRate: 29.97 },
+        sources: new Map([["m1", source({ frameRate: rate })]]),
+      });
+      expect(result.eligible).toBe(false);
+      expect(result.reasons).toContain("sequence frame rate requires resampling");
+    }
+  });
+
   it("plans a 10-minute 29.97 fps timeline on the exact 30000/1001 grid (a rounded 29.97 would put cuts a GOP early)", () => {
     const ntsc = 30000 / 1001;
     const frames = 17983;
@@ -513,6 +527,16 @@ describe("avc config helpers", () => {
     expect(sets.sps[0]).toEqual(sps);
     expect(sets.pps[0]).toEqual(pps);
     expect(parseAvcC(new Uint8Array([2, 0, 0]))).toBeNull();
+  });
+
+  it("repairs the duplicated SPS and PPS in Firefox OpenH264 encoder metadata once", () => {
+    const malformed = new Uint8Array([1, 100, 0, 40, 3, 1, 0, 6, 103, 103, 100, 0, 40, 172, 1, 0, 3, 104, 104, 238]);
+    const decoderConfig = { codec: "avc1.640028", description: malformed };
+    repairEncoderAvcConfig({ decoderConfig });
+    expect(Array.from(decoderConfig.description)).toEqual([1, 100, 0, 40, 255, 225, 0, 5, 103, 100, 0, 40, 172, 1, 0, 2, 104, 238]);
+    const repaired = decoderConfig.description;
+    repairEncoderAvcConfig({ decoderConfig });
+    expect(decoderConfig.description).toBe(repaired);
   });
 
   it("prepends length-prefixed parameter sets to a packet", () => {

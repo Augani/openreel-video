@@ -124,7 +124,8 @@ describe("prgraphic parsing", () => {
       <GroupLayer Name="G"><Transform><Position Value="10,20"/><Opacity Value="50"/></Transform><Layers><RectangleLayer Name="R"><Bounds Width="5" Height="5"/></RectangleLayer></Layers></GroupLayer>
     </Layers></Graphic></PremiereData>`);
     expect(g.layers[0].text?.text).toBe("Hello");
-    expect(g.layers[0].unsupported.join()).toMatch(/mixed styling/);
+    expect(g.layers[0].unsupported.join()).not.toMatch(/mixed styling/);
+    expect(g.layers[0].text?.runs?.map((r) => [r.text, r.fontSize])).toEqual([["He", 20], ["llo", 30]]);
     expect(g.layers[1]).toMatchObject({ name: "R", groupOffset: { x: 10, y: 20 }, groupOpacity: 0.5 });
   });
   it("converts ticks exactly", () => {
@@ -302,5 +303,48 @@ describe("importMogrt: card fixture", () => {
     expect(template.parameters[1].defaultValue).toBe("#1d4ed8");
     expect(report.controlsImported).toBe(2);
     expect(report.dropped).toBe(0);
+  });
+});
+
+describe("importMogrt: styled text maps to runs", () => {
+  const styledMogrt = () => {
+    const xml = `<PremiereData Version="3"><Graphic><Name>Styled</Name><Width>1920</Width><Height>1080</Height><DurationSeconds>4</DurationSeconds>
+    <Layers><TextLayer ID="head" Name="Headline"><Bounds X="0" Y="0" Width="1200" Height="120"/><Transform><Position Value="960,540"/></Transform>
+      <Alignment>Center</Alignment>
+      <Runs>
+        <Run><Text Value="Big "/><Font>Inter-Regular</Font><FontSize>60</FontSize><FillColor><Color>#ffffff</Color></FillColor></Run>
+        <Run><Text Value="bold "/><Font>Inter-Bold</Font><FontSize>60</FontSize><FillColor><Color>#ffffff</Color></FillColor></Run>
+        <Run><Text Value="red"/><Font>Inter-BoldItalic</Font><FontSize>90</FontSize><FillColor><Color>#ff0000</Color></FillColor><Tracking>100</Tracking><Underline>true</Underline></Run>
+      </Runs></TextLayer></Layers></Graphic></PremiereData>`;
+    return zipFiles({
+      "definition.json": JSON.stringify({ authorApp: "ppro", sourceInfoLocalized: { en_US: { name: "Styled" } }, clientControls: [] }),
+      "Styled.prgraphic": gzipSync(Buffer.from(xml, "utf8")),
+      "thumb.png": solidPng(16, 9, [0, 0, 0]),
+    });
+  };
+
+  it("keeps the per-run font, weight, size, colour, tracking and underline instead of flattening to the first run", async () => {
+    const { template, report } = await OK(styledMogrt());
+    const text = template.layers.find((l) => l.kind === "text")!.text!;
+    expect(text.text).toBe("Big bold red");
+    expect(text.runs?.map((r) => [r.text, r.style])).toEqual([
+      ["Big ", {}],
+      ["bold ", { fontWeight: 700 }],
+      ["red", { fontWeight: 700, fontStyle: "italic", fontSize: 90, color: "#ff0000", letterSpacing: 9, underline: true }],
+    ]);
+    expect(JSON.stringify(report)).not.toMatch(/first run's style/);
+  });
+
+  it("expands to a text clip whose runs are scaled with the frame and still cover its text", async () => {
+    const { template } = await OK(styledMogrt());
+    const instance = { id: "g1", name: "x", trackId: "t", startTime: 0, duration: 4, template, values: {} };
+    const half = expandGraphicInstance(instance, { width: 960, height: 540 });
+    const clip = half.textClips[0];
+    expect(clip.runs!.map((r) => r.text).join("")).toBe(clip.text);
+    expect(clip.runs![2].style.fontSize).toBeCloseTo(45, 1);
+    expect(clip.style.fontSize).toBeCloseTo(30, 1);
+    // a text control edit re-flows the runs instead of discarding them
+    const text = template.layers.find((l) => l.kind === "text")!;
+    expect(text.text!.runs).toHaveLength(3);
   });
 });

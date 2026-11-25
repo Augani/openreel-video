@@ -35,11 +35,8 @@ interface E2EWindow {
 }
 
 async function openVoiceOverPanel(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const workspace = (window as unknown as E2EWindow).__openreelE2E.workspace.getState();
-    workspace.setSection("audio");
-    workspace.setAudioSource("voiceover");
-  });
+  await page.getByRole("button", { name: "Record", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Record voice-over" }).click();
   await expect(page.getByTestId("voiceover-panel")).toBeVisible();
 }
 

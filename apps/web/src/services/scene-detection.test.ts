@@ -206,3 +206,49 @@ describe("applySceneCuts", () => {
     ).rejects.toThrow(/Reversed/);
   });
 });
+
+describe("dissolves, fades and subclips", () => {
+  const edits = [
+    { kind: "cut" as const, time: 12, start: 12, end: 12, score: 0.9 },
+    { kind: "dissolve" as const, time: 15, start: 14.5, end: 15.5, score: 0.8 },
+    { kind: "fade-through-black" as const, time: 18, start: 17.5, end: 18.5, score: 1 },
+  ];
+  const withEdits = () => analysisFor([12], { edits });
+
+  it("plans every kind of edit, not only hard cuts, in timeline time", () => {
+    const plan = planSceneCuts(useProjectStore.getState().project, withEdits(), true);
+    // Speed 2, in point 10: source 12 / 15 / 18 map to 1 / 2.5 / 4 seconds on the timeline.
+    expect(plan.times).toEqual([1, 2.5, 4]);
+    expect(plan.kinds).toEqual(["cut", "dissolve", "fade-through-black"]);
+  });
+
+  it("applies cuts and labelled markers together as one undo step", async () => {
+    const result = await applySceneCuts(withEdits(), { splitClip: true, addMarkers: true });
+    expect(result).toMatchObject({ splits: 3, markers: 3 });
+    expect(clipsOf("v")).toHaveLength(4);
+    expect(useProjectStore.getState().project.timeline.markers.map((m) => m.label)).toEqual(["Cut 1", "Dissolve 2", "Fade 3"]);
+    await useProjectStore.getState().undo();
+    expect(clipsOf("v")).toHaveLength(1);
+    expect(useProjectStore.getState().project.timeline.markers).toHaveLength(0);
+  });
+
+  it("creates one bin subclip per scene, without touching the timeline, in one undo step", async () => {
+    const before = useProjectStore.getState().project.mediaLibrary.items.length;
+    const result = await applySceneCuts(withEdits(), { splitClip: false, addMarkers: false, createSubclips: true });
+    expect(result).toMatchObject({ splits: 0, markers: 0, subclips: 4 });
+    expect(clipsOf("v")).toHaveLength(1);
+    const items = useProjectStore.getState().project.mediaLibrary.items;
+    expect(items).toHaveLength(before + 4);
+    const subclips = items.filter((i) => i.subclip).map((i) => [i.subclip!.parentId, i.subclip!.inPoint, i.subclip!.outPoint]);
+    expect(subclips).toEqual([["video", 10, 12], ["video", 12, 15], ["video", 15, 18], ["video", 18, 20]]);
+    await useProjectStore.getState().undo();
+    expect(useProjectStore.getState().project.mediaLibrary.items).toHaveLength(before);
+  });
+
+  it("does everything at once as a single history entry", async () => {
+    const history = () => useProjectStore.getState().actionHistory.getHistory().length;
+    const h = history();
+    await applySceneCuts(withEdits(), { splitClip: true, addMarkers: true, createSubclips: true });
+    expect(history()).toBe(h + 1);
+  });
+});

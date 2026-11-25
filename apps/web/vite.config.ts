@@ -77,7 +77,9 @@ export default defineConfig({
         // chunk of their own by the lazy dialogs. Fold chunks under this size into their neighbours.
         ...(isDesktop ? { experimentalMinChunkSize: 70_000 } : {}),
         manualChunks: (id) => {
-          if (id.includes("node_modules/react") || id.includes("node_modules/react-dom")) return "react";
+          // Exact package match: a prefix test also caught react-markdown / react-syntax-highlighter, and Rollup then pulled
+          // their whole dependency trees (unified, micromark, highlight.js, ~100 KB gzip) into the chunk every page preloads.
+          if (/node_modules\/(?:react|react-dom|scheduler)\//.test(id)) return "react";
           if (id.includes("node_modules/zustand")) return "zustand";
           if (id.includes("node_modules/three")) return "three";
           if (id.includes("node_modules/@radix-ui")) return "radix";

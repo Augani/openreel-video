@@ -42,13 +42,13 @@ test("Working color space is a Preview menu setting, defaults to Rec.709, undoes
   expect(await workingSpace(page)).toBeUndefined();
 
   await page.getByRole("button", { name: "Preview options" }).click();
-  await page.getByRole("menuitem", { name: "Working color space" }).click();
+  await page.getByRole("menuitem", { name: "Sequence color space" }).click();
   await expect(page.getByRole("menuitemcheckbox", { name: "Rec.709 (default)" })).toHaveAttribute("aria-checked", "true");
   await page.getByRole("menuitemcheckbox", { name: "Rec.2020" }).click();
   await expect.poll(() => workingSpace(page)).toBe("rec2020");
 
   await page.getByRole("button", { name: "Preview options" }).click();
-  await page.getByRole("menuitem", { name: "Working color space" }).click();
+  await page.getByRole("menuitem", { name: "Sequence color space" }).click();
   await expect(page.getByRole("menuitemcheckbox", { name: "Rec.2020" })).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Escape");
   await page.keyboard.press("Escape");

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTextSelectionStore } from "../../../stores/text-selection-store";
 import type { TextClip } from "@openreel/core";
 import {
   inPlaceEditorStyle,
@@ -48,6 +49,25 @@ export function TextInPlaceEditor({
     // Seed once per edit session; later clip.text changes must not reset typing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Publish the selected character range so the inspector styles exactly those characters.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const publish = () => {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0 || !el.contains(selection.anchorNode)) return;
+      const range = selection.getRangeAt(0);
+      const before = document.createRange();
+      before.selectNodeContents(el);
+      before.setEnd(range.startContainer, range.startOffset);
+      const start = before.toString().length;
+      useTextSelectionStore.getState().setSelection(clip.id, start, start + range.toString().length);
+    };
+    document.addEventListener("selectionchange", publish);
+    publish();
+    return () => document.removeEventListener("selectionchange", publish);
+  }, [clip.id]);
 
   const finish = (commit: boolean) => {
     if (doneRef.current) return;

@@ -180,7 +180,7 @@ test("export 'Normalize to target loudness' -16 LUFS / -1 dBTP: the exported MP4
   await toggle.scrollIntoViewIfNeeded();
   await toggle.click();
   await page.getByRole("combobox", { name: "Loudness target preset" }).click();
-  await page.getByRole("option", { name: /Podcast \/ social \(-16 LUFS\)/ }).click();
+  await page.getByRole("option", { name: /Apple Podcasts \(-16 LUFS\)/ }).click();
   await expect(page.locator("#export-loudness-lufs")).toHaveValue("-16");
   await expect(page.locator("#export-loudness-ceiling")).toHaveValue("-1");
 
@@ -194,6 +194,53 @@ test("export 'Normalize to target loudness' -16 LUFS / -1 dBTP: the exported MP4
   testInfo.annotations.push({ type: "export-16", description: JSON.stringify({ before, exported }) });
   expect(Math.abs(exported.integrated - -16)).toBeLessThanOrEqual(0.5);
   expect(exported.truePeak).toBeLessThanOrEqual(-1 + 0.25);
+});
+
+test("export with the EBU R128 delivery spec: exported MP4 lands within +-0.5 LU of -23 and the compliance readout passes", async ({ page }, testInfo) => {
+  test.setTimeout(240_000);
+  await openEditor(page);
+
+  await page.getByRole("button", { name: "Export", exact: true }).first().click();
+  await settle(page, 1500);
+  await page.getByRole("tab", { name: "Custom Settings" }).click();
+  const toggle = page.getByRole("switch", { name: "Normalize to target loudness" });
+  await toggle.scrollIntoViewIfNeeded();
+  await toggle.click();
+  await page.getByRole("combobox", { name: "Loudness target preset" }).click();
+  await page.getByRole("option", { name: /EBU R128 \(-23 LUFS\)/ }).click();
+  await expect(page.locator("#export-loudness-lufs")).toHaveValue("-23");
+  await expect(page.getByTestId("export-loudness-spec-note")).toContainText("±0.5 LU");
+
+  const download = page.waitForEvent("download", { timeout: 200_000 });
+  await page.getByRole("button", { name: "Export Video" }).last().click();
+  const out = testInfo.outputPath("ebu-r128.mp4");
+  await (await download).saveAs(out);
+
+  const exported = ebur128(out);
+  console.log(`[loudness] export EBU R128: ${JSON.stringify(exported)}`);
+  expect(Math.abs(exported.integrated - -23)).toBeLessThanOrEqual(0.5);
+  expect(exported.truePeak).toBeLessThanOrEqual(-1 + 0.25);
+
+  // Post-export compliance readout: pass per target, as stored for the mixer panel.
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () => (window as unknown as { __openreelE2E: Hook }).__openreelE2E.loudness.getState().exportReport?.compliance ?? null,
+        ),
+      { timeout: 30_000 },
+    )
+    .not.toBeNull();
+  const compliance = await page.evaluate(
+    () => (window as unknown as { __openreelE2E: Hook }).__openreelE2E.loudness.getState().exportReport.compliance,
+  );
+  console.log(`[loudness] compliance: ${JSON.stringify(compliance)}`);
+  expect(compliance.specId).toBe("broadcast");
+  expect(compliance.pass).toBe(true);
+  expect(compliance.checks.map((c: { id: string; pass: boolean }) => `${c.id}:${c.pass}`)).toEqual(["loudness:true", "truePeak:true"]);
+
+  await openMixer(page);
+  await expect(page.getByTestId("loudness-export-compliance-verdict")).toContainText("compliant");
 });
 
 test("export engine: loudness target hits the number, and a tight true-peak ceiling is enforced by the limiter", async ({ page }, testInfo) => {

@@ -3,6 +3,7 @@ import type { AudioBus, AudioSend, Timeline, Track } from "../types/timeline";
 import { AudioRoutingGraph, buildOfflineTrackChain } from "./audio-routing-graph";
 import { hasAudioRouting, isolateBusStem } from "./audio-routing";
 import type { Project } from "../types/project";
+import { computeTrackAudibility } from "./track-audibility";
 
 /**
  * A tiny Web Audio evaluator: gain nodes with scheduled params and an
@@ -302,5 +303,82 @@ describe("review fixes", () => {
     const audible = Object.fromEntries(iso.tracks.map((t) => [t.id, t.muted ? 0 : 1]));
     // 0.5 (send) + 0.5 (send) + 1 (direct) = 2; no dry 1 + 1 leaked, nothing from "unrelated"
     expect(mix(iso, audible)[0]).toBeCloseTo(2, 12);
+  });
+});
+
+/** Per-track input levels after the clip-level mute/solo rule, the way the mixdown feeds the graph. */
+const audibleLevels = (tracks: readonly Track[], levels: Record<string, number>): Record<string, number> => {
+  const audible = computeTrackAudibility(tracks);
+  return Object.fromEntries(tracks.map((t) => [t.id, audible.get(t.id) ? (levels[t.id] ?? 0) : 0]));
+};
+
+describe("submix: tracks -> submix -> master", () => {
+  const submix = (extra: Partial<AudioBus> = {}) => bus("sub", { rack: { effects: [], volume: 0.5 }, ...extra });
+
+  it("sums the tracks routed into a submix, applies its fader, then adds the master-routed tracks", () => {
+    const timeline = tl(
+      [track("a", { output: "sub" }), track("b", { output: "sub", audioRack: { effects: [], volume: 0.5 } }), track("c")],
+      [submix()],
+    );
+    const x = { a: 0.4, b: 0.6, c: 0.1 };
+    expect(mix(timeline, x)[0]).toBeCloseTo((0.4 + 0.6 * 0.5) * 0.5 + 0.1, 12);
+  });
+
+  it("a muted submix silences every track inside it and nothing else", () => {
+    const timeline = tl([track("a", { output: "sub" }), track("c")], [submix({ muted: true })]);
+    expect(mix(timeline, { a: 0.9, c: 0.25 })[0]).toBeCloseTo(0.25, 12);
+  });
+
+  it("a muted track inside a submix drops out of the sum; solo inside the submix silences the siblings", () => {
+    const muted = [track("a", { output: "sub", muted: true }), track("b", { output: "sub" })];
+    expect(mix(tl(muted, [submix()]), audibleLevels(muted, { a: 0.8, b: 0.2 }))[0]).toBeCloseTo(0.2 * 0.5, 12);
+    const soloed = [track("a", { output: "sub", solo: true }), track("b", { output: "sub" }), track("c")];
+    expect(mix(tl(soloed, [submix()]), audibleLevels(soloed, { a: 0.8, b: 0.2, c: 0.3 }))[0]).toBeCloseTo(0.8 * 0.5, 12);
+  });
+
+  it("solo on a submix silences the other submixes, and nests: submix -> submix -> master", () => {
+    const timeline = tl(
+      [track("a", { output: "sub" }), track("b", { output: "other" })],
+      [submix({ solo: true, output: "grp" }), bus("other"), bus("grp", { rack: { effects: [], volume: 2 } })],
+    );
+    expect(mix(timeline, { a: 0.3, b: 0.7 })[0]).toBeCloseTo(0.3 * 0.5 * 2, 12);
+  });
+
+  it("submix pan follows the stereo pan law: hard left keeps L, centre is untouched, hard right keeps R", () => {
+    const at = (pan: number) => mix(tl([track("a", { output: "sub" })], [submix({ rack: { effects: [], volume: 1, pan } })]), { a: 1 });
+    expect(at(0)).toEqual([1, 1]);
+    const left = at(-1);
+    expect(left[0]).toBeCloseTo(1 + Math.cos(Math.PI / 2 * 0), 9);
+    expect(left[1]).toBeCloseTo(Math.sin(0), 9);
+    const right = at(1);
+    expect(right[0]).toBeCloseTo(Math.cos(Math.PI / 2), 9);
+    expect(right[1]).toBeCloseTo(1 + Math.sin(Math.PI / 2), 9);
+    // equal-power for the energy that moved: total level is preserved in the mono sum
+    const half = at(-0.5);
+    expect(half[0] + half[1]).toBeGreaterThan(1.9);
+  });
+
+  it("preview and export agree: the live graph and the offline graph give the same mix for a submix project", () => {
+    const timeline = tl(
+      [track("a", { output: "sub" }), track("b", { output: "sub" }), track("c", { sends: [send("s", "sub", { level: 0.25 })] })],
+      [submix({ rack: { effects: [], volume: 0.6, pan: -0.3 }, automation: { volume: [{ time: 0, value: 0.2 }, { time: 4, value: 1 }] } })],
+    );
+    const levels = { a: 0.5, b: -0.25, c: 0.4 };
+    const offline = mix(timeline, levels, 1.5);
+
+    const { ctx, master } = makeContext();
+    const live = new AudioRoutingGraph(ctx, master as unknown as AudioNode, { live: true, getTimelineTime: () => 0, getHorizon: () => 60 });
+    live.configure(timeline);
+    const sources = new Map<FakeNode, [number, number]>();
+    for (const tr of timeline.tracks) {
+      const pre = ctx.createGain();
+      live.connectTrackOutput(tr.id, pre, tr.output);
+      live.connectSends(tr, pre, pre);
+      const entry = pre as unknown as FakeNode;
+      sources.set(entry, [levels[tr.id as keyof typeof levels], levels[tr.id as keyof typeof levels]]);
+    }
+    const preview = evaluate(master, 1.5, sources);
+    expect(preview[0]).toBeCloseTo(offline[0], 6);
+    expect(preview[1]).toBeCloseTo(offline[1], 6);
   });
 });

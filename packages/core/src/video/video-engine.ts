@@ -1,3 +1,4 @@
+import { beginHdrScopeFrame, clearHdrScopeFrame, publishHdrScopeFrame } from "./hdr-scope-feed";
 import {
   displayLayoutWidth,
   normalizeSequencePar,
@@ -71,6 +72,19 @@ import {
   posterizedClipTime,
 } from "./temporal-effects";
 import {
+  IDENTITY_GAINS,
+  STATS_H,
+  STATS_W,
+  deflickerGainParams,
+  deflickerGains,
+  findActiveDeflicker,
+  planDeflickerWindow,
+  resolveDeflicker,
+  statsFromRgba,
+  type DeflickerGains,
+  type FrameStats,
+} from "./deflicker";
+import {
   ColorGradingEngine,
   type ClipColorGrading,
   type LUTData,
@@ -79,9 +93,12 @@ import {
   isNeutralColorGrading,
 } from "./color-grading-defaults";
 import { planColorGrading } from "./lumetri-pipeline";
+import { GpuGradeChain, type GpuGradeStats } from "./gpu-grade-chain";
+import { planGpuGradeChain } from "./gpu-grade-plan";
 import { TransitionEngine } from "./transition-engine";
 import { scaleBorderToFrame } from "./transition-defaults";
-import { MaskEngine, type Mask } from "./mask-engine";
+import { MaskEngine, splitMasksByTarget, type Mask } from "./mask-engine";
+import { applyObjectRemovalToBitmap, consumedMaskId } from "./content-aware-fill/apply";
 import type { Transition } from "../types/timeline";
 import { getMediaEngine } from "../media/mediabunny-engine";
 import type {
@@ -102,6 +119,12 @@ import { interpolationSourceKey } from "./time-interpolation/source-key";
 import {
   getStabilizedTransform,
   getVidstabEngine,
+  clipHasWarp,
+  applyWarpStabilizer,
+  masksInStabilizedSpace,
+  warpCompositionMap,
+  framePlacement,
+  getWarpRegistry,
 } from "./stabilization";
 import {
   ParallelFrameDecoder,
@@ -141,7 +164,9 @@ import type { MotionAsset } from "../motion/types";
 import { resolveCreationMotionSceneBinding } from "../creation/render-binding";
 import { resolveCanvasFitDimensions } from "./canvas-fit";
 import { conformBitmap } from "./deinterlace";
+import { drawImageWithBlend, drawOverlayLayerWithBlend, getNativeCanvasBlendOperation, needsCpuBlend } from "./blend-reference";
 import { frameConformFor, type FieldOrder, type FrameConform } from "../media/interpretation";
+import { addStageTime, stageProfileEnabled, timeStage } from "./frame-stage-profile";
 import {
   AdjustmentLayerSchedule,
   planAdjustmentLayers,
@@ -160,10 +185,6 @@ const DEFAULT_CACHE_CONFIG: FrameCacheConfig = {
   preloadBehind: 10,
 };
 
-function adjustmentBlendOperation(mode: BlendMode): CanvasRenderingContext2D["globalCompositeOperation"] {
-  if (mode === "add" || mode === "linear-dodge") return "lighter";
-  return mode as CanvasRenderingContext2D["globalCompositeOperation"];
-}
 
 interface FrameRenderOptions {
   textClips?: TextClip[];
@@ -211,6 +232,23 @@ function bitmapToFitRGBA(bitmap: ImageBitmap, width: number, height: number): { 
   ctx.drawImage(bitmap, (width - w) / 2, (height - h) / 2, w, h);
   const image = ctx.getImageData(0, 0, width, height);
   return { width, height, data: image.data };
+}
+
+type OverlayBlendSpec = { readonly blendMode?: BlendMode; readonly blendOpacity?: number };
+/** The trailing blend argument of drawOverlayCanvasWithEffects: only passed for a non-normal mode. */
+const overlayBlendArg = (clip: OverlayBlendSpec | undefined): [] | [OverlayBlendSpec] =>
+  clip?.blendMode && clip.blendMode !== "normal" ? [clip] : [];
+
+/**
+ * True when the user (or a benchmark) pinned the clip effect / grade chain to the Canvas2D / WebGL path:
+ * localStorage "openreel-grade-renderer" = "canvas2d". The WebGPU chain is the default wherever WebGPU exists.
+ */
+function canvas2dGradeForced(): boolean {
+  try {
+    return typeof localStorage !== "undefined" && localStorage.getItem("openreel-grade-renderer") === "canvas2d";
+  } catch {
+    return false;
+  }
 }
 
 export class VideoEngine {
@@ -264,8 +302,18 @@ export class VideoEngine {
   private gpuCompositor: GPUCompositor | null = null;
   private gpuRenderer: Renderer | null = null;
   private effectsEngine: VideoEffectsEngine | null = null;
+  /** Deflicker frame statistics by source frame (see deflickerFrameStats); bounded, insertion ordered. */
+  private readonly deflickerStatsCache = new Map<string, FrameStats>();
+  private readonly deflickerObjectIds = new WeakMap<object, number>();
+  private deflickerObjectCounter = 0;
+  private deflickerThumb: OffscreenCanvas | null = null;
   private readonly echoCompositor = new EchoCompositor();
   private colorGradingEngine: ColorGradingEngine | null = null;
+  /** WebGPU effect / grade chain (decode -> GPU texture -> every pass -> GPU-backed bitmap, no readback). */
+  private gpuGradeChain: GpuGradeChain | null = null;
+  private gpuGradeEnabled = GpuGradeChain.isSupported() && !canvas2dGradeForced();
+  /** Typed LUTs of a stored grade, kept while the stored object is unchanged so tables are not rebuilt per frame. */
+  private readonly renderableGradingCache = new WeakMap<ClipColorGrading, RenderableClipColorGrading>();
   private transitionEngine: TransitionEngine | null = null;
   private maskEngine: MaskEngine | null = null;
   private motionRenderer: MotionRenderer | null = null;
@@ -292,6 +340,8 @@ export class VideoEngine {
    */
   constructor(config: Partial<FrameCacheConfig> = {}) {
     this.cacheConfig = { ...DEFAULT_CACHE_CONFIG, ...config };
+    // Synthesize Edges borrows neighbouring frames of the same footage; this engine is how they are decoded.
+    getWarpRegistry().setFrameDecoder((blob, time, width, height) => this.decodeFrameWithMediaBunny(blob, time, width, height));
   }
 
   /**
@@ -1013,11 +1063,16 @@ export class VideoEngine {
     if (hdrActive) {
       this.hdrCompositor ??= createHdrCompositor(!this.hdrGpuFailed);
       hdr = this.hdrCompositor;
+      beginHdrScopeFrame();
       hdr.begin(width, height);
       hdr.setColorPipeline(this.colorPipelineFor(settings));
       // The CPU reference compositor's ACES output (the GPU one runs the shader port).
       registerAcesOutputTransform(acesOutputTransform);
       hdr.setGraphicsWhite(settings.graphicsWhiteNits ?? DEFAULT_GRAPHICS_WHITE_NITS);
+    } else if (!this.hdrExportTarget) {
+      // This frame takes the classic 8-bit path (adjustment layer, text behind subject, SDR sequence): the previous HDR
+      // frame no longer matches the monitor, so scopes must not keep reading it.
+      clearHdrScopeFrame();
     }
     const colorPipeline = this.colorPipelineFor(settings);
     let hdrDirty = false;
@@ -1106,7 +1161,7 @@ export class VideoEngine {
         }
         let renderedOnCanvas = false;
         if (renderedTransitionClips.size === 0) {
-          renderedTransitionClips = await this.renderActiveTransition(
+          renderedTransitionClips = await timeStage("transition", () => this.renderActiveTransition(
             track,
             time,
             mediaLibrary,
@@ -1114,7 +1169,8 @@ export class VideoEngine {
             width,
             height,
             ctx,
-          );
+            project.masks,
+          ));
           renderedOnCanvas = true;
         }
 
@@ -1153,6 +1209,10 @@ export class VideoEngine {
                 scale: { ...transform.scale },
               };
               let processed = compoundFrame;
+              const compoundMasks = this.clipMasksOf(project.masks, clip);
+              const compoundEffectBase = splitMasksByTarget(compoundMasks).effects.length
+                ? await createImageBitmap(compoundFrame)
+                : undefined;
               try {
                 processed = await this.applyClipVideoProcessing(
                   clip.id,
@@ -1170,10 +1230,13 @@ export class VideoEngine {
                   transform.opacity,
                   width,
                   height,
-                  (project.masks ?? []).filter((mask) => mask.clipId === clip.id),
+                  compoundMasks,
                   time,
+                  clip,
+                  compoundEffectBase,
                 );
               } finally {
+                compoundEffectBase?.close();
                 if (processed !== compoundFrame) processed.close();
                 compoundFrame.close();
               }
@@ -1203,6 +1266,7 @@ export class VideoEngine {
               ? await getNativeFrameCodes(mediaItem.blob, clipInfo.sourceTime, settings.width).catch(() => null)
               : null;
 
+          const decodeStartedAt = stageProfileEnabled() ? performance.now() : 0;
           if (hdrNativeFrame) {
             // decoded as float codes below
           } else if (mediaItem.type === "image") {
@@ -1314,6 +1378,8 @@ export class VideoEngine {
             }
           }
 
+          if (decodeStartedAt) addStageTime("decode", performance.now() - decodeStartedAt);
+
           if (hdr && hdrClip && (hdrNativeFrame || bitmap)) {
             const t = clipInfo.transform;
             const frame = hdrNativeFrame?.frame;
@@ -1392,6 +1458,23 @@ export class VideoEngine {
 
             let processedBitmap = bitmap;
 
+            // Remove Object: the filled picture replaces the footage before anything else touches it (analysis ran on the same raw frames).
+            processedBitmap = await this.applyObjectRemoval(clip, processedBitmap, time);
+
+            // Warp Stabilizer: the camera correction is baked into the frame (preview runs the same function).
+            if (clipHasWarp(clip) && mediaItem.type === "video") {
+              if (mediaItem.blob) getWarpRegistry().setFootage(clip.id, { blob: mediaItem.blob, mediaId: mediaItem.id });
+              try {
+                const warped = await applyWarpStabilizer(processedBitmap, clip, clipInfo.sourceTime);
+                if (warped !== processedBitmap) {
+                  if (processedBitmap !== bitmap) processedBitmap.close();
+                  processedBitmap = warped;
+                }
+              } catch (error) {
+                console.warn(`Warp Stabilizer could not process ${clip.id}:`, error);
+              }
+            }
+
             const bgEngine = getBackgroundRemovalEngine();
             if (bgEngine && bgEngine.isInitialized()) {
               const bgSettings = bgEngine.getSettings(clip.id);
@@ -1414,7 +1497,12 @@ export class VideoEngine {
               }
             }
 
-            processedBitmap = await this.applyClipVideoProcessing(
+            const clipMasks = this.clipMasksOf(project.masks, clip);
+            // Effect masks need the picture as it was before effects and grade, to show it where the matte is clear.
+            const effectBase = splitMasksByTarget(clipMasks).effects.length
+              ? await createImageBitmap(processedBitmap)
+              : undefined;
+            processedBitmap = await timeStage("effects+grade", () => this.applyClipVideoProcessing(
               clip.id,
               processedBitmap,
               bitmap,
@@ -1429,7 +1517,7 @@ export class VideoEngine {
                 decodeWidth: settings.width,
                 decodeHeight: settings.height,
               },
-            );
+            ));
 
             const vidstabEng = getVidstabEngine();
             const drawTransform = vidstabEng.hasStabilized(clip.id)
@@ -1446,16 +1534,28 @@ export class VideoEngine {
                   },
                 );
 
-            await this.drawClipFrameToContext(
+            // Object masks follow the picture they were tracked on: moved by this frame's stabilizing warp (as the preview does).
+            const drawMasks = clipMasks.length > 0 && clipHasWarp(clip) && mediaItem.type === "video"
+              ? masksInStabilizedSpace(
+                  clipMasks,
+                  warpCompositionMap(clip, clipInfo.sourceTime, processedBitmap.width, processedBitmap.height, framePlacement(drawTransform, processedBitmap.width, processedBitmap.height, width, height)),
+                  time,
+                )
+              : clipMasks;
+
+            await timeStage("composite-draw", () => this.drawClipFrameToContext(
               ctx,
               processedBitmap,
               drawTransform,
               finalTransform.opacity,
               width,
               height,
-              (project.masks ?? []).filter((mask) => mask.clipId === clip.id),
+              drawMasks,
               time,
-            );
+              clip,
+              effectBase,
+            ));
+            effectBase?.close();
 
             if (activeTextNeedsSubject) {
               subjectFrame?.close();
@@ -1572,6 +1672,7 @@ export class VideoEngine {
       // tone-mapped SDR view (the preview) and, for an HDR export, encode the float image itself.
       this.flushHdrOverlay(hdr, ctx, width, height);
       ctx.putImageData(new ImageData(hdr.readSdrView() as Uint8ClampedArray<ArrayBuffer>, width, height), 0, 0);
+      if (!this.hdrExportTarget) publishHdrScopeFrame(hdr, width, height, time);
       const hdrBitmap = await createImageBitmap(canvas);
       if (this.hdrExportTarget) {
         attachHdrPayload(hdrBitmap, exportPayload(hdr, this.hdrExportTarget, width, height));
@@ -1579,7 +1680,7 @@ export class VideoEngine {
       return { image: hdrBitmap, timestamp: time, width, height };
     }
 
-    const imageBitmap = await createImageBitmap(canvas);
+    const imageBitmap = await timeStage("frame-bitmap", () => createImageBitmap(canvas));
 
     return {
       image: imageBitmap,
@@ -1598,7 +1699,7 @@ export class VideoEngine {
     return isHdrEligibleClip({
       clip,
       effects: clipInfo.effects ?? [],
-      hasMasks: (project.masks ?? []).some((mask) => mask.clipId === clip.id),
+      hasMasks: this.clipMasksOf(project.masks, clip).length > 0 || clip.objectRemoval?.enabled === true,
       grading,
       transform: clipInfo.transform,
       rewritesFrame: this.rewritesClipFrame(clip.id),
@@ -1821,8 +1922,7 @@ export class VideoEngine {
         if (!processed || processed.width <= 0 || processed.height <= 0) return;
         ctx.save();
         ctx.globalAlpha = Math.max(0, Math.min(1, layer.opacity));
-        ctx.globalCompositeOperation = adjustmentBlendOperation(layer.blendMode);
-        ctx.drawImage(processed, 0, 0, width, height);
+        drawImageWithBlend(ctx, processed, layer.blendMode, width, height);
         ctx.restore();
       } catch (error) {
         console.warn(`[VideoEngine] Adjustment layer ${layer.id} failed:`, error);
@@ -2059,6 +2159,11 @@ export class VideoEngine {
     ctx.restore();
   }
 
+  /**
+   * Draws a video clip's frame (masks included) into `ctx`. `blend` is the clip's own blend mode and blend opacity (0-100):
+   * a non-normal mode draws the clip alone first, then blends it over what is already in `ctx` per pixel, the same
+   * reference every blend in preview and export goes through.
+   */
   private async drawClipFrameToContext(
     ctx: OffscreenCanvasRenderingContext2D,
     frame: ImageBitmap,
@@ -2066,10 +2171,25 @@ export class VideoEngine {
     opacity: number,
     canvasWidth: number,
     canvasHeight: number,
-    masks: readonly Mask[],
+    allMasks: readonly Mask[],
     time: number,
+    blend?: { readonly blendMode?: BlendMode; readonly blendOpacity?: number },
+    effectBase?: ImageBitmap,
   ): Promise<void> {
-    if (masks.length === 0) {
+    const { visibility: masks, effects: effectMasks } = splitMasksByTarget(allMasks);
+    const scoped = effectBase !== undefined && effectMasks.length > 0;
+    if (blend?.blendMode && blend.blendMode !== "normal") {
+      const layerCanvas = new OffscreenCanvas(canvasWidth, canvasHeight);
+      const layerCtx = layerCanvas.getContext("2d");
+      if (!layerCtx) return;
+      await this.drawClipFrameToContext(layerCtx, frame, transform, opacity, canvasWidth, canvasHeight, allMasks, time, undefined, effectBase);
+      drawOverlayLayerWithBlend(ctx, layerCanvas, blend, canvasWidth, canvasHeight);
+      return;
+    }
+    if (blend?.blendOpacity !== undefined && Number.isFinite(blend.blendOpacity) && blend.blendOpacity !== 100) {
+      opacity *= Math.max(0, Math.min(1, blend.blendOpacity / 100));
+    }
+    if (masks.length === 0 && !scoped) {
       this.drawFrameToContext(
         ctx,
         frame,
@@ -2081,7 +2201,7 @@ export class VideoEngine {
       return;
     }
 
-    const layerCanvas = new OffscreenCanvas(canvasWidth, canvasHeight);
+    let layerCanvas = new OffscreenCanvas(canvasWidth, canvasHeight);
     const layerCtx = layerCanvas.getContext("2d");
     if (!layerCtx) return;
     this.drawFrameToContext(
@@ -2092,6 +2212,29 @@ export class VideoEngine {
       canvasWidth,
       canvasHeight,
     );
+
+    if (scoped) {
+      // Effects only inside (or outside, when inverted) the matte: cross-fade the processed and raw layers.
+      const baseCanvas = new OffscreenCanvas(canvasWidth, canvasHeight);
+      const baseCtx = baseCanvas.getContext("2d");
+      if (!baseCtx) return;
+      this.drawFrameToContext(baseCtx, effectBase, transform, opacity, canvasWidth, canvasHeight);
+      this.maskEngine ??= new MaskEngine({ width: canvasWidth, height: canvasHeight });
+      this.maskEngine.loadMasks([...effectMasks]);
+      const mixed = await this.maskEngine.composeEffectMasks(layerCanvas, baseCanvas, effectMasks, time);
+      layerCanvas = new OffscreenCanvas(canvasWidth, canvasHeight);
+      const mixedCtx = layerCanvas.getContext("2d");
+      if (!mixedCtx) {
+        mixed.close();
+        return;
+      }
+      mixedCtx.drawImage(mixed, 0, 0);
+      mixed.close();
+      if (masks.length === 0) {
+        ctx.drawImage(layerCanvas, 0, 0, canvasWidth, canvasHeight);
+        return;
+      }
+    }
 
     this.maskEngine ??= new MaskEngine({
       width: canvasWidth,
@@ -2392,6 +2535,7 @@ export class VideoEngine {
       height,
       projectWidth,
       projectHeight,
+      true,
     );
     if (
       !this.applySubjectOcclusionMask(
@@ -2404,7 +2548,7 @@ export class VideoEngine {
     ) {
       return;
     }
-    ctx.drawImage(textLayerCanvas, 0, 0, width, height);
+    drawOverlayLayerWithBlend(ctx, textLayerCanvas, textClip, width, height);
   }
 
   private getActiveTextClips(timeline: Timeline, time: number): TextClip[] {
@@ -2491,6 +2635,8 @@ export class VideoEngine {
     height: number,
     projectWidth: number,
     projectHeight: number,
+    /** The caller composites the layer with the clip's blend mode itself (subject-occluded text). */
+    skipBlend = false,
   ): Promise<void> {
     const clipLocalTime = time - textClip.startTime;
     const rotation = textClip.transform.rotate3d;
@@ -2521,6 +2667,7 @@ export class VideoEngine {
         getAnimatedVideoEffects(textClip, clipLocalTime, this.burnInSource),
         width,
         height,
+        ...overlayBlendArg(skipBlend ? undefined : textClip),
       );
       return;
     }
@@ -2542,6 +2689,7 @@ export class VideoEngine {
       getAnimatedVideoEffects(textClip, clipLocalTime, this.burnInSource),
       width,
       height,
+      ...overlayBlendArg(skipBlend ? undefined : textClip),
     );
   }
 
@@ -2567,6 +2715,7 @@ export class VideoEngine {
       getAnimatedVideoEffects(shapeClip, clipLocalTime, this.burnInSource),
       width,
       height,
+      ...overlayBlendArg(shapeClip),
     );
   }
 
@@ -2592,6 +2741,7 @@ export class VideoEngine {
       getAnimatedVideoEffects(svgClip, clipLocalTime, this.burnInSource),
       width,
       height,
+      ...overlayBlendArg(svgClip),
     );
   }
 
@@ -2617,6 +2767,7 @@ export class VideoEngine {
       getAnimatedVideoEffects(stickerClip, clipLocalTime, this.burnInSource),
       width,
       height,
+      ...overlayBlendArg(stickerClip),
     );
   }
 
@@ -2631,7 +2782,19 @@ export class VideoEngine {
     effects: readonly Effect[],
     width: number,
     height: number,
+    blend?: { readonly blendMode?: BlendMode; readonly blendOpacity?: number },
   ): Promise<void> {
+    // A blend mode needs the backdrop: draw the overlay (effects included) alone, then blend it over the frame per pixel
+    // with the shared reference, exactly as the editor preview does.
+    if (blend?.blendMode && blend.blendMode !== "normal") {
+      const layer = new OffscreenCanvas(width, height);
+      const layerCtx = layer.getContext("2d");
+      if (layerCtx) {
+        await this.drawOverlayCanvasWithEffects(layerCtx, source, effects, width, height);
+        drawOverlayLayerWithBlend(ctx, layer, blend, width, height);
+        return;
+      }
+    }
     const par = this.sequencePixelAspect;
     const enabledEffects = effects.filter(isRenderableVideoEffect);
     if (enabledEffects.length === 0) {
@@ -2890,6 +3053,65 @@ export class VideoEngine {
     return Math.max(clip.inPoint, Math.min(clip.outPoint, clip.inPoint + speedEngine.getSourceTimeAtPlaybackTime(clip.id, localTime)));
   }
 
+  /** The masks that act on a clip's picture. While Remove Object is on, its mask only marks what is removed. */
+  private clipMasksOf(masks: readonly Mask[] | undefined, clip: Clip): Mask[] {
+    const consumed = consumedMaskId(clip);
+    return (masks ?? []).filter((mask) => mask.clipId === clip.id && mask.id !== consumed);
+  }
+
+  /** Remove Object for one frame (shared with the Program monitor); throws in export when the analysis is missing. */
+  private applyObjectRemoval(clip: Clip, bitmap: ImageBitmap, time: number): Promise<ImageBitmap> {
+    return applyObjectRemovalToBitmap(clip, bitmap, time, this.exportMode);
+  }
+
+  /**
+   * A clip's masks applied to a frame that fills the canvas (the transition path has no clip transform). Visibility
+   * masks cut the frame, effects-only masks show `processed` inside the matte and `effectBase` outside it. Returns
+   * `processed` itself when the clip has no masks; otherwise a new bitmap the caller closes.
+   */
+  private async applyMasksToFullFrame(
+    processed: ImageBitmap,
+    effectBase: ImageBitmap | undefined,
+    allMasks: readonly Mask[],
+    time: number,
+    width: number,
+    height: number,
+  ): Promise<ImageBitmap> {
+    if (allMasks.length === 0) return processed;
+    const { visibility, effects } = splitMasksByTarget(allMasks);
+    this.maskEngine ??= new MaskEngine({ width, height });
+    let layer = processed;
+    let ownsLayer = false;
+    try {
+      if (effects.length > 0 && effectBase) {
+        const layerCanvas = new OffscreenCanvas(width, height);
+        const baseCanvas = new OffscreenCanvas(width, height);
+        const layerCtx = layerCanvas.getContext("2d");
+        const baseCtx = baseCanvas.getContext("2d");
+        if (layerCtx && baseCtx) {
+          layerCtx.drawImage(processed, 0, 0, width, height);
+          baseCtx.drawImage(effectBase, 0, 0, width, height);
+          this.maskEngine.loadMasks([...effects]);
+          const mixed = await this.maskEngine.composeEffectMasks(layerCanvas, baseCanvas, effects, time);
+          layer = mixed;
+          ownsLayer = true;
+        }
+      }
+      if (visibility.length === 0) {
+        if (ownsLayer) return layer;
+        return processed;
+      }
+      this.maskEngine.loadMasks([...visibility]);
+      const result = await this.maskEngine.applyMasks(layer, visibility, time);
+      if (ownsLayer) layer.close();
+      ownsLayer = false;
+      return result.image;
+    } catch (error) {
+      if (ownsLayer) layer.close();
+      throw error;
+    }
+  }
+
   private async renderActiveTransition(
     track: Track,
     time: number,
@@ -2898,6 +3120,7 @@ export class VideoEngine {
     width: number,
     height: number,
     ctx: OffscreenCanvasRenderingContext2D,
+    masks?: readonly Mask[],
   ): Promise<Set<string>> {
     const rendered = new Set<string>();
 
@@ -2923,6 +3146,11 @@ export class VideoEngine {
     let bitmapB: ImageBitmap | null = null;
     let processedA: ImageBitmap | null = null;
     let processedB: ImageBitmap | null = null;
+    // Footage with Remove Object laid over it (null when the clip has none) and the unprocessed bases effects-only masks fall back to.
+    let removedA: ImageBitmap | null = null;
+    let removedB: ImageBitmap | null = null;
+    let baseA: ImageBitmap | null = null;
+    let baseB: ImageBitmap | null = null;
 
     try {
       const decodeB = (): Promise<ImageBitmap | null> =>
@@ -2941,10 +3169,15 @@ export class VideoEngine {
       if (!bitmapA || !bitmapB) {
         return rendered;
       }
+      const masksA = this.clipMasksOf(masks, clipA);
+      const masksB = clipB ? this.clipMasksOf(masks, clipB) : [];
+      const removedAFrame = await this.applyObjectRemoval(clipA, bitmapA, time);
+      if (removedAFrame !== bitmapA) removedA = removedAFrame;
+      if (splitMasksByTarget(masksA).effects.length) baseA = await createImageBitmap(removedAFrame);
       const effectsA = this.getAnimatedEffects(clipA, time - clipA.startTime);
       processedA = await this.applyClipVideoProcessing(
         clipA.id,
-        bitmapA,
+        removedAFrame,
         bitmapA,
         effectsA,
         getAnimatedColorGrading(clipA, time - clipA.startTime),
@@ -2960,11 +3193,14 @@ export class VideoEngine {
       );
       const effectsB =
         clipB && mediaB ? this.getAnimatedEffects(clipB, time - clipB.startTime) : [];
+      const removedBFrame = clipB ? await this.applyObjectRemoval(clipB, bitmapB, time) : bitmapB;
+      if (removedBFrame !== bitmapB) removedB = removedBFrame;
+      if (clipB && splitMasksByTarget(masksB).effects.length) baseB = await createImageBitmap(removedBFrame);
       processedB =
         clipB && mediaB
           ? await this.applyClipVideoProcessing(
               clipB.id,
-              bitmapB,
+              removedBFrame,
               bitmapB,
               effectsB,
               getAnimatedColorGrading(clipB, time - clipB.startTime),
@@ -2979,6 +3215,22 @@ export class VideoEngine {
               },
             )
           : bitmapB;
+
+      // Clip masks act in transitions too, on each side's own picture, before the transition mixes the two.
+      if (masksA.length > 0) {
+        const masked = await this.applyMasksToFullFrame(processedA, baseA ?? undefined, masksA, time, width, height);
+        if (masked !== processedA) {
+          if (processedA !== bitmapA) processedA.close();
+          processedA = masked;
+        }
+      }
+      if (clipB && masksB.length > 0 && processedB) {
+        const masked = await this.applyMasksToFullFrame(processedB, baseB ?? undefined, masksB, time, width, height);
+        if (masked !== processedB) {
+          if (processedB !== bitmapB) processedB.close();
+          processedB = masked;
+        }
+      }
 
       if (
         !this.transitionEngine ||
@@ -3023,6 +3275,11 @@ export class VideoEngine {
     } finally {
       if (processedA && processedA !== bitmapA) processedA.close();
       if (processedB && processedB !== bitmapB) processedB.close();
+      baseA?.close();
+      baseB?.close();
+      // the footage with the fill; applyClipVideoProcessing closes it when it replaces it, closing twice is harmless
+      if (removedA && removedA !== processedA) this.closeBitmap(removedA);
+      if (removedB && removedB !== processedB) this.closeBitmap(removedB);
       if (bitmapA && mediaA.type !== "image") bitmapA.close();
       if (bitmapB && (!mediaB || mediaB.type !== "image")) bitmapB.close();
     }
@@ -3108,6 +3365,15 @@ export class VideoEngine {
     temporal?: TemporalClipContext,
   ): Promise<ImageBitmap> {
     image = await this.applyClipInputTransform(clipId, image, sourceImage);
+    const gpuProcessed = await this.applyGpuGradeChain(
+      clipId,
+      image,
+      sourceImage,
+      effects,
+      colorGrading,
+      temporal,
+    );
+    if (gpuProcessed) return gpuProcessed;
     let processed = await this.applyClipEffects(
       clipId,
       image,
@@ -3156,6 +3422,23 @@ export class VideoEngine {
       );
     }
 
+    const deflicker = temporal ? findActiveDeflicker(enabledEffects) : null;
+    if (deflicker && temporal) {
+      return this.applyDeflickerStack(
+        clipId,
+        image,
+        sourceImage,
+        enabledEffects,
+        deflicker.index,
+        temporal,
+        width,
+        height,
+      );
+    }
+
+    const onGpu = await this.runGpuGradeChain(image, sourceImage, enabledEffects, undefined);
+    if (onGpu) return onGpu;
+
     try {
       const effectsEngine = await this.ensureEffectsEngine(width, height);
       const result = await effectsEngine.applyEffects(image, enabledEffects);
@@ -3190,6 +3473,88 @@ export class VideoEngine {
 
       return image;
     }
+  }
+
+  /**
+   * The whole per-clip chain (effects, then the grade) on the WebGPU grade chain, or null to use the existing path.
+   * Clips with an active Echo or Deflicker keep the stack walkers (they decode other frames and measure statistics);
+   * the effect run those walkers finish with still goes through the chain via applyClipEffects.
+   */
+  private async applyGpuGradeChain(
+    clipId: string,
+    image: ImageBitmap,
+    sourceImage: ImageBitmap,
+    effects: Effect[],
+    colorGrading: ClipColorGrading | undefined,
+    temporal?: TemporalClipContext,
+  ): Promise<ImageBitmap | null> {
+    if (!this.gpuGradeEnabled) return null;
+    const enabledEffects = effects.filter((effect) => effect.enabled);
+    if (temporal && (findActiveEcho(enabledEffects) || findActiveDeflicker(enabledEffects))) return null;
+    const grading = colorGrading ? this.normalizeClipColorGrading(colorGrading) : undefined;
+    if (enabledEffects.length === 0 && (!grading || isNeutralColorGrading(grading))) return null;
+    void clipId;
+    return this.runGpuGradeChain(image, sourceImage, enabledEffects, grading);
+  }
+
+  private async runGpuGradeChain(
+    image: ImageBitmap,
+    sourceImage: ImageBitmap,
+    enabledEffects: Effect[],
+    grading: RenderableClipColorGrading | undefined,
+  ): Promise<ImageBitmap | null> {
+    if (!this.gpuGradeEnabled) return null;
+    let plan: ReturnType<typeof planGpuGradeChain>;
+    try {
+      plan = planGpuGradeChain(enabledEffects, grading, image.width, image.height);
+    } catch (error) {
+      console.warn("Failed to plan the GPU grade chain, using the Canvas2D grade", error);
+      return null;
+    }
+    if (!plan || plan.passes.length === 0) return null;
+    this.gpuGradeChain ??= new GpuGradeChain();
+    const result = await this.gpuGradeChain.run(image, plan);
+    if (!result) {
+      // A chain that cannot run (no adapter, device lost, shader error) stays off for this engine; the planner
+      // returning null (an unsupported stage) or a frame bigger than the device allows is not a failure.
+      if (this.gpuGradeChain.broken) this.gpuGradeEnabled = false;
+      return null;
+    }
+    return this.adoptProcessedBitmap(image, sourceImage, result);
+  }
+
+  /**
+   * Runs a clip's effect stack and colour grade over a bitmap with the routine the renderer applies to clips
+   * (WebGPU grade chain when available, the Canvas2D / WebGL path otherwise). `image` is never closed; the result is a
+   * new bitmap, or `image` itself when nothing applies.
+   */
+  async processClipBitmap(
+    image: ImageBitmap,
+    effects: Effect[],
+    colorGrading?: ClipColorGrading,
+  ): Promise<ImageBitmap> {
+    return this.applyClipVideoProcessing(
+      "bitmap-preview",
+      image,
+      image,
+      effects,
+      colorGrading,
+      image.width,
+      image.height,
+    );
+  }
+
+  /** Turns the WebGPU grade chain off (or back on where WebGPU exists); clips then use the Canvas2D / WebGL grade. */
+  setGpuGradeEnabled(enabled: boolean): void {
+    this.gpuGradeEnabled = enabled && GpuGradeChain.isSupported();
+  }
+
+  isGpuGradeEnabled(): boolean {
+    return this.gpuGradeEnabled;
+  }
+
+  getGpuGradeStats(): GpuGradeStats | null {
+    return this.gpuGradeChain ? { ...this.gpuGradeChain.stats } : null;
   }
 
   /**
@@ -3228,6 +3593,9 @@ export class VideoEngine {
     if (isNeutralColorGrading(renderableColorGrading)) {
       return image;
     }
+
+    const onGpu = await this.runGpuGradeChain(image, sourceImage, [], renderableColorGrading);
+    if (onGpu) return onGpu;
 
     let processed = image;
     const plan = planColorGrading(renderableColorGrading);
@@ -3423,6 +3791,144 @@ export class VideoEngine {
   }
 
   /**
+   * Runs an effect stack that contains an active Deflicker. The effects above it
+   * run first; the gain that evens the frame out against its neighbours is then
+   * read from the clip's own frames (each decoded and graded with the stack
+   * above Deflicker sampled at its own time) and handed to the effect as its
+   * gain params, so the effect and the effects below it run through the normal
+   * path. The gain is a pure function of the clip-local time and the
+   * parameters, so preview, scrubbing and export agree.
+   */
+  private async applyDeflickerStack(
+    clipId: string,
+    image: ImageBitmap,
+    sourceImage: ImageBitmap,
+    enabledEffects: Effect[],
+    index: number,
+    temporal: TemporalClipContext,
+    width: number,
+    height: number,
+  ): Promise<ImageBitmap> {
+    const effect = enabledEffects[index];
+    const above = enabledEffects.slice(0, index).filter((e) => !isTemporalEffectType(e.type));
+    const below = enabledEffects.slice(index + 1);
+    const current = above.length > 0
+      ? await this.applyClipEffects(clipId, image, sourceImage, above, width, height)
+      : image;
+    let gains: DeflickerGains = IDENTITY_GAINS;
+    // A still has no flicker to remove.
+    if (temporal.media.type === "video") {
+      gains = await this.computeDeflickerGains(clipId, current, effect, temporal, width, height);
+    }
+    const withGains: Effect = { ...effect, params: { ...effect.params, ...deflickerGainParams(gains) } };
+    return this.applyClipEffects(clipId, current, sourceImage, [withGains, ...below], width, height);
+  }
+
+  private async computeDeflickerGains(
+    clipId: string,
+    current: ImageBitmap,
+    effect: Effect,
+    temporal: TemporalClipContext,
+    width: number,
+    height: number,
+  ): Promise<DeflickerGains> {
+    const { clip, media, localTime } = temporal;
+    const p = resolveDeflicker(effect.params);
+    const rate = media.metadata?.frameRate;
+    const frames = planDeflickerWindow(localTime, clip.duration, rate && rate > 0 ? rate : 30, p.window);
+    const stats: FrameStats[] = [];
+    const offsets: number[] = [];
+    for (const frame of frames) {
+      let measured: FrameStats | null;
+      if (frame.offset === 0) {
+        measured = this.measureFrame(current);
+      } else {
+        measured = await this.deflickerFrameStats(temporal, effect.id, frame.localTime, width, height);
+        if (!measured && this.exportMode) {
+          throw new Error(`Deflicker frame at ${frame.localTime.toFixed(3)}s of clip ${clipId} could not be decoded`);
+        }
+      }
+      if (!measured) continue;
+      stats.push(measured);
+      offsets.push(frame.offset);
+    }
+    return deflickerGains(stats, offsets, effect.params);
+  }
+
+  /** Stats of one frame, measured on a box-reduced copy so they do not depend on the render size. */
+  private measureFrame(frame: ImageBitmap): FrameStats {
+    if (!this.deflickerThumb) this.deflickerThumb = new OffscreenCanvas(STATS_W, STATS_H);
+    const canvas = this.deflickerThumb;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) throw new Error("2D canvas unavailable");
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = "copy";
+    ctx.globalAlpha = 1;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(frame, 0, 0, STATS_W, STATS_H);
+    return statsFromRgba(ctx.getImageData(0, 0, STATS_W, STATS_H).data, STATS_W, STATS_H);
+  }
+
+  private deflickerObjectId(object: object | undefined): number {
+    if (!object) return 0;
+    let id = this.deflickerObjectIds.get(object);
+    if (id === undefined) {
+      id = ++this.deflickerObjectCounter;
+      this.deflickerObjectIds.set(object, id);
+    }
+    return id;
+  }
+
+  /**
+   * Stats of the clip's frame at clip-local `localTime` after the input
+   * transform and the effects above the Deflicker. Cached by the source frame
+   * and everything that shapes the picture, so a moving window decodes one new
+   * frame per output frame.
+   */
+  private async deflickerFrameStats(
+    temporal: TemporalClipContext,
+    effectId: string,
+    localTime: number,
+    width: number,
+    height: number,
+  ): Promise<FrameStats | null> {
+    const { clip, media } = temporal;
+    const stack = this.getAnimatedEffects(clip, localTime).filter((e) => e.enabled);
+    const cut = stack.findIndex((e) => e.id === effectId);
+    const above = (cut < 0 ? stack : stack.slice(0, cut)).filter((e) => !isTemporalEffectType(e.type));
+    const sourceTime = Math.max(
+      clip.inPoint,
+      Math.min(clip.outPoint, clip.inPoint + getSpeedEngine().getSourceTimeAtPlaybackTime(clip.id, localTime)),
+    );
+    const key = [
+      media.id,
+      sourceTime.toFixed(6),
+      temporal.decodeWidth,
+      temporal.decodeHeight,
+      width,
+      height,
+      this.deflickerObjectId(this.clipInputTransforms.get(clip.id)),
+      JSON.stringify(above.map((e) => [e.type, e.params])),
+    ].join("|");
+    const hit = this.deflickerStatsCache.get(key);
+    if (hit) return hit;
+    const frame = await this.decodeEchoFrame(temporal, effectId, localTime, width, height);
+    if (!frame) return null;
+    try {
+      const stats = this.measureFrame(frame.frame);
+      this.deflickerStatsCache.set(key, stats);
+      if (this.deflickerStatsCache.size > 768) {
+        const oldest = this.deflickerStatsCache.keys().next().value;
+        if (oldest !== undefined) this.deflickerStatsCache.delete(oldest);
+      }
+      return stats;
+    } finally {
+      if (frame.owned) this.closeBitmap(frame.frame);
+    }
+  }
+
+  /**
    * One echo frame: the clip's source frame at clip-local `localTime`, through
    * the input transform and the effects stacked above the echo, sampled at
    * that time. `owned` says whether the caller must close the bitmap (stills
@@ -3535,12 +4041,16 @@ export class VideoEngine {
   private normalizeClipColorGrading(
     colorGrading: ClipColorGrading,
   ): RenderableClipColorGrading {
+    const cached = this.renderableGradingCache.get(colorGrading);
+    if (cached) return cached;
     const lut = this.normalizeClipLut(colorGrading.lut);
-    return {
+    const renderable: RenderableClipColorGrading = {
       ...colorGrading,
       lut,
       inputLut: this.normalizeClipLut(colorGrading.inputLut),
     };
+    this.renderableGradingCache.set(colorGrading, renderable);
+    return renderable;
   }
 
   private normalizeClipLut(
@@ -4318,6 +4828,32 @@ export class VideoEngine {
     for (const layer of layers) {
       if (!layer.visible) continue;
 
+      if (needsCpuBlend(layer.blendMode)) {
+        // No native Canvas2D op: render the layer alone, then blend per pixel.
+        const frame =
+          layer.image instanceof ImageBitmap
+            ? layer.image
+            : await createImageBitmap(layer.image);
+        const scratch = new OffscreenCanvas(width, height);
+        const scratchCtx = scratch.getContext("2d");
+        if (!scratchCtx) continue;
+        const mainCanvas = this.compositeCanvas;
+        const mainCtx = this.compositeCtx;
+        this.compositeCanvas = scratch;
+        this.compositeCtx = scratchCtx;
+        try {
+          await this.compositeFrame(frame, layer.transform, 1);
+        } finally {
+          this.compositeCanvas = mainCanvas;
+          this.compositeCtx = mainCtx;
+        }
+        ctx.save();
+        ctx.globalAlpha = layer.transform.opacity;
+        drawImageWithBlend(ctx, scratch, layer.blendMode);
+        ctx.restore();
+        continue;
+      }
+
       ctx.save();
       ctx.globalCompositeOperation = this.getCanvasBlendMode(layer.blendMode);
       await this.compositeFrame(
@@ -4335,27 +4871,7 @@ export class VideoEngine {
   }
 
   private getCanvasBlendMode(blendMode: BlendMode): CanvasRenderingContext2D["globalCompositeOperation"] {
-    const modeMap: Record<BlendMode, CanvasRenderingContext2D["globalCompositeOperation"]> = {
-      normal: "source-over",
-      multiply: "multiply",
-      screen: "screen",
-      overlay: "overlay",
-      darken: "darken",
-      lighten: "lighten",
-      "color-dodge": "color-dodge",
-      "color-burn": "color-burn",
-      "hard-light": "hard-light",
-      "soft-light": "soft-light",
-      difference: "difference",
-      exclusion: "exclusion",
-      hue: "hue",
-      saturation: "saturation",
-      color: "color",
-      luminosity: "luminosity",
-      add: "lighter",
-      "linear-dodge": "lighter",
-    };
-    return modeMap[blendMode] || "source-over";
+    return getNativeCanvasBlendOperation(blendMode) ?? "source-over";
   }
 
   private ensureCompositeCanvas(width: number, height: number): void {
@@ -4468,6 +4984,7 @@ export class VideoEngine {
       entry.image.close();
     }
     this.frameCache.clear();
+    this.deflickerStatsCache.clear();
     this.cacheStats = { hits: 0, misses: 0 };
 
     for (const gifCache of this.gifFrameCache.values()) {
@@ -4828,6 +5345,8 @@ export class VideoEngine {
     this.echoCompositor.dispose();
     this.colorGradingEngine?.dispose();
     this.colorGradingEngine = null;
+    this.gpuGradeChain?.dispose();
+    this.gpuGradeChain = null;
     this.maskEngine = null;
   }
 }

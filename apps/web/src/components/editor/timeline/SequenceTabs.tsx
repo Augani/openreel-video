@@ -30,6 +30,7 @@ import {
   duplicateSequenceCommand,
   newSequence,
   newSequenceFromMedia,
+  makeSubsequenceCommand,
   nestSelectedClips,
   openSequence,
   renameSequenceCommand,
@@ -164,7 +165,7 @@ export const NewSequenceDialog: React.FC<{ open: boolean; onOpenChange: (open: b
  * reorder (drag). Closing a tab never deletes the sequence; it stays in the
  * Project panel.
  */
-export const SequenceTabs: React.FC = () => {
+export const SequenceTabs: React.FC = React.memo(function SequenceTabs() {
   const { tabs, activeId, total } = useSequenceTabs();
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -278,9 +279,10 @@ export const SequenceTabs: React.FC = () => {
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem disabled={!hasSelectedClips} onSelect={() => void nestSelectedClips()}>Nest selected clips</DropdownMenuItem>
+          <DropdownMenuItem data-testid="make-subsequence" onSelect={() => void makeSubsequenceCommand()}>Make subsequence from In/Out or selection</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       <NewSequenceDialog open={dialogOpen} onOpenChange={setDialogOpen} />
     </div>
   );
-};
+});

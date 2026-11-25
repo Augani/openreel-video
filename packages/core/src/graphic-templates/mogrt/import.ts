@@ -1,5 +1,6 @@
 import type { EasingType } from "../../types/timeline";
-import type { TextStyle } from "../../text/types";
+import type { TextRun, TextRunStyle, TextStyle } from "../../text/types";
+import { hasRunOverrides, normalizeRuns } from "../../text/rich-text";
 import type { ShapeStyle } from "../../graphics/types";
 import {
   GRAPHIC_DESIGN_HEIGHT,
@@ -15,7 +16,7 @@ import {
 } from "../types";
 import { GRAPHIC_LIMITS, validateGraphicTemplate } from "../validate";
 import { isAfterEffectsAuthor, parseMogrtDefinition } from "./definition";
-import { parsePrgraphic, type PrgGraphic, type PrgLayer, type PrgProp, type PrgShadow } from "./prgraphic";
+import { parsePrgraphic, type PrgGraphic, type PrgLayer, type PrgProp, type PrgShadow, type PrgTextRun } from "./prgraphic";
 import type {
   MogrtControl,
   MogrtDefinition,
@@ -118,6 +119,50 @@ export function fontWeightOf(style: string | undefined): TextStyle["fontWeight"]
   if (/thin|hairline/.test(s)) return 100;
   if (/light/.test(s)) return 300;
   return 400;
+}
+
+/**
+ * Styled text: each source run becomes a TextRun holding only what differs from
+ * the layer style (which came from the first run). Lengths are design pixels.
+ */
+function mapTextRuns(
+  source: readonly PrgTextRun[],
+  base: Partial<TextStyle>,
+  layerText: { readonly allCaps?: boolean },
+  k: number,
+  where: string,
+  report: Report,
+): TextRun[] | undefined {
+  const baseSize = base.fontSize ?? 48;
+  const runs: TextRun[] = source.map((run) => {
+    const font = run.fontFamily ? splitFontName(run.fontFamily) : undefined;
+    const styleName = run.fontStyle ?? font?.style;
+    const style: Record<string, unknown> = {};
+    if (font && font.family !== base.fontFamily) style.fontFamily = font.family;
+    if (styleName !== undefined) {
+      const weight = fontWeightOf(styleName);
+      if (weight !== base.fontWeight) style.fontWeight = weight;
+      const fontStyle = isItalic(styleName) ? "italic" : "normal";
+      if (fontStyle !== base.fontStyle) style.fontStyle = fontStyle;
+    }
+    if (run.fontSize !== undefined) {
+      const size = round(clamp(run.fontSize * k, 1, 2000), 2);
+      if (size !== baseSize) style.fontSize = size;
+    }
+    if (run.color !== undefined && run.color !== base.color) style.color = run.color;
+    if (run.tracking !== undefined) {
+      const px = round(clamp((run.tracking / 1000) * (typeof style.fontSize === "number" ? style.fontSize : baseSize), -50, 200), 3);
+      if (px !== (base.letterSpacing ?? 0)) style.letterSpacing = px;
+    }
+    if (run.baselineShift) style.baselineShift = round(run.baselineShift * k, 2);
+    if (run.underline && base.textDecoration !== "underline") style.underline = true;
+    const text = run.allCaps || layerText.allCaps ? run.text.toUpperCase() : run.text;
+    return { text, style: style as TextRunStyle };
+  });
+  const merged = normalizeRuns(runs);
+  if (!hasRunOverrides(merged)) return undefined;
+  report.add("info", "Styled text", `${merged.length} styled runs mapped to per-character styling`, where);
+  return merged;
 }
 
 const isItalic = (style: string | undefined): boolean => /italic|oblique/i.test(style ?? "");
@@ -321,7 +366,9 @@ function mapLayer(source: PrgLayer, index: number, ctx: Context): Mapped | undef
     }
     if (text.allCaps) report.add("approximated", "All caps", "capitalised in the default text; a text edit in OpenReel is not forced to capitals", where);
     if (text.tracking !== undefined && text.tracking !== 0) report.add("info", "Tracking", `${text.tracking}/1000 em converted to ${tracking}px`, where);
-    layer = { ...common, kind: "text", text: { text: text.allCaps ? text.text.toUpperCase() : text.text, style: textStyle } };
+    const runs = text.runs ? mapTextRuns(text.runs, textStyle, text, rest.sy * frame.k, where, report) : undefined;
+    const content = runs ? runs.map((r) => r.text).join("") : text.allCaps ? text.text.toUpperCase() : text.text;
+    layer = { ...common, kind: "text", text: { text: content, style: textStyle, ...(runs ? { runs } : {}) } };
   } else if (source.kind === "shape" && source.shape) {
     const shape = source.shape;
     const style: Partial<ShapeStyle> = {

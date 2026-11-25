@@ -1,4 +1,5 @@
 import { currentBurnInSource } from "../../../utils/burn-in-source";
+import { useProjectStore } from "../../../stores/project-store";
 import {
   titleEngine,
   getAnimatedVideoEffects,
@@ -32,7 +33,8 @@ import {
   drawShapePathCentered,
 } from "@openreel/core";
 import type { SubtitleStyle } from "@openreel/core";
-import { overlayBlendAlpha } from "@openreel/core";
+import { applyObjectRemovalToBitmap, clipHasObjectRemoval } from "@openreel/core/video/content-aware-fill/apply";
+import { drawOverlayLayerWithBlend, overlayBlendAlpha, clipHasWarp, applyWarpStabilizer, getSpeedEngine, type BlendMode } from "@openreel/core";
 import { samplePositionPath } from "@openreel/core/animation/spatial-path";
 import { displayLayoutWidth, normalizeSequencePar, withDisplaySpace } from "@openreel/core/video/sequence-par";
 import {
@@ -624,6 +626,32 @@ export const getAnimatedTransform = (
   return result;
 };
 
+type BlendedOverlay = { readonly blendMode?: BlendMode; readonly blendOpacity?: number };
+
+/**
+ * Draws an overlay with its own blend mode: the overlay is rendered alone with normal blending into a scratch canvas,
+ * then blended over what the preview already holds per pixel with the same reference the export compositor uses
+ * (so Linear Burn ... Dissolve match export; THREE can only approximate them). Normal mode draws straight into `ctx`.
+ */
+const drawBlendedOverlay = (
+  ctx: CanvasRenderingContext2D,
+  clip: BlendedOverlay,
+  draw: (target: CanvasRenderingContext2D) => void | Promise<void>,
+): void | Promise<void> => {
+  if (!clip.blendMode || clip.blendMode === "normal") return draw(ctx);
+  const width = ctx.canvas.width;
+  const height = ctx.canvas.height;
+  const scratch = document.createElement("canvas");
+  scratch.width = width;
+  scratch.height = height;
+  const target = scratch.getContext("2d");
+  if (!target) return draw(ctx);
+  const composite = (): void => drawOverlayLayerWithBlend(ctx, scratch, clip, width, height);
+  const drawn = draw(target);
+  if (drawn instanceof Promise) return drawn.then(composite);
+  composite();
+};
+
 export const renderTextClipToCanvas = (
   ctx: CanvasRenderingContext2D,
   textClip: TextClip,
@@ -644,10 +672,30 @@ export const renderTextClipToCanvas = (
   const has3DTransforms =
     transform.rotate3d &&
     (transform.rotate3d.x !== 0 || transform.rotate3d.y !== 0);
-  const hasBlendMode = textClip.blendMode && textClip.blendMode !== "normal";
   const has3DText = textClip.text3d?.enabled === true;
 
-  if (has3DTransforms || hasBlendMode || has3DText) {
+  return drawBlendedOverlay(ctx, textClip, (target) =>
+    renderTextClipLayer(target, textClip, storedWidth, canvasWidth, canvasHeight, clipLocalTime, {
+      opacity,
+      transform,
+      style,
+      visibleText,
+    }, Boolean(has3DTransforms || has3DText)),
+  );
+};
+
+const renderTextClipLayer = (
+  ctx: CanvasRenderingContext2D,
+  textClip: TextClip,
+  storedWidth: number,
+  canvasWidth: number,
+  canvasHeight: number,
+  clipLocalTime: number,
+  state: Pick<ReturnType<typeof titleEngine.getAnimatedTextState>, "opacity" | "transform" | "style" | "visibleText">,
+  needsThree: boolean,
+): void | Promise<void> => {
+  const { opacity, transform, style, visibleText } = state;
+  if (needsThree) {
     const animatedTextClip: TextClip = {
       ...textClip,
       text: visibleText,
@@ -1393,15 +1441,27 @@ export const renderShapeClipToCanvas = (
     transformedClip.transform.rotate3d &&
     (transformedClip.transform.rotate3d.x !== 0 ||
       transformedClip.transform.rotate3d.y !== 0);
-  const hasBlendMode =
-    transformedClip.blendMode && transformedClip.blendMode !== "normal";
   // Mesh-primitive shapes are inherently 3D, so always route them
   // through the THREE pipeline, even without an explicit rotation.
   const isShape3D =
     transformedClip.type === "shape" &&
     (transformedClip as ShapeClip).shapeType.startsWith("mesh-");
 
-  if (has3DTransforms || hasBlendMode || isShape3D) {
+  return drawBlendedOverlay(ctx, transformedClip, (target) =>
+    renderGraphicClipLayer(target, transformedClip, storedWidth, canvasWidth, canvasHeight, time, Boolean(has3DTransforms || isShape3D)),
+  );
+};
+
+const renderGraphicClipLayer = (
+  ctx: CanvasRenderingContext2D,
+  transformedClip: GraphicClipUnion,
+  storedWidth: number,
+  canvasWidth: number,
+  canvasHeight: number,
+  time: number,
+  needsThree: boolean,
+): void | Promise<void> => {
+  if (needsThree) {
     return getThreeJSRenderer(canvasWidth, canvasHeight).then((renderer) => {
       if (!renderer || renderer !== threeJSRenderer) return;
       renderer.clear();
@@ -1763,7 +1823,7 @@ const drawLaidOutFrame = (
 };
 
 export interface PreviewEffectFrame {
-  clip: VideoEffectSource & { startTime: number };
+  clip: VideoEffectSource & { startTime: number } & Partial<Pick<import("@openreel/core").Clip, "objectRemoval" | "speed" | "reversed" | "speedKeyframes" | "freezeFrames">>;
   time: number;
 }
 
@@ -1772,7 +1832,78 @@ export interface PreviewEffectFrame {
  * the ungraded comparison keeps it), then effects and grading. Plain SDR
  * footage has no transform and takes the original path untouched.
  */
+/** True when a mask on the clip limits its effects instead of cutting the picture (Mask > Apply to: Effects). */
+export const clipHasEffectMasks = (clipId: string): boolean =>
+  (useProjectStore.getState().project.masks ?? []).some((mask) => mask.clipId === clipId && mask.appliesTo === "effects");
+
+// The picture a processed frame was made from, kept for effect masks: they show it where the matte is clear.
+const effectMaskBases = new WeakMap<object, ImageBitmap>();
+export const effectMaskBaseFor = (processed: object): ImageBitmap | undefined => effectMaskBases.get(processed);
+
 export const applyEffectsToFrame = async (
+  clipId: string,
+  frame: ImageBitmap,
+  effectFrame?: PreviewEffectFrame,
+): Promise<ImageBitmap> => {
+  // Remove Object first, on the raw footage (the analysis ran on the same raw frames, and the export does the same).
+  const removalClip = effectFrame?.clip;
+  if (effectFrame && removalClip && clipHasObjectRemoval(removalClip)) {
+    let removed = frame;
+    try {
+      removed = await applyObjectRemovalToBitmap(removalClip, frame, effectFrame.time);
+    } catch {
+      removed = frame;
+    }
+    if (removed !== frame) {
+      const processed = await applyEffectsToFrameWarped(clipId, removed, effectFrame);
+      if (processed !== removed) removed.close();
+      return processed;
+    }
+  }
+  return applyEffectsToFrameWarped(clipId, frame, effectFrame);
+};
+
+const applyEffectsToFrameWarped = async (
+  clipId: string,
+  frame: ImageBitmap,
+  effectFrame?: PreviewEffectFrame,
+): Promise<ImageBitmap> => {
+  // Warp Stabilizer first: it moves the raw picture, then effects and grading see the stabilized frame.
+  const clip = effectFrame?.clip;
+  if (effectFrame && clip && clipHasWarp(clip)) {
+    const sourceTime = (clip.inPoint ?? 0) + getSpeedEngine().getSourceTimeAtPlaybackTime(clip.id, effectFrame.time - clip.startTime);
+    let stabilized = frame;
+    try {
+      stabilized = await applyWarpStabilizer(frame, clip, sourceTime);
+    } catch {
+      stabilized = frame;
+    }
+    if (stabilized === frame) return applyEffectsToFrameMasked(clipId, frame, effectFrame);
+    const processed = await applyEffectsToFrameMasked(clipId, stabilized, effectFrame);
+    if (processed !== stabilized) stabilized.close();
+    return processed;
+  }
+  return applyEffectsToFrameMasked(clipId, frame, effectFrame);
+};
+
+// Effect masks keep the unprocessed (already stabilized) picture beside the processed one.
+const applyEffectsToFrameMasked = async (
+  clipId: string,
+  frame: ImageBitmap,
+  effectFrame?: PreviewEffectFrame,
+): Promise<ImageBitmap> => {
+  const processed = await applyEffectsToFrameWithInput(clipId, frame, effectFrame);
+  if (processed !== frame && clipHasEffectMasks(clipId)) {
+    try {
+      effectMaskBases.set(processed, await createImageBitmap(frame));
+    } catch {
+      // Without the base the clip simply shows its effects everywhere.
+    }
+  }
+  return processed;
+};
+
+const applyEffectsToFrameWithInput = async (
   clipId: string,
   frame: ImageBitmap,
   effectFrame?: PreviewEffectFrame,
@@ -1854,6 +1985,24 @@ const applyEffectsToFrameGraded = async (
     const enabledEffects = effects
       .map((effect) => withPreviewOverrides(effectsBridge, effect))
       .filter(isRenderableVideoEffect);
+    const sampledGrading = effectFrame && hasAnimatedColorGrading(effectFrame.clip)
+      ? getAnimatedColorGrading({ keyframes: effectFrame.clip.keyframes, colorGrading }, effectFrame.time - effectFrame.clip.startTime)
+      : undefined;
+    const sampled = sampledGrading
+      ? { tone: sampledGrading.tone, vignette: sampledGrading.vignette, temperature: sampledGrading.temperature, tint: sampledGrading.tint, hueCurves: sampledGrading.hueCurves }
+      : undefined;
+
+    // The whole stack on the WebGPU grade chain when every stage has a WGSL port: one upload, no bitmap per stage.
+    if (enabledEffects.length > 0 || Object.keys(colorGrading).length > 0 || sampled) {
+      try {
+        const onGpu = await effectsBridge.processClipChainGpu(clipId, processedFrame, animated, sampled);
+        if (onGpu) {
+          adopt(onGpu);
+          return processedFrame;
+        }
+      } catch {}
+    }
+
     if (enabledEffects.length > 0) {
       try {
         const effectsResult = animated
@@ -1863,12 +2012,6 @@ const applyEffectsToFrameGraded = async (
       } catch {}
     }
 
-    const sampledGrading = effectFrame && hasAnimatedColorGrading(effectFrame.clip)
-      ? getAnimatedColorGrading({ keyframes: effectFrame.clip.keyframes, colorGrading }, effectFrame.time - effectFrame.clip.startTime)
-      : undefined;
-    const sampled = sampledGrading
-      ? { tone: sampledGrading.tone, vignette: sampledGrading.vignette, temperature: sampledGrading.temperature, tint: sampledGrading.tint, hueCurves: sampledGrading.hueCurves }
-      : undefined;
     if (
       Object.keys(colorGrading).length > 0 || sampled
     ) {
@@ -1896,6 +2039,12 @@ export const applyEffectsToFrameCanvas = async (
 ): Promise<OffscreenCanvas | null> => {
   // Sampled stacks use the bitmap path; the cached canvas bridge holds static parameters.
   if (effectFrame && hasAnimatedVideoEffects(effectFrame.clip)) return null;
+  // A stabilized clip's frame is drawn into a new bitmap first.
+  if (effectFrame && clipHasWarp(effectFrame.clip)) return null;
+  // Remove Object rewrites the frame's pixels first, which only the bitmap path does.
+  if (effectFrame && clipHasObjectRemoval(effectFrame.clip)) return null;
+  // Effect masks need the unprocessed picture next to the processed one, which only the bitmap path records.
+  if (clipHasEffectMasks(clipId)) return null;
   // Footage that needs an input transform takes the bitmap path, which applies it first.
   if (inputTransformForClip(clipId)) return null;
   if (isColorBypassed()) return null;

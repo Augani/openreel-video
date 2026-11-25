@@ -213,6 +213,7 @@ const NON_PIXEL_TIMELINE_KEYS = new Set([
   "masterPluginRack",
   // Submix buses never affect a rendered frame.
   "audioBuses",
+  "mixerSnapshots",
   "tracks",
   "subtitles",
 ]);
@@ -236,6 +237,7 @@ function globalFingerprint(project: Project): string {
     frameRate: project.settings.frameRate,
     // Undefined (the Rec.709 / 203 nit defaults) is dropped by stableStringify, so default projects keep their keys.
     workingColorSpace: project.settings.workingColorSpace,
+    sequenceColorSpace: project.settings.sequenceColorSpace,
     graphicsWhiteNits: project.settings.graphicsWhiteNits,
     // ACES mode changes every pixel; absent (display-referred) keys are dropped so legacy caches stay valid.
     colorManagement: project.settings.colorManagement === "aces" || project.settings.colorManagement === "ocio" ? project.settings.colorManagement : undefined,

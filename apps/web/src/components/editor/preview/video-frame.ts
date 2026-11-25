@@ -23,13 +23,14 @@ export function waitForDrawableFrame(
   if (video.readyState >= HAVE_CURRENT_DATA) return Promise.resolve();
   return new Promise((resolve) => {
     const events = ["loadeddata", "canplay", "seeked"] as const;
+    const ready = () => { if (video.readyState >= HAVE_CURRENT_DATA) done(); };
     const done = () => {
       clearTimeout(timer);
-      for (const name of events) video.removeEventListener(name, done);
+      for (const name of events) video.removeEventListener(name, ready);
       resolve();
     };
     const timer = setTimeout(done, timeoutMs);
-    for (const name of events) video.addEventListener(name, done);
+    for (const name of events) video.addEventListener(name, ready);
   });
 }
 
@@ -49,11 +50,14 @@ export async function captureNativeVideoFrame(
   video: HTMLVideoElement,
 ): Promise<ImageBitmap> {
   for (let attempt = 1; ; attempt++) {
-    if (attempt > 1 || video.readyState < HAVE_CURRENT_DATA) await waitForDrawableFrame(video);
+    if (video.readyState < HAVE_CURRENT_DATA) await waitForDrawableFrame(video);
     try {
       return await createImageBitmap(video);
     } catch (error) {
       if (!isNotUsable(error) || attempt >= CAPTURE_ATTEMPTS) throw error;
+      // Chromium can already report HAVE_CURRENT_DATA while its player still has
+      // no drawable frame. Yield to presentation before trying the same element.
+      await new Promise<void>((resolve) => setTimeout(resolve, 32));
     }
   }
 }

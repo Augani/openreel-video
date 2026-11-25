@@ -1,4 +1,4 @@
-import React, { useCallback, useLayoutEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   Button,
@@ -17,8 +17,40 @@ import { useProjectStore } from "../../../stores/project-store";
 import { getTransitionBridge } from "../../../bridges/transition-bridge";
 import { TRANSITION_CARDS } from "../../../bridges/transition-cards";
 import { toast } from "../../../stores/notification-store";
+import { selectEditPoint } from "../../../services/edit-point-commands";
+import { openTrimMonitor } from "../../../services/trim-monitor";
+import { useMorphCutState } from "../inspector/MorphCutControls";
+
+/** "Analysing in background" pill on a Morph Cut cut while its analysis runs; Cancel stops it (the cut stays a dissolve). */
+const MorphCutAnalysingBadge: React.FC<{ transitionId: string }> = ({ transitionId }) => {
+  const state = useMorphCutState(transitionId);
+  if (state.status !== "analysing") return null;
+  return (
+    <div
+      className="pointer-events-auto absolute left-3 top-0 flex items-center gap-1 whitespace-nowrap rounded-[3px] border border-accent bg-bg-2 px-1 text-[9px] text-fg"
+      data-testid="morph-cut-badge"
+      role="status"
+    >
+      <span>Analysing in background {Math.round(state.progress * 100)}%</span>
+      <button
+        type="button"
+        className="underline"
+        aria-label="Cancel Morph Cut analysis"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          void import("@openreel/core/video/morph-cut/analyse-job").then((m) => m.cancelMorphCutAnalysis(transitionId));
+        }}
+      >
+        Cancel
+      </button>
+    </div>
+  );
+};
 
 const BADGE_SIZE = 18;
+const DOUBLE_CLICK_MS = 450;
+const DOUBLE_CLICK_SLOP_PX = 4;
 const TRIM_TOOLS: ReadonlySet<string> = new Set(["ripple", "roll", "stretch", "slip", "slide", "hand", "zoom"]);
 
 interface TransitionHandleProps {
@@ -75,6 +107,36 @@ export const TransitionHandle: React.FC<TransitionHandleProps> = React.memo(func
   // clip edges. While a trim tool is active it must not swallow those drags; the
   // Hand and Zoom tools never open anything by clicking, and an opened menu would
   // swallow their press (Radix locks pointer events on the page).
+  // The badge covers the middle of the cut, so a double-click on the cut lands on it. A single click still
+  // opens the transition menu; a second press on the badge within the double-click window instead closes
+  // that menu and opens the Trim Monitor on the cut. This listens on the document (capture) because the
+  // open menu locks pointer events on the page, so the second press never reaches the badge itself.
+  const cancelSecondPress = useRef<(() => void) | null>(null);
+  useEffect(() => () => cancelSecondPress.current?.(), []);
+  const watchForDoublePress = (first: React.PointerEvent<HTMLButtonElement>) => {
+    if (first.button !== 0 || first.ctrlKey) return;
+    cancelSecondPress.current?.();
+    const { timeStamp, clientX, clientY } = first;
+    const onSecond = (event: PointerEvent) => {
+      cancelSecondPress.current?.();
+      if (event.button !== 0 || event.ctrlKey || event.timeStamp - timeStamp > DOUBLE_CLICK_MS ||
+          Math.hypot(event.clientX - clientX, event.clientY - clientY) > DOUBLE_CLICK_SLOP_PX) return;
+      if (!clipB && !edge) return;
+      setOpen(false);
+      selectEditPoint(clipB?.id ?? clipA.id, clipB || edge === "in" ? "left" : "right");
+      openTrimMonitor();
+      // The dropdown trigger also receives this press. Close it after its toggle.
+      window.setTimeout(() => setOpen(false), 0);
+    };
+    const cancel = () => {
+      document.removeEventListener("pointerdown", onSecond, true);
+      window.clearTimeout(timer);
+      cancelSecondPress.current = null;
+    };
+    const timer = window.setTimeout(cancel, DOUBLE_CLICK_MS);
+    cancelSecondPress.current = cancel;
+    document.addEventListener("pointerdown", onSecond, true);
+  };
   const trimToolActive = useEditorWorkspaceStore((state) =>
     TRIM_TOOLS.has(state.timelineTool),
   );
@@ -180,6 +242,7 @@ export const TransitionHandle: React.FC<TransitionHandleProps> = React.memo(func
       data-timeline-transition
       // Until the pointer or focus reaches the badge it is a plain button: the Radix dropdown chain
       // (about 15 components per cut, hundreds per lane) mounts on first contact instead of with every cut.
+      onPointerDownCapture={watchForDoublePress}
       onPointerEnter={arm}
       onFocus={armWithFocus}
       onPointerDown={armed ? undefined : (e) => {
@@ -229,6 +292,7 @@ export const TransitionHandle: React.FC<TransitionHandleProps> = React.memo(func
       className="absolute top-0 bottom-0 z-30 flex items-center pointer-events-none"
       style={{ left: centerX }}
     >
+      {transition?.type === "morphCut" && <MorphCutAnalysingBadge transitionId={transition.id} />}
       {!armed ? button : (
       <DropdownMenu
         open={open}

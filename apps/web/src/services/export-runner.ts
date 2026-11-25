@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { prepareObjectRemovalForExport } from "./export-object-removal";
 import { ensureProjectFonts } from "./project-fonts";
 import { toast } from "../stores/notification-store";
+import { reportExportLoudness } from "./export-loudness-report";
 import { createExportFrameSource, getUseExportPreviews } from "./export-queue/export-queue-activity";
 import {
   describeExportSource,
@@ -117,6 +119,7 @@ export async function runAudioExportToWritable(
         }
         await writeBlobToWritable(value.blob, writable);
         options.assertNotCancelled();
+        reportExportLoudness(value.stats?.loudness);
         return;
       }
       options.reportProgress(value.progress, value.phase);
@@ -540,6 +543,12 @@ export function useExportRunner(options: ExportRunnerOptions): UseExportRunner {
         checkCurrent();
         await ensureProjectFonts(project);
         checkCurrent();
+        // A cleared Remove Object cache is re-analysed here, with progress, rather than failing the export.
+        await prepareObjectRemovalForExport(project, {
+          isCancelled: () => epoch.current !== runEpoch || cancelled.current,
+          onProgress: (fraction, label) => setState((prev) => ({ ...prev, progress: fraction * 100, phase: label })),
+        });
+        checkCurrent();
         // "Use previews": frames already in the render cache replace re-rendering.
         const cachedFrames = getUseExportPreviews()
           ? createExportFrameSource(project, {
@@ -573,6 +582,7 @@ export function useExportRunner(options: ExportRunnerOptions): UseExportRunner {
           const lightNote = lightLevel ? `Measured from the rendered frames: MaxCLL ${lightLevel.maxCll} nits, MaxFALL ${lightLevel.maxFall} nits.` : "";
           const note = [smartRender?.summary, sourceMedia ? describeExportSource(sourceMedia, window.openreel?.platform === "desktop") : "", lightNote].filter(Boolean).join(" ");
           if (note) toast.info("Export finished", note);
+          reportExportLoudness(finalResult.stats?.loudness);
           activeWritable.current = null;
           setState((prev) => ({ ...prev, isExporting: false, progress: 100, complete: true, phase: "Saved!" }));
           onExported?.(videoSettings);

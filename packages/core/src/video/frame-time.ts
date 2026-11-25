@@ -10,6 +10,13 @@
 /** Sub-frame slack so a playhead stored as 61 / 30 = 2.0333... still lands on frame 61, not 60. */
 const FRAME_EPSILON = 1e-6;
 
+const NTSC_RATES = [24000 / 1001, 30000 / 1001, 48000 / 1001, 60000 / 1001, 120000 / 1001] as const;
+
+/** Resolve conventional NTSC labels to their exact rate when comparing the sequence and export grids. */
+export function snapFrameRate(fps: number): number {
+  return NTSC_RATES.find((rate) => Math.abs(fps - rate) < 0.005) ?? fps;
+}
+
 /** The frame on screen at `time` (floor), never negative. */
 export function frameIndexAt(time: number, fps: number): number {
   if (!(fps > 0) || !Number.isFinite(time) || time <= 0) return 0;
@@ -40,6 +47,6 @@ export function frameSampleTime(time: number, fps: number): number {
  */
 export function exportRenderTime(frame: number, exportFps: number, projectFps: number, offset = 0): number {
   const time = offset + frameStartTime(frame, exportFps);
-  if (!(projectFps > 0) || !(exportFps > 0) || Math.abs(exportFps - projectFps) < 1e-6) return time;
+  if (!(projectFps > 0) || !(exportFps > 0) || Math.abs(snapFrameRate(exportFps) - snapFrameRate(projectFps)) < 1e-6) return time;
   return frameSampleTime(time, projectFps);
 }

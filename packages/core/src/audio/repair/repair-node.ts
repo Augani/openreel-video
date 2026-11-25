@@ -4,7 +4,7 @@
  * chains and offline mixdown all call `createRepairChainNode`, so all of them
  * run the same processor).
  */
-import { isDspProcessorType, type DspProcessorType, type RepairParams } from "./repair-dsp";
+import { LINKED_COMPRESSOR_DEFAULTS, isDspProcessorType, type DspProcessorType, type RepairParams } from "./repair-dsp";
 
 const loading = new WeakMap<BaseAudioContext, Promise<boolean>>();
 const loaded = new WeakSet<BaseAudioContext>();
@@ -63,8 +63,17 @@ export const getRepairMeter = (id: string): number => {
   return source ? source() : (meters.get(id) ?? 0);
 };
 
+/** Keyed (sidechain) compressors expose these as AudioParams `p0`..`p5` of the worklet node, in this order. */
+export const KEYED_COMPRESSOR_PARAM_KEYS = ["threshold", "ratio", "attack", "release", "knee", "makeupGain"] as const;
+
 export interface RepairChainNode {
   readonly input: AudioNode;
+  /** Keyed compressors only: connect the sidechain key signal here. */
+  readonly keyInput?: AudioNode;
+  /** Keyed compressors only: the automatable AudioParams by param key (null until the worklet node exists). */
+  getParams?(): Record<string, AudioParam> | null;
+  /** Keyed compressors only: called once the worklet node is attached (immediately when it already is). */
+  onAttach?(fn: () => void): void;
   readonly output: AudioNode;
   /** All owned nodes (grows when the worklet attaches after loading). */
   readonly nodes: AudioNode[];
@@ -77,6 +86,8 @@ export interface RepairChainOptions {
   readonly meterId?: string;
   /** Channels the node processes (default 2). Above 2 the channels are discrete and the processors link across all of them. */
   readonly channels?: number;
+  /** A linked compressor with a sidechain key input (`keyInput`) and AudioParams for its dynamics settings. */
+  readonly keyed?: boolean;
 }
 
 /**
@@ -105,19 +116,37 @@ export function createRepairChainNode(
   let node: AudioWorkletNode | null = null;
   let current = params;
   let disposed = false;
+  const keyed = options.keyed === true && type === "linkedCompressor";
+  const keyInput = keyed ? ctx.createGain() : undefined;
+  if (keyInput) {
+    nodes.push(keyInput);
+    if (channels > 2) {
+      keyInput.channelCount = channels;
+      keyInput.channelCountMode = "explicit";
+      keyInput.channelInterpretation = "discrete";
+    }
+  }
+  const attachListeners = new Set<() => void>();
+  const dynamicsValue = (key: (typeof KEYED_COMPRESSOR_PARAM_KEYS)[number], source: RepairParams): number => {
+    const v = source[key];
+    return typeof v === "number" && Number.isFinite(v) ? v : LINKED_COMPRESSOR_DEFAULTS[key];
+  };
   input.connect(output);
 
   const attach = () => {
     if (disposed || node || !isDspProcessorType(type)) return;
     try {
+      const parameterData: Record<string, number> = {};
+      if (keyed) KEYED_COMPRESSOR_PARAM_KEYS.forEach((key, i) => (parameterData[`p${i}`] = dynamicsValue(key, current)));
       node = new AudioWorkletNode(ctx, REPAIR_WORKLET_NAME, {
-        numberOfInputs: 1,
+        numberOfInputs: keyed ? 2 : 1,
         numberOfOutputs: 1,
         outputChannelCount: [channels],
         channelCount: channels,
         channelCountMode: "explicit",
         channelInterpretation: channels > 2 ? "discrete" : "speakers",
-        processorOptions: { type, params: current },
+        processorOptions: { type, params: { ...current, keyed: keyed ? 1 : 0 }, useParams: keyed },
+        ...(keyed ? { parameterData } : {}),
       });
     } catch (error) {
       console.warn("[audio-repair] could not create the repair node.", error);
@@ -132,8 +161,10 @@ export function createRepairChainNode(
     }
     input.disconnect(output);
     input.connect(node);
+    keyInput?.connect(node, 0, 1);
     node.connect(output);
     nodes.push(node);
+    attachListeners.forEach((fn) => fn());
   };
 
   if (isRepairWorkletReady(ctx)) {
@@ -150,14 +181,39 @@ export function createRepairChainNode(
 
   return {
     input,
+    keyInput,
     output,
     nodes,
+    getParams: keyed
+      ? () => {
+          if (!node) return null;
+          const out: Record<string, AudioParam> = {};
+          KEYED_COMPRESSOR_PARAM_KEYS.forEach((key, i) => {
+            const param = node?.parameters.get(`p${i}`);
+            if (param) out[key] = param;
+          });
+          return out;
+        }
+      : undefined,
+    onAttach: keyed
+      ? (fn) => {
+          attachListeners.add(fn);
+          if (node) fn();
+        }
+      : undefined,
     update(next) {
       current = next;
-      node?.port.postMessage({ params: next });
+      if (keyed && node) {
+        KEYED_COMPRESSOR_PARAM_KEYS.forEach((key, i) => {
+          const param = node?.parameters.get(`p${i}`);
+          if (param) param.value = dynamicsValue(key, next);
+        });
+      }
+      node?.port.postMessage({ params: { ...next, keyed: keyed ? 1 : 0 } });
     },
     dispose() {
       disposed = true;
+      attachListeners.clear();
       readyListeners.get(ctx)?.delete(attach);
       if (options.meterId) meters.delete(options.meterId);
       try {

@@ -110,6 +110,9 @@ export async function smartScenario(pw, opts) {
     await page.getByRole("button", { name: `Media actions for ${baseName}` }).click();
     await page.getByRole("menuitem", { name: "Add to timeline" }).click();
     await page.getByRole("button", { name: "Match Video" }).click({ timeout: 8000 }).catch(() => {});
+    // Matching dimensions leaves the sequence cadence alone. This fixture exercises
+    // frame copying on a source-rate sequence, including the exact NTSC grid.
+    await page.evaluate((rate) => window.__openreelE2E.project.getState().updateSettings({ frameRate: rate }), FPS);
     await sleep(1500);
 
     // Where does the file behind the media item live? (decides whether smart render copies the blob)

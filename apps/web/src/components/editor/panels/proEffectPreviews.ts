@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { PRO_EFFECT_SPECS, PRO_EFFECT_TYPES, type ProEffectType } from "@openreel/core";
+import { CREATIVE_PRESETS, PRO_EFFECT_SPECS, PRO_EFFECT_TYPES, type ProEffectType } from "@openreel/core";
 import type { EditorEffectPreviewDef } from "./EffectsTransitionsPanel";
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -137,6 +137,15 @@ const PREVIEW_STYLES: Record<ProEffectType, (p: number) => CSSProperties> = {
   "vr-digital-glitch": (p) => ({ transform: `translateX(${Math.floor(p * 5) % 2 ? lerp(0, 5, p) : lerp(0, -4, p)}px)` }),
   "vr-de-noise": (p) => ({ filter: `blur(${lerp(0, 0.8, p)}px) contrast(${lerp(1, 0.95, p)})` }),
   "vr-plane-to-sphere": (p) => ({ transform: `scale(${lerp(1, 0.8, p)})`, borderRadius: `${lerp(0, 18, p)}%` }),
+  // Repair: CSS stand-ins for the card fallback only (the real cards render footage through the shaders).
+  dehaze: (p) => ({ filter: `contrast(${lerp(1, 1.35, p)}) saturate(${lerp(1, 1.25, p)}) brightness(${lerp(1.05, 0.95, p)})` }),
+  deflicker: (p) => ({ filter: `brightness(${lerp(p < 0.5 ? 1.25 : 0.8, 1, p)})` }),
+  deband: (p) => ({
+    backgroundImage: `linear-gradient(90deg, rgba(255,255,255,${lerp(0.12, 0.04, p)}), rgba(0,0,0,${lerp(0.12, 0.04, p)}))`,
+  }),
+  // Creative: CSS stand-ins for the card fallback only.
+  "lumetri-creative": (p) => ({ filter: `saturate(${lerp(1, 1.3, p)}) contrast(${lerp(1, 0.9, p)}) brightness(${lerp(1, 1.06, p)})` }),
+  "lens-correction": (p) => ({ transform: `scale(${lerp(1, 1.08, p)})`, borderRadius: `${lerp(14, 0, p)}%` }),
   grid: (p) => ({
     backgroundImage: `linear-gradient(rgba(255,255,255,${lerp(0, 0.6, p)}) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,${lerp(0, 0.6, p)}) 1px, transparent 1px)`,
     backgroundSize: "12px 12px",
@@ -171,3 +180,46 @@ export const PRO_EFFECT_PREVIEWS: EditorEffectPreviewDef[] = PRO_EFFECT_TYPES.ma
     };
   },
 );
+
+/**
+ * One-click starting points for the repair effects. They are ordinary entries of the effects browser: applying one
+ * adds the effect with these parameters (everything else at its default), which the inspector then edits.
+ */
+export const REPAIR_PRESETS: readonly {
+  readonly id: string;
+  readonly type: ProEffectType;
+  readonly label: string;
+  readonly description: string;
+  readonly params: Record<string, number>;
+}[] = [
+  { id: "repair-dehaze-light", type: "dehaze", label: "Dehaze: Light Haze", description: "Gentle contrast lift for thin haze", params: { amount: 30, radius: 8, skyProtection: 70 } },
+  { id: "repair-dehaze-fog", type: "dehaze", label: "Dehaze: Heavy Fog", description: "Strong dehaze with a large patch for fog and smoke", params: { amount: 75, radius: 16, skyProtection: 50 } },
+  { id: "repair-dehaze-aerial", type: "dehaze", label: "Dehaze: Aerial and Landscape", description: "Cuts distance haze and keeps the sky clean", params: { amount: 55, radius: 12, skyProtection: 90 } },
+  { id: "repair-deflicker-lights", type: "deflicker", label: "Deflicker: Mains Lights", description: "Fast luma flicker from fluorescent or LED lighting", params: { window: 9, luma: 100, color: 30, sensitivity: 50, limit: 40 } },
+  { id: "repair-deflicker-timelapse", type: "deflicker", label: "Deflicker: Time-lapse", description: "Long window that evens out exposure steps between frames", params: { window: 31, luma: 100, color: 60, sensitivity: 50, limit: 60 } },
+  { id: "repair-deflicker-slowmo", type: "deflicker", label: "Deflicker: High Frame Rate", description: "Short, strong correction for slow-motion shot under mains light", params: { window: 5, luma: 100, color: 20, sensitivity: 60, limit: 30 } },
+  { id: "repair-deband-sky", type: "deband", label: "Deband: Sky and Gradients", description: "Smooth wide gradients in skies and backdrops", params: { threshold: 6, radius: 24, iterations: 3, dither: 60 } },
+  { id: "repair-deband-compressed", type: "deband", label: "Deband: Compressed Video", description: "Light smoothing for streaming and low bitrate sources", params: { threshold: 4, radius: 16, iterations: 2, dither: 50 } },
+  { id: "repair-deband-dither", type: "deband", label: "Deband: Dither Only", description: "Adds dither without smoothing, to protect a grade from banding on export", params: { threshold: 0, radius: 16, iterations: 1, dither: 100 } },
+];
+
+export const REPAIR_PRESET_PREVIEWS: EditorEffectPreviewDef[] = REPAIR_PRESETS.map((preset) => ({
+  id: preset.id,
+  type: preset.type,
+  label: preset.label,
+  description: preset.description,
+  category: PRO_EFFECT_SPECS[preset.type].category,
+  params: preset.params,
+  previewStyle: PREVIEW_STYLES[preset.type],
+}));
+
+/** Presets of the Lumetri Creative and Lens Correction effects: ordinary effects browser entries, one click each. */
+export const CREATIVE_PRESET_PREVIEWS: EditorEffectPreviewDef[] = CREATIVE_PRESETS.map((preset) => ({
+  id: preset.id,
+  type: preset.type,
+  label: preset.label,
+  description: preset.description,
+  category: PRO_EFFECT_SPECS[preset.type].category,
+  params: preset.params,
+  previewStyle: PREVIEW_STYLES[preset.type],
+}));

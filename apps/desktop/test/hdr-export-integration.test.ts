@@ -25,6 +25,7 @@ import { tmpdir } from "node:os";
 import { existsSync, promises as fs } from "node:fs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { patchContentLightLevel } from "../src/main/sidecar/patch-content-light-level";
 import { ExportJob, type ExportArgs } from "../src/main/sidecar/export-job";
 import type { NativeColorOutput } from "../src/main/sidecar/color-output-args";
 import { resolveOutputColorSpec, rgbaToYuv420, rgbaToYuv444, withBitDepth10 } from "../../../packages/core/src/export/color-output";
@@ -119,6 +120,28 @@ describe.skipIf(!FFMPEG || !HAS_X265 || !HAS_FFPROBE)("desktop HDR export, read 
     expect(mastering).toBeDefined();
     expect(mastering).toMatchObject({ red_x: "34000/50000", green_y: "34500/50000", max_luminance: "10000000/10000", min_luminance: "1/10000" });
     expect(light).toMatchObject({ max_content: 1000, max_average: 400 });
+  }, 90_000);
+
+  it("HDR10 (PQ): the measured MaxCLL / MaxFALL replace the declared 1000,400 in the finished file", async () => {
+    const out = tmp("pq-measured.mp4");
+    const color: NativeColorOutput = { primaries: "bt2020", transfer: "pq", bitDepth: 10, chroma: "420" };
+    await encode({ ...base, codec: "hevc", encoder: "libx265", outputPath: out, format: "mp4" }, color, resolveOutputColorSpec("rec709", "pq"));
+    expect(await patchContentLightLevel(out, { maxCll: 603, maxFall: 112 })).toBeGreaterThan(0);
+    const { streams, frames } = await probe(out);
+    expect(streams[0]).toMatchObject({ pix_fmt: "yuv420p10le", color_primaries: "bt2020", color_transfer: "smpte2084" });
+    const side = frames[0].side_data_list ?? [];
+    expect(side.find((d) => d.side_data_type === "Content light level metadata")).toMatchObject({ max_content: 603, max_average: 112 });
+    expect(side.find((d) => d.side_data_type === "Mastering display metadata")).toBeDefined();
+    // The file still decodes end to end.
+    await run(FFMPEG!, ["-v", "error", "-i", out, "-f", "null", "-"]);
+  }, 90_000);
+
+  it.skipIf(!HAS_PRORES_KS)("ProRes 422 HQ: the 4:4:4 planes are written as 10-bit 4:2:2 with the PQ tags", async () => {
+    const out = tmp("pq-422hq.mov");
+    const color: NativeColorOutput = { primaries: "bt2020", transfer: "pq", bitDepth: 10, chroma: "444" };
+    await encode({ ...base, codec: "prores", encoder: "prores_ks", proresProfile: "hq", outputPath: out, format: "mov" }, color, resolveOutputColorSpec("rec709", "pq"));
+    const { streams } = await probe(out);
+    expect(streams[0]).toMatchObject({ codec_name: "prores", profile: "HQ", pix_fmt: "yuv422p10le", color_primaries: "bt2020", color_transfer: "smpte2084", color_space: "bt2020nc" });
   }, 90_000);
 
   it("HLG: arib-std-b67 transfer, BT.2020, 10-bit", async () => {

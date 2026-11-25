@@ -1,4 +1,4 @@
-import type { Project } from "@openreel/core";
+import { collectClipFonts, type Project } from "@openreel/core";
 import { GOOGLE_FONT_SPECS } from "./font-catalog";
 
 const initialFamilies = new Set(["Geist", "Geist Mono", "Inter"]);
@@ -63,7 +63,11 @@ export function collectProjectFonts(project: Pick<Project, "textClips" | "timeli
     for (const character of text) entry.characters.add(character);
     fonts.set(key, entry);
   };
-  for (const clip of project.textClips ?? []) add(clip.style?.fontFamily, clip.style?.fontWeight, clip.text);
+  for (const clip of project.textClips ?? []) {
+    // Styled runs may use other families or weights than the clip style.
+    if (clip.style && clip.runs?.length) for (const font of collectClipFonts(clip)) add(font.family, font.weight, font.sample);
+    else add(clip.style?.fontFamily, clip.style?.fontWeight, clip.text);
+  }
   for (const subtitle of project.timeline.subtitles ?? []) add(subtitle.style?.fontFamily, 700, subtitle.text);
   for (const composition of project.motionCompositions ?? []) {
     for (const layer of composition.layers) if (layer.type === "text") add(layer.style?.fontFamily, layer.style?.fontWeight, layer.text);

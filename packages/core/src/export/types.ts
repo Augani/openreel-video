@@ -85,6 +85,14 @@ export interface VideoExportSettings {
   /** Timeline seconds; the Out point is exclusive. Omit to export everything. */
   range?: { startTime: number; endTime: number };
   /**
+   * Parallel segment export (desktop). One worker renders only frames [startFrame, endFrame) of the export, at the
+   * same absolute times a whole-timeline export would use, and sends no audio ("video"); another renders only the
+   * audio ("audio"). The orchestrator joins the pieces losslessly. Never set by the export dialog.
+   */
+  segmentWindow?: { startFrame: number; endFrame: number; role: "video" | "audio" };
+  /** Desktop: render the timeline in parallel segments when it is safe ("auto", default) or never ("off"). */
+  parallelSegments?: "auto" | "off";
+  /**
    * Stream-copy untouched runs of the sources instead of re-encoding them
    * (MP4/MOV; H.264 on the WebCodecs backend, H.264/HEVC/ProRes on the desktop
    * native ffmpeg backend). On unless explicitly false.
@@ -100,6 +108,11 @@ export interface VideoExportSettings {
    * every exported frame, over all tracks and captions. Frames are always re-rendered (no stream copy).
    */
   burnInTimecode?: TimecodeBurnInSettings;
+  /**
+   * Write the sequence's chapter markers as chapters of the exported file (desktop ffmpeg exports in MP4 / MOV).
+   * Omitted or false = no chapters.
+   */
+  embedChapters?: boolean;
 }
 
 export interface AudioExportSettings {
@@ -129,6 +142,19 @@ export interface AudioExportSettings {
    * to -1. Omitted = the loudness target when loudness normalisation is on, else -31.
    */
   dialnorm?: number;
+  /**
+   * WAV only: write Broadcast Wave metadata, a `bext` chunk (description, originator, time reference taken from the
+   * sequence start timecode) and an `iXML` chunk (track names). Omitted = a plain WAV.
+   */
+  bwf?: BwfExportSettings;
+}
+
+export interface BwfExportSettings {
+  enabled: boolean;
+  /** `bext` description. Omitted = the project name. */
+  description?: string;
+  /** `bext` originator. Omitted = "OpenReel". */
+  originator?: string;
 }
 
 export interface ImageExportSettings {

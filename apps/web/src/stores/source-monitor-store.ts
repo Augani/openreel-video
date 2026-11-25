@@ -143,7 +143,10 @@ interface SourceMonitorState {
   /** Replace edit keeps the replaced clip's effects, keyframes and audio
    * settings (on) or resets them to a fresh clip (off). */
   replaceKeepsAttributes: boolean;
+  /** The Transcript tab (text-based editing of the loaded clip) is open under the Source picture. */
+  transcriptOpen: boolean;
 
+  setTranscriptOpen: (open: boolean) => void;
   setTab: (tab: MonitorTab) => void;
   setFocus: (focus: MonitorFocus) => void;
   setReplaceKeepsAttributes: (keep: boolean) => void;
@@ -180,7 +183,9 @@ export const useSourceMonitorStore = create<SourceMonitorState>((set, get) => ({
   positions: {},
   openNonce: 0,
   replaceKeepsAttributes: true,
+  transcriptOpen: false,
 
+  setTranscriptOpen: (transcriptOpen) => set({ transcriptOpen, ...(transcriptOpen ? { tab: "source" as const, focus: "source" as const } : {}) }),
   setTab: (tab) => set({ tab, ...(tab === "program" ? { rate: 0, focus: "program" as const } : {}) }),
   setFocus: (focus) => set({ focus }),
   setReplaceKeepsAttributes: (replaceKeepsAttributes) => set({ replaceKeepsAttributes }),

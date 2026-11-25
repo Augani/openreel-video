@@ -1,3 +1,4 @@
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("electron", () => ({ app: { isPackaged: false } }));
@@ -152,11 +153,11 @@ describe("destination folders", () => {
     expect(proxyOutDir(profile({ mode: "project" }), "/proj/Proxies", "/media/a.mov")).toBe("/proj/Proxies");
   });
   it("next to media uses a Proxies folder beside the file", () => {
-    expect(proxyOutDir(profile({ mode: "media" }), "/proj/Proxies", "/media/day1/a.mov")).toBe("/media/day1/Proxies");
+    expect(proxyOutDir(profile({ mode: "media" }), "/proj/Proxies", "/media/day1/a.mov")).toBe(path.resolve("/media/day1/Proxies"));
   });
   it("custom uses the chosen folder, absolute or relative to the project", () => {
-    expect(proxyOutDir(profile({ mode: "custom", folder: "/Volumes/Fast/prx" }), "/proj/Proxies", "/media/a.mov")).toBe("/Volumes/Fast/prx");
-    expect(proxyOutDir(profile({ mode: "custom", folder: "cache" }), "/proj/Proxies", "/media/a.mov", "/proj")).toBe("/proj/cache");
+    expect(proxyOutDir(profile({ mode: "custom", folder: path.resolve("/Volumes/Fast/prx") }), "/proj/Proxies", "/media/a.mov")).toBe(path.resolve("/Volumes/Fast/prx"));
+    expect(proxyOutDir(profile({ mode: "custom", folder: "cache" }), "/proj/Proxies", "/media/a.mov", "/proj")).toBe(path.resolve("/proj/cache"));
   });
 });
 

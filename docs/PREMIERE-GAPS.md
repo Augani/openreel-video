@@ -1,5 +1,7 @@
 # OpenReel vs Premiere Pro: Release Gap Report
 
+See the [1.2.0 workflow comparison](releases/v1.2.0.md) for the current web and desktop feature set, verification and remaining differences.
+
 
 > Status at desktop 1.0.0. Sections 1 to 5 below are the pre-release audit, kept as written for the record. This section says what happened to each item. "Closed" means the fix is in the 1.0.0 tree and covered by a test or measurement named in `docs/releases/v1.0.0.md`. It does not mean the behaviour was checked in Premiere or on every platform.
 

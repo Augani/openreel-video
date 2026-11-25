@@ -15,7 +15,8 @@ interface GPURequestAdapterOptions {
 interface GPUAdapter {
   readonly features: GPUSupportedFeatures;
   readonly limits: GPUSupportedLimits;
-  readonly isFallbackAdapter: boolean;
+  readonly isFallbackAdapter?: boolean;
+  readonly info?: { readonly isFallbackAdapter?: boolean; readonly architecture?: string };
   requestDevice(descriptor?: GPUDeviceDescriptor): Promise<GPUDevice>;
 }
 
@@ -80,6 +81,9 @@ interface GPUDevice extends EventTarget {
   createRenderPipeline(
     descriptor: GPURenderPipelineDescriptor,
   ): GPURenderPipeline;
+  createRenderPipelineAsync(
+    descriptor: GPURenderPipelineDescriptor,
+  ): Promise<GPURenderPipeline>;
   createCommandEncoder(
     descriptor?: GPUCommandEncoderDescriptor,
   ): GPUCommandEncoder;
@@ -112,7 +116,7 @@ interface GPUQueue {
 }
 
 interface GPUImageCopyExternalImage {
-  source: ImageBitmap | HTMLVideoElement | HTMLCanvasElement | OffscreenCanvas;
+  source: ImageBitmap | HTMLVideoElement | HTMLCanvasElement | OffscreenCanvas | VideoFrame;
   origin?: GPUOrigin2D;
   flipY?: boolean;
 }

@@ -1,210 +1,175 @@
-import React, { useState, useCallback } from "react";
-import { Button } from "@openreel/ui";
-import { Card } from "@openreel/ui";
-
-import { Video, Download } from "@/icons/lucide-compat";
+import React, { useSyncExternalStore } from "react";
+import { Button, Card, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@openreel/ui";
+import { Video, X } from "@/icons/lucide-compat";
+import {
+  DEFAULT_WARP_SETTINGS,
+  ROLLING_SHUTTER_LABELS,
+  ROLLING_SHUTTER_MODES,
+  WARP_FRAMINGS,
+  WARP_FRAMING_LABELS,
+  WARP_METHODS,
+  WARP_METHOD_LABELS,
+  WARP_RESULTS,
+  WARP_RESULT_LABELS,
+  getWarpRegistry,
+  isWarpAnalysis,
+  normalizeWarpSettings,
+  type Clip,
+  type WarpSettings,
+} from "@openreel/core";
 import { PropertySlider } from "./shell/PropertySlider";
 import { InspectorToggle } from "./shell/InspectorControls";
-import type { Clip } from "@openreel/core";
-import { getVidstabEngine, type VidstabProgress } from "@openreel/core";
-import { useProjectStore } from "../../../stores/project-store";
+import {
+  cancelWarpAnalysis,
+  setWarpEnabled,
+  startWarpStabilizer,
+  updateWarpSettings,
+  warpAnalysisCovers,
+} from "../../../services/warp-stabilizer-service";
 
 interface StabilizationSectionProps {
   clip: Clip;
 }
 
-export const StabilizationSection: React.FC<StabilizationSectionProps> = ({
-  clip,
-}) => {
-  const { getMediaItem } = useProjectStore();
-  const [processing, setProcessing] = useState(false);
-  const [stage, setStage] = useState<VidstabProgress["stage"] | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+const subscribe = (listener: () => void): (() => void) => getWarpRegistry().subscribe(listener);
 
-  const stabilization = clip.stabilization ?? {
-    enabled: false,
-    strength: 50,
-    cropMode: "auto" as const,
-    analyzed: false,
-  };
-
-  const vidstabEngine = getVidstabEngine();
-  const isStabilized = vidstabEngine.hasStabilized(clip.id);
-
-  const updateStabilization = useCallback(
-    (updates: Partial<typeof stabilization>) => {
-      const newStabilization = { ...stabilization, ...updates };
-      void useProjectStore.getState().executeAction({
-        type: "clip/setStabilization",
-        id: crypto.randomUUID(),
-        timestamp: Date.now(),
-        params: { clipId: clip.id, stabilization: newStabilization },
-      });
-    },
-    [clip.id, stabilization],
+function Choice<T extends string>({ label, value, values, labels, onChange, disabled }: {
+  label: string;
+  value: T;
+  values: readonly T[];
+  labels: Record<T, string>;
+  onChange: (value: T) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Label className="block space-y-1.5 text-xs font-normal text-fg-2">
+      <span>{label}</span>
+      <Select value={value} disabled={disabled} onValueChange={(next) => onChange(next as T)}>
+        <SelectTrigger aria-label={label} className="h-[30px] text-xs"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          {values.map((option) => <SelectItem key={option} value={option}>{labels[option]}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    </Label>
   );
+}
 
-  const handleStabilize = useCallback(async () => {
-    const mediaItem = getMediaItem(clip.mediaId);
-    if (!mediaItem?.blob) return;
-
-    setProcessing(true);
-    setProgress(0);
-    setError(null);
-    setStage("downloading");
-
-    try {
-      await vidstabEngine.load((p) => {
-        setStage(p.stage);
-        setProgress(Math.round(p.progress * 100));
-      });
-
-      setStage("detecting");
-      setProgress(0);
-
-      await vidstabEngine.stabilize(
-        clip.id,
-        mediaItem.blob,
-        {
-          strength: stabilization.strength,
-          cropMode: stabilization.cropMode,
-          analysisInterval: 1,
-        },
-        (p) => {
-          setStage(p.stage);
-          setProgress(Math.round(p.progress * 100));
-        },
-        { inPoint: clip.inPoint, outPoint: clip.outPoint },
-      );
-
-      updateStabilization({ enabled: true, analyzed: true });
-    } catch (error) {
-      console.error("Stabilization failed:", error);
-      setStage(null);
-      setError(error instanceof Error ? error.message : "Stabilization failed");
-    } finally {
-      setProcessing(false);
-      setStage(null);
-    }
-  }, [
-    clip.id,
-    clip.mediaId,
-    getMediaItem,
-    vidstabEngine,
-    stabilization.strength,
-    stabilization.cropMode,
-    updateStabilization,
-  ]);
-
-  const handleToggle = useCallback(
-    (enabled: boolean) => {
-      if (enabled && !isStabilized) {
-        handleStabilize();
-        return;
-      }
-      updateStabilization({ enabled });
-    },
-    [isStabilized, handleStabilize, updateStabilization],
-  );
-
-  const handleStrengthChange = useCallback(
-    (value: number[]) => {
-      const strength = value[0];
-      if (isStabilized) {
-        vidstabEngine.removeStabilized(clip.id);
-        updateStabilization({
-          strength,
-          analyzed: false,
-          enabled: false,
-        });
-        return;
-      }
-      updateStabilization({ strength });
-    },
-    [clip.id, isStabilized, vidstabEngine, updateStabilization],
-  );
-
-  const stageLabel = (() => {
-    switch (stage) {
-      case "downloading":
-        return "Downloading stabilization engine...";
-      case "detecting":
-        return "Analyzing motion...";
-      case "stabilizing":
-        return "Stabilizing video...";
-      default:
-        return "";
-    }
-  })();
+export const StabilizationSection: React.FC<StabilizationSectionProps> = ({ clip }) => {
+  const job = useSyncExternalStore(subscribe, () => getWarpRegistry().getJob(clip.id));
+  const stabilization = clip.stabilization;
+  const analysed = Boolean(stabilization?.warpAnalysis && isWarpAnalysis(stabilization.warpAnalysis));
+  const busy = job.status === "analysing" || job.status === "stabilizing";
+  const enabled = Boolean(stabilization?.enabled && analysed);
+  const warp = normalizeWarpSettings(stabilization?.warp ?? DEFAULT_WARP_SETTINGS);
+  const stale = enabled && !warpAnalysisCovers(clip);
+  const cropping = warp.framing === "stabilizeCrop" || warp.framing === "stabilizeCropAutoScale";
+  const set = (patch: Partial<WarpSettings>) => updateWarpSettings(clip.id, patch);
+  const percent = job.status === "analysing" ? Math.round(job.progress * 100) : 100;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-testid="warp-stabilizer">
       <div className="flex items-center justify-between">
         <span className="text-fg font-normal flex items-center gap-2 text-sm">
           <Video className="h-4 w-4" />
-          Stabilize
+          Warp Stabilizer
         </span>
         <InspectorToggle
-          ariaLabel="Enable stabilization"
-          checked={stabilization.enabled && isStabilized}
-          onChange={handleToggle}
-          isDisabled={processing}
+          ariaLabel="Enable Warp Stabilizer"
+          checked={enabled || busy}
+          onChange={(next) => setWarpEnabled(clip.id, next)}
         />
       </div>
 
-      <PropertySlider
-        label="Strength"
-        value={stabilization.strength}
-        min={10}
-        max={100}
-        step={5}
-        onChange={(value: number) => handleStrengthChange([value])}
-        isDisabled={processing}
-        formatValue={(value) => `${Math.round(value)}%`}
-      />
-
-      {!vidstabEngine.isLoaded() && !processing && !isStabilized && (
-        <Card className="min-w-0 rounded-[7px] shadow-none text-fg p-2 flex items-center gap-2 border border-border/60 bg-muted/40"
+      {busy && (
+        <Card
+          role="status"
+          aria-label="Stabilizer status"
+          className="min-w-0 rounded-[7px] border shadow-none border-transparent bg-bg-2 text-fg p-2 space-y-1"
         >
-          <Download className="h-3.5 w-3.5 shrink-0" />
-          <span className="text-fg-2 font-normal text-[11px]">
-            First use requires a one-time download (~65 MB)
-          </span>
-        </Card>
-      )}
-
-      {processing && stage && (
-        <Card className="min-w-0 rounded-[7px] border shadow-none border-transparent bg-bg-2 text-fg p-2 space-y-1">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <span className="text-fg-2 font-normal text-xs">
-              {stageLabel}
+              {job.status === "analysing" ? `Analysing in background (step 1 of 2) ${percent}%` : "Stabilizing (step 2 of 2)"}
             </span>
-            <span className="text-fg-2 font-normal text-xs">
-              {progress}%
-            </span>
+            <Button
+              type="button"
+              aria-label="Cancel stabilizer analysis"
+              className="inline-flex h-6 items-center gap-1 rounded-[6px] border border-border bg-bg-2 px-2 text-[11px] text-fg-2 hover:bg-bg-3 hover:text-fg"
+              onClick={() => cancelWarpAnalysis(clip.id)}
+            >
+              <X className="h-3 w-3" />
+              Cancel
+            </Button>
           </div>
           <div className="h-1.5 w-full rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-primary transition-all"
-              style={{ width: `${progress}%` }}
-            />
+            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${percent}%` }} />
           </div>
         </Card>
       )}
 
-      {error && !processing && (
+      {job.status === "failed" && !busy && (
         <Card className="min-w-0 rounded-[7px] shadow-none text-fg p-2 border border-destructive/50 bg-destructive/10">
-          <span className="font-normal text-[11px] text-destructive">
-          {error}
-          </span>
+          <span className="font-normal text-[11px] text-destructive">{job.message}</span>
         </Card>
       )}
 
-      {isStabilized && !processing && (
-        <Button onClick={handleStabilize} type="button" aria-label="Re-stabilize" className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg w-full justify-center">
-          <span className="truncate">{"Re-stabilize"}</span>
-        </Button>
+      {stale && !busy && (
+        <Card className="min-w-0 rounded-[7px] shadow-none text-fg p-2 flex items-center justify-between gap-2 border border-border/60 bg-muted/40">
+          <span className="text-fg-2 font-normal text-[11px]">The trim changed since the analysis.</span>
+          <Button
+            type="button"
+            aria-label="Analyse again"
+            className="h-6 rounded-[6px] border border-border bg-bg-2 px-2 text-[11px] text-fg-2 hover:bg-bg-3 hover:text-fg"
+            onClick={() => void startWarpStabilizer(clip.id)}
+          >
+            Analyse again
+          </Button>
+        </Card>
+      )}
+
+      {enabled && (
+        <fieldset className="min-w-0 space-y-3 border-0 p-0" disabled={busy}>
+          <Choice label="Result" value={warp.result} values={WARP_RESULTS} labels={WARP_RESULT_LABELS} onChange={(result) => set({ result })} />
+          {warp.result === "smoothMotion" && (
+            <PropertySlider
+              label="Smoothness"
+              value={warp.smoothness}
+              min={0}
+              max={100}
+              step={1}
+              defaultValue={DEFAULT_WARP_SETTINGS.smoothness}
+              onChange={(smoothness) => set({ smoothness })}
+              formatValue={(value) => `${Math.round(value)}%`}
+            />
+          )}
+          <Choice label="Method" value={warp.method} values={WARP_METHODS} labels={WARP_METHOD_LABELS} onChange={(method) => set({ method })} />
+          <Choice label="Framing" value={warp.framing} values={WARP_FRAMINGS} labels={WARP_FRAMING_LABELS} onChange={(framing) => set({ framing })} />
+          {cropping && (
+            <PropertySlider
+              label="Crop Less / Smooth More"
+              value={warp.cropLessSmoothMore}
+              min={0}
+              max={100}
+              step={1}
+              defaultValue={DEFAULT_WARP_SETTINGS.cropLessSmoothMore}
+              onChange={(cropLessSmoothMore) => set({ cropLessSmoothMore })}
+              formatValue={(value) => `${Math.round(value)}%`}
+            />
+          )}
+          <Choice
+            label="Rolling Shutter Ripple"
+            value={warp.rollingShutter}
+            values={ROLLING_SHUTTER_MODES}
+            labels={ROLLING_SHUTTER_LABELS}
+            onChange={(rollingShutter) => set({ rollingShutter })}
+          />
+          <p className="text-[10px] text-fg-3">
+            {warp.framing === "synthesizeEdges"
+              ? "Fills the empty borders with picture from neighbouring frames."
+              : cropping
+                ? "Smoothing gives way before the crop passes the budget set by Crop Less / Smooth More."
+                : "Borders the correction uncovers stay empty."}
+          </p>
+        </fieldset>
       )}
     </div>
   );

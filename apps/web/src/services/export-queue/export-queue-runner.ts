@@ -15,13 +15,16 @@ import {
   type Project,
   type VideoExportSettings,
 } from "@openreel/core";
+import { reportExportLoudness } from "../export-loudness-report";
 import { ensureProjectFonts } from "../project-fonts";
+import { prepareObjectRemovalForExport } from "../export-object-removal";
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
 import { mimeForExt, extForFormat } from "../export-runner";
 import { NativeFFmpegBackend } from "../native-ffmpeg-backend";
 import { renderCacheService } from "../render-cache-service";
 import { createBrowserOutputSink } from "./export-queue-storage";
+import { ParallelExportCancelled, cancelParallelExport, tryParallelSegmentExport } from "./parallel-segment-export";
 
 export interface RunJobResult {
   readonly output: ExportJobOutput;
@@ -37,6 +40,7 @@ export interface RunJobResult {
 let activeJobEngine: ExportEngine | null = null;
 export const cancelRunningExportJob = (): void => {
   activeJobEngine?.cancel();
+  cancelParallelExport();
 };
 
 export class ExportJobCancelled extends Error {
@@ -93,6 +97,27 @@ const webCodecsFactoryFor = (settings: VideoExportSettings, clamp: boolean, enco
         })
       : new NativeFFmpegBackend(() => (window as { __openreelExportPath?: string }).__openreelExportPath ?? "");
 };
+
+/** Whether a desktop export is encoded by the ffmpeg sidecar (the only encode parallel segments use) rather than by WebCodecs. */
+const usesNativeEncoder = (settings: VideoExportSettings): boolean =>
+  desktopExportRequiresNativeEncoder(settings) || settings.encodeMode === "smallest" || settings.codec === "av1" || encoderChoiceForcesNative(settings.encoderChoice, settings.codec);
+
+async function runParallelIfPossible(job: ExportJob, project: Project, settings: VideoExportSettings, ext: string, hooks: RunJobHooks): Promise<RunJobResult | null> {
+  const fs = window.openreel!.fs;
+  const path = await fs.tempFilePath(ext, true);
+  try {
+    const result = await tryParallelSegmentExport({ job, project, settings, outputPath: path, hooks });
+    if (!result) {
+      await fs.releaseTemp?.(path).catch(() => undefined);
+      return null;
+    }
+    return { output: { filename: job.outputName, bytes: 0, storage: "disk", path }, framesFromCache: 0, cacheFramesAvailable: false };
+  } catch (error) {
+    await fs.releaseTemp?.(path).catch(() => undefined);
+    if (error instanceof ParallelExportCancelled) throw new ExportJobCancelled();
+    throw error;
+  }
+}
 
 /** Let input, paint and timers run between frames so the editor stays usable during a job. */
 const yieldToMain = (): Promise<void> => {
@@ -152,6 +177,14 @@ async function runExportJobWith(engine: ExportEngine, job: ExportJob, project: P
   const source = job.usePreviews ? renderCacheService.createExportFrameSource(project, settings) : null;
   const frameSource: ExportFrameSource | undefined = source ?? undefined;
 
+  // Desktop: render the timeline in parallel segments in hidden worker windows when it is safe. Frames taken from the
+  // preview cache, or an encode that is not the native one, keep the serial path (so parallel and serial agree).
+  if (desktop && !frameSource && usesNativeEncoder(settings)) {
+    const parallel = await runParallelIfPossible(job, project, settings, ext, hooks);
+    if (parallel) return parallel;
+    checkCancelled();
+  }
+
   let writable: FileSystemWritableFileStream;
   let finish: () => Promise<ExportJobOutput>;
   let discard: () => Promise<void>;
@@ -160,7 +193,7 @@ async function runExportJobWith(engine: ExportEngine, job: ExportJob, project: P
   if (desktop) {
     const fs = window.openreel!.fs;
     const path = await fs.tempFilePath(ext, true);
-    const native = desktopExportRequiresNativeEncoder(settings) || settings.encodeMode === "smallest" || settings.codec === "av1" || encoderChoiceForcesNative(settings.encoderChoice, settings.codec);
+    const native = usesNativeEncoder(settings);
     (window as { __openreelExportPath?: string }).__openreelExportPath = path;
     if (native) {
       setEncoderBackendFactory(() => new NativeFFmpegBackend(() => path));
@@ -190,6 +223,14 @@ async function runExportJobWith(engine: ExportEngine, job: ExportJob, project: P
       lockedPlayback = true;
       useProjectStore.getState().syncRenderProcessingFrom(project);
     }
+    // A cleared Remove Object cache is re-analysed here, with progress, rather than failing the render.
+    try {
+      await prepareObjectRemovalForExport(project, { isCancelled: hooks.isCancelled, onProgress: (fraction, label) => hooks.onProgress(fraction, label) });
+    } catch (error) {
+      if (hooks.isCancelled()) throw new ExportJobCancelled();
+      throw error;
+    }
+    checkCancelled();
     // Desktop carries the preference in its encoder factory; the browser passes it per run so it never outlives this job.
     generator = engine.exportVideo(project, settings, writable, {
       ...(frameSource ? { cachedFrames: frameSource } : {}),
@@ -211,6 +252,7 @@ async function runExportJobWith(engine: ExportEngine, job: ExportJob, project: P
           throw new Error(result.error?.message || "Export failed");
         }
         framesFromCache = result.stats?.framesFromCache ?? 0;
+        reportExportLoudness(result.stats?.loudness);
         const report = result.stats?.smartRender;
         if (report) {
           smartRender = {

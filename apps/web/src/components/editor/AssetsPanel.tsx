@@ -767,6 +767,11 @@ export const AssetsPanel: React.FC = () => {
     setActiveTabRaw(tab);
   }, [activeTab, ttsHasUnsaved, setActiveTabRaw]);
 
+  const openVoiceOver = () => {
+    setAudioSource("voiceover");
+    setActiveTab("audio");
+  };
+
   const [isDragOver, setIsDragOver] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState("");
@@ -1337,12 +1342,20 @@ export const AssetsPanel: React.FC = () => {
             <WorkspaceTabs label="Media sources" value={mediaSource} onChange={(value) => {
               setMediaSource(value);
             }} options={[{value:"project",label:<>Project {mediaItems.length > 0 && <span className="workspace-count">{mediaItems.length}</span>}</>},{value:"stock",label:"Stock"},{value:"recordings",label:"Recordings"}]} />
-            <div className="flex flex-col flex-1 min-h-0" {...workspaceTabPanel("Media sources",mediaSource)}>{mediaSource === "stock" ? <WorkspaceStockPanel backgrounds={BACKGROUND_PRESETS} onImportBackground={handleImportBackground} generatingBackground={generatingBackground} /> : mediaSource === "recordings" ? <RecordingsPanel items={mediaItems} onRecord={() => openModal("recorder")} onAddToTimeline={(item) => handleAddToTimeline(item)} onOpenInSource={(item) => openInSourceMonitor(item.id)} /> : <>
+            <div className="flex flex-col flex-1 min-h-0" {...workspaceTabPanel("Media sources",mediaSource)}>{mediaSource === "stock" ? <WorkspaceStockPanel backgrounds={BACKGROUND_PRESETS} onImportBackground={handleImportBackground} generatingBackground={generatingBackground} /> : mediaSource === "recordings" ? <RecordingsPanel items={mediaItems} onVoiceOver={openVoiceOver} onRecord={() => openModal("recorder")} onAddToTimeline={(item) => handleAddToTimeline(item)} onOpenInSource={(item) => openInSourceMonitor(item.id)} /> : <>
             <div className="workspace-media-browser flex flex-col shrink-0">
               <div className="workspace-media-toolbar flex gap-1.5">
                 <label className="workspace-search"><MediaLibraryIcon name="search" /><Input ref={searchInputRef} aria-label="Search media" placeholder="Search media" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /></label>
                 <ShadcnButton variant="secondary" className="h-[30px] shrink-0 px-2.5 text-[13px] gap-1.5" aria-label="Import media" onClick={triggerFileInput}><MediaLibraryIcon name="import" />Import</ShadcnButton>
-                <ShadcnButton variant="secondary" size="icon" className="h-[30px] w-[30px] shrink-0" aria-label="Record" onClick={() => openModal("recorder")}><MediaLibraryIcon name="record" /></ShadcnButton>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <ShadcnButton variant="secondary" className="h-[30px] shrink-0 gap-1 px-2 text-xs"><MediaLibraryIcon name="record" />Record</ShadcnButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={openVoiceOver}><AudioLibraryIcon name="voiceover" />Record voice-over</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => openModal("recorder")}><MediaLibraryIcon name="record-start" />Record screen or camera</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
               <div className="workspace-chips">{[["all","All"],["video","Video"],["audio","Audio"],["image","Images"]].map(([value,label]) => <ShadcnButton key={value} variant="ghost" aria-pressed={mediaFilter===value} onClick={() => setMediaFilter(value)}>{label}</ShadcnButton>)}</div>
             </div>

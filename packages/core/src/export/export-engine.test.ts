@@ -363,6 +363,80 @@ describe("ExportEngine", () => {
       });
     });
 
+    describe("parallel segment windows", () => {
+      afterEach(() => setEncoderBackendFactory(null));
+
+      function installRecordingBackend() {
+        const log = { stamps: [] as number[], audioBuffers: 0, closeAudio: 0, finalize: 0 };
+        const backend: EncoderBackend = {
+          requiresWebCodecsClamping: false,
+          needsFrameThrottling: false,
+          normalizesProResToH264: false,
+          audioBeforeVideo: true,
+          start: async () => undefined,
+          addVideoFrame: async (_frame, timestampSec) => {
+            log.stamps.push(timestampSec);
+          },
+          addAudioBuffer: async () => {
+            log.audioBuffers += 1;
+          },
+          closeAudio: async () => {
+            log.closeAudio += 1;
+          },
+          getBytesWritten: () => 0,
+          finalize: async () => {
+            log.finalize += 1;
+          },
+          abort: async () => undefined,
+        };
+        setEncoderBackendFactory(() => backend);
+        return log;
+      }
+      const base = { ...DEFAULT_VIDEO_SETTINGS, frameRate: 10, width: 640, height: 360 };
+
+      it("a video window renders only its frames, at the absolute times of a whole export, numbered from zero", async () => {
+        const log = installRecordingBackend();
+        mockRenderFrame.mockClear();
+        const result = await drainVideoExport({ ...base, segmentWindow: { startFrame: 7, endFrame: 13, role: "video" } }, 3);
+        expect(result.success).toBe(true);
+        expect(log.stamps).toEqual([0, 0.1, 0.2, 0.3, 0.4, 0.5]);
+        // The picture is rendered at the project time of frames 7..12 of the full export.
+        expect(mockRenderFrame.mock.calls.map((call) => call[1])).toEqual([0.7, 0.8, 0.9, 1, 1.1, 1.2]);
+        expect(log.finalize).toBe(1);
+      });
+
+      it("a video window sends no audio", async () => {
+        const log = installRecordingBackend();
+        mockRenderAudio.mockClear();
+        await drainVideoExport({ ...base, segmentWindow: { startFrame: 0, endFrame: 5, role: "video" } }, 2);
+        expect(log.audioBuffers).toBe(0);
+        expect(log.closeAudio).toBe(0);
+        expect(mockRenderAudio).not.toHaveBeenCalled();
+      });
+
+      it("an audio window renders the whole timeline's audio and no picture", async () => {
+        const log = installRecordingBackend();
+        mockRenderFrame.mockClear();
+        const result = await drainVideoExport({ ...base, segmentWindow: { startFrame: 0, endFrame: 0, role: "audio" } }, 2);
+        expect(result.success).toBe(true);
+        expect(log.stamps).toEqual([]);
+        expect(mockRenderFrame).not.toHaveBeenCalled();
+        expect(log.closeAudio).toBe(1);
+      });
+
+      it("windows that tile the export render every frame exactly once", async () => {
+        const log = installRecordingBackend();
+        mockRenderFrame.mockClear();
+        const tiles = [[0, 8], [8, 15], [15, 20]];
+        for (const [startFrame, endFrame] of tiles) {
+          await drainVideoExport({ ...base, segmentWindow: { startFrame, endFrame, role: "video" } }, 2);
+        }
+        const times = mockRenderFrame.mock.calls.map((call) => Math.round((call[1] as number) * 10));
+        expect(times).toEqual(Array.from({ length: 20 }, (_, i) => i));
+        expect(log.stamps).toHaveLength(20);
+      });
+    });
+
     describe("frame pipelining", () => {
       afterEach(() => setEncoderBackendFactory(null));
 
@@ -674,9 +748,15 @@ describe("ExportEngine", () => {
       expect(mockRenderFrame).not.toHaveBeenCalled();
     });
 
-    it("aborts GPU initialization failures, restores preview mode, and allows retry", async () => {
+    it("exports at the original size without starting the optional GPU upscaler", async () => {
+      expect(await drainVideoExport()).toMatchObject({ success: true });
+      expect(mockVideoEngine.initializeGPUCompositor).not.toHaveBeenCalled();
+    });
+
+    it("aborts upscaler initialization failures, restores preview mode, and allows retry", async () => {
       mockVideoEngine.initializeGPUCompositor.mockRejectedValueOnce(new Error("GPU initialization failed"));
-      expect(await drainVideoExport()).toMatchObject({ success: false, error: { message: expect.stringContaining("GPU initialization failed") } });
+      const upscaled = { ...DEFAULT_VIDEO_SETTINGS, width: 3840, height: 2160, frameRate: 1, upscaling: { enabled: true, quality: "balanced" as const, sharpening: 0 } };
+      expect(await drainVideoExport(upscaled)).toMatchObject({ success: false, error: { message: expect.stringContaining("GPU initialization failed") } });
       expect(writableStream.abort).toHaveBeenCalled();
       expect(mockVideoEngine).toHaveProperty("exportMode", false);
       expect(await drainVideoExport()).toMatchObject({ success: true });
