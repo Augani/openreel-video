@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useT } from "@openreel/i18n/react";
 import type { ScriptableTemplate } from "@openreel/core";
 import { TemplateThumb } from "./TemplateThumb";
 
@@ -19,6 +20,7 @@ const prefersReducedMotion = (): boolean => {
  * still. The loop is drawn on a canvas laid over the still, so leaving the hero returns to it at once.
  */
 export const TemplateHero: React.FC<{ template: ScriptableTemplate }> = ({ template }) => {
+  const t = useT();
   const [active, setActive] = useState(false);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -69,7 +71,7 @@ export const TemplateHero: React.FC<{ template: ScriptableTemplate }> = ({ templ
       data-hero-state={playing ? "playing" : "still"}
       tabIndex={0}
       role="group"
-      aria-label={`${template.name} preview. Hover or focus to play the template animation.`}
+      aria-label={t("{name} preview. Hover or focus to play the template animation.", { name: template.name })}
       className="relative h-full w-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
       onMouseEnter={() => setActive(true)}
       onMouseLeave={() => setActive(false)}

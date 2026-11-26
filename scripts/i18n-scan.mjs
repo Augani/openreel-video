@@ -90,8 +90,35 @@ export function scanFile(filePath) {
     filePath.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
   const lines = text.split("\n");
-  const result = { jsxText: [], attributes: [], properties: [], calls: [] };
+  const result = { jsxText: [], attributes: [], expressions: [], properties: [], calls: [] };
   const allowlist = loadAllowlist();
+
+  const collectDisplayStrings = (expression) => {
+    const add = (literal) => {
+      const line = lineOf(sourceFile, literal);
+      if (isUiCopy(literal.text, allowlist) && !isIgnored(lines, line)) {
+        result.expressions.push({ line, text: literal.text });
+      }
+    };
+    const walkExpression = (node) => {
+      if (!node) return;
+      if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+        add(node);
+      } else if (ts.isConditionalExpression(node)) {
+        walkExpression(node.whenTrue);
+        walkExpression(node.whenFalse);
+      } else if (ts.isParenthesizedExpression(node)) {
+        walkExpression(node.expression);
+      } else if (
+        ts.isBinaryExpression(node) &&
+        ["+", "??", "||", "&&"].includes(node.operatorToken.getText(sourceFile))
+      ) {
+        walkExpression(node.left);
+        walkExpression(node.right);
+      }
+    };
+    walkExpression(expression);
+  };
 
   const visit = (node) => {
     if (ts.isJsxText(node)) {
@@ -106,6 +133,15 @@ export function scanFile(filePath) {
       const line = lineOf(sourceFile, node);
       if (ATTRIBUTES.has(name) && value !== null && isUiCopy(value, allowlist) && !isIgnored(lines, line)) {
         result.attributes.push({ line, name, text: value });
+      }
+    } else if (ts.isJsxExpression(node)) {
+      const parent = node.parent;
+      if (
+        ts.isJsxElement(parent) ||
+        ts.isJsxFragment(parent) ||
+        (ts.isJsxAttribute(parent) && ATTRIBUTES.has(parent.name.getText(sourceFile)))
+      ) {
+        collectDisplayStrings(node.expression);
       }
     } else if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
       const fn = node.expression.text;

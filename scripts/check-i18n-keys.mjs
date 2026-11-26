@@ -56,6 +56,9 @@ if (uiMode) {
     for (const item of entry.attributes) {
       rawUi.push(`${entry.file}:${item.line}  ${item.name}  ${JSON.stringify(item.text)}`);
     }
+    for (const item of entry.expressions) {
+      rawUi.push(`${entry.file}:${item.line}  EXPR  ${JSON.stringify(item.text)}`);
+    }
   }
 }
 

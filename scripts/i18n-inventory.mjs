@@ -33,6 +33,7 @@ const results = scanProject(root, dirs).filter(
   (entry) =>
     entry.jsxText.length > 0 ||
     entry.attributes.length > 0 ||
+    entry.expressions.length > 0 ||
     entry.properties.length > 0 ||
     entry.calls.length > 0,
 );
@@ -42,10 +43,14 @@ if (args.includes("--json")) {
 } else {
   let untranslated = 0;
   for (const entry of results) {
-    const count = entry.jsxText.length + entry.attributes.length + entry.properties.length;
+    const count =
+      entry.jsxText.length +
+      entry.attributes.length +
+      entry.expressions.length +
+      entry.properties.length;
     untranslated += count;
     console.log(
-      `${String(count).padStart(4)}  jsx=${entry.jsxText.length} attr=${entry.attributes.length} prop=${entry.properties.length}  ${entry.file}`,
+      `${String(count).padStart(4)}  jsx=${entry.jsxText.length} attr=${entry.attributes.length} expr=${entry.expressions.length} prop=${entry.properties.length}  ${entry.file}`,
     );
   }
   console.log(

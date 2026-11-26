@@ -10,10 +10,12 @@ test("scans unwrapped UI text, ignores technical tokens and ignored lines", () =
   try {
     const file = path.join(dir, "fixture.tsx");
     writeFileSync(file, `
-export function A({ name }: { name: string }) {
+export function A({ name, open }: { name: string; open: boolean }) {
   return <div title="Undo">
     Save project
     <span>{name}</span>
+    <button>{"Back"}</button>
+    <span>{open ? "Hide" : "Show"}</span>
   </div>;
 }
 export function B() {
@@ -29,6 +31,7 @@ const y = translate("zh-CN", "Mute {name}", { name: "File" });
       result.attributes.map((entry) => [entry.name, entry.text]),
       [["title", "Undo"]],
     );
+    assert.deepEqual(result.expressions.map((entry) => entry.text), ["Back", "Hide", "Show"]);
     assert.deepEqual(
       result.calls.map((entry) => [entry.fn, entry.key]),
       [["t", "Save project"], ["translate", "Mute {name}"]],

@@ -4,6 +4,7 @@ import {
   DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
 } from "@openreel/ui";
 import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 import { Film, PlayCircle, LoaderCircle } from "lucide-react";
 import { MobileHomeIcon } from "./MobileHomeIcon";
 import { checkForRecovery, autoSaveManager, type AutoSaveMetadata } from "../../services/auto-save";
@@ -28,10 +29,14 @@ const formats = [
 
 function savedAt(timestamp: number) {
   const elapsed = Math.max(0, Date.now() - timestamp);
-  if (elapsed < 60_000) return "Edited just now";
-  if (elapsed < 3_600_000) return `Edited ${Math.floor(elapsed / 60_000)}m ago`;
-  if (elapsed < 86_400_000) return `Edited ${Math.floor(elapsed / 3_600_000)}h ago`;
-  if (elapsed < 172_800_000) return "Yesterday";
+  if (elapsed < 60_000) return translateNow("Edited just now");
+  if (elapsed < 3_600_000) {
+    return translateNow("Edited {minutes}m ago", { minutes: Math.floor(elapsed / 60_000) });
+  }
+  if (elapsed < 86_400_000) {
+    return translateNow("Edited {hours}h ago", { hours: Math.floor(elapsed / 3_600_000) });
+  }
+  if (elapsed < 172_800_000) return translateNow("Yesterday");
   return new Date(timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 function durationLabel(duration: number) {
@@ -116,7 +121,7 @@ export function MobileProjectHome({ initialTab }: { initialTab?: "templates" | "
       for (const file of files) {
         if (useProjectStore.getState().project.id !== projectId) break;
         const result = await useProjectStore.getState().importMedia(file);
-        if (!result.success) toast.error(`Could not import ${file.name}`, result.error?.message);
+        if (!result.success) toast.error(translateNow("Could not import {name}", { name: file.name }), result.error?.message);
       }
     } catch { toast.error("Could not start the project", "Your current project is still available. Try again."); }
     finally { operation.current = false; setOpening(null); }
@@ -141,17 +146,17 @@ export function MobileProjectHome({ initialTab }: { initialTab?: "templates" | "
   return (
     <main className="mobile-project-home" data-platform={android ? "android" : "ios"}>
       <header className="mobile-project-header">
-        <h1>{tab === "projects" ? "Projects" : tab === "templates" ? "Templates" : "Learn"}</h1>
-        <Button variant="ghost" size="icon" aria-label="Search projects" onClick={() => { setTab("projects"); setSearching(!searching); if (searching) setQuery(""); }}><MobileHomeIcon name="search"/></Button>
-        <Button variant="ghost" size="icon" aria-label="Settings" onClick={() => useSettingsStore.getState().openSettings()}><MobileHomeIcon name="settings"/></Button>
+        <h1>{tab === "projects" ? t("Projects") : tab === "templates" ? t("Templates") : t("Learn")}</h1>
+        <Button variant="ghost" size="icon" aria-label={t("Search projects")} onClick={() => { setTab("projects"); setSearching(!searching); if (searching) setQuery(""); }}><MobileHomeIcon name="search"/></Button>
+        <Button variant="ghost" size="icon" aria-label={t("Settings")} onClick={() => useSettingsStore.getState().openSettings()}><MobileHomeIcon name="settings"/></Button>
       </header>
       <ScrollArea className="mobile-project-scroll">
         {tab === "projects" ? <div className="mobile-project-body">
-          {searching && <Input autoFocus aria-label="Search drafts" placeholder="Search projects" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setQuery(""); setSearching(false); } }}/>} 
+          {searching && <Input autoFocus aria-label={t("Search drafts")} placeholder={t("Search projects")} value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setQuery(""); setSearching(false); } }}/>} 
           <DropdownMenu>
             <DropdownMenuTrigger asChild><Button className="mobile-new-project" disabled={opening !== null}>
               <span className="mobile-new-icon"><MobileHomeIcon name="plus"/></span>
-              <span><strong>New project</strong><small>Pick videos and photos from your {android ? "gallery" : "library"}</small></span>
+              <span><strong>{t("New project")}</strong><small>{t("Pick videos and photos from your {source}", { source: android ? t("gallery") : t("library") })}</small></span>
             </Button></DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-64">
               <DropdownMenuItem onSelect={() => fileInput.current?.click()}>{t("Choose videos and photos…")}</DropdownMenuItem>
@@ -159,21 +164,21 @@ export function MobileProjectHome({ initialTab }: { initialTab?: "templates" | "
               {formats.map(format => <DropdownMenuItem key={format.label} onSelect={() => void startEmpty(format)}>{t("Start empty · {name}", { name: t(format.label) })}</DropdownMenuItem>)}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Input ref={fileInput} className="sr-only" type="file" tabIndex={-1} multiple accept="video/*,image/*" aria-label="Media for a new project" onChange={e => { const files = Array.from(e.target.files ?? []); e.target.value = ""; void importFiles(files); }}/>
+          <Input ref={fileInput} className="sr-only" type="file" tabIndex={-1} multiple accept="video/*,image/*" aria-label={t("Media for a new project")} onChange={e => { const files = Array.from(e.target.files ?? []); e.target.value = ""; void importFiles(files); }}/>
           <div className="mobile-project-quick">
-            <Button variant="ghost" disabled={opening !== null} onClick={() => void openEditor("record")}><span><MobileHomeIcon name="record"/></span><strong>Record</strong><small>Camera or screen</small></Button>
-            <Button variant="ghost" disabled={opening !== null} className="is-ai" onClick={() => void openEditor("ai")}><span><MobileHomeIcon name="ai"/></span><strong>AI edit</strong><small>Describe it, we cut it</small></Button>
-            <Button variant="ghost" onClick={() => setTab("templates")}><span><MobileHomeIcon name="templates"/></span><strong>Templates</strong><small>Swap in your clips</small></Button>
+            <Button variant="ghost" disabled={opening !== null} onClick={() => void openEditor("record")}><span><MobileHomeIcon name="record"/></span><strong>{t("Record")}</strong><small>{t("Camera or screen")}</small></Button>
+            <Button variant="ghost" disabled={opening !== null} className="is-ai" onClick={() => void openEditor("ai")}><span><MobileHomeIcon name="ai"/></span><strong>{t("AI edit")}</strong><small>{t("Describe it, we cut it")}</small></Button>
+            <Button variant="ghost" onClick={() => setTab("templates")}><span><MobileHomeIcon name="templates"/></span><strong>{t("Templates")}</strong><small>{t("Swap in your clips")}</small></Button>
           </div>
-          <section className="mobile-project-drafts" aria-label="Drafts">
-            <div className="mobile-project-section-title"><h2>Drafts</h2><Button variant="ghost" onClick={() => setShowAll(!showAll)}>{showAll ? "Show less" : "See all"}</Button></div>
-            {loading ? <p role="status">Loading drafts…</p> : loadError ? <div role="alert"><p>Drafts could not be loaded.</p><Button variant="ghost" onClick={() => { setLoading(true); setLoadAttempt(value => value + 1); }}>Retry</Button></div> : !visible.length ? <p className="mobile-project-empty">{query ? "No projects match your search." : "Your saved projects will appear here."}</p> : <div className="mobile-project-grid">
+          <section className="mobile-project-drafts" aria-label={t("Drafts")}>
+            <div className="mobile-project-section-title"><h2>{t("Drafts")}</h2><Button variant="ghost" onClick={() => setShowAll(!showAll)}>{showAll ? t("Show less") : t("See all")}</Button></div>
+            {loading ? <p role="status">{t("Loading drafts…")}</p> : loadError ? <div role="alert"><p>{t("Drafts could not be loaded.")}</p><Button variant="ghost" onClick={() => { setLoading(true); setLoadAttempt(value => value + 1); }}>{t("Retry")}</Button></div> : !visible.length ? <p className="mobile-project-empty">{query ? t("No projects match your search.") : t("Your saved projects will appear here.")}</p> : <div className="mobile-project-grid">
               {visible.map(save => {
                 const preview = save.preview ?? getProjectPreview(save.projectId);
-                return <Button variant="ghost" className="mobile-project-draft" key={save.projectId} disabled={opening !== null} aria-label={`Open ${save.projectName}`} onClick={() => void openDraft(save)}>
+                return <Button variant="ghost" className="mobile-project-draft" key={save.projectId} disabled={opening !== null} aria-label={t("Open {name}", { name: save.projectName })} onClick={() => void openDraft(save)}>
                   <span className="mobile-project-thumbnail">
                     {preview?.thumbnailUrl ? <img src={preview.thumbnailUrl} alt="" loading="lazy"/> : <Film size={28} aria-hidden/>}
-                    {opening === save.id && <LoaderCircle className="animate-spin" aria-label="Opening project"/>}
+                    {opening === save.id && <LoaderCircle className="animate-spin" aria-label={t("Opening project")}/>}
                     {preview && <span>{durationLabel(preview.duration)}</span>}
                   </span>
                   <strong>{save.projectName}</strong><small>{savedAt(save.timestamp)}</small>
@@ -181,13 +186,13 @@ export function MobileProjectHome({ initialTab }: { initialTab?: "templates" | "
               })}
             </div>}
           </section>
-        </div> : tab === "templates" ? <div className="mobile-project-secondary"><Suspense fallback={<p role="status">Loading templates…</p>}><TemplateGallery onTemplateApplied={() => navigate("editor")}/></Suspense></div> : <section className="mobile-project-learn">
-          <PlayCircle size={32}/><h2>Make your first edit</h2><p>Import your media, arrange clips on the timeline, add titles and audio, then export your video.</p>
-          <Button onClick={() => void openEditor("tour")}>Take the editor tour</Button>
-          <h2>Your project stays editable</h2><p>Use Undo to revisit a change. Open a clip’s properties to adjust its text, effects, animation or sound.</p>
+        </div> : tab === "templates" ? <div className="mobile-project-secondary"><Suspense fallback={<p role="status">{t("Loading templates…")}</p>}><TemplateGallery onTemplateApplied={() => navigate("editor")}/></Suspense></div> : <section className="mobile-project-learn">
+          <PlayCircle size={32}/><h2>{t("Make your first edit")}</h2><p>{t("Import your media, arrange clips on the timeline, add titles and audio, then export your video.")}</p>
+          <Button onClick={() => void openEditor("tour")}>{t("Take the editor tour")}</Button>
+          <h2>{t("Your project stays editable")}</h2><p>{t("Use Undo to revisit a change. Open a clip’s properties to adjust its text, effects, animation or sound.")}</p>
         </section>}
       </ScrollArea>
-      <nav className="mobile-project-nav" aria-label="Main">
+      <nav className="mobile-project-nav" aria-label={t("Main")}>
         {([["projects", "Projects"], ["templates", "Templates"], ["learn", "Learn"]] as const).map(([value, label]) => <Button variant="ghost" aria-pressed={tab === value} className={tab === value ? "is-active" : ""} key={value} onClick={() => setTab(value)}><span><MobileHomeIcon name={value}/></span><small>{label}</small></Button>)}
       </nav>
       {settingsOpen && <Suspense fallback={null}><SettingsDialog/></Suspense>}

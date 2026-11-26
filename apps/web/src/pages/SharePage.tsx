@@ -15,6 +15,7 @@ import {
   isShareExpired,
   type ShareInfo,
 } from "../services/share-service";
+import { useT } from "@openreel/i18n/react";
 
 interface SharePageProps {
   shareId: string;
@@ -23,6 +24,7 @@ interface SharePageProps {
 type PageStatus = "loading" | "ready" | "expired" | "not-found" | "error";
 
 export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
+  const t = useT();
   const [status, setStatus] = useState<PageStatus>("loading");
   const [shareInfo, setShareInfo] = useState<ShareInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +78,7 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
           <Loader2 size={48} className="text-primary animate-spin mx-auto" />
-          <span className="text-[12px] leading-5 font-normal text-text-muted">Loading video...</span>
+          <span className="text-[12px] leading-5 font-normal text-text-muted">{t("Loading video...")}</span>
         </div>
       </div>
     );
@@ -91,15 +93,15 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
           </div>
           <div>
             <span className="font-bold text-2xl text-text-primary">
-              Video Not Found
+              {t("Video Not Found")}
             </span>
             <span className="text-[12px] leading-5 font-normal text-text-muted mt-2">
-              This video doesn't exist or the link is invalid.
+              {t("This video doesn't exist or the link is invalid.")}
             </span>
           </div>
-          <Button onClick={handleCreateProject} type="button" aria-label="Create Your Own Video" className="min-w-0 justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-10 text-[13px] inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors">
+          <Button onClick={handleCreateProject} type="button" aria-label={t("Create Your Own Video")} className="min-w-0 justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-10 text-[13px] inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors">
             <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<ExternalLink size={18} aria-hidden />}</span>
-            <span className="truncate">{"Create Your Own Video"}</span>
+            <span className="truncate">{t("Create Your Own Video")}</span>
           </Button>
         </div>
       </div>
@@ -115,16 +117,15 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
           </div>
           <div>
             <span className="font-bold text-2xl text-text-primary">
-              Link Expired
+              {t("Link Expired")}
             </span>
             <span className="text-[12px] leading-5 font-normal text-text-muted mt-2">
-              This share link has expired. Share links are only valid for 24
-              hours.
+              {t("This share link has expired. Share links are only valid for 24 hours.")}
             </span>
           </div>
-          <Button onClick={handleCreateProject} type="button" aria-label="Create Your Own Video" className="min-w-0 justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-10 text-[13px] inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors">
+          <Button onClick={handleCreateProject} type="button" aria-label={t("Create Your Own Video")} className="min-w-0 justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-10 text-[13px] inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors">
             <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<ExternalLink size={18} aria-hidden />}</span>
-            <span className="truncate">{"Create Your Own Video"}</span>
+            <span className="truncate">{t("Create Your Own Video")}</span>
           </Button>
         </div>
       </div>
@@ -139,13 +140,13 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
             <AlertCircle size={40} className="text-error" />
           </div>
           <div>
-            <span className="font-bold text-2xl text-text-primary">Error</span>
+            <span className="font-bold text-2xl text-text-primary">{t("Error")}</span>
             <span className="text-[12px] leading-5 font-normal text-text-muted mt-2">
-              {error || "Something went wrong"}
+              {error || t("Something went wrong")}
             </span>
           </div>
-          <Button onClick={() => window.location.reload()} type="button" aria-label="Try Again" className="min-w-0 justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-10 text-[13px] inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors">
-            <span className="truncate">{"Try Again"}</span>
+          <Button onClick={() => window.location.reload()} type="button" aria-label={t("Try Again")} className="min-w-0 justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-10 text-[13px] inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors">
+            <span className="truncate">{t("Try Again")}</span>
           </Button>
         </div>
       </div>
@@ -157,7 +158,7 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
       <div className="max-w-4xl mx-auto px-6 py-12 space-y-8">
         <div className="text-center space-y-2">
           <span className="font-bold text-2xl text-text-primary">
-            {shareInfo?.filename || "Shared Video"}
+            {shareInfo?.filename || t("Shared Video")}
           </span>
           {shareInfo && (
             <div className="flex items-center justify-center gap-4 text-sm text-text-muted">
@@ -173,24 +174,24 @@ export const SharePage: React.FC<SharePageProps> = ({ shareId }) => {
 
         <div className="relative aspect-video bg-black rounded-xl overflow-hidden shadow-2xl">
           <video src={downloadUrl} controls className="w-full h-full" poster="">
-            Your browser does not support the video tag.
+            {t("Your browser does not support the video tag.")}
           </video>
         </div>
 
         <div className="flex items-center justify-center gap-4">
-          <Button onClick={handleDownload} type="button" aria-label="Download" className="min-w-0 justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-10 text-[13px] inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors">
+          <Button onClick={handleDownload} type="button" aria-label={t("Download")} className="min-w-0 justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-10 text-[13px] inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-lg transition-colors">
             <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Download size={18} aria-hidden />}</span>
-            <span className="truncate">{"Download"}</span>
+            <span className="truncate">{t("Download")}</span>
           </Button>
-          <Button onClick={handleCreateProject} type="button" aria-label="Create Your Own" className="min-w-0 justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-10 text-[13px] hover:text-fg inline-flex items-center gap-2 px-6 py-3 bg-background-secondary hover:bg-background-tertiary border border-border text-text-primary font-medium rounded-lg transition-colors">
+          <Button onClick={handleCreateProject} type="button" aria-label={t("Create Your Own")} className="min-w-0 justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-10 text-[13px] hover:text-fg inline-flex items-center gap-2 px-6 py-3 bg-background-secondary hover:bg-background-tertiary border border-border text-text-primary font-medium rounded-lg transition-colors">
             <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Play size={18} aria-hidden />}</span>
-            <span className="truncate">{"Create Your Own"}</span>
+            <span className="truncate">{t("Create Your Own")}</span>
           </Button>
         </div>
 
         <div className="text-center">
           <span className="font-normal text-xs text-text-muted">
-            Made with{" "}
+            {t("Made with")}{" "}
             <Button asChild variant="link" className="h-auto p-0 text-xs text-primary hover:underline">
               <a href="#/editor">Open Reel Video</a>
             </Button>

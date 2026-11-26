@@ -32,6 +32,7 @@ import { useOnboardingStore } from "../../stores/onboarding-store";
 import { PathBand } from "../onboarding/shell/PathBand";
 import { isDesktopRuntime, useOnboardingGate } from "../onboarding/shell/useOnboardingGate";
 import { withUserProjectCreation } from "../onboarding/shell/project-intent";
+import { useT } from "@openreel/i18n/react";
 
 const isDesktop =
   typeof window !== "undefined" && window.openreel?.platform === "desktop";
@@ -53,11 +54,14 @@ const RecentProjects = lazy(() =>
   })),
 );
 
-const LoadingView = () => (
-  <div role="status" className="p-6 text-center text-text-secondary">
-    Loading…
-  </div>
-);
+const LoadingView = () => {
+  const t = useT();
+  return (
+    <div role="status" className="p-6 text-center text-text-secondary">
+      {t("Loading…")}
+    </div>
+  );
+};
 
 interface FormatOption {
   id: string;
@@ -175,6 +179,7 @@ interface WelcomeScreenProps {
 }
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
+  const t = useT();
   const skipId = useId();
   const phone = usePhoneEditor();
   const setSkipWelcomeScreen = useUIStore(
@@ -301,16 +306,16 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
           <Button
             onClick={() => setViewMode("home")}
             type="button"
-            aria-label="Back"
+            aria-label={t("Back")}
             className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg"
           >
             <span className="flex h-4 w-4 shrink-0 items-center justify-center">
               {<ArrowRight className="rotate-180" size={16} aria-hidden />}
             </span>
-            <span className="truncate">{"Back"}</span>
+            <span className="truncate">{t("Back")}</span>
           </Button>
           <span className="font-medium text-sm text-text-primary">
-            Templates
+            {t("Templates")}
           </span>
           <div className="w-16" />
         </header>
@@ -330,16 +335,16 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
           <Button
             onClick={() => setViewMode("home")}
             type="button"
-            aria-label="Back"
+            aria-label={t("Back")}
             className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg"
           >
             <span className="flex h-4 w-4 shrink-0 items-center justify-center">
               {<ArrowRight className="rotate-180" size={16} aria-hidden />}
             </span>
-            <span className="truncate">{"Back"}</span>
+            <span className="truncate">{t("Back")}</span>
           </Button>
           <span className="font-medium text-sm text-text-primary">
-            Recent Projects
+            {t("Recent Projects")}
           </span>
           <div className="w-16" />
         </header>
@@ -384,7 +389,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
                   compact ? "text-3xl mb-1" : "text-4xl sm:text-5xl mb-3",
                 )}
               >
-                From idea to export.
+                {t("From idea to export.")}
               </span>
               <span
                 className={cn(
@@ -392,11 +397,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
                   compact ? "text-base" : "text-xl mb-8",
                 )}
               >
-                {isDesktop ? "On your desktop." : "In your browser."}
+                {isDesktop ? t("On your desktop.") : t("In your browser.")}
               </span>
               {!compact && (
                 <span className="font-normal text-base text-text-muted max-w-md">
-                  Pick a format and start creating. You can change this anytime.
+                  {t("Pick a format and start creating. You can change this anytime.")}
                 </span>
               )}
             </div>
@@ -405,7 +410,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
 
             {compact && (
               <p className="mb-2 text-xs font-medium uppercase tracking-wide text-fg-3">
-                Or just pick a format and start
+                {t("Or just pick a format and start")}
               </p>
             )}
             <div className={cn("grid grid-cols-3", compact ? "gap-3 mb-4" : "gap-4 mb-10")}>
@@ -418,7 +423,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
                     key={option.id}
                     onClick={() => handleCreateProject(option)}
                     type="button"
-                    aria-label={`Create ${option.label} project`}
+                    aria-label={t("Create {name} project", { name: t(option.label) })}
                     disabled={creating}
                     className={cn(
                       "group relative flex h-auto min-w-0 flex-col items-center whitespace-normal rounded-2xl border border-border bg-bg-1 text-left",
@@ -452,7 +457,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
                           compact ? "text-base mb-0.5" : "text-lg mb-1",
                         )}
                       >
-                        {option.label}
+                        {t(option.label)}
                       </span>
                       <span
                         className={cn(
@@ -460,7 +465,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
                           compact ? "text-xs mb-2" : "text-sm mb-3",
                         )}
                       >
-                        {option.description}
+                        {t(option.description)}
                       </span>
                       <span className="text-xs font-mono text-fg-3/80 bg-bg-2 px-2 py-1 rounded">
                         {option.dimensions}
@@ -469,7 +474,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
 
                     {!compact && (
                       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 text-sm font-medium text-accent opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-200 motion-reduce:transition-none">
-                        Start creating
+                        {t("Start creating")}
                         <ArrowRight size={14} />
                       </div>
                     )}
@@ -480,7 +485,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
 
             {creating && (
               <p role="status" className="mb-4 text-center text-xs text-fg-3">
-                Saving current work and creating project...
+                {t("Saving current work and creating project...")}
               </p>
             )}
             {creationError && (
@@ -495,14 +500,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
                   setViewMode("templates");
                 }}
                 type="button"
-                aria-label="Browse templates"
+                aria-label={t("Browse templates")}
                 disabled={creating}
                 className="inline-flex min-w-0 items-center justify-center gap-1.5 font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg rounded-xl"
               >
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center">
                   {<Layers size={16} aria-hidden />}
                 </span>
-                <span className="truncate">{"Browse templates"}</span>
+                <span className="truncate">{t("Browse templates")}</span>
               </Button>
               <Button
                 onClick={() => {
@@ -510,14 +515,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
                   setViewMode("recent");
                 }}
                 type="button"
-                aria-label="Recent projects"
+                aria-label={t("Recent projects")}
                 disabled={creating}
                 className="inline-flex min-w-0 items-center justify-center gap-1.5 font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg rounded-xl"
               >
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center">
                   {<Clock size={16} aria-hidden />}
                 </span>
-                <span className="truncate">{"Recent projects"}</span>
+                <span className="truncate">{t("Recent projects")}</span>
               </Button>
               <Button
                 onClick={() => {
@@ -525,14 +530,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
                   navigate("editor");
                 }}
                 type="button"
-                aria-label="Open editor"
+                aria-label={t("Open editor")}
                 disabled={creating}
                 className="inline-flex min-w-0 items-center justify-center gap-1.5 font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg rounded-xl"
               >
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center">
                   {<FolderOpen size={16} aria-hidden />}
                 </span>
-                <span className="truncate">{"Open editor"}</span>
+                <span className="truncate">{t("Open editor")}</span>
               </Button>
             </div>
           </div>
@@ -546,7 +551,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
                 onCheckedChange={setSkipWelcomeScreen}
               />
               <Label htmlFor={skipId} className="text-xs text-fg-3">
-                Skip on startup
+                {t("Skip on startup")}
               </Label>
             </div>
 
@@ -558,7 +563,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
                   onClick={() => useOnboardingStore.getState().reopenBand()}
                   className="rounded text-xs text-fg-3 outline-none transition-colors hover:text-fg focus-visible:ring-2 focus-visible:ring-accent motion-reduce:transition-none"
                 >
-                  Setup
+                  {t("Setup")}
                 </button>
               </>
             )}
@@ -568,11 +573,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ initialTab }) => {
                 <span className="text-text-muted/30">·</span>
 
                 <span className="font-normal text-xs text-text-muted/60">
-                  Press{" "}
+                  {t("Press")}{" "}
                   <kbd className="px-1.5 py-0.5 bg-background-tertiary border border-border rounded text-text-muted font-mono text-[10px]">
-                    Esc
+                    {t("Esc")}
                   </kbd>{" "}
-                  to skip
+                  {t("to skip")}
                 </span>
               </>
             )}

@@ -1,4 +1,6 @@
 import React, { memo } from "react";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 import { Play, Clock, Layers, Star, Crown } from "@/icons/lucide-compat";
 import type { TemplateCatalogEntry } from "../../services/template-catalog";
 import { Button } from "@openreel/ui";
@@ -16,11 +18,14 @@ export const TemplateCard: React.FC<TemplateCardProps> = memo(
     onClick,
     isLoading = false,
   }: TemplateCardProps) {
+    const t = useT();
     const formatDuration = (seconds: number): string => {
-      if (seconds < 60) return `${seconds}s`;
+      if (seconds < 60) return translateNow("{seconds}s", { seconds });
       const mins = Math.floor(seconds / 60);
       const secs = seconds % 60;
-      return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+      return secs > 0
+        ? translateNow("{minutes}m {seconds}s", { minutes: mins, seconds: secs })
+        : translateNow("{minutes}m", { minutes: mins });
     };
 
     return (
@@ -57,7 +62,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = memo(
           {template.featured && (
             <div className="absolute top-2 left-2 px-2 py-0.5 bg-amber-500 text-black text-[10px] font-semibold rounded-full flex items-center gap-1">
               <Star size={10} fill="currentColor" />
-              Featured
+              {t("Featured")}
             </div>
           )}
 
@@ -80,7 +85,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = memo(
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-text-muted">
               <Layers size={11} />
-              <span>{template.placeholderCount} editable</span>
+              <span>{t("{count} editable", { count: template.placeholderCount })}</span>
             </div>
           </div>
 

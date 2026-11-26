@@ -25,6 +25,7 @@ import {
   Settings,
   LayoutGrid,
 } from "@/icons/lucide-compat";
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   selectedCategory: SocialMediaCategory | "all";
@@ -79,6 +80,7 @@ export function CategoryTabs({
   onSelectCategory,
   categoryStats,
 }: Props) {
+  const t = useT();
   const selectedPlatform =
     selectedCategory === "all"
       ? "all"
@@ -110,13 +112,13 @@ export function CategoryTabs({
     >
       <div className="max-w-full overflow-x-auto pb-1">
         <TabsList
-          aria-label="Template platforms"
+          aria-label={t("Template platforms")}
           layoutId="template-platforms"
           className="h-auto min-w-max justify-start gap-2 rounded-none bg-transparent p-0"
         >
           <TabsTrigger value="all" className={platformClass}>
             <LayoutGrid size={14} aria-hidden />
-            All
+            {t("All")}
             <span className="text-xs opacity-60">{categoryStats.all ?? 0}</span>
           </TabsTrigger>
           {populated.map((platform) => {
@@ -152,7 +154,7 @@ export function CategoryTabs({
             <div className="overflow-x-auto pb-1">
               <ToggleGroup
                 type="single"
-                aria-label={`${platform.name} template categories`}
+                aria-label={t("{name} template categories", { name: platform.name })}
                 value={selectedCategory}
                 onValueChange={(value) => {
                   if (value) onSelectCategory(value as SocialMediaCategory);

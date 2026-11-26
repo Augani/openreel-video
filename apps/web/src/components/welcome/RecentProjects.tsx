@@ -9,6 +9,7 @@ import {
 } from "../../services/auto-save";
 import { useProjectStore } from "../../stores/project-store";
 import { useAnalytics, AnalyticsEvents } from "../../hooks/useAnalytics";
+import { useT } from "@openreel/i18n/react";
 
 const isDesktop =
   typeof window !== "undefined" && window.openreel?.platform === "desktop";
@@ -27,6 +28,7 @@ interface RecentProjectsProps {
 export const RecentProjects: React.FC<RecentProjectsProps> = ({
   onProjectSelected,
 }) => {
+  const t = useT();
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProjectId, setLoadingProjectId] = useState<string | null>(null);
@@ -116,7 +118,7 @@ export const RecentProjects: React.FC<RecentProjectsProps> = ({
       <div className="flex flex-col items-center justify-center py-20">
         <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mb-4" />
         <span className="font-normal text-sm text-text-secondary">
-          Loading recent projects...
+          {t("Loading recent projects...")}
         </span>
       </div>
     );
@@ -129,11 +131,10 @@ export const RecentProjects: React.FC<RecentProjectsProps> = ({
           <Clock size={24} className="text-text-muted" />
         </div>
         <span className="font-medium text-base text-text-primary mb-2">
-          No Recent Projects
+          {t("No Recent Projects")}
         </span>
         <span className="font-normal text-sm text-text-muted text-center max-w-md">
-          Your recently opened projects will appear here. Start a new project or
-          use a template to get started.
+          {t("Your recently opened projects will appear here. Start a new project or use a template to get started.")}
         </span>
       </div>
     );
@@ -143,7 +144,7 @@ export const RecentProjects: React.FC<RecentProjectsProps> = ({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <span className="font-medium text-sm text-text-primary">
-          Recent Projects ({recentProjects.length})
+          {t("Recent Projects ({count})", { count: recentProjects.length })}
         </span>
       </div>
 
@@ -175,7 +176,7 @@ export const RecentProjects: React.FC<RecentProjectsProps> = ({
                 </div>
               </Button>
 
-              <Button variant="ghost" size="icon-sm" onClick={(e) => handleRemoveProject(project.id, e)} type="button" aria-label="Remove from recent" title="Remove from recent" className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 absolute top-2 right-2 p-1.5 text-text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all rounded-lg bg-background/80 hover:bg-red-500/10 backdrop-blur-sm">
+              <Button variant="ghost" size="icon-sm" onClick={(e) => handleRemoveProject(project.id, e)} type="button" aria-label={t("Remove from recent")} title={t("Remove from recent")} className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 absolute top-2 right-2 p-1.5 text-text-muted hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all rounded-lg bg-background/80 hover:bg-red-500/10 backdrop-blur-sm">
                 {<Trash2 size={14} aria-hidden />}
               </Button>
             </div>
@@ -185,8 +186,8 @@ export const RecentProjects: React.FC<RecentProjectsProps> = ({
 
       <span className="font-normal text-xs text-text-muted text-center">
         {isDesktop
-          ? "Recent projects are stored locally on this device"
-          : "Recent projects are stored locally in your browser"}
+          ? t("Recent projects are stored locally on this device")
+          : t("Recent projects are stored locally in your browser")}
       </span>
     </div>
   );
