@@ -60,7 +60,7 @@ export function FilterEditor({ initialDoc }: { initialDoc?: FilterDoc } = {}) {
               <ParamField
                 key={f.key}
                 id={f.key}
-                label={f.label}
+                label={t(f.label)}
                 value={(selectedAdjustment.params as Record<string, unknown>)[f.key]}
                 schema={f.schema}
                 onChange={(v) => setDoc((d) => setAdjustmentParam(d, selectedAdjustment.id, f.key, v))}

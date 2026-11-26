@@ -140,16 +140,16 @@ function Sidebar() {
   return (
     <aside className="flex min-h-0 flex-col overflow-hidden bg-panel">
       <div className="flex border-b border-border-subtle">
-        {tabs.map((t) => (
+        {tabs.map((tabItem) => (
           <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
+            key={tabItem.id}
+            onClick={() => setTab(tabItem.id)}
             className={cn(
               "flex-1 border-0 border-b border-transparent bg-transparent px-1 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-text-tertiary hover:text-text-primary",
-              tab === t.id && "border-b-accent text-text-primary",
+              tab === tabItem.id && "border-b-accent text-text-primary",
             )}
           >
-            {t.label}
+            {t(tabItem.label)}
           </button>
         ))}
       </div>
