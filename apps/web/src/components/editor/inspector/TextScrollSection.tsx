@@ -3,6 +3,7 @@ import type { TextScroll } from "@openreel/core";
 import { Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch } from "@openreel/ui";
 import { ScrollModeGlyph } from "./motion-glyphs";
 import { useProjectStore } from "../../../stores/project-store";
+import { useT } from "@openreel/i18n/react";
 
 type Mode = "none" | "roll" | "crawl";
 
@@ -13,6 +14,7 @@ const DIRECTIONS: Record<"roll" | "crawl", ReadonlyArray<{ value: NonNullable<Te
 
 /** Roll (vertical) / crawl (horizontal) scrolling over the clip's duration. */
 export function TextScrollSection({ clipId }: { clipId: string }) {
+  const t = useT();
   const scroll = useProjectStore((state) => state.project.textClips?.find((c) => c.id === clipId)?.scroll);
   const mode: Mode = scroll?.mode ?? "none";
 
@@ -26,14 +28,14 @@ export function TextScrollSection({ clipId }: { clipId: string }) {
 
   return (
     <div className="space-y-3" data-text-scroll>
-      <div role="radiogroup" aria-label="Scroll mode" className="grid grid-cols-3 gap-1.5">
+      <div role="radiogroup" aria-label={t("Scroll mode")} className="grid grid-cols-3 gap-1.5">
         {(["none", "roll", "crawl"] as const).map((value) => (
           <button
             key={value}
             type="button"
             role="radio"
             aria-checked={mode === value}
-            aria-label={value === "none" ? "No scroll" : value === "roll" ? "Roll" : "Crawl"}
+            aria-label={value === "none" ? t("No scroll") : value === "roll" ? t("Roll") : t("Crawl")}
             onClick={() => {
               if (value === "none") void commit(null);
               else if (mode !== value) {
@@ -49,33 +51,33 @@ export function TextScrollSection({ clipId }: { clipId: string }) {
               direction={mode === value ? scroll?.direction ?? DIRECTIONS[value === "none" ? "roll" : value][0].value : undefined}
               className={`!h-8 !w-full ${mode === value ? "text-accent" : ""}`}
             />
-            {value === "none" ? "None" : value === "roll" ? "Roll" : "Crawl"}
+            {value === "none" ? t("None") : value === "roll" ? t("Roll") : t("Crawl")}
           </button>
         ))}
       </div>
       {scroll && (
         <>
           <Label className="flex items-center justify-between gap-2 text-xs font-normal text-fg-2">
-            <span>Direction</span>
+            <span>{t("Direction")}</span>
             <Select value={scroll.direction ?? DIRECTIONS[scroll.mode][0].value}
               onValueChange={(direction) => void commit({ ...scroll, direction: direction as TextScroll["direction"] })}>
-              <SelectTrigger aria-label="Scroll direction" className="h-7 w-32 rounded-[5px] bg-bg-2 px-2 py-1 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label={t("Scroll direction")} className="h-7 w-32 rounded-[5px] bg-bg-2 px-2 py-1 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {DIRECTIONS[scroll.mode].map((d) => <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>)}
+                {DIRECTIONS[scroll.mode].map((d) => <SelectItem key={d.value} value={d.value}>{t(d.label)}</SelectItem>)}
               </SelectContent>
             </Select>
           </Label>
           <Label className="flex items-center justify-between gap-2 text-xs font-normal text-fg-2">
-            <span>Start off-screen</span>
-            <Switch aria-label="Start off-screen" checked={scroll.startOffscreen}
+            <span>{t("Start off-screen")}</span>
+            <Switch aria-label={t("Start off-screen")} checked={scroll.startOffscreen}
               onCheckedChange={(startOffscreen) => void commit({ ...scroll, startOffscreen })} />
           </Label>
           <Label className="flex items-center justify-between gap-2 text-xs font-normal text-fg-2">
-            <span>End off-screen</span>
-            <Switch aria-label="End off-screen" checked={scroll.endOffscreen}
+            <span>{t("End off-screen")}</span>
+            <Switch aria-label={t("End off-screen")} checked={scroll.endOffscreen}
               onCheckedChange={(endOffscreen) => void commit({ ...scroll, endOffscreen })} />
           </Label>
-          <p className="text-[10px] text-fg-3">Moves across the whole clip duration. Not applied to 3D titles.</p>
+          <p className="text-[10px] text-fg-3">{t("Moves across the whole clip duration. Not applied to 3D titles.")}</p>
         </>
       )}
     </div>

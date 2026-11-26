@@ -1,5 +1,6 @@
 import { useUIStore } from '../../../stores/ui-store';
 import { Sun, Moon } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 interface SliderProps {
   label: string;
@@ -46,6 +47,7 @@ function Slider({ label, value, min, max, step = 1, unit = '', onChange }: Slide
 }
 
 export function DodgeBurnToolPanel() {
+  const t = useT();
   const { activeTool, dodgeBurnSettings, setDodgeBurnSettings } = useUIStore();
 
   if (activeTool !== 'dodge' && activeTool !== 'burn') {
@@ -72,13 +74,13 @@ export function DodgeBurnToolPanel() {
           <Moon size={14} className="text-muted-foreground" />
         )}
         <span className="text-xs font-medium">
-          {dodgeBurnSettings.type === 'dodge' ? 'Dodge Tool' : 'Burn Tool'}
+          {dodgeBurnSettings.type === 'dodge' ? t("Dodge Tool") : t("Burn Tool")}
         </span>
       </div>
 
       <div className="px-3 pb-3 space-y-3">
         <div className="space-y-1.5">
-          <span className="text-[10px] text-muted-foreground font-medium">Tool</span>
+          <span className="text-[10px] text-muted-foreground font-medium">{t("Tool")}</span>
           <div className="flex gap-1">
             {toolTypes.map((type) => (
               <button
@@ -91,14 +93,14 @@ export function DodgeBurnToolPanel() {
                 }`}
               >
                 <type.icon size={12} />
-                {type.label}
+                {t(type.label)}
               </button>
             ))}
           </div>
         </div>
 
         <div className="space-y-1.5">
-          <span className="text-[10px] text-muted-foreground font-medium">Range</span>
+          <span className="text-[10px] text-muted-foreground font-medium">{t("Range")}</span>
           <div className="flex gap-1">
             {ranges.map((range) => (
               <button
@@ -110,7 +112,7 @@ export function DodgeBurnToolPanel() {
                     : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
                 }`}
               >
-                {range.label}
+                {t(range.label)}
               </button>
             ))}
           </div>
@@ -149,16 +151,16 @@ export function DodgeBurnToolPanel() {
             />
           </div>
           <p className="text-[9px] text-muted-foreground text-center mt-1.5">
-            {dodgeBurnSettings.type === 'dodge' ? 'Lightens' : 'Darkens'} {dodgeBurnSettings.range}
+            {dodgeBurnSettings.type === 'dodge' ? t("Lightens") : t("Darkens")} {dodgeBurnSettings.range}
           </p>
         </div>
 
         <div className="space-y-1.5">
-          <span className="text-[10px] text-muted-foreground font-medium">Tips</span>
+          <span className="text-[10px] text-muted-foreground font-medium">{t("Tips")}</span>
           <ul className="text-[9px] text-muted-foreground space-y-0.5">
-            <li>• {dodgeBurnSettings.type === 'dodge' ? 'Lightens' : 'Darkens'} selected tonal range</li>
-            <li>• Lower exposure for subtle adjustments</li>
-            <li>• Build up effect with multiple strokes</li>
+            <li>• {dodgeBurnSettings.type === 'dodge' ? t("Lightens") : t("Darkens")} {t("selected tonal range")}</li>
+            <li>{t("• Lower exposure for subtle adjustments")}</li>
+            <li>{t("• Build up effect with multiple strokes")}</li>
           </ul>
         </div>
       </div>

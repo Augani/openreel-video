@@ -18,6 +18,7 @@ import { useProjectStore } from "../stores/project-store";
 import { decodeClipAudioBuffer } from "../utils/decode-clip-audio";
 import { toast } from "../stores/notification-store";
 import { enhanceTargets } from "./enhance-speech";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * Reduce Reverb for dialogue clips. The edit is the clip's "reduceReverb" audio effect (Amount and Sensitivity, 0..100); adding or
@@ -270,10 +271,10 @@ export const currentReduceReverb = (clip: Clip | undefined): ReduceReverbParams 
 export function runReduceReverbCommand(clipIds: readonly string[]): Promise<void> {
   return applyReduceReverb(clipIds)
     .then((outcome) => {
-      for (const skipped of outcome.skipped) toast.warning("Reduce Reverb", skipped.reason);
-      if (outcome.applied.length > 0) toast.info("Reduce Reverb", outcome.applied.length === 1 ? "Removing reverb on your device. Playback continues; the result is swapped in when ready." : `Removing reverb from ${outcome.applied.length} clips on your device.`);
+      for (const skipped of outcome.skipped) toast.warning(translateNow("Reduce Reverb"), skipped.reason);
+      if (outcome.applied.length > 0) toast.info(translateNow("Reduce Reverb"), outcome.applied.length === 1 ? "Removing reverb on your device. Playback continues; the result is swapped in when ready." : `Removing reverb from ${outcome.applied.length} clips on your device.`);
     })
     .catch((error: unknown) => {
-      toast.warning("Reduce Reverb", error instanceof Error ? error.message : "Reduce Reverb could not be applied.");
+      toast.warning(translateNow("Reduce Reverb"), error instanceof Error ? error.message : "Reduce Reverb could not be applied.");
     });
 }

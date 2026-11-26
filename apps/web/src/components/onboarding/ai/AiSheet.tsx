@@ -10,6 +10,7 @@ import Describe from "./Describe";
 import { handOffToEditorChat } from "./handoff";
 import { startProjectWithClips } from "./start-project";
 import type { FormatChoice } from "./clips";
+import { useT } from "@openreel/i18n/react";
 
 export type AiStep = "connect" | "clips" | "describe";
 
@@ -41,6 +42,7 @@ const FOCUSABLE =
   'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
 export default function AiSheet({ onClose }: OnboardingSheetProps): JSX.Element {
+  const t = useT();
   const reduced = useReducedMotion();
   const rootRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -183,7 +185,7 @@ export default function AiSheet({ onClose }: OnboardingSheetProps): JSX.Element 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-[640px] px-6 pb-10 pt-8">
           <div className="mb-6 flex items-center justify-between">
-            <ol aria-label="Progress" className="flex items-center gap-2 text-xs">
+            <ol aria-label={t("Progress")} className="flex items-center gap-2 text-xs">
               {STEPS.map((s, i) => {
                 const current = s.id === step;
                 const done = i < stepIndex;
@@ -204,7 +206,7 @@ export default function AiSheet({ onClose }: OnboardingSheetProps): JSX.Element 
                     >
                       {i + 1}
                     </span>
-                    <span className={current ? "font-semibold text-fg" : "text-fg-3"}>{s.label}</span>
+                    <span className={current ? "font-semibold text-fg" : "text-fg-3"}>{t(s.label)}</span>
                     {i < STEPS.length - 1 && <span aria-hidden="true" className="h-px w-6 bg-border" />}
                   </li>
                 );
@@ -212,7 +214,7 @@ export default function AiSheet({ onClose }: OnboardingSheetProps): JSX.Element 
             </ol>
             <button
               type="button"
-              aria-label="Close"
+              aria-label={t("Close")}
               style={noDrag}
               onClick={close}
               className="grid h-8 w-8 place-items-center rounded-lg text-fg-3 hover:bg-bg-2 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
@@ -246,7 +248,7 @@ export default function AiSheet({ onClose }: OnboardingSheetProps): JSX.Element 
 
             {rememberError && (
               <p role="status" className="mb-4 rounded-lg border border-border bg-bg-1 px-3 py-2 text-xs text-fg-2">
-                {rememberError} You can keep going; you will be asked for the key next time.
+                {rememberError} {t("You can keep going; you will be asked for the key next time.")}
               </p>
             )}
             {step === "connect" && (

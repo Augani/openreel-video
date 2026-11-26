@@ -4,6 +4,7 @@ import { Button } from "@openreel/ui";
 import { RotateCcw } from "@/icons/lucide-compat";
 import { PropertySlider } from "./shell/PropertySlider";
 import type { ColorWheelValues } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 
 interface ColorWheelsControlProps {
   values: ColorWheelValues;
@@ -58,6 +59,7 @@ const ColorWheel: React.FC<ColorWheelProps> = ({
   onChange,
   onReset,
 }) => {
+  const t = useT();
   const wheelRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
 
@@ -151,7 +153,7 @@ const ColorWheel: React.FC<ColorWheelProps> = ({
         }}
         onMouseDown={handleMouseDown}
         onDoubleClick={handleDoubleClick}
-        title="Drag to adjust color. Double-click to reset."
+        title={t("Drag to adjust color. Double-click to reset.")}
       >
         {/* Center gradient overlay for saturation falloff */}
         <div
@@ -192,6 +194,7 @@ export const ColorWheelsControl: React.FC<ColorWheelsControlProps> = ({
   onChange,
   onReset,
 }) => {
+  const t = useT();
   // Handle color wheel changes
   const handleShadowsChange = useCallback(
     (color: { r: number; g: number; b: number }) => {
@@ -254,9 +257,9 @@ export const ColorWheelsControl: React.FC<ColorWheelsControlProps> = ({
       {/* Reset All Button */}
       {onReset && (
         <div className="flex justify-end">
-          <Button onClick={onReset} type="button" aria-label="Reset" className="min-w-0 justify-center rounded-[7px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 bg-transparent hover:bg-bg-2 flex items-center gap-1 px-2 py-1 text-[10px] text-fg-3 hover:text-fg transition-colors">
+          <Button onClick={onReset} type="button" aria-label={t("Reset")} className="min-w-0 justify-center rounded-[7px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 bg-transparent hover:bg-bg-2 flex items-center gap-1 px-2 py-1 text-[10px] text-fg-3 hover:text-fg transition-colors">
             <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<RotateCcw size={10} />}</span>
-            <span className="truncate">{"Reset"}</span>
+            <span className="truncate">{t("Reset")}</span>
           </Button>
         </div>
       )}

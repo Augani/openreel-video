@@ -5,6 +5,7 @@ import type { BlackWhiteAdjustment } from '../../../types/adjustments';
 import { DEFAULT_BLACK_WHITE } from '../../../types/adjustments';
 import { BLACK_WHITE_PRESETS } from '../../../adjustments/black-white';
 import { SunMoon, RotateCcw } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   layer: Layer;
@@ -67,6 +68,7 @@ function ChannelSlider({ label, color, value, onChange }: { label: string; color
 }
 
 export function BlackWhiteSection({ layer }: Props) {
+  const t = useT();
   const { updateLayer } = useProjectStore();
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -116,7 +118,7 @@ export function BlackWhiteSection({ layer }: Props) {
       >
         <div className="flex items-center gap-2">
           <SunMoon size={14} className="text-muted-foreground" />
-          <span className="text-xs font-medium">Black & White</span>
+          <span className="text-xs font-medium">{t("Black & White")}</span>
           {blackWhite.enabled && (
             <span className="w-1.5 h-1.5 rounded-full bg-primary" />
           )}
@@ -140,15 +142,15 @@ export function BlackWhiteSection({ layer }: Props) {
               onChange={(e) => handlePresetChange(e.target.value)}
               className="text-[10px] bg-secondary border-none rounded px-2 py-1 text-foreground"
             >
-              <option value="">Preset</option>
+              <option value="">{t("Preset")}</option>
               {PRESET_OPTIONS.map((preset) => (
-                <option key={preset.id} value={preset.id}>{preset.label}</option>
+                <option key={preset.id} value={preset.id}>{t(preset.label)}</option>
               ))}
             </select>
             <button
               onClick={resetBlackWhite}
               className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-secondary transition-colors"
-              title="Reset"
+              title={t("Reset")}
             >
               <RotateCcw size={12} />
             </button>
@@ -174,13 +176,13 @@ export function BlackWhiteSection({ layer }: Props) {
                 onChange={(e) => handleValueChange('tintEnabled', e.target.checked)}
                 className="w-3 h-3 rounded border-border"
               />
-              Tint
+              {t("Tint")}
             </label>
             {blackWhite.tintEnabled && (
               <div className="space-y-2 pl-5">
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-muted-foreground">Hue</span>
+                    <span className="text-[10px] text-muted-foreground">{t("Hue")}</span>
                     <span className="text-[10px] font-mono text-muted-foreground">{blackWhite.tintHue}°</span>
                   </div>
                   <input
@@ -197,7 +199,7 @@ export function BlackWhiteSection({ layer }: Props) {
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-muted-foreground">Saturation</span>
+                    <span className="text-[10px] text-muted-foreground">{t("Saturation")}</span>
                     <span className="text-[10px] font-mono text-muted-foreground">{blackWhite.tintSaturation}%</span>
                   </div>
                   <input

@@ -57,8 +57,8 @@ export const DroppedFrameIndicator: React.FC<{ source?: DroppedFrameSource | nul
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            aria-label={view.label}
-            title={view.label}
+            aria-label={t(view.label)}
+            title={t(view.label)}
             className="flex h-5 items-center gap-1 rounded-full bg-black/40 px-1.5 text-[10px] font-medium leading-none text-white/90 hover:bg-black/60"
           >
             <span aria-hidden="true" className={`inline-block h-2 w-2 rounded-full ${TONE_CLASS[view.tone]}`} />

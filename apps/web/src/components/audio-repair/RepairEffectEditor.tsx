@@ -6,6 +6,7 @@ import {
   type RepairEffectType,
 } from "@openreel/core";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider, Switch } from "@openreel/ui";
+import { useT } from "@openreel/i18n/react";
 
 const formatValue = (value: number, step: number, unit: string) => {
   const decimals = step >= 1 ? 0 : step >= 0.1 ? 1 : step >= 0.01 ? 2 : step >= 0.001 ? 3 : 4;
@@ -14,6 +15,7 @@ const formatValue = (value: number, step: number, unit: string) => {
 
 /** Live gain-reduction readout for DeEss / Gate (the worklet publishes it ~15x per second). */
 export const GainReductionMeter = memo(function GainReductionMeter({ effectId, active }: { effectId: string; active: boolean }) {
+  const t = useT();
   const [reduction, setReduction] = useState(0);
   const frame = useRef(0);
   useEffect(() => {
@@ -38,7 +40,7 @@ export const GainReductionMeter = memo(function GainReductionMeter({ effectId, a
   const width = Math.min(100, (reduction / 24) * 100);
   return (
     <div className="flex items-center gap-2 text-[10px] text-fg-muted" data-testid={`gr-meter-${effectId}`}>
-      <span className="w-[46px] shrink-0">Reduction</span>
+      <span className="w-[46px] shrink-0">{t("Reduction")}</span>
       <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded bg-bg-3">
         <div className="h-full rounded bg-accent transition-[width] duration-75" style={{ width: `${width}%` }} />
       </div>
@@ -70,6 +72,7 @@ export const RepairEffectEditor = memo(function RepairEffectEditor({
   onCommit,
   active = true,
 }: RepairEffectEditorProps) {
+  const t = useT();
   const definition = REPAIR_EFFECT_DEFINITIONS[type];
   const [draft, setDraft] = useState<Record<string, number>>(() => sanitizeRepairParams(type, params as Record<string, unknown>));
   useEffect(() => {
@@ -86,7 +89,7 @@ export const RepairEffectEditor = memo(function RepairEffectEditor({
   return (
     <div className="flex min-w-0 flex-col gap-2.5" data-testid={`repair-params-${effectId}`}>
       <div className="flex min-w-0 items-center gap-2">
-        <span className="shrink-0 text-xs font-semibold text-fg">{definition.label}</span>
+        <span className="shrink-0 text-xs font-semibold text-fg">{t(definition.label)}</span>
         <Select
           value=""
           onValueChange={(id) => {
@@ -99,12 +102,12 @@ export const RepairEffectEditor = memo(function RepairEffectEditor({
           }}
         >
           <SelectTrigger className="h-6 min-w-0 flex-1 text-[11px]" aria-label={`${definition.label} presets`} data-testid={`repair-presets-${effectId}`}>
-            <SelectValue placeholder="Presets" />
+            <SelectValue placeholder={t("Presets")} />
           </SelectTrigger>
           <SelectContent>
             {definition.presets.map((preset) => (
               <SelectItem key={preset.id} value={preset.id}>
-                {preset.label}
+                {t(preset.label)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -116,7 +119,7 @@ export const RepairEffectEditor = memo(function RepairEffectEditor({
         if (spec.toggle) {
           return (
             <div key={spec.key} className="flex items-center justify-between gap-2 text-xs text-fg-muted">
-              <span>{spec.label}</span>
+              <span>{t(spec.label)}</span>
               <Switch
                 checked={value >= 0.5}
                 onCheckedChange={(on) => set(spec.key, on ? 1 : 0, true)}
@@ -128,7 +131,7 @@ export const RepairEffectEditor = memo(function RepairEffectEditor({
         return (
           <div key={spec.key} className="flex flex-col gap-1">
             <div className="flex items-center justify-between gap-2 text-xs text-fg-muted">
-              <span className="min-w-0 truncate">{spec.label}</span>
+              <span className="min-w-0 truncate">{t(spec.label)}</span>
               <span className="shrink-0 font-mono">{formatValue(value, spec.step, spec.unit)}</span>
             </div>
             <Slider

@@ -33,6 +33,7 @@ import { useProjectPanelStore } from "../stores/project-panel-store";
 import { useSourceMonitorStore } from "../stores/source-monitor-store";
 import { toast } from "../stores/notification-store";
 import type { CommandOutcome } from "./premiere-edit-commands";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * Project-panel commands. Every project change is exactly one `media/organize`
@@ -92,7 +93,7 @@ export async function createBin(
 export async function newBinFromSelection(): Promise<void> {
   const ids = selectedMediaIds();
   if (!ids.length) {
-    toast.info("New bin from selection", "Select media first.");
+    toast.info(translateNow("New bin from selection"), "Select media first.");
     return;
   }
   useProjectPanelStore.getState().setPendingBin({ parentId: useProjectPanelStore.getState().currentBinId, mediaIds: ids });

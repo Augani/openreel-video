@@ -67,6 +67,7 @@ function readCanResetSelectedTransform(): boolean {
 import { exportTimelineInterchange, openTimelineImport, useInterchangeExportPickerStore } from "../../services/timeline-interchange";
 import { useWorkspaceLayoutStore, layoutsEqual } from "../../stores/workspace-layout-store";
 import { getQuickExportPresets, type QuickExportPresetId } from "../../services/quick-export-presets";
+import { translateNow } from "@openreel/i18n/translate";
 
 const AboutDialog = lazy(() => import("./AboutDialog").then((m) => ({ default: m.AboutDialog })));
 
@@ -122,7 +123,7 @@ export function EditorMenuBar({
           void openEditorProject().then((opened) => {
             if (opened) navigate("editor");
           }).catch((error: unknown) => {
-            toast.error("Could not open project", error instanceof Error ? error.message : "Your current project is still open. Please try again.");
+            toast.error(translateNow("Could not open project"), error instanceof Error ? error.message : "Your current project is still open. Please try again.");
           });
         },
       },
@@ -266,11 +267,11 @@ export function EditorMenuBar({
       { label: t("Match frame"), action: command("editing.matchFrame"), shortcut: "F" },
       { label: t("Reverse match frame"), action: command("editing.reverseMatchFrame"), shortcut: "⇧F" },
       null,
-      { label: t("Audio channels…"), description: t("Map source channels: left only, swap, mono, stereo, 5.1"), action: () => { if (!openAudioChannelsForSelection()) toast.info("Select a clip with audio", "Audio channels applies to the selected clips."); } },
+      { label: t("Audio channels…"), description: t("Map source channels: left only, swap, mono, stereo, 5.1"), action: () => { if (!openAudioChannelsForSelection()) toast.info(translateNow("Select a clip with audio"), "Audio channels applies to the selected clips."); } },
       { label: t("Audio: Enhance Speech"), description: t("Remove noise and room reverb from the selected dialogue, on this device"), disabled: exporting || applying || playbackLocked,
-        action: () => { const ids = useUIStore.getState().getSelectedClipIds(); if (ids.length === 0) toast.info("Select a clip with audio", "Enhance Speech applies to the selected dialogue clips."); else void runEnhanceSpeechCommand(ids); } },
+        action: () => { const ids = useUIStore.getState().getSelectedClipIds(); if (ids.length === 0) toast.info(translateNow("Select a clip with audio"), "Enhance Speech applies to the selected dialogue clips."); else void runEnhanceSpeechCommand(ids); } },
       { label: t("Audio: Reduce Reverb"), description: t("Remove the late reverb tail from the selected dialogue, on this device"), disabled: exporting || applying || playbackLocked,
-        action: () => { const ids = useUIStore.getState().getSelectedClipIds(); if (ids.length === 0) toast.info("Select a clip with audio", "Reduce Reverb applies to the selected dialogue clips."); else void import("../../services/reduce-reverb").then((module) => module.runReduceReverbCommand(ids)); } },
+        action: () => { const ids = useUIStore.getState().getSelectedClipIds(); if (ids.length === 0) toast.info(translateNow("Select a clip with audio"), "Reduce Reverb applies to the selected dialogue clips."); else void import("../../services/reduce-reverb").then((module) => module.runReduceReverbCommand(ids)); } },
       { label: t("Speed/Duration…"), description: t("Speed, duration, reverse and pitch for the selected clips, with ripple"), action: command("editing.speedDuration"), shortcut: "⌥⌘R" },
       null,
       { label: t("Replace with linked composition"), action: command("linked.replace"), shortcut: "⌥⌘L" },
@@ -434,7 +435,7 @@ export function EditorMenuBar({
   return (
     <>
       <Menubar
-        aria-label="Application menu"
+        aria-label={t("Application menu")}
         className="workspace-menu h-auto space-x-0 border-0 rounded-none bg-transparent p-0 shadow-none"
       >
         {Object.entries(menus).map(([label, entries]) => (
@@ -446,17 +447,17 @@ export function EditorMenuBar({
               {entries.map((entry, i) =>
                 entry && "children" in entry ? (
                   <MenubarSub key={entry.label}>
-                    <MenubarSubTrigger disabled={entry.disabled}>{entry.label}</MenubarSubTrigger>
+                    <MenubarSubTrigger disabled={entry.disabled}>{t(entry.label)}</MenubarSubTrigger>
                     <MenubarSubContent className="min-w-64">
                       <div className="px-2 py-1 text-xs text-fg-muted">{entry.heading ?? t("Entire timeline")}</div>
                       {entry.children.map(child => <MenubarItem key={child.label} onSelect={child.action} className="flex-col items-start">
-                        <span>{child.label}</span><span className="text-xs text-fg-muted">{child.description}</span>
+                        <span>{t(child.label)}</span><span className="text-xs text-fg-muted">{t(child.description ?? "")}</span>
                       </MenubarItem>)}
                     </MenubarSubContent>
                   </MenubarSub>
                 ) : entry ? (
                   <MenubarItem key={entry.label} onSelect={entry.action} disabled={entry.disabled}>
-                    {entry.label}
+                    {t(entry.label)}
                     {entry.shortcut && (
                       <MenubarShortcut>{entry.shortcut}</MenubarShortcut>
                     )}
@@ -475,7 +476,7 @@ export function EditorMenuBar({
             variant="ghost"
             size="icon-sm"
             className="workspace-compact-menu"
-            aria-label="Application menu"
+            aria-label={t("Application menu")}
           >
             <Menu size={17} />
           </Button>
@@ -499,9 +500,9 @@ export function EditorMenuBar({
                 className={`min-h-11 ${"children" in entry || !entry.description ? "" : "flex-col items-start"}`}
                 onSelect={event => { if ("children" in entry) { event.preventDefault(); setCompactPath(path => [...path, entry.label]); } else entry.action(); }}
                 onKeyDown={event => { if ("children" in entry && event.key === "ArrowRight") { event.preventDefault(); setCompactPath(path => [...path, entry.label]); } }}>
-                <span>{entry.label}</span>
+                <span>{t(entry.label)}</span>
                 {"children" in entry ? <ChevronRight className="ml-auto" /> : <>
-                  {entry.description && <span className="text-xs text-fg-muted">{entry.description}</span>}
+                  {t(entry.description ?? "") && <span className="text-xs text-fg-muted">{t(entry.description ?? "")}</span>}
                   {entry.shortcut && <DropdownMenuShortcut>{entry.shortcut}</DropdownMenuShortcut>}
                 </>}
               </DropdownMenuItem>

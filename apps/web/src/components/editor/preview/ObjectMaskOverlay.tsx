@@ -5,6 +5,7 @@ import { useObjectMaskStore } from "../../../stores/object-mask-store";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { applyObjectSegmentation, displayPathOf } from "../../../services/object-mask";
+import { useT } from "@openreel/i18n/react";
 
 const ACCENT = "#4da3ff";
 /** A pointer travel shorter than this (CSS px) is a click, not a brush stroke. */
@@ -32,6 +33,7 @@ export function ObjectMaskOverlay({ disabled = false }: { disabled?: boolean }) 
 }
 
 function ObjectMaskOverlayArmed({ disabled }: { disabled: boolean }) {
+  const t = useT();
   const { clipId, mode, maskId, busy, error, prompt } = useObjectMaskStore(
     useShallow((s) => ({ clipId: s.clipId, mode: s.mode, maskId: s.maskId, busy: s.busy, error: s.error, prompt: s.prompt })),
   );
@@ -164,7 +166,7 @@ function ObjectMaskOverlayArmed({ disabled }: { disabled: boolean }) {
         ))}
       </svg>
       <div className="absolute left-2 top-2 flex items-center gap-1.5 rounded bg-black/65 px-2 py-1 text-[10px] font-medium text-white/90" onPointerDown={(e) => e.stopPropagation()}>
-        <span>{busy ? "Segmenting…" : mode === "click" ? "Object mask · click an object (Alt-click removes)" : "Object mask · brush over the object (Alt-brush removes)"}</span>
+        <span>{busy ? t("Segmenting…") : mode === "click" ? t("Object mask · click an object (Alt-click removes)") : t("Object mask · brush over the object (Alt-brush removes)")}</span>
         {(["click", "brush"] as const).map((m) => (
           <button
             key={m}
@@ -177,8 +179,8 @@ function ObjectMaskOverlayArmed({ disabled }: { disabled: boolean }) {
             {m}
           </button>
         ))}
-        <button type="button" aria-label="Finish object mask" onClick={(e) => { e.stopPropagation(); disarm(); }} className="rounded bg-white/10 px-1.5 py-0.5 hover:bg-white/20">
-          Done
+        <button type="button" aria-label={t("Finish object mask")} onClick={(e) => { e.stopPropagation(); disarm(); }} className="rounded bg-white/10 px-1.5 py-0.5 hover:bg-white/20">
+          {t("Done")}
         </button>
       </div>
       {error && (

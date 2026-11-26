@@ -14,6 +14,7 @@ import {
   type ShortcutDefinition,
 } from "../../services/keyboard-shortcuts";
 import { describePresetDiff } from "../onboarding/pro/preset-caption";
+import { useT } from "@openreel/i18n/react";
 
 const categoryOptions: Array<{ label: string; value: ShortcutCategory | "all"; }> = [
   { value: "all", label: "All" },
@@ -31,6 +32,7 @@ interface KeyboardShortcutsOverlayProps {
 export const KeyboardShortcutsOverlay: React.FC<
   KeyboardShortcutsOverlayProps
 > = ({ isOpen, onClose }) => {
+  const t = useT();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<
     ShortcutCategory | "all"
@@ -75,7 +77,9 @@ export const KeyboardShortcutsOverlay: React.FC<
     const matchesSearch =
       searchQuery === "" ||
       shortcut.name.toLowerCase().includes(normalizedQuery) ||
-      shortcut.description.toLowerCase().includes(normalizedQuery);
+      t(shortcut.name).toLowerCase().includes(normalizedQuery) ||
+      shortcut.description.toLowerCase().includes(normalizedQuery) ||
+      t(shortcut.description).toLowerCase().includes(normalizedQuery);
     return matchesCategory && matchesSearch;
   });
 
@@ -164,11 +168,11 @@ export const KeyboardShortcutsOverlay: React.FC<
         <DialogHeader className="flex-row items-start gap-3 space-y-0 border-b border-border px-5 py-4 text-left">
           <Keyboard size={20} className="mt-0.5 shrink-0 text-primary" aria-hidden />
           <div className="min-w-0 flex-1">
-            <DialogTitle className="truncate text-[15px] font-semibold leading-5 text-fg">Keyboard Shortcuts</DialogTitle>
-            <DialogDescription className="mt-1 text-[12px] leading-4 text-fg-muted">Find shortcuts, choose a preset, or customize your keys.</DialogDescription>
+            <DialogTitle className="truncate text-[15px] font-semibold leading-5 text-fg">{t("Keyboard Shortcuts")}</DialogTitle>
+            <DialogDescription className="mt-1 text-[12px] leading-4 text-fg-muted">{t("Find shortcuts, choose a preset, or customize your keys.")}</DialogDescription>
           </div>
           <DialogClose asChild>
-            <Button variant="ghost" size="icon-sm" aria-label="Close dialog" className="h-7 w-7 shrink-0 rounded-[7px] text-fg-muted hover:bg-bg-2 hover:text-fg">
+            <Button variant="ghost" size="icon-sm" aria-label={t("Close dialog")} className="h-7 w-7 shrink-0 rounded-[7px] text-fg-muted hover:bg-bg-2 hover:text-fg">
               <X size={15} aria-hidden />
             </Button>
           </DialogClose>
@@ -181,7 +185,7 @@ export const KeyboardShortcutsOverlay: React.FC<
                 <div className="relative">
                   <Search size={16} aria-hidden className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-muted" />
                   <Input
-                    aria-label="Search shortcuts"
+                    aria-label={t("Search shortcuts")}
                     type="search"
                     value={searchQuery}
                     onChange={(event) => {
@@ -189,7 +193,7 @@ export const KeyboardShortcutsOverlay: React.FC<
                       setEditingId(null);
                       setSearchQuery(event.target.value);
                     }}
-                    placeholder="Search shortcuts..."
+                    placeholder={t("Search shortcuts...")}
                     className="h-8 w-full rounded-[7px] border-border bg-bg-0 pl-8 text-[12px]"
                   />
                 </div>
@@ -197,18 +201,18 @@ export const KeyboardShortcutsOverlay: React.FC<
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" aria-label="Keyboard shortcut preset" className="h-8 min-w-0 gap-1.5 rounded-[7px] border-border bg-bg-2 px-3 text-[12px] text-fg-2 hover:bg-bg-3 hover:text-fg">
+                  <Button variant="outline" aria-label={t("Keyboard shortcut preset")} className="h-8 min-w-0 gap-1.5 rounded-[7px] border-border bg-bg-2 px-3 text-[12px] text-fg-2 hover:bg-bg-3 hover:text-fg">
                     <ChevronDown size={14} aria-hidden />
-                    <span className="truncate">{presets.find(preset => preset.id === activePreset)?.name || "Preset"}</span>
+                    <span className="truncate">{presets.find(preset => preset.id === activePreset)?.name || t("Preset")}</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" aria-labelledby={undefined} aria-label="Keyboard shortcut presets" className="w-56 rounded-[7px] border-border bg-bg-1 text-fg">
+                <DropdownMenuContent align="end" aria-labelledby={undefined} aria-label={t("Keyboard shortcut presets")} className="w-56 rounded-[7px] border-border bg-bg-1 text-fg">
                   <DropdownMenuRadioGroup value={activePreset} onValueChange={handleApplyPreset}>
                     {presets.map(preset => (
                       <DropdownMenuRadioItem key={preset.id} value={preset.id} className="items-start rounded-[7px] py-2 text-left data-[state=checked]:text-accent">
                         <span className="min-w-0">
                           <span className="block text-[12px] font-bold leading-4">{preset.name}</span>
-                          <span className="block text-[10px] font-normal text-fg-2">{preset.description}</span>
+                          <span className="block text-[10px] font-normal text-fg-2">{t(preset.description)}</span>
                         </span>
                       </DropdownMenuRadioItem>
                     ))}
@@ -216,9 +220,9 @@ export const KeyboardShortcutsOverlay: React.FC<
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              <Button onClick={handleResetAll} type="button" aria-label="Reset All" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg">
+              <Button onClick={handleResetAll} type="button" aria-label={t("Reset All")} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg">
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<RotateCcw size={14} aria-hidden />}</span>
-                <span className="truncate">{"Reset All"}</span>
+                <span className="truncate">{t("Reset All")}</span>
               </Button>
             </div>
 
@@ -231,7 +235,7 @@ export const KeyboardShortcutsOverlay: React.FC<
             <div className="overflow-x-auto">
               <ToggleGroup
                 type="single"
-                aria-label="Shortcut category"
+                aria-label={t("Shortcut category")}
                 className="grid min-h-8 min-w-[640px] grid-cols-8 gap-0 rounded-[7px] border border-border bg-bg-1 p-0.5"
                 value={activeCategory}
                 onValueChange={(value) => {
@@ -242,8 +246,8 @@ export const KeyboardShortcutsOverlay: React.FC<
                 }}
               >
                 {categoryOptions.map(option => (
-                  <ToggleGroupItem key={option.value} value={option.value} aria-label={option.label} className="h-7 min-w-0 rounded-[5px] px-2 text-[12px] font-semibold text-fg-muted hover:bg-bg-2 hover:text-fg-2 data-[state=on]:bg-bg-3 data-[state=on]:text-fg data-[state=on]:shadow-sm">
-                    {option.label}
+                  <ToggleGroupItem key={option.value} value={option.value} aria-label={t(option.label)} className="h-7 min-w-0 rounded-[5px] px-2 text-[12px] font-semibold text-fg-muted hover:bg-bg-2 hover:text-fg-2 data-[state=on]:bg-bg-3 data-[state=on]:text-fg data-[state=on]:shadow-sm">
+                    {t(option.label)}
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>
@@ -268,7 +272,7 @@ export const KeyboardShortcutsOverlay: React.FC<
                               {shortcut.name}
                             </span>
                             <span className="text-fg-2 font-normal block text-[10px]">
-                              {shortcut.description}
+                              {t(shortcut.description)}
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
@@ -278,7 +282,7 @@ export const KeyboardShortcutsOverlay: React.FC<
                                 value=""
                                 readOnly
                                 onKeyDown={(event) => handleShortcutCapture(event, shortcut.id)}
-                                placeholder="Press keys..."
+                                placeholder={t("Press keys...")}
                                 autoFocus
                                 className="h-7 w-32 rounded-[7px] border-border bg-bg-0 text-[12px]"
                               />
@@ -297,7 +301,7 @@ export const KeyboardShortcutsOverlay: React.FC<
                               </Button>
                             )}
                             {shortcut.currentKey !== shortcut.defaultKey && (
-                              <Button variant="ghost" size="icon-sm" onClick={() => handleResetShortcut(shortcut.id)} type="button" aria-label={`Reset ${shortcut.name} shortcut to default`} title="Reset to default" className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100">
+                              <Button variant="ghost" size="icon-sm" onClick={() => handleResetShortcut(shortcut.id)} type="button" aria-label={`Reset ${shortcut.name} shortcut to default`} title={t("Reset to default")} className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100">
                                 {<RotateCcw size={12} aria-hidden />}
                               </Button>
                             )}
@@ -312,7 +316,7 @@ export const KeyboardShortcutsOverlay: React.FC<
               {filteredShortcuts.length === 0 && (
                 <div role="status" className="flex flex-col items-center gap-2 py-6 text-center text-fg-muted">
                   <Keyboard size={32} className="opacity-30" aria-hidden />
-                  <p className="text-[12px]">No shortcuts found</p>
+                  <p className="text-[12px]">{t("No shortcuts found")}</p>
                 </div>
               )}
             </div>
@@ -320,9 +324,9 @@ export const KeyboardShortcutsOverlay: React.FC<
         </div>
         <DialogFooter className="shrink-0 items-center justify-end border-t border-border bg-bg-1 px-5 py-4">
           <span className="text-fg-2 font-normal block text-center text-[10px]">
-            Click a shortcut key to customize • Press{" "}
-            <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded border border-border bg-bg-2 px-1.5 font-mono text-[10px] font-semibold uppercase leading-none text-fg-2 shadow-sm">{"Esc"}</kbd>{" "}
-            to close
+            {t("Click a shortcut key to customize • Press")}{" "}
+            <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded border border-border bg-bg-2 px-1.5 font-mono text-[10px] font-semibold uppercase leading-none text-fg-2 shadow-sm">{t("Esc")}</kbd>{" "}
+            {t("to close")}
           </span>
         </DialogFooter>
       </DialogContent>

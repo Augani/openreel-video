@@ -7,6 +7,7 @@ import {
   surroundPanGains,
   type SurroundPan,
 } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 
 interface SurroundPannerProps {
   /** Accessible name, e.g. "Dialogue surround pan". */
@@ -52,6 +53,7 @@ export const formatSurroundPosition = (pan: SurroundPan): string => {
  * and the LFE send. The six bars show the level each speaker receives.
  */
 export const SurroundPanner: React.FC<SurroundPannerProps> = ({ label, pan, onChange, onReset, testId, source, disabled, className }) => {
+  const t = useT();
   const padRef = useRef<SVGSVGElement>(null);
   const dragging = useRef(false);
   const current = sanitizeSurroundPan(pan);
@@ -97,7 +99,7 @@ export const SurroundPanner: React.FC<SurroundPannerProps> = ({ label, pan, onCh
   return (
     <div className={cn("flex w-full flex-col items-center gap-1.5", className)} data-testid={testId} role="group" aria-label={label}>
       <div className="flex w-full items-center justify-between gap-1 text-[10px] text-fg-muted">
-        <span className="font-semibold uppercase tracking-wide">Surround{source ? ` · ${source}` : ""}</span>
+        <span className="font-semibold uppercase tracking-wide">{t("Surround")}{source ? ` · ${source}` : ""}</span>
         <span className="font-mono" data-testid={`${testId}-position`}>{formatSurroundPosition(current)}</span>
       </div>
       <svg
@@ -161,7 +163,7 @@ export const SurroundPanner: React.FC<SurroundPannerProps> = ({ label, pan, onCh
       </div>
       <div className="flex w-full flex-col gap-1">
         <label className="flex items-center justify-between text-[10px] text-fg-muted">
-          <span>Divergence</span>
+          <span>{t("Divergence")}</span>
           <span className="font-mono">{Math.round(current.divergence * 100)}%</span>
         </label>
         <Slider
@@ -175,7 +177,7 @@ export const SurroundPanner: React.FC<SurroundPannerProps> = ({ label, pan, onCh
           className={SLIDER_CLASS}
         />
         <label className="flex items-center justify-between text-[10px] text-fg-muted">
-          <span>LFE send</span>
+          <span>{t("LFE send")}</span>
           <span className="font-mono">{Math.round(current.lfeSend * 100)}%</span>
         </label>
         <Slider
@@ -191,7 +193,7 @@ export const SurroundPanner: React.FC<SurroundPannerProps> = ({ label, pan, onCh
       </div>
       {onReset && (
         <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-[10px]" disabled={disabled} onClick={onReset} data-testid={`${testId}-reset`}>
-          {source ? "Follow track" : "Reset"}
+          {source ? t("Follow track") : t("Reset")}
         </Button>
       )}
     </div>

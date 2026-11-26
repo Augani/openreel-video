@@ -24,6 +24,8 @@ import { useProjectStore } from "../../stores/project-store";
 import { useAudioChannelsStore } from "../../stores/audio-channels-store";
 import { setMediaChannelLayout } from "../../services/audio-channels";
 import { toast } from "../../stores/notification-store";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const OFF = String(SILENT_CHANNEL);
 const MIX = String(MIX_CHANNELS);
@@ -48,6 +50,7 @@ function withFormat(group: SourceChannelGroup, format: ClipChannelFormat): Sourc
  * editor for the format of each clip and which source channel feeds each of its channels. Apply is one undo step.
  */
 export function SourceChannelsDialog() {
+  const t = useT();
   const open = useAudioChannelsStore((state) => state.sourceOpen);
   const mediaIds = useAudioChannelsStore((state) => state.sourceMediaIds);
   const close = useAudioChannelsStore((state) => state.closeSource);
@@ -90,7 +93,7 @@ export function SourceChannelsDialog() {
     try {
       const result = await setMediaChannelLayout(targets.map((item) => item.id), single ? draft : (preset ?? "file"));
       if (result.success) close();
-      else toast.error("Audio channels not changed", result.error?.message ?? "The items could not be updated.");
+      else toast.error(translateNow("Audio channels not changed"), result.error?.message ?? "The items could not be updated.");
     } finally {
       setBusy(false);
     }
@@ -105,12 +108,12 @@ export function SourceChannelsDialog() {
     <Dialog open={open} onOpenChange={(next) => { if (!next) close(); }}>
       <DialogContent className="max-h-[calc(100vh-32px)] w-[calc(100vw-32px)] max-w-xl gap-4 overflow-y-auto" data-testid="source-channels-dialog">
         <DialogHeader>
-          <DialogTitle>Modify clip: Audio channels</DialogTitle>
+          <DialogTitle>{t("Modify clip: Audio channels")}</DialogTitle>
           <DialogDescription className="truncate">{title} · {detail}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-1.5">
-          <div className="text-xs font-medium text-fg-2" id="source-channels-preset-label">Preset</div>
+          <div className="text-xs font-medium text-fg-2" id="source-channels-preset-label">{t("Preset")}</div>
           <ToggleGroup type="single" value={shownPreset ?? ""} onValueChange={(value) => { if (value) pick(value as SourceLayoutPreset); }} aria-labelledby="source-channels-preset-label" className="flex-wrap justify-start">
             {SOURCE_LAYOUT_PRESETS.map((name) => (
               <ToggleGroupItem key={name} value={name} data-testid={`source-channels-preset-${name}`} className="h-8 px-3 text-xs">{SOURCE_LAYOUT_PRESET_LABELS[name]}</ToggleGroupItem>
@@ -121,31 +124,31 @@ export function SourceChannelsDialog() {
               ? shownPreset === null
                 ? `Custom: ${draft.length} audio clip${draft.length === 1 ? "" : "s"}`
                 : `${draft.length} audio clip${draft.length === 1 ? "" : "s"} on Insert / Overwrite`
-              : "Use file keeps mono, stereo and 5.1 streams as one clip; wider files get one mono clip per channel."}
+              : t("Use file keeps mono, stereo and 5.1 streams as one clip; wider files get one mono clip per channel.")}
           </p>
         </div>
 
         {single && (
           <div className="space-y-2" data-testid="source-channels-groups">
-            <div className="text-xs font-medium text-fg-2">Audio clips</div>
+            <div className="text-xs font-medium text-fg-2">{t("Audio clips")}</div>
             {draft.map((group, index) => (
               <div key={index} className="space-y-1.5 rounded-md border border-border bg-bg-2 p-2" data-testid={`source-channels-group-${index}`}>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="w-8 text-xs font-bold">{patchLabel(index)}</span>
                   <ToggleGroup type="single" value={group.map.format} onValueChange={(value) => { if (value) update(index, withFormat(group, value as ClipChannelFormat)); }} aria-label={`${patchLabel(index)} clip channel format`}>
                     {CLIP_CHANNEL_FORMATS.map((format) => (
-                      <ToggleGroupItem key={format} value={format} data-testid={`source-channels-format-${index}-${format}`} className="h-7 px-2 text-[11px]">{format === "mono" ? "Mono" : format === "stereo" ? "Stereo" : "5.1"}</ToggleGroupItem>
+                      <ToggleGroupItem key={format} value={format} data-testid={`source-channels-format-${index}-${format}`} className="h-7 px-2 text-[11px]">{format === "mono" ? t("Mono") : format === "stereo" ? t("Stereo") : "5.1"}</ToggleGroupItem>
                     ))}
                   </ToggleGroup>
                   {shape.streams > 1 && (
                     <Select value={String(group.stream)} onValueChange={(value) => update(index, { ...group, stream: Number(value) })}>
                       <SelectTrigger aria-label={`${patchLabel(index)} audio stream`} data-testid={`source-channels-stream-${index}`} className="h-7 w-[104px] px-2 text-[11px]"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {Array.from({ length: shape.streams }, (_, stream) => <SelectItem key={stream} value={String(stream)}>Stream {stream + 1}</SelectItem>)}
+                        {Array.from({ length: shape.streams }, (_, stream) => <SelectItem key={stream} value={String(stream)}>{t("Stream")} {stream + 1}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   )}
-                  <Button type="button" variant="ghost" size="sm" className="ml-auto h-7 px-2 text-[11px]" disabled={draft.length <= 1} aria-label={`Remove ${patchLabel(index)}`} data-testid={`source-channels-remove-${index}`} onClick={() => setDraft((groups) => groups.filter((_, i) => i !== index))}>Remove</Button>
+                  <Button type="button" variant="ghost" size="sm" className="ml-auto h-7 px-2 text-[11px]" disabled={draft.length <= 1} aria-label={`Remove ${patchLabel(index)}`} data-testid={`source-channels-remove-${index}`} onClick={() => setDraft((groups) => groups.filter((_, i) => i !== index))}>{t("Remove")}</Button>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {group.map.sources.map((entry, output) => (
@@ -154,9 +157,9 @@ export function SourceChannelsDialog() {
                       <Select value={String(entry)} onValueChange={(value) => setOutput(index, output, Number(value))}>
                         <SelectTrigger aria-label={`${patchLabel(index)} ${FORMAT_CHANNEL_NAMES[group.map.format][output]} plays`} data-testid={`source-channels-source-${index}-${output}`} className="h-7 w-[84px] px-2 text-[11px]"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {channelOptions.map((channel) => <SelectItem key={channel} value={String(channel)}>Ch {channel + 1}</SelectItem>)}
-                          <SelectItem value={MIX}>Mix</SelectItem>
-                          <SelectItem value={OFF}>Off</SelectItem>
+                          {channelOptions.map((channel) => <SelectItem key={channel} value={String(channel)}>{t("Ch")} {channel + 1}</SelectItem>)}
+                          <SelectItem value={MIX}>{t("Mix")}</SelectItem>
+                          <SelectItem value={OFF}>{t("Off")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </label>
@@ -164,13 +167,13 @@ export function SourceChannelsDialog() {
                 </div>
               </div>
             ))}
-            <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-[11px]" disabled={draft.length >= MAX_SOURCE_GROUPS} data-testid="source-channels-add" onClick={() => setDraft((groups) => [...groups, { stream: 0, map: { format: "mono", sources: [Math.min(groups.length, shape.channels - 1)] } }])}>Add audio clip</Button>
+            <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-[11px]" disabled={draft.length >= MAX_SOURCE_GROUPS} data-testid="source-channels-add" onClick={() => setDraft((groups) => [...groups, { stream: 0, map: { format: "mono", sources: [Math.min(groups.length, shape.channels - 1)] } }])}>{t("Add audio clip")}</Button>
           </div>
         )}
 
         <DialogFooter className="gap-2 sm:justify-end">
-          <Button type="button" variant="ghost" size="sm" onClick={close}>Cancel</Button>
-          <Button type="button" size="sm" disabled={busy || !changed || targets.length === 0 || (!!single && draft.length === 0)} data-testid="source-channels-apply" onClick={() => { void apply(); }}>Apply</Button>
+          <Button type="button" variant="ghost" size="sm" onClick={close}>{t("Cancel")}</Button>
+          <Button type="button" size="sm" disabled={busy || !changed || targets.length === 0 || (!!single && draft.length === 0)} data-testid="source-channels-apply" onClick={() => { void apply(); }}>{t("Apply")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

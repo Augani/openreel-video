@@ -38,6 +38,8 @@ import { measureAutoTone } from "../../../services/color-sampling";
 import { useClipLookScene } from "./looks/useClipLookScene";
 import { LookCompareProvider } from "./looks/compare-context";
 import { lazyWithRetry } from "./lazy-retry";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const WhiteBalancePresets = lazyWithRetry(() => import("./looks/WhiteBalancePresets"));
 
@@ -83,6 +85,7 @@ interface ColorGradingSectionProps {
 export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
   clipId,
 }) => {
+  const t = useT();
   const { getColorGrading, updateColorGrading, resetColorGrading } =
     useProjectStore();
 
@@ -231,7 +234,7 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
     try {
       const result = await measureAutoTone();
       if (!result) {
-        toast.error("Auto Tone unavailable", "Pause playback and make sure the Program monitor shows a frame.");
+        toast.error(translateNow("Auto Tone unavailable"), "Pause playback and make sure the Program monitor shows a frame.");
         return;
       }
       await updateColorGrading(clipId, { tone: result.tone });
@@ -261,14 +264,14 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
           <Switch
             checked={scopesVisible}
             onCheckedChange={setScopesVisible}
-            aria-label="Show video scopes"
+            aria-label={t("Show video scopes")}
           />
-          <span>Video scopes</span>
-          <kbd className="rounded border border-border px-1 text-[9px] text-fg-3">Shift+S</kbd>
+          <span>{t("Video scopes")}</span>
+          <kbd className="rounded border border-border px-1 text-[9px] text-fg-3">{t("Shift+S")}</kbd>
         </label>
-        <Button onClick={handleResetAll} type="button" aria-label="Reset All" className="min-w-0 justify-center rounded-[7px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 bg-transparent hover:bg-bg-2 flex items-center gap-1 px-2 py-1 text-[10px] text-fg-3 hover:text-fg transition-colors">
+        <Button onClick={handleResetAll} type="button" aria-label={t("Reset All")} className="min-w-0 justify-center rounded-[7px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 bg-transparent hover:bg-bg-2 flex items-center gap-1 px-2 py-1 text-[10px] text-fg-3 hover:text-fg transition-colors">
           <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<RotateCcw size={10} />}</span>
-          <span className="truncate">{"Reset All"}</span>
+          <span className="truncate">{t("Reset All")}</span>
         </Button>
       </div>
 
@@ -277,8 +280,8 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
         data-testid="color-pipeline-selector"
       >
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[10px] font-semibold text-fg-2">Processing order</span>
-          <div className="flex gap-1" role="radiogroup" aria-label="Color processing order">
+          <span className="text-[10px] font-semibold text-fg-2">{t("Processing order")}</span>
+          <div className="flex gap-1" role="radiogroup" aria-label={t("Color processing order")}>
             {([
               { version: 1 as const, label: "Classic" },
               { version: 2 as const, label: "Premiere" },
@@ -297,41 +300,41 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
                     : "border-border bg-bg-1 text-fg-2 hover:text-fg"
                 }`}
               >
-                {option.label}
+                {t(option.label)}
               </Button>
             ))}
           </div>
         </div>
         <p className="text-[10px] leading-snug text-fg-3">
           {pipelineVersion === 2
-            ? "White Balance and Basic Correction run first, then Color Wheels and Hue Curves in one float pass, then Curves, LUT, HSL and Vignette."
-            : "This clip keeps the classic order (Color Wheels before Basic Correction) so its look is unchanged. Switch to Premiere to use Hue Curves and float processing."}
+            ? t("White Balance and Basic Correction run first, then Color Wheels and Hue Curves in one float pass, then Curves, LUT, HSL and Vignette.")
+            : t("This clip keeps the classic order (Color Wheels before Basic Correction) so its look is unchanged. Switch to Premiere to use Hue Curves and float processing.")}
         </p>
       </div>
 
-      <SubSection title="Looks and LUTs" defaultOpen>
+      <SubSection title={t("Looks and LUTs")} defaultOpen>
         <ColorLibrarySection clipId={clipId} />
       </SubSection>
 
-      <SubSection title="Basic Correction" defaultOpen>
+      <SubSection title={t("Basic Correction")} defaultOpen>
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5">
               <Button
                 type="button"
                 variant="ghost"
-                aria-label="Auto"
-                title="Set Basic Correction from the current frame"
+                aria-label={t("Auto")}
+                title={t("Set Basic Correction from the current frame")}
                 disabled={autoBusy}
                 onClick={() => void handleAutoTone()}
                 className="h-7 gap-1 rounded-[7px] border border-border bg-bg-2 px-2 text-[10px] font-semibold text-fg-2 hover:bg-bg-3 hover:text-fg disabled:opacity-50"
               >
                 <Sparkles size={11} aria-hidden />
-                <span>Auto</span>
+                <span>{t("Auto")}</span>
               </Button>
               <MatchColorPopover clipId={clipId} />
             </div>
-            <Button variant="ghost" size="icon-sm" onClick={handleBasicReset} type="button" aria-label="Reset basic correction" title="Reset basic correction" className="justify-center rounded-[7px] outline-none focus-visible:ring-2 focus-visible:ring-ring h-7 w-7 bg-transparent hover:bg-bg-2 flex items-center gap-1 px-2 py-0.5 text-[10px] text-fg-3 hover:text-fg transition-colors shrink-0">
+            <Button variant="ghost" size="icon-sm" onClick={handleBasicReset} type="button" aria-label={t("Reset basic correction")} title={t("Reset basic correction")} className="justify-center rounded-[7px] outline-none focus-visible:ring-2 focus-visible:ring-ring h-7 w-7 bg-transparent hover:bg-bg-2 flex items-center gap-1 px-2 py-0.5 text-[10px] text-fg-3 hover:text-fg transition-colors shrink-0">
               {<RotateCcw size={10} />}
             </Button>
           </div>
@@ -339,14 +342,13 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
         </div>
       </SubSection>
 
-      <SubSection title="White Balance" defaultOpen>
+      <SubSection title={t("White Balance")} defaultOpen>
         <div className="space-y-4">
           <div className="flex items-start justify-between gap-2">
             <span className="text-fg-2 font-normal text-[10px] leading-snug">
-              Warm up cool shots or cool down warm ones. Tint corrects green or
-              magenta casts.
+              {t("Warm up cool shots or cool down warm ones. Tint corrects green or magenta casts.")}
             </span>
-            <Button variant="ghost" size="icon-sm" onClick={handleWhiteBalanceReset} type="button" aria-label="Reset white balance" title="Reset white balance" className="justify-center rounded-[7px] outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent hover:bg-bg-2 flex items-center gap-1 px-2 py-0.5 text-[10px] text-fg-3 hover:text-fg transition-colors shrink-0">
+            <Button variant="ghost" size="icon-sm" onClick={handleWhiteBalanceReset} type="button" aria-label={t("Reset white balance")} title={t("Reset white balance")} className="justify-center rounded-[7px] outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent hover:bg-bg-2 flex items-center gap-1 px-2 py-0.5 text-[10px] text-fg-3 hover:text-fg transition-colors shrink-0">
               {<RotateCcw size={10} />}
             </Button>
           </div>
@@ -358,15 +360,15 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
                 size="icon-sm"
                 className={`h-7 w-7 shrink-0 ${wbArmed ? "bg-accent text-white ring-2 ring-accent/40 hover:bg-accent" : ""}`}
                 aria-pressed={wbArmed}
-                aria-label="White balance eyedropper"
-                title="Pick a neutral area on the Program monitor (Esc cancels)"
+                aria-label={t("White balance eyedropper")}
+                title={t("Pick a neutral area on the Program monitor (Esc cancels)")}
                 onClick={() => setWbPick(wbArmed ? null : { clipId })}
               >
                 <Pipette size={12} aria-hidden />
               </Button>
               <div
                 role="group"
-                aria-label="White balance sample size"
+                aria-label={t("White balance sample size")}
                 className="flex shrink-0 overflow-hidden rounded-[6px] border border-border"
               >
                 {([1, 5] as const).map((option) => (
@@ -374,18 +376,18 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
                     key={option}
                     type="button"
                     aria-pressed={wbSize === option}
-                    title={option === 1 ? "Sample a single pixel" : "Average a 5 by 5 pixel area"}
+                    title={option === 1 ? t("Sample a single pixel") : t("Average a 5 by 5 pixel area")}
                     onClick={() => setWbSize(option)}
                     className={`whitespace-nowrap px-1.5 py-0.5 text-[9px] font-semibold ${
                       wbSize === option ? "bg-accent text-white" : "bg-bg-2 text-fg-3 hover:text-fg"
                     }`}
                   >
-                    {option === 1 ? "Point" : "5×5"}
+                    {option === 1 ? t("Point") : "5×5"}
                   </button>
                 ))}
               </div>
-            <span className={`min-w-0 flex-1 truncate text-[10px] ${wbArmed ? "font-medium text-accent" : "text-fg-3"}`} title={wbArmed ? "Click a neutral area on the Program monitor. Esc cancels." : undefined}>
-              {wbArmed ? "Click a neutral area" : "Pick neutral"}
+            <span className={`min-w-0 flex-1 truncate text-[10px] ${wbArmed ? "font-medium text-accent" : "text-fg-3"}`} title={wbArmed ? t("Click a neutral area on the Program monitor. Esc cancels.") : undefined}>
+              {wbArmed ? t("Click a neutral area") : t("Pick neutral")}
             </span>
           </div>
 
@@ -443,14 +445,14 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
 
           <div className="pt-1">
             <span className="text-fg-2 font-normal mb-1.5 block text-[10px]">
-              Presets
+              {t("Presets")}
             </span>
             <Suspense
               fallback={
               <div className="flex flex-wrap gap-1" aria-busy="true">
                 {WHITE_BALANCE_PRESETS.map((preset) => (
                   <span key={preset.label} className="rounded border border-border bg-bg-2 px-2 py-1 text-[10px] text-fg-2">
-                    {preset.label}
+                    {t(preset.label)}
                   </span>
                 ))}
               </div>
@@ -467,10 +469,10 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
         </div>
       </SubSection>
 
-      <SubSection title="Vignette" defaultOpen={false}>
+      <SubSection title={t("Vignette")} defaultOpen={false}>
         <div className="space-y-3">
           <div className="flex justify-end">
-            <Button variant="ghost" size="icon-sm" onClick={handleVignetteReset} type="button" aria-label="Reset vignette" title="Reset vignette" className="justify-center rounded-[7px] outline-none focus-visible:ring-2 focus-visible:ring-ring h-7 w-7 bg-transparent hover:bg-bg-2 flex items-center gap-1 px-2 py-0.5 text-[10px] text-fg-3 hover:text-fg transition-colors shrink-0">
+            <Button variant="ghost" size="icon-sm" onClick={handleVignetteReset} type="button" aria-label={t("Reset vignette")} title={t("Reset vignette")} className="justify-center rounded-[7px] outline-none focus-visible:ring-2 focus-visible:ring-ring h-7 w-7 bg-transparent hover:bg-bg-2 flex items-center gap-1 px-2 py-0.5 text-[10px] text-fg-3 hover:text-fg transition-colors shrink-0">
               {<RotateCcw size={10} />}
             </Button>
           </div>
@@ -478,7 +480,7 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
         </div>
       </SubSection>
 
-      <SubSection title="Color Wheels" defaultOpen={false}>
+      <SubSection title={t("Color Wheels")} defaultOpen={false}>
         <ColorWheelsControl
           values={colorWheelValues}
           onChange={handleColorWheelsChange}
@@ -486,7 +488,7 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
         />
       </SubSection>
 
-      <SubSection title="Curves">
+      <SubSection title={t("Curves")}>
         <CurvesEditor
           values={curvesValues}
           onChange={handleCurvesChange}
@@ -494,7 +496,7 @@ export const ColorGradingSection: React.FC<ColorGradingSectionProps> = ({
         />
       </SubSection>
 
-      <SubSection title="Hue Curves">
+      <SubSection title={t("Hue Curves")}>
         <HueCurvesEditor
           values={hueCurveKeyframes.shown}
           onChange={hueCurveKeyframes.apply}

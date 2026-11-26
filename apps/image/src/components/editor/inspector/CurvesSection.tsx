@@ -4,6 +4,7 @@ import type { Layer } from '../../../types/project';
 import type { CurvePoint } from '../../../types/adjustments';
 import { DEFAULT_CURVES } from '../../../types/adjustments';
 import { TrendingUp, RotateCcw } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   layer: Layer;
@@ -18,6 +19,7 @@ interface CurveEditorProps {
 }
 
 function CurveEditor({ points, onChange, channel }: CurveEditorProps) {
+  const t = useT();
   const svgRef = useRef<SVGSVGElement>(null);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
@@ -152,7 +154,7 @@ function CurveEditor({ points, onChange, channel }: CurveEditorProps) {
       </svg>
       <div className="flex justify-between mt-1 text-[9px] text-muted-foreground">
         <span>0</span>
-        <span>Input</span>
+        <span>{t("Input")}</span>
         <span>255</span>
       </div>
     </div>
@@ -160,6 +162,7 @@ function CurveEditor({ points, onChange, channel }: CurveEditorProps) {
 }
 
 export function CurvesSection({ layer }: Props) {
+  const t = useT();
   const { updateLayer } = useProjectStore();
   const [activeChannel, setActiveChannel] = useState<ChannelType>('master');
   const [isExpanded, setIsExpanded] = useState(true);
@@ -205,7 +208,7 @@ export function CurvesSection({ layer }: Props) {
       >
         <div className="flex items-center gap-2">
           <TrendingUp size={14} className="text-muted-foreground" />
-          <span className="text-xs font-medium">Curves</span>
+          <span className="text-xs font-medium">{t("Curves")}</span>
           {curves.enabled && (
             <span className="w-1.5 h-1.5 rounded-full bg-primary" />
           )}
@@ -245,7 +248,7 @@ export function CurvesSection({ layer }: Props) {
             <button
               onClick={resetCurves}
               className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-secondary transition-colors"
-              title="Reset Curves"
+              title={t("Reset Curves")}
             >
               <RotateCcw size={12} />
             </button>
@@ -258,7 +261,7 @@ export function CurvesSection({ layer }: Props) {
           />
 
           <p className="text-[9px] text-muted-foreground text-center">
-            Click to add point • Double-click to remove • Drag to adjust
+            {t("Click to add point • Double-click to remove • Drag to adjust")}
           </p>
         </div>
       )}

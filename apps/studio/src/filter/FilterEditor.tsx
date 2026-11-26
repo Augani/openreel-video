@@ -11,8 +11,10 @@ import { PreviewEngine } from "../effect/preview/PreviewEngine";
 import { VideoSource } from "../effect/preview/VideoSource";
 import { loadSampleClips } from "../effect/sample-clips";
 import type { Behavior } from "../effect/scene";
+import { useT } from "@openreel/i18n/react";
 
 export function FilterEditor({ initialDoc }: { initialDoc?: FilterDoc } = {}) {
+  const t = useT();
   const [doc, setDoc] = useState<FilterDoc>(initialDoc ?? emptyFilterDoc());
   const [selected, setSelected] = useState<string | null>(null);
   const [palette, setPalette] = useState(false);
@@ -53,7 +55,7 @@ export function FilterEditor({ initialDoc }: { initialDoc?: FilterDoc } = {}) {
         />
         {selectedAdjustment && selectedDef && (
           <div className="flex flex-col gap-3 p-4">
-            <div className="text-[10px] uppercase tracking-wider text-zinc-500">Properties · {selectedAdjustment.name}</div>
+            <div className="text-[10px] uppercase tracking-wider text-zinc-500">{t("Properties ·")} {selectedAdjustment.name}</div>
             {fieldsFromObjectSchema(selectedDef.paramSchema as unknown as z.ZodObject<z.ZodRawShape>).map((f) => (
               <ParamField
                 key={f.key}

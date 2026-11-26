@@ -3,12 +3,14 @@ import { useProjectStore } from '../../../stores/project-store';
 import type { Layer } from '../../../types/project';
 import { DEFAULT_POSTERIZE } from '../../../types/adjustments';
 import { Layers, RotateCcw } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   layer: Layer;
 }
 
 export function PosterizeSection({ layer }: Props) {
+  const t = useT();
   const { updateLayer } = useProjectStore();
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -42,7 +44,7 @@ export function PosterizeSection({ layer }: Props) {
       >
         <div className="flex items-center gap-2">
           <Layers size={14} className="text-muted-foreground" />
-          <span className="text-xs font-medium">Posterize</span>
+          <span className="text-xs font-medium">{t("Posterize")}</span>
           {posterize.enabled && (
             <span className="w-1.5 h-1.5 rounded-full bg-primary" />
           )}
@@ -61,13 +63,13 @@ export function PosterizeSection({ layer }: Props) {
       {isExpanded && (
         <div className="px-3 pb-3 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-muted-foreground">Levels</span>
+            <span className="text-[10px] text-muted-foreground">{t("Levels")}</span>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-mono text-muted-foreground">{posterize.levels}</span>
               <button
                 onClick={resetPosterize}
                 className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-secondary transition-colors"
-                title="Reset"
+                title={t("Reset")}
               >
                 <RotateCcw size={12} />
               </button>

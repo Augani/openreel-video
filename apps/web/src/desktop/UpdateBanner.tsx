@@ -3,12 +3,14 @@ import { useEffect, useState } from "react";
 import { Button } from "@openreel/ui";
 
 import type { OpenReelUpdaterStatus } from "../types/global";
+import { useT } from "@openreel/i18n/react";
 
 // Notify → (consented) download → install. Subscribes to main-process update
 // status and drives download/install through window.openreel.updater. The
 // install path quits through the normal guarded flow, so unsaved changes are
 // still protected.
 export function UpdateBanner(): JSX.Element | null {
+  const t = useT();
   const [status, setStatus] = useState<OpenReelUpdaterStatus | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
@@ -38,17 +40,17 @@ export function UpdateBanner(): JSX.Element | null {
       {status.state === "available" && (
         <>
           <span className="text-fg-2 font-bold block text-sm">
-            Update {status.version} available
+            {t("Update")} {status.version} {t("available")}
           </span>
           <span className="text-fg-2 font-normal block mt-1 text-xs">
-            A new version of OpenReel is ready to download.
+            {t("A new version of OpenReel is ready to download.")}
           </span>
           <div className="mt-3 flex gap-2">
-            <Button onClick={() => void window.openreel?.updater.download()} type="button" aria-label="Download" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90">
-              <span className="truncate">{"Download"}</span>
+            <Button onClick={() => void window.openreel?.updater.download()} type="button" aria-label={t("Download")} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90">
+              <span className="truncate">{t("Download")}</span>
             </Button>
-            <Button onClick={() => setDismissed(true)} type="button" aria-label="Later" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg">
-              <span className="truncate">{"Later"}</span>
+            <Button onClick={() => setDismissed(true)} type="button" aria-label={t("Later")} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg">
+              <span className="truncate">{t("Later")}</span>
             </Button>
           </div>
         </>
@@ -57,7 +59,7 @@ export function UpdateBanner(): JSX.Element | null {
       {status.state === "downloading" && (
         <>
           <span className="text-fg-2 font-bold block text-sm">
-            Downloading update…
+            {t("Downloading update…")}
           </span>
           <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-border">
             <div
@@ -74,18 +76,17 @@ export function UpdateBanner(): JSX.Element | null {
       {status.state === "downloaded" && (
         <>
           <span className="text-fg-2 font-bold block text-sm">
-            Update {status.version} ready
+            {t("Update")} {status.version} {t("ready")}
           </span>
           <span className="text-fg-2 font-normal block mt-1 text-xs">
-            Restart to install — you’ll be asked to save any unsaved changes
-            first.
+            {t("Restart to install — you’ll be asked to save any unsaved changes first.")}
           </span>
           <div className="mt-3 flex gap-2">
-            <Button onClick={() => void window.openreel?.updater.install()} type="button" aria-label="Restart & Install" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90">
-              <span className="truncate">{"Restart & Install"}</span>
+            <Button onClick={() => void window.openreel?.updater.install()} type="button" aria-label={t("Restart & Install")} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90">
+              <span className="truncate">{t("Restart & Install")}</span>
             </Button>
-            <Button onClick={() => setDismissed(true)} type="button" aria-label="Later" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg">
-              <span className="truncate">{"Later"}</span>
+            <Button onClick={() => setDismissed(true)} type="button" aria-label={t("Later")} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg">
+              <span className="truncate">{t("Later")}</span>
             </Button>
           </div>
         </>

@@ -4,6 +4,7 @@ import { MarkdownMessage } from "./MarkdownMessage";
 import { editingToolReadOnly } from "../../../services/agent/editing-tools";
 import { ToolCallCard } from "./ToolCallCard";
 import { AssistantIcon } from "./AssistantIcon";
+import { useT } from "@openreel/i18n/react";
 
 export const ChatMessage = memo(function ChatMessage({
   message,
@@ -12,6 +13,7 @@ export const ChatMessage = memo(function ChatMessage({
   message: ChatMessageData;
   pending?: boolean;
 }): JSX.Element {
+  const t = useT();
   const isUser = message.role === "user";
 
   return (
@@ -45,7 +47,7 @@ export const ChatMessage = memo(function ChatMessage({
               role="status"
             >
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
-              <span>Thinking…</span>
+              <span>{t("Thinking…")}</span>
             </div>
           )}
         {message.toolCalls.length > 0 && (

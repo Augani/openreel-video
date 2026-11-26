@@ -10,6 +10,7 @@ import { calculateSnap } from "./utils";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { useUIStore } from "../../../stores/ui-store";
+import { useT } from "@openreel/i18n/react";
 
 interface TextClipComponentProps {
   textClip: TextClip;
@@ -42,6 +43,7 @@ const TextClipComponentImpl: React.FC<TextClipComponentProps> = ({
   timelineRef,
   trackTopInset = 0,
 }) => {
+  const t = useT();
   const clipRef = useRef<HTMLDivElement>(null);
   const touchGesture = useTimelineTouchGesture();
   const locked = allTracks.find((track) => track.id === textClip.trackId)?.locked ?? false;
@@ -286,7 +288,7 @@ const TextClipComponentImpl: React.FC<TextClipComponentProps> = ({
           {isSelected && !locked && <TimelineTouchMoveHandle label={`Move ${textClip.text || "Text"}`} onPointerDown={(event) => touchGesture.start(event, handleMouseDown)} />}
           <div
             data-timeline-trim="left"
-            aria-label="Trim start"
+            aria-label={t("Trim start")}
             onPointerDown={(event) => touchGesture.start(event, (e) => handleTrimStart(e, "left"))}
             className={`absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize z-20 flex items-center justify-center transition-opacity ${
               isSelected ? "opacity-100 bg-accent" : "opacity-0 group-hover:opacity-100 hover:bg-accent/50"
@@ -298,7 +300,7 @@ const TextClipComponentImpl: React.FC<TextClipComponentProps> = ({
           </div>
           <div
             data-timeline-trim="right"
-            aria-label="Trim end"
+            aria-label={t("Trim end")}
             onPointerDown={(event) => touchGesture.start(event, (e) => handleTrimStart(e, "right"))}
             className={`absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize z-20 flex items-center justify-center transition-opacity ${
               isSelected ? "opacity-100 bg-accent" : "opacity-0 group-hover:opacity-100 hover:bg-accent/50"
@@ -310,7 +312,7 @@ const TextClipComponentImpl: React.FC<TextClipComponentProps> = ({
           </div>
           <div className="workspace-timeline-text-label w-full h-full flex items-center gap-1 px-3">
             <span className="text-[10px] font-semibold text-fg truncate">
-              {textClip.text || "Text"}
+              {textClip.text || t("Text")}
             </span>
           </div>
         </div>

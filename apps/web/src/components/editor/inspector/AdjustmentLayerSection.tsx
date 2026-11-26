@@ -35,6 +35,7 @@ import {
 import { isBlendMode } from "@openreel/core";
 import type { AdjustmentLayer, BlendMode, Effect } from "@openreel/core";
 import { BlendModeSelectItems } from "./BlendModeSelectItems";
+import { useT } from "@openreel/i18n/react";
 interface AdjustmentLayerSectionProps {
   clipId: string;
 }
@@ -351,6 +352,7 @@ function AdjustmentControls({
   duration: number;
   disabled: boolean;
 }) {
+  const t = useT();
   const [expanded, setExpanded] = useState<string | null>(null);
   const local = layers.filter((layer) => layer.trackId === trackId),
     other = layers.filter((layer) => layer.trackId !== trackId);
@@ -376,10 +378,10 @@ function AdjustmentControls({
         <Layers size={16} aria-hidden className="text-primary" />
         <div>
           <span className="block text-[11px] font-bold text-fg">
-            Adjustment Layers
+            {t("Adjustment Layers")}
           </span>
           <span className="block text-[9px] text-fg-2">
-            Non-destructive effects on clips below
+            {t("Non-destructive effects on clips below")}
           </span>
         </div>
       </Card>
@@ -391,24 +393,24 @@ function AdjustmentControls({
         disabled={disabled || !trackId || lockedTracks.has(trackId)}
       >
         <Plus size={14} aria-hidden />
-        Add Adjustment Layer
+        {t("Add Adjustment Layer")}
       </Button>
       {local.length > 0 && (
         <div className="space-y-2">
           <span className="text-[12px] font-bold text-fg-2">
-            Track Layers ({local.length})
+            {t("Track Layers (")}{local.length})
           </span>
           <div className="space-y-1.5">{local.map(render)}</div>
         </div>
       )}
       {other.length > 0 && (
         <div className="space-y-2 border-t border-border pt-2">
-          <span className="text-[12px] font-bold text-fg-2">Other Layers</span>
+          <span className="text-[12px] font-bold text-fg-2">{t("Other Layers")}</span>
           <div className="space-y-1.5">{other.map(render)}</div>
         </div>
       )}
       <p className="border-t border-border pt-2 text-center text-[9px] text-fg-2">
-        Apply color, effects to all clips below
+        {t("Apply color, effects to all clips below")}
       </p>
     </div>
   );
@@ -431,6 +433,7 @@ const AdjustmentCard = memo(function AdjustmentCard({
   duration: number;
   disabled: boolean;
 }) {
+  const t = useT();
   const update = (changes: Partial<AdjustmentLayer>) =>
     editAdjustmentLayer(scope, layer.id, (current) => ({
       ...current,
@@ -493,7 +496,7 @@ const AdjustmentCard = memo(function AdjustmentCard({
             type="button"
             variant="ghost"
             size="icon-sm"
-            aria-label={layer.enabled ? "Hide layer" : "Show layer"}
+            aria-label={layer.enabled ? t("Hide layer") : t("Show layer")}
             aria-pressed={layer.enabled}
             disabled={disabled}
             onClick={() => update({ enabled: !layer.enabled })}
@@ -545,7 +548,7 @@ const AdjustmentCard = memo(function AdjustmentCard({
           <div className="space-y-1.5">
             <span className="flex items-center gap-1 text-[10px] text-fg-2">
               <Palette size={10} aria-hidden />
-              Blend Mode
+              {t("Blend Mode")}
             </span>
             <Select
               value={layer.blendMode}
@@ -556,7 +559,7 @@ const AdjustmentCard = memo(function AdjustmentCard({
               }}
             >
               <SelectTrigger
-                aria-label="Blend mode"
+                aria-label={t("Blend mode")}
                 className="h-7 w-full text-[11px]"
               >
                 <SelectValue />
@@ -569,7 +572,7 @@ const AdjustmentCard = memo(function AdjustmentCard({
           <div className="space-y-1.5">
             <span className="flex items-center gap-1 text-[10px] text-fg-2">
               <Droplet size={10} aria-hidden />
-              Effects ({layer.effects.length})
+              {t("Effects (")}{layer.effects.length})
             </span>
             <div className="space-y-1">
               {layer.effects.map((effect) => {
@@ -685,10 +688,10 @@ const AdjustmentCard = memo(function AdjustmentCard({
                     />
                     <span className="absolute inset-y-0 left-1/2 w-px bg-white/70" />
                     <span className="absolute bottom-0.5 left-1 text-[7px] font-bold uppercase text-white/75">
-                      Before
+                      {t("Before")}
                     </span>
                     <span className="absolute bottom-0.5 right-1 text-[7px] font-bold uppercase text-white/90">
-                      Effect
+                      {t("Effect")}
                     </span>
                   </span>
                   <span className="text-[9px] text-fg-2">+ {preset.name}</span>
@@ -709,7 +712,7 @@ const AdjustmentCard = memo(function AdjustmentCard({
               }}
             >
               <Copy size={10} aria-hidden />
-              Duplicate
+              {t("Duplicate")}
             </Button>
             <Button
               type="button"
@@ -723,7 +726,7 @@ const AdjustmentCard = memo(function AdjustmentCard({
               }}
             >
               <Trash2 size={10} aria-hidden />
-              Delete
+              {t("Delete")}
             </Button>
           </div>
         </CollapsibleContent>

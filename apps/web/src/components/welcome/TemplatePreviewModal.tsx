@@ -309,7 +309,7 @@ function TemplateCustomizationSession({
                           className="h-2 w-2 rounded-full"
                           style={{ backgroundColor: scene.color || "#22c55e" }}
                         />
-                        <span className="text-fg-2">{scene.label}</span>
+                        <span className="text-fg-2">{t(scene.label)}</span>
                         <span className="text-fg-3">
                           ({formatDuration(scene.endTime - scene.startTime)})
                         </span>

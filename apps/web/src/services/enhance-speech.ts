@@ -19,6 +19,7 @@ import { useProjectStore } from "../stores/project-store";
 import { decodeClipAudioBuffer } from "../utils/decode-clip-audio";
 import { toast } from "../stores/notification-store";
 import { essentialTarget } from "./essential-sound";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * Enhance Speech for dialogue clips. The edit is the clip's "enhanceSpeech" audio effect (Mix 0..100); adding or changing it
@@ -292,10 +293,10 @@ export const isPreviewingOriginal = (clip: Clip | undefined): boolean => findEnh
 export function runEnhanceSpeechCommand(clipIds: readonly string[]): Promise<void> {
   return applyEnhanceSpeech(clipIds)
     .then((outcome) => {
-      for (const skipped of outcome.skipped) toast.warning("Enhance Speech", skipped.reason);
-      if (outcome.applied.length > 0) toast.info("Enhance Speech", outcome.applied.length === 1 ? "Enhancing this clip on your device. Playback continues; the enhanced voice is swapped in when ready." : `Enhancing ${outcome.applied.length} clips on your device.`);
+      for (const skipped of outcome.skipped) toast.warning(translateNow("Enhance Speech"), skipped.reason);
+      if (outcome.applied.length > 0) toast.info(translateNow("Enhance Speech"), outcome.applied.length === 1 ? "Enhancing this clip on your device. Playback continues; the enhanced voice is swapped in when ready." : `Enhancing ${outcome.applied.length} clips on your device.`);
     })
     .catch((error: unknown) => {
-      toast.warning("Enhance Speech", error instanceof Error ? error.message : "Enhance Speech could not be applied.");
+      toast.warning(translateNow("Enhance Speech"), error instanceof Error ? error.message : "Enhance Speech could not be applied.");
     });
 }

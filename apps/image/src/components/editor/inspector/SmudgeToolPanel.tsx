@@ -1,7 +1,9 @@
 import { useUIStore } from '../../../stores/ui-store';
 import { Blend, RotateCcw } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 export function SmudgeToolPanel() {
+  const t = useT();
   const { smudgeSettings, setSmudgeSettings } = useUIStore();
 
   const resetSettings = () => {
@@ -18,25 +20,25 @@ export function SmudgeToolPanel() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Blend size={16} className="text-muted-foreground" />
-          <h3 className="text-sm font-medium">Smudge Tool</h3>
+          <h3 className="text-sm font-medium">{t("Smudge Tool")}</h3>
         </div>
         <button
           onClick={resetSettings}
           className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-secondary transition-colors"
-          title="Reset"
+          title={t("Reset")}
         >
           <RotateCcw size={14} />
         </button>
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Drag to smudge and blend colors together.
+        {t("Drag to smudge and blend colors together.")}
       </p>
 
       <div className="space-y-3">
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Size</span>
+            <span className="text-xs text-muted-foreground">{t("Size")}</span>
             <span className="text-xs font-mono text-muted-foreground">{smudgeSettings.size}px</span>
           </div>
           <input
@@ -56,7 +58,7 @@ export function SmudgeToolPanel() {
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Strength</span>
+            <span className="text-xs text-muted-foreground">{t("Strength")}</span>
             <span className="text-xs font-mono text-muted-foreground">{smudgeSettings.strength}%</span>
           </div>
           <input
@@ -82,7 +84,7 @@ export function SmudgeToolPanel() {
               onChange={(e) => setSmudgeSettings({ fingerPainting: e.target.checked })}
               className="w-3.5 h-3.5 rounded border-border"
             />
-            Finger Painting
+            {t("Finger Painting")}
           </label>
           <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
             <input
@@ -91,7 +93,7 @@ export function SmudgeToolPanel() {
               onChange={(e) => setSmudgeSettings({ sampleAllLayers: e.target.checked })}
               className="w-3.5 h-3.5 rounded border-border"
             />
-            Sample All Layers
+            {t("Sample All Layers")}
           </label>
         </div>
       </div>

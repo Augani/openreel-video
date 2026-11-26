@@ -24,6 +24,8 @@ import { toast } from "../../../stores/notification-store";
 import { createNoiseReductionEffect } from "../../../bridges/audio-bridge";
 import { normalizeClipLoudness, NormalizeLockedTrackError } from "../../../services/loudness";
 import { setQuickAudioDucking } from "../../../services/quick-audio-ducking";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 const presets: Record<string, EQBand[]> = {
   flat: [
     { type: "lowshelf", frequency: 100, gain: 0, q: 0.7 },
@@ -42,6 +44,7 @@ const presets: Record<string, EQBand[]> = {
   ],
 };
 function EQCurve({ bands, onEdit }: { bands: EQBand[]; onEdit: () => void }) {
+  const t = useT();
   const ref = useRef<HTMLCanvasElement>(null);
   const analyzer = useRef<BiquadFilterNode | null>(null);
   useEffect(() => {
@@ -116,14 +119,14 @@ function EQCurve({ bands, onEdit }: { bands: EQBand[]; onEdit: () => void }) {
       <Button
         variant="ghost"
         className="workspace-eq-plot"
-        aria-label="Edit equalizer bands & effects"
+        aria-label={t("Edit equalizer bands & effects")}
         onClick={onEdit}
       >
         <canvas
           ref={ref}
           width={580}
           height={140}
-          aria-label="Equalizer frequency response"
+          aria-label={t("Equalizer frequency response")}
         />
       </Button>
       <div aria-hidden="true">
@@ -135,6 +138,7 @@ function EQCurve({ bands, onEdit }: { bands: EQBand[]; onEdit: () => void }) {
   );
 }
 export function PrimaryAudioProperties({ clipId }: { clipId: string }) {
+  const t = useT();
   const playhead = useTimelineStore((state) => state.playheadPosition);
   const project = useProjectStore((s) => s.project);
   const clip = project.timeline.tracks
@@ -229,7 +233,7 @@ export function PrimaryAudioProperties({ clipId }: { clipId: string }) {
       })
       .catch((error) => {
         toast.error(
-          "Audio adjustment failed",
+          translateNow("Audio adjustment failed"),
           error instanceof Error ? error.message : "Try again.",
         );
       })
@@ -272,7 +276,7 @@ export function PrimaryAudioProperties({ clipId }: { clipId: string }) {
         }
       })
       .catch(() => {
-        toast.error("Audio adjustment failed", "Try the adjustment again.");
+        toast.error(translateNow("Audio adjustment failed"), "Try the adjustment again.");
       });
   };
   const localTime = Math.max(
@@ -353,10 +357,10 @@ export function PrimaryAudioProperties({ clipId }: { clipId: string }) {
       <div className="workspace-primary-properties">
         {rows.map((row) => (
           <div className="workspace-audio-property" key={row.label}>
-            <span>{row.label}</span>
+            <span>{t(row.label)}</span>
             <InspectorSlider
               historyKey={`${clipId}:${row.label}`}
-              aria-label={row.label}
+              aria-label={t(row.label)}
               value={[row.value]}
               min={row.min}
               max={row.max}
@@ -407,7 +411,7 @@ export function PrimaryAudioProperties({ clipId }: { clipId: string }) {
                 className="workspace-keyframe"
                 disabled
                 aria-label={`${row.label} keyframes unavailable`}
-                title="Only volume automation is currently supported."
+                title={t("Only volume automation is currently supported.")}
               >
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true"><path d="M12 2l10 10-10 10L2 12z" /></svg>
               </Button>
@@ -418,7 +422,7 @@ export function PrimaryAudioProperties({ clipId }: { clipId: string }) {
       <div className="workspace-audio-separator" role="separator" />
       <section>
         <div className="workspace-eq-heading">
-          <h3>Equalizer</h3>
+          <h3>{t("Equalizer")}</h3>
           <Select
             value={
               eq?.enabled === false ? "bypassed" : Object.entries(presets).find(
@@ -429,16 +433,16 @@ export function PrimaryAudioProperties({ clipId }: { clipId: string }) {
               if (presets[value]) effect("eq", { bands: presets[value] });
             }}
           >
-            <SelectTrigger aria-label="Equalizer preset" icon={<span aria-hidden="true">▾</span>}>
+            <SelectTrigger aria-label={t("Equalizer preset")} icon={<span aria-hidden="true">▾</span>}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="flat">Flat</SelectItem>
-              {eq?.enabled === false && <SelectItem value="bypassed" disabled>Bypassed</SelectItem>}
-              <SelectItem value="music">Music bed · duck mids</SelectItem>
-              <SelectItem value="voice">Voice clarity</SelectItem>
+              <SelectItem value="flat">{t("Flat")}</SelectItem>
+              {eq?.enabled === false && <SelectItem value="bypassed" disabled>{t("Bypassed")}</SelectItem>}
+              <SelectItem value="music">{t("Music bed · duck mids")}</SelectItem>
+              <SelectItem value="voice">{t("Voice clarity")}</SelectItem>
               <SelectItem value="custom" disabled>
-                Custom
+                {t("Custom")}
               </SelectItem>
             </SelectContent>
           </Select>
@@ -454,21 +458,21 @@ export function PrimaryAudioProperties({ clipId }: { clipId: string }) {
       </section>
       <div className="workspace-audio-separator" role="separator" />
       <section>
-        <h3>Enhance</h3>
+        <h3>{t("Enhance")}</h3>
         <div className="workspace-enhancement-row">
           <Button
             variant="ghost"
             onClick={() => openEnhancement("audio-ducking")}
           >
-            Auto-duck under dialogue
+            {t("Auto-duck under dialogue")}
           </Button>
           <span>
             {ducking?.enabled
               ? `${Math.round(20 * Math.log10(Math.max(0.001, 1 - (ducking.reduction ?? 0.6))))} dB`
-              : "off"}
+              : t("off")}
           </span>
           <Switch
-            aria-label="Auto-duck under dialogue"
+            aria-label={t("Auto-duck under dialogue")}
             checked={ducking?.enabled === true}
             disabled={enhancing !== null}
             onCheckedChange={async (enabled) => {
@@ -477,7 +481,7 @@ export function PrimaryAudioProperties({ clipId }: { clipId: string }) {
                 await setQuickAudioDucking(clipId, enabled);
               } catch (error) {
                 toast.error(
-                  "Ducking could not be applied",
+                  translateNow("Ducking could not be applied"),
                   error instanceof Error ? error.message : "Try again.",
                 );
               } finally {
@@ -488,38 +492,38 @@ export function PrimaryAudioProperties({ clipId }: { clipId: string }) {
         </div>
         <div
           className="workspace-enhancement-row workspace-loudness-row"
-          title="Measures this clip's integrated loudness (ITU-R BS.1770-4) and sets its clip gain to land on the target. One undo step."
+          title={t("Measures this clip's integrated loudness (ITU-R BS.1770-4) and sets its clip gain to land on the target. One undo step.")}
         >
           <Button
             variant="ghost"
-            aria-label="Normalize loudness"
+            aria-label={t("Normalize loudness")}
             disabled={enhancing !== null}
             onClick={() => void runNormalize()}
           >
-            Normalize loudness
+            {t("Normalize loudness")}
           </Button>
           {/* The target picker already shows the target; only surface results. */}
           {normalizeStatus ? (
             <span data-testid="normalize-loudness-status" title={normalizeStatus}>{normalizeStatus}</span>
           ) : null}
           <Select value={loudnessTarget} onValueChange={setLoudnessTarget}>
-            <SelectTrigger aria-label="Loudness target" icon={<span aria-hidden="true">▾</span>}>
+            <SelectTrigger aria-label={t("Loudness target")} icon={<span aria-hidden="true">▾</span>}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="-14">−14 LUFS · streaming</SelectItem>
-              <SelectItem value="-16">−16 LUFS · podcast</SelectItem>
-              <SelectItem value="-23">−23 LUFS · broadcast</SelectItem>
-              <SelectItem value="custom">Custom…</SelectItem>
+              <SelectItem value="-14">{t("−14 LUFS · streaming")}</SelectItem>
+              <SelectItem value="-16">{t("−16 LUFS · podcast")}</SelectItem>
+              <SelectItem value="-23">{t("−23 LUFS · broadcast")}</SelectItem>
+              <SelectItem value="custom">{t("Custom…")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         {loudnessTarget === "custom" ? (
           <div className="workspace-audio-property">
-            <span>Target</span>
+            <span>{t("Target")}</span>
             <InspectorSlider
               historyKey={`${clipId}:loudness-target`}
-              aria-label="Custom loudness target"
+              aria-label={t("Custom loudness target")}
               value={[customLufs]}
               min={-40}
               max={-5}
@@ -544,11 +548,11 @@ export function PrimaryAudioProperties({ clipId }: { clipId: string }) {
             variant="ghost"
             onClick={() => openEnhancement("background-noise-removal")}
           >
-            Noise reduction
+            {t("Noise reduction")}
           </Button>
-          <span>{noise?.enabled ? "on" : "off"}</span>
+          <span>{noise?.enabled ? t("on") : t("off")}</span>
           <Switch
-            aria-label="Noise reduction"
+            aria-label={t("Noise reduction")}
             checked={noise?.enabled === true}
             disabled={enhancing !== null}
             onCheckedChange={(enabled) => toggleEnhancement("noise", enabled)}

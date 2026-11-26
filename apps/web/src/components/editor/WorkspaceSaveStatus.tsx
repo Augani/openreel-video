@@ -4,8 +4,10 @@ import { EditorHeaderIcon } from "./EditorHeaderIcon";
 import { autoSaveManager } from "../../services/auto-save";
 import { useProjectStore } from "../../stores/project-store";
 import { useSettingsStore } from "../../stores/settings-store";
+import { useT } from "@openreel/i18n/react";
 
 export function WorkspaceSaveStatus() {
+  const t = useT();
   const enabled = useSettingsStore((s) => s.autoSave);
   const [status, setStatus] = useState<"saved" | "pending" | "error">(() =>
     autoSaveManager.hasUnsavedChanges(
@@ -42,8 +44,8 @@ export function WorkspaceSaveStatus() {
       className="workspace-project-meta workspace-saved"
       title={
         enabled
-          ? "Projects are saved locally on this device"
-          : "Auto-save is off"
+          ? t("Projects are saved locally on this device")
+          : t("Auto-save is off")
       }
     >
       {status === "error" ? (

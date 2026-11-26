@@ -17,6 +17,7 @@ import { projectManager } from "./project-manager";
 import { saveCurrentProjectForReplacement } from "./project-replacement";
 import { commitSequenceEdit } from "./sequence-commands";
 import { createVersion, getVersion, removeVersion } from "./project-versions";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * Version commands: name a snapshot, restore one (as an undoable replace or as
@@ -47,7 +48,7 @@ function blockedReason(): string | null {
 export async function saveNamedVersion(name: string): Promise<ProjectVersionMeta | null> {
   const blocked = blockedReason();
   if (blocked) {
-    toast.warning("Save version", blocked);
+    toast.warning(translateNow("Save version"), blocked);
     return null;
   }
   try {
@@ -55,10 +56,10 @@ export async function saveNamedVersion(name: string): Promise<ProjectVersionMeta
     const data = serializeProjectForAutoSave(project);
     const meta = await createVersion(project, { kind: "manual", name: name.trim() || defaultVersionName(), data });
     noteVersionBaseline(project.id, data);
-    toast.success("Version saved", versionLabel(meta));
+    toast.success(translateNow("Version saved"), versionLabel(meta));
     return meta;
   } catch (error) {
-    toast.error("Could not save the version", error instanceof Error ? error.message : "Please try again.");
+    toast.error(translateNow("Could not save the version"), error instanceof Error ? error.message : "Please try again.");
     return null;
   }
 }
@@ -70,7 +71,7 @@ async function loadSnapshot(versionId: string): Promise<{ version: Project; labe
   const projectId = useProjectStore.getState().project.id;
   const record = await getVersion(projectId, versionId);
   if (!record) {
-    toast.warning("Version not found", "It may have been deleted.");
+    toast.warning(translateNow("Version not found"), "It may have been deleted.");
     return null;
   }
   const parsed = await projectManager.parseProjectContent(record.data);
@@ -85,7 +86,7 @@ async function loadSnapshot(versionId: string): Promise<{ version: Project; labe
 export async function restoreVersion(versionId: string): Promise<boolean> {
   const blocked = blockedReason();
   if (blocked) {
-    toast.warning("Restore version", blocked);
+    toast.warning(translateNow("Restore version"), blocked);
     return false;
   }
   try {
@@ -99,13 +100,13 @@ export async function restoreVersion(versionId: string): Promise<boolean> {
       return { ok: true, project: { ...merged, id: project.id, createdAt: project.createdAt } };
     });
     if (!result.ok) {
-      toast.warning("Could not restore the version", result.message);
+      toast.warning(translateNow("Could not restore the version"), result.message);
       return false;
     }
-    toast.success("Version restored", `${loaded.label}. Use Undo to go back.`);
+    toast.success(translateNow("Version restored"), `${loaded.label}. Use Undo to go back.`);
     return true;
   } catch (error) {
-    toast.error("Could not restore the version", error instanceof Error ? error.message : "Please try again.");
+    toast.error(translateNow("Could not restore the version"), error instanceof Error ? error.message : "Please try again.");
     return false;
   }
 }
@@ -114,7 +115,7 @@ export async function restoreVersion(versionId: string): Promise<boolean> {
 export async function restoreVersionAsCopy(versionId: string): Promise<boolean> {
   const blocked = blockedReason();
   if (blocked) {
-    toast.warning("Restore as copy", blocked);
+    toast.warning(translateNow("Restore as copy"), blocked);
     return false;
   }
   try {
@@ -137,10 +138,10 @@ export async function restoreVersionAsCopy(versionId: string): Promise<boolean> 
     timeline.seekToStart();
     timeline.clearLoopRange();
     useUIStore.getState().clearSelection();
-    toast.success("Opened as a copy", copy.name);
+    toast.success(translateNow("Opened as a copy"), copy.name);
     return true;
   } catch (error) {
-    toast.error("Could not open the copy", error instanceof Error ? error.message : "Please try again.");
+    toast.error(translateNow("Could not open the copy"), error instanceof Error ? error.message : "Please try again.");
     return false;
   }
 }
@@ -149,7 +150,7 @@ export async function deleteVersion(versionId: string): Promise<void> {
   try {
     await removeVersion(versionId);
   } catch (error) {
-    toast.error("Could not delete the version", error instanceof Error ? error.message : "Please try again.");
+    toast.error(translateNow("Could not delete the version"), error instanceof Error ? error.message : "Please try again.");
   }
 }
 

@@ -4,6 +4,7 @@ import { isValidElement, useState } from "react";
 import ReactMarkdown, { defaultUrlTransform, type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Check, Copy } from "@/icons/lucide-compat";
+import { useT } from "@openreel/i18n/react";
 
 function nodeText(node: ReactNode): string {
   if (typeof node === "string" || typeof node === "number") return String(node);
@@ -13,6 +14,7 @@ function nodeText(node: ReactNode): string {
 }
 
 function CodeBlock({ children }: ComponentPropsWithoutRef<"pre">): JSX.Element {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const code = nodeText(children).replace(/\n$/, "");
 
@@ -36,7 +38,7 @@ function CodeBlock({ children }: ComponentPropsWithoutRef<"pre">): JSX.Element {
       <ShadcnButton variant="ghost" size="sm"
         type="button"
         onClick={() => void copy()}
-        aria-label={copied ? "Copied code" : "Copy code"}
+        aria-label={copied ? t("Copied code") : t("Copy code")}
         className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-md border p-0 [&_svg]:size-[11px] border-border bg-bg-1/90 text-fg-muted opacity-0 shadow-sm transition hover:text-fg focus:opacity-100 group-hover/code:opacity-100"
       >
         {copied ? <Check size={11} /> : <Copy size={11} />}

@@ -38,6 +38,7 @@ import type {
   TemplateReplacements,
   PlaceholderReplacement,
 } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 
 const DEFAULT_MEDIA_TYPES: NonNullable<
   NonNullable<TemplatePlaceholder["constraints"]>["mediaTypes"]
@@ -57,6 +58,7 @@ const PlaceholderField = memo(function PlaceholderField({
   onChange,
   onClear,
 }: FieldProps) {
+  const t = useT();
   const id = useId();
   const text = value?.value ?? placeholder.defaultValue ?? "";
   const modified =
@@ -93,7 +95,7 @@ const PlaceholderField = memo(function PlaceholderField({
             size="icon-sm"
             type="button"
             aria-label={`Reset ${placeholder.label}`}
-            title="Reset to default"
+            title={t("Reset to default")}
             disabled={disabled}
             onClick={() => onClear(placeholder.id)}
             className="h-7 w-7 shrink-0 text-fg-3"
@@ -130,14 +132,14 @@ const PlaceholderField = memo(function PlaceholderField({
                 value: event.target.value,
               })
             }
-            placeholder={placeholder.defaultValue ?? "Enter text..."}
+            placeholder={placeholder.defaultValue ?? t("Enter text...")}
             aria-describedby={
               placeholder.description ? `${id}-description` : undefined
             }
             className="min-h-[5.75rem] w-full resize-none rounded-lg border-border bg-bg-2 px-2 py-1.5 text-[11px] text-fg focus:border-primary"
           />
           <p className="text-[9px] text-fg-3">
-            {text.length} / {maxLength} characters
+            {text.length} / {maxLength} {t("characters")}
           </p>
         </>
       ) : (
@@ -153,7 +155,7 @@ const PlaceholderField = memo(function PlaceholderField({
               value: event.target.value,
             })
           }
-          placeholder={placeholder.defaultValue ?? "Enter subtitle text..."}
+          placeholder={placeholder.defaultValue ?? t("Enter subtitle text...")}
           aria-describedby={
             placeholder.description ? `${id}-description` : undefined
           }
@@ -171,6 +173,7 @@ function MediaField({
   onChange,
   labelId,
 }: Omit<FieldProps, "onClear"> & { labelId: string }) {
+  const t = useT();
   const items = useProjectStore((state) => state.project.mediaLibrary.items);
   const allowed = placeholder.constraints?.mediaTypes ?? DEFAULT_MEDIA_TYPES;
   const available = useMemo(
@@ -189,8 +192,8 @@ function MediaField({
     return (
       <div className="rounded-lg border border-dashed border-border p-4 text-center">
         <Upload size={16} className="mx-auto mb-2 text-fg-3" aria-hidden />
-        <p className="text-[10px] text-fg-2">No media available</p>
-        <p className="mt-1 text-[9px] text-fg-2">Import media to use here</p>
+        <p className="text-[10px] text-fg-2">{t("No media available")}</p>
+        <p className="mt-1 text-[9px] text-fg-2">{t("Import media to use here")}</p>
       </div>
     );
   return (
@@ -259,7 +262,7 @@ function MediaField({
           </Button>
           <span>
             {activePage * pageSize + 1}–
-            {Math.min(available.length, (activePage + 1) * pageSize)} of{" "}
+            {Math.min(available.length, (activePage + 1) * pageSize)} {t("of")}{" "}
             {available.length}
           </span>
           <Button
@@ -293,6 +296,7 @@ export function TemplateVariablesPanel({
   onApply,
   isApplying = false,
 }: TemplateVariablesPanelProps) {
+  const t = useT();
   const valuesRef = useRef(values);
   valuesRef.current = values;
   const [page, setPage] = useState(0);
@@ -327,7 +331,7 @@ export function TemplateVariablesPanel({
           aria-hidden
         />
         <p className="text-[10px] text-fg-2">
-          Select a template to edit variables
+          {t("Select a template to edit variables")}
         </p>
       </div>
     );
@@ -348,7 +352,7 @@ export function TemplateVariablesPanel({
         <div className="flex items-center gap-2">
           <Settings2 size={14} className="text-primary" aria-hidden />
           <span className="text-[11px] font-medium text-fg">
-            Template Variables
+            {t("Template Variables")}
           </span>
           <span className="rounded bg-bg-2 px-1.5 py-0.5 text-[9px] text-fg-3">
             {placeholders.length}
@@ -366,13 +370,13 @@ export function TemplateVariablesPanel({
             className="h-8 gap-1 px-3 text-[10px] text-fg-3"
           >
             <RotateCcw size={10} aria-hidden />
-            Reset All
+            {t("Reset All")}
           </Button>
         )}
       </div>
       {!placeholders.length ? (
         <p className="py-6 text-center text-[10px] text-fg-2">
-          This template has no editable variables
+          {t("This template has no editable variables")}
         </p>
       ) : (
         placeholders
@@ -396,7 +400,7 @@ export function TemplateVariablesPanel({
             disabled={isApplying || activePage === 0}
             onClick={() => setPage(activePage - 1)}
           >
-            Previous fields
+            {t("Previous fields")}
           </Button>
           <span>
             {activePage + 1} / {pages}
@@ -407,7 +411,7 @@ export function TemplateVariablesPanel({
             disabled={isApplying || activePage + 1 >= pages}
             onClick={() => setPage(activePage + 1)}
           >
-            Next fields
+            {t("Next fields")}
           </Button>
         </div>
       )}
@@ -416,7 +420,7 @@ export function TemplateVariablesPanel({
           role="status"
           className="rounded-lg border-amber-500/30 bg-amber-500/10 p-2 text-[10px] text-amber-400 shadow-none"
         >
-          Fill in required fields:{" "}
+          {t("Fill in required fields:")}{" "}
           {missing.map((item) => item.label).join(", ")}
         </Card>
       )}
@@ -430,7 +434,7 @@ export function TemplateVariablesPanel({
           {isApplying && (
             <Loader2 size={14} className="animate-spin" aria-hidden />
           )}
-          Apply Template
+          {t("Apply Template")}
         </Button>
       )}
     </div>

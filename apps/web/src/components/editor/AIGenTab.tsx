@@ -20,6 +20,8 @@ import { FilterPresetsPanel } from "./inspector/FilterPresetsPanel";
 import { TemplatesBrowserPanel } from "./inspector/TemplatesBrowserPanel";
 import { useTtsAudioStore } from "../../stores/tts-store";
 import { toast } from "../../stores/notification-store";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const MusicLibraryPanel = lazy(() => import("./inspector/MusicLibraryPanel").then((module) => ({ default: module.MusicLibraryPanel })));
 
@@ -103,12 +105,13 @@ const FeatureSection: React.FC<FeatureSectionProps> = ({ title, icon: Icon, chil
 );
 
 export const AIGenTab: React.FC = () => {
+  const t = useT();
   const [activeFeature, setActiveFeature] = useState<FeatureId>(null);
   const ttsHasUnsaved = useTtsAudioStore((s) => s.generatedAudio !== null && !s.isAudioSaved);
 
   const navigateAway = useCallback((next: FeatureId) => {
     if (activeFeature === "tts" && next !== "tts" && ttsHasUnsaved) {
-      toast.warning("Unsaved audio discarded", "Save to media or download next time to keep it.");
+      toast.warning(translateNow("Unsaved audio discarded"), "Save to media or download next time to keep it.");
     }
     setActiveFeature(next);
   }, [activeFeature, ttsHasUnsaved]);
@@ -147,9 +150,9 @@ export const AIGenTab: React.FC = () => {
   if (activeFeature) {
     return (
       <div className="flex-1 flex flex-col overflow-y-auto w-full min-w-0">
-        <Button onClick={() => navigateAway(null)} type="button" aria-label="Back to AI Tools" className="inline-flex min-w-0 items-center gap-1.5 font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] text-fg-2 hover:bg-bg-2 hover:text-fg justify-start rounded-none border-b border-border bg-background-secondary shrink-0">
+        <Button onClick={() => navigateAway(null)} type="button" aria-label={t("Back to AI Tools")} className="inline-flex min-w-0 items-center gap-1.5 font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] text-fg-2 hover:bg-bg-2 hover:text-fg justify-start rounded-none border-b border-border bg-background-secondary shrink-0">
           <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<ChevronRight size={14} className="rotate-180" aria-hidden />}</span>
-          <span className="truncate">{"Back to AI Tools"}</span>
+          <span className="truncate">{t("Back to AI Tools")}</span>
         </Button>
         <div className="flex-1 w-full overflow-y-auto">
           <div className="p-4 w-full min-w-0 overflow-hidden">{renderActivePanel()}</div>
@@ -166,17 +169,17 @@ export const AIGenTab: React.FC = () => {
             <Wand2 size={24} className="text-primary" aria-hidden />
           </div>
           <h2 className="text-[12px] leading-4 text-fg-2 font-bold block">
-            AI-Powered Tools
+            {t("AI-Powered Tools")}
           </h2>
           <span className="text-fg-2 font-normal block mt-1 text-[11px]">
-            Automate your editing with intelligent features
+            {t("Automate your editing with intelligent features")}
           </span>
         </div>
 
-        <FeatureSection title="Content Generation" icon={Wand2}>
+        <FeatureSection title={t("Content Generation")} icon={Wand2}>
           <FeatureCard
             icon={Mic}
-            title="Text to Speech"
+            title={t("Text to Speech")}
             description="Generate natural voiceovers from text"
             iconColor="text-blue-400"
             iconBg="bg-blue-500/20"
@@ -188,7 +191,7 @@ export const AIGenTab: React.FC = () => {
           />
           <FeatureCard
             icon={Subtitles}
-            title="Auto Captions"
+            title={t("Auto Captions")}
             description="Automatically generate subtitles from audio"
             iconColor="text-primary"
             iconBg="bg-primary/20"
@@ -200,10 +203,10 @@ export const AIGenTab: React.FC = () => {
           />
         </FeatureSection>
 
-        <FeatureSection title="Templates & Presets" icon={FileStack}>
+        <FeatureSection title={t("Templates & Presets")} icon={FileStack}>
           <FeatureCard
             icon={Layers}
-            title="Project Templates"
+            title={t("Project Templates")}
             description="Start with pre-built project structures"
             iconColor="text-green-400"
             iconBg="bg-green-500/20"
@@ -215,7 +218,7 @@ export const AIGenTab: React.FC = () => {
           />
           <FeatureCard
             icon={Palette}
-            title="Filter Presets"
+            title={t("Filter Presets")}
             description="Apply cinematic color grades instantly"
             iconColor="text-orange-400"
             iconBg="bg-orange-500/20"
@@ -227,10 +230,10 @@ export const AIGenTab: React.FC = () => {
           />
         </FeatureSection>
 
-        <FeatureSection title="Media Library" icon={Volume2}>
+        <FeatureSection title={t("Media Library")} icon={Volume2}>
           <FeatureCard
             icon={Music}
-            title="Music & Sound Effects"
+            title={t("Music & Sound Effects")}
             description="Browse royalty-free audio for your projects"
             iconColor="text-teal-400"
             iconBg="bg-teal-500/20"
@@ -242,10 +245,10 @@ export const AIGenTab: React.FC = () => {
           />
         </FeatureSection>
 
-        <FeatureSection title="Tools" icon={Video}>
+        <FeatureSection title={t("Tools")} icon={Video}>
           <FeatureCard
             icon={Video}
-            title="Multi-Camera Editing"
+            title={t("Multi-Camera Editing")}
             description="Sync and switch between multiple angles"
             iconColor="text-cyan-400"
             iconBg="bg-cyan-500/20"

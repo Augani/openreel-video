@@ -5,6 +5,7 @@ import { cn } from "@openreel/ui";
 import { PropertySlider } from "./shell/PropertySlider";
 import { RotateCcw } from "@/icons/lucide-compat";
 import type { HSLValues } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 
 const COLOR_RANGES = [
   { key: "reds", label: "R", fullLabel: "Reds", color: "#ef4444", index: 0 },
@@ -115,6 +116,7 @@ export const HSLControls: React.FC<HSLControlsProps> = ({
   onChange,
   onReset,
 }) => {
+  const t = useT();
   const [activeColorIndex, setActiveColorIndex] = useState(0);
 
   // Get current color info
@@ -184,9 +186,9 @@ export const HSLControls: React.FC<HSLControlsProps> = ({
       {/* Reset All Button */}
       {onReset && (
         <div className="flex justify-end">
-          <Button onClick={onReset} type="button" aria-label="Reset All" className="min-w-0 justify-center rounded-[7px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 bg-transparent hover:bg-bg-2 flex items-center gap-1 px-2 py-1 text-[10px] text-fg-3 hover:text-fg transition-colors">
+          <Button onClick={onReset} type="button" aria-label={t("Reset All")} className="min-w-0 justify-center rounded-[7px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 bg-transparent hover:bg-bg-2 flex items-center gap-1 px-2 py-1 text-[10px] text-fg-3 hover:text-fg transition-colors">
             <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<RotateCcw size={10} />}</span>
-            <span className="truncate">{"Reset All"}</span>
+            <span className="truncate">{t("Reset All")}</span>
           </Button>
         </div>
       )}
@@ -215,8 +217,8 @@ export const HSLControls: React.FC<HSLControlsProps> = ({
           </span>
         </div>
         {hasAdjustments && (
-          <Button onClick={handleResetColor} type="button" aria-label="Reset" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 bg-transparent hover:bg-bg-2 text-[9px] text-fg-3 hover:text-fg-2 transition-colors">
-            <span className="truncate">{"Reset"}</span>
+          <Button onClick={handleResetColor} type="button" aria-label={t("Reset")} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 bg-transparent hover:bg-bg-2 text-[9px] text-fg-3 hover:text-fg-2 transition-colors">
+            <span className="truncate">{t("Reset")}</span>
           </Button>
         )}
       </div>

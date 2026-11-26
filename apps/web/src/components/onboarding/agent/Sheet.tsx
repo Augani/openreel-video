@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { X } from "@/icons/lucide-compat";
 import type { OnboardingSheetProps } from "../types";
 import { AgentConnectCard } from "./AgentConnectCard";
+import { useT } from "@openreel/i18n/react";
 
 const HEADING_ID = "agent-connect-heading";
 const FOCUSABLE =
@@ -15,6 +16,7 @@ function focusableIn(root: HTMLElement): HTMLElement[] {
 
 /** G1 sheet: full-screen modal. Esc or the close button dismisses; Tab stays inside; focus returns to the opener. */
 export default function Sheet({ onClose }: OnboardingSheetProps): React.ReactElement {
+  const t = useT();
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
 
@@ -63,7 +65,7 @@ export default function Sheet({ onClose }: OnboardingSheetProps): React.ReactEle
         ref={closeRef}
         type="button"
         onClick={onClose}
-        aria-label="Close"
+        aria-label={t("Close")}
         className="absolute right-4 top-14 inline-flex h-8 w-8 items-center justify-center rounded-md text-fg-2 outline-none transition-colors hover:bg-bg-2 hover:text-fg focus-visible:ring-2 focus-visible:ring-ring"
       >
         <X size={16} aria-hidden />

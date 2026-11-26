@@ -313,7 +313,7 @@ export function ContextMenu({
             className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-foreground hover:bg-accent rounded-sm transition-colors"
           >
             {item.icon && <span className="text-muted-foreground">{item.icon}</span>}
-            <span className="flex-1 text-left">{item.label}</span>
+            <span className="flex-1 text-left">{t(item.label)}</span>
             <ChevronUp size={12} className="text-muted-foreground rotate-90" />
           </button>
           <div className="absolute left-full top-0 ml-1 hidden group-hover/submenu:block">
@@ -342,7 +342,7 @@ export function ContextMenu({
         }`}
       >
         {item.icon && <span className={item.disabled ? 'text-muted-foreground/50' : 'text-muted-foreground'}>{item.icon}</span>}
-        <span className="flex-1 text-left">{item.label}</span>
+        <span className="flex-1 text-left">{t(item.label)}</span>
         {item.shortcut && (
           <span className="text-[10px] text-muted-foreground font-mono">{item.shortcut}</span>
         )}

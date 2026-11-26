@@ -3,6 +3,7 @@ import { Icon, type IconName } from "../../icons";
 import { TRAVEL_TEMPLATE, type SlotKind } from "../../data";
 import { Button } from "../Button";
 import { cn } from "../../lib/cn";
+import { useT } from "@openreel/i18n/react";
 
 const SLOT_ICON: Record<SlotKind, IconName> = {
   video: "video",
@@ -39,6 +40,7 @@ function TimelineRuler({ duration }: { duration: number }) {
 }
 
 export function TemplateAuthor() {
+  const t = useT();
   const tpl = TRAVEL_TEMPLATE;
   const [selectedSlot, setSelectedSlot] = useState("clip1");
   const selected = tpl.slots.find((s) => s.id === selectedSlot);
@@ -49,13 +51,13 @@ export function TemplateAuthor() {
         <div>
           <div className="text-sm font-semibold">{tpl.meta.title}</div>
           <div className="whitespace-nowrap font-mono text-[11px] text-text-tertiary">
-            template · {tpl.meta.aspect} · {(tpl.meta.duration_ms / 1000).toFixed(1)}s · {tpl.meta.fps}fps · 5 slots
+            {t("template ·")} {tpl.meta.aspect} · {(tpl.meta.duration_ms / 1000).toFixed(1)}s · {tpl.meta.fps}{t("fps · 5 slots")}
           </div>
         </div>
         <div className="flex gap-1.5">
-          <Button variant="ghost" size="sm"><Icon name="eye" size={11} /> Test fill</Button>
-          <Button variant="ghost" size="sm"><Icon name="file" size={11} /> Inspect EDL</Button>
-          <Button size="sm"><Icon name="plus" size={11} /> Add slot</Button>
+          <Button variant="ghost" size="sm"><Icon name="eye" size={11} /> {t("Test fill")}</Button>
+          <Button variant="ghost" size="sm"><Icon name="file" size={11} /> {t("Inspect EDL")}</Button>
+          <Button size="sm"><Icon name="plus" size={11} /> {t("Add slot")}</Button>
         </div>
       </header>
 
@@ -119,8 +121,8 @@ export function TemplateAuthor() {
             <div className="flex items-center gap-1.5 p-1 text-[11px] text-text-secondary">
               <span className="text-text-tertiary"><Icon name="sparkle" size={12} /></span>
               <div>
-                <div className="font-mono text-[10px]">fx refs</div>
-                <div className="text-[9px] uppercase tracking-[0.06em] text-text-tertiary">baked</div>
+                <div className="font-mono text-[10px]">{t("fx refs")}</div>
+                <div className="text-[9px] uppercase tracking-[0.06em] text-text-tertiary">{t("baked")}</div>
               </div>
             </div>
             <div className="relative flex h-12 gap-1 overflow-hidden rounded border border-dashed border-border-subtle p-1">
@@ -153,16 +155,16 @@ export function TemplateAuthor() {
               <div className="absolute bottom-1 left-1 font-mono text-[8px] text-white">LAGOS · 2026</div>
             </div>
             <div>
-              <div className="mb-0.5 text-xs font-semibold">Compiled preview · 9:16 · 15.0s</div>
-              <div className="font-mono text-[10px] text-text-tertiary">Filled with sample media. fx refs resolved against creator/augani.</div>
+              <div className="mb-0.5 text-xs font-semibold">{t("Compiled preview · 9:16 · 15.0s")}</div>
+              <div className="font-mono text-[10px] text-text-tertiary">{t("Filled with sample media. fx refs resolved against creator/augani.")}</div>
             </div>
-            <Button size="sm"><Icon name="play" size={11} /> Play test fill</Button>
+            <Button size="sm"><Icon name="play" size={11} /> {t("Play test fill")}</Button>
           </div>
         </section>
 
         <aside className="flex flex-col gap-3.5 overflow-y-auto border-l border-border-subtle bg-panel p-4">
           <div>
-            <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">Slots · {tpl.slots.length}</div>
+            <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">{t("Slots ·")} {tpl.slots.length}</div>
             <div className="flex flex-col gap-1.5">
               {tpl.slots.map((s) => (
                 <div
@@ -176,16 +178,16 @@ export function TemplateAuthor() {
                     <span className="flex-1 text-xs font-semibold text-text-primary">{s.id}</span>
                     <Icon name={SLOT_ICON[s.kind]} size={11} />
                   </div>
-                  <div className="text-[11px] text-text-secondary">{s.label}</div>
+                  <div className="text-[11px] text-text-secondary">{t(s.label)}</div>
                   <div className="flex gap-3 whitespace-nowrap font-mono text-[10px] text-text-tertiary">
                     {s.kind === "video" && (
                       <>
-                        <span><b className="font-normal text-text-secondary">min</b> {((s.min ?? 0) / 1000).toFixed(1)}s</span>
-                        <span><b className="font-normal text-text-secondary">max</b> {((s.max ?? 0) / 1000).toFixed(1)}s</span>
+                        <span><b className="font-normal text-text-secondary">{t("min")}</b> {((s.min ?? 0) / 1000).toFixed(1)}s</span>
+                        <span><b className="font-normal text-text-secondary">{t("max")}</b> {((s.max ?? 0) / 1000).toFixed(1)}s</span>
                       </>
                     )}
-                    {s.kind === "text" && <span><b className="font-normal text-text-secondary">max</b> {s.max_chars} chars</span>}
-                    {s.kind === "audio" && <span><b className="font-normal text-text-secondary">type</b> opus / ogg</span>}
+                    {s.kind === "text" && <span><b className="font-normal text-text-secondary">{t("max")}</b> {s.max_chars} {t("chars")}</span>}
+                    {s.kind === "audio" && <span><b className="font-normal text-text-secondary">{t("type")}</b> {t("opus / ogg")}</span>}
                   </div>
                 </div>
               ))}
@@ -193,26 +195,26 @@ export function TemplateAuthor() {
           </div>
 
           <div>
-            <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">Selected · {selectedSlot}</div>
+            <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">{t("Selected ·")} {selectedSlot}</div>
             <div className="grid grid-cols-[80px_1fr] items-center gap-2 py-[3px]">
-              <label className="text-[11px] text-text-secondary">label</label>
+              <label className="text-[11px] text-text-secondary">{t("label")}</label>
               <input className="h-6 w-full rounded border border-border bg-inputbg px-2 text-[11px] text-text-primary outline-none focus:border-accent" defaultValue={selected?.label} key={selectedSlot} />
             </div>
             <div className="grid grid-cols-[80px_1fr] items-center gap-2 py-[3px]">
-              <label className="text-[11px] text-text-secondary">required</label>
+              <label className="text-[11px] text-text-secondary">{t("required")}</label>
               <div className="flex items-center gap-1.5">
                 <input type="checkbox" className="accent-accent" defaultChecked />
-                <span className="text-[11px] text-text-secondary">User must provide</span>
+                <span className="text-[11px] text-text-secondary">{t("User must provide")}</span>
               </div>
             </div>
             <div className="grid grid-cols-[80px_1fr] items-center gap-2 py-[3px]">
-              <label className="text-[11px] text-text-secondary">default</label>
+              <label className="text-[11px] text-text-secondary">{t("default")}</label>
               <input className="h-6 w-full rounded border border-border bg-inputbg px-2 text-[11px] text-text-primary outline-none focus:border-accent" defaultValue="—" />
             </div>
           </div>
 
           <div>
-            <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">EDL excerpt</div>
+            <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-text-tertiary">{t("EDL excerpt")}</div>
             <pre className="m-0 overflow-auto rounded border border-border-subtle bg-inputbg p-2 font-mono text-[9.5px] leading-[1.6] text-text-secondary">{`{
   "slot": "${selectedSlot}",
   "kind": "video",

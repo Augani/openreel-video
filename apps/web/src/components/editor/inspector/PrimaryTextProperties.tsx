@@ -20,6 +20,8 @@ import { InspectorSlider } from "./shell/InspectorSlider";
 import { FONT_CATEGORIES, useCustomFonts } from "./font-options";
 import { useTextFontEdit } from "./useTextFontEdit";
 import { useTextSelectionStore } from "../../../stores/text-selection-store";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const builtInFonts = Object.values(FONT_CATEGORIES).flat();
 
@@ -27,6 +29,7 @@ const alignmentPaths = { left: "M4 6h16M4 12h10M4 18h14", center: "M4 6h16M7 12h
 const fontWeights: Record<FontWeight, string> = { normal: "Regular", bold: "Bold", 100: "Thin", 200: "Extra Light", 300: "Light", 400: "Regular", 500: "Medium", 600: "Semi Bold", 700: "Bold", 800: "Extra Bold", 900: "Black" };
 
 export function PrimaryTextProperties({ clipId }: { clipId: string }) {
+  const t = useT();
   const project = useProjectStore((s) => s.project);
   const disabledStyles = useRef(new Map<string, Partial<TextStyle>>());
   const text =
@@ -50,7 +53,7 @@ export function PrimaryTextProperties({ clipId }: { clipId: string }) {
   return (
     <div className="workspace-primary-text">
       <Textarea
-        aria-label="Text content"
+        aria-label={t("Text content")}
         value={text.text}
         onChange={(e) =>
           useProjectStore.getState().updateTextContent(clipId, e.target.value)
@@ -70,7 +73,7 @@ export function PrimaryTextProperties({ clipId }: { clipId: string }) {
               edit.commit({ fontFamily });
             } catch {
               if (edit.isCurrent()) toast.error(
-                "Font unavailable",
+                translateNow("Font unavailable"),
                 "Choose another font or import it in advanced text settings.",
               );
             } finally {
@@ -79,10 +82,10 @@ export function PrimaryTextProperties({ clipId }: { clipId: string }) {
           }}
         >
           <SelectTrigger
-            aria-label="Font family"
+            aria-label={t("Font family")}
             icon={<span aria-hidden="true" className="workspace-text-font-caret">▾</span>}
           >
-            <SelectValue>{style.fontFamily} · {fontWeights[style.fontWeight]}{style.fontStyle === "italic" ? " Italic" : ""}</SelectValue>
+            <SelectValue>{style.fontFamily} · {fontWeights[style.fontWeight]}{style.fontStyle === "italic" ? t(" Italic") : ""}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {fonts.map((f) => (
@@ -102,7 +105,7 @@ export function PrimaryTextProperties({ clipId }: { clipId: string }) {
         />
       </div>
       <div className="workspace-text-alignment">
-        <div role="group" aria-label="Text alignment">
+        <div role="group" aria-label={t("Text alignment")}>
           {(["left", "center", "right"] as const).map((v) => {
             return (
               <Button
@@ -119,7 +122,7 @@ export function PrimaryTextProperties({ clipId }: { clipId: string }) {
           })}
         </div>
         <label>
-          Color
+          {t("Color")}
           <ColorPicker
             label="Text color"
             value={style.color}
@@ -131,9 +134,9 @@ export function PrimaryTextProperties({ clipId }: { clipId: string }) {
         </label>
       </div>
       <div className="workspace-text-property">
-        <span>Letter spacing</span>
+        <span>{t("Letter spacing")}</span>
         <InspectorSlider historyKey={`${clipId}:letter-spacing`}
-          aria-label="Letter spacing"
+          aria-label={t("Letter spacing")}
           min={-50}
           max={100}
           step={0.1}
@@ -156,9 +159,9 @@ export function PrimaryTextProperties({ clipId }: { clipId: string }) {
         />
       </div>
       <div className="workspace-text-property">
-        <span>Line height</span>
+        <span>{t("Line height")}</span>
         <InspectorSlider historyKey={`${clipId}:line-height`}
-          aria-label="Line height"
+          aria-label={t("Line height")}
           min={0.5}
           max={3}
           step={0.01}
@@ -175,13 +178,13 @@ export function PrimaryTextProperties({ clipId }: { clipId: string }) {
         />
       </div>
       <section>
-        <h3>Style</h3>
+        <h3>{t("Style")}</h3>
         <label>
-          Outline
+          {t("Outline")}
           <span>
             {style.strokeWidth ?? 0} px
             <Switch
-              aria-label="Outline"
+              aria-label={t("Outline")}
               checked={!!style.strokeWidth}
               onCheckedChange={(enabled) => {
                 if (!enabled && style.strokeWidth) remember({ strokeWidth: style.strokeWidth });
@@ -191,11 +194,11 @@ export function PrimaryTextProperties({ clipId }: { clipId: string }) {
           </span>
         </label>
         <label>
-          Shadow
+          {t("Shadow")}
           <span>
-            <span>{(style.shadowBlur ?? 0) > 0 ? shadowOpacity === undefined ? "on" : `${Math.round(shadowOpacity * 100)}%` : "off"}</span>
+            <span>{(style.shadowBlur ?? 0) > 0 ? shadowOpacity === undefined ? t("on") : `${Math.round(shadowOpacity * 100)}%` : t("off")}</span>
             <Switch
-              aria-label="Shadow"
+              aria-label={t("Shadow")}
               checked={(style.shadowBlur ?? 0) > 0}
               onCheckedChange={(enabled) => {
                 if (!enabled) {
@@ -212,11 +215,11 @@ export function PrimaryTextProperties({ clipId }: { clipId: string }) {
           </span>
         </label>
         <label>
-          Background box
+          {t("Background box")}
           <span>
-            <span>{!!style.backgroundColor && style.backgroundColor !== "transparent" ? "on" : "off"}</span>
+            <span>{!!style.backgroundColor && style.backgroundColor !== "transparent" ? t("on") : t("off")}</span>
             <Switch
-              aria-label="Background box"
+              aria-label={t("Background box")}
               checked={
                 !!style.backgroundColor &&
                 style.backgroundColor !== "transparent"
@@ -231,7 +234,7 @@ export function PrimaryTextProperties({ clipId }: { clipId: string }) {
         </label>
       </section>
       <section>
-        <h3>Animation</h3>
+        <h3>{t("Animation")}</h3>
         <div className="workspace-text-animation-summary">
           <TextAnimationPhaseControl clipId={clipId} side="entry" animation={text.animation} />
           <TextAnimationPhaseControl clipId={clipId} side="exit" animation={text.animation} />

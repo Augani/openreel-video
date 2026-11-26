@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useProjectStore } from '../../../stores/project-store';
 import type { ImageLayer, Filter } from '../../../types/project';
 import { Sparkles, Check } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   layer: ImageLayer;
@@ -160,6 +161,7 @@ function interpolateFilters(target: Filter, intensity: number): Filter {
 }
 
 export function FilterPresetsSection({ layer }: Props) {
+  const t = useT();
   const { updateLayer } = useProjectStore();
   const [intensity, setIntensity] = useState(100);
   const [activePresetId, setActivePresetId] = useState<string | null>(() => {
@@ -192,14 +194,14 @@ export function FilterPresetsSection({ layer }: Props) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          Filters
+          {t("Filters")}
         </h4>
         {!isOriginal && (
           <button
             onClick={() => handlePresetSelect(FILTER_PRESETS[0])}
             className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
           >
-            Reset
+            {t("Reset")}
           </button>
         )}
       </div>
@@ -207,7 +209,7 @@ export function FilterPresetsSection({ layer }: Props) {
       {activePresetId && activePresetId !== 'original' && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <label className="text-[11px] font-medium text-foreground">Intensity</label>
+            <label className="text-[11px] font-medium text-foreground">{t("Intensity")}</label>
             <span className="text-[11px] font-mono text-muted-foreground">{intensity}%</span>
           </div>
           <input

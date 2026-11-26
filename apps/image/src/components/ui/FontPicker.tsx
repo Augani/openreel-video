@@ -8,6 +8,7 @@ import {
   FONT_CATEGORIES,
   type GoogleFont,
 } from '../../services/fonts-service';
+import { useT } from "@openreel/i18n/react";
 
 interface FontPickerProps {
   value: string;
@@ -15,6 +16,7 @@ interface FontPickerProps {
 }
 
 export function FontPicker({ value, onChange }: FontPickerProps) {
+  const t = useT();
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
@@ -101,7 +103,7 @@ export function FontPicker({ value, onChange }: FontPickerProps) {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search fonts..."
+                placeholder={t("Search fonts...")}
                 className="w-full pl-7 pr-2 py-1.5 text-xs bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
                 autoFocus
               />
@@ -131,7 +133,7 @@ export function FontPicker({ value, onChange }: FontPickerProps) {
           >
             {filteredFonts.length === 0 ? (
               <div className="p-4 text-center text-xs text-muted-foreground">
-                No fonts found
+                {t("No fonts found")}
               </div>
             ) : (
               filteredFonts.map((font) => (

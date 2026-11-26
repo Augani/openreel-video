@@ -10,6 +10,7 @@ import {
 import type { OcioInspection } from "@openreel/core/color/ocio/runtime";
 import { useProjectStore } from "../../../stores/project-store";
 import { inspectOcio } from "../../../services/ocio-inspection";
+import { useT } from "@openreel/i18n/react";
 
 const LUT_EXTENSIONS = ["cube", "spi1d", "spi3d", "csp"];
 const select = "h-7 w-full min-w-0 rounded-[6px] border border-border bg-bg-1 px-2 text-[11px] text-fg";
@@ -36,6 +37,7 @@ interface Draft {
  * one undoable project settings step; the config text and LUT data are stored in the project.
  */
 export const OcioDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const t = useT();
   const settings = useProjectStore((s) => s.project.settings);
   const updateSettings = useProjectStore((s) => s.updateSettings);
   const stored = settings.ocio;
@@ -186,17 +188,16 @@ export const OcioDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[calc(100vh-2rem)] max-w-[560px] overflow-y-auto overflow-x-hidden border-border bg-bg-1 text-fg" data-testid="ocio-dialog">
         <DialogHeader>
-          <DialogTitle>OpenColorIO configuration</DialogTitle>
+          <DialogTitle>{t("OpenColorIO configuration")}</DialogTitle>
           <DialogDescription>
-            Load an OCIO config and the LUT files it uses. Footage enters through the colour space you pick, compositing runs in the working
-            space, and the picture leaves through the display and view. The config and LUTs are stored in the project.
+            {t("Load an OCIO config and the LUT files it uses. Footage enters through the colour space you pick, compositing runs in the working space, and the picture leaves through the display and view. The config and LUTs are stored in the project.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 text-xs">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <label className="space-y-1">
-              <span className={label}>Config (.ocio)</span>
+              <span className={label}>{t("Config (.ocio)")}</span>
               <input
                 type="file"
                 accept=".ocio"
@@ -211,7 +212,7 @@ export const OcioDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
               />
             </label>
             <label className="space-y-1">
-              <span className={label}>LUT files (.cube .spi1d .spi3d .csp)</span>
+              <span className={label}>{t("LUT files (.cube .spi1d .spi3d .csp)")}</span>
               <input
                 type="file"
                 multiple
@@ -227,7 +228,7 @@ export const OcioDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
               />
             </label>
             <label className="space-y-1 sm:col-span-2">
-              <span className={label}>Or a config folder (config and LUTs together)</span>
+              <span className={label}>{t("Or a config folder (config and LUTs together)")}</span>
               <input
                 type="file"
                 multiple
@@ -247,10 +248,10 @@ export const OcioDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
           {draft?.configText ? (
             <div className="text-[11px] text-fg-2" data-testid="ocio-loaded">
-              Loaded {draft.configName || "config.ocio"} with {Object.keys(draft.files).length} LUT file{Object.keys(draft.files).length === 1 ? "" : "s"}.
+              {t("Loaded")} {draft.configName || "config.ocio"} {t("with")} {Object.keys(draft.files).length} {t("LUT file")}{Object.keys(draft.files).length === 1 ? "" : "s"}.
             </div>
           ) : (
-            <div className="text-[11px] text-fg-3">No config loaded.</div>
+            <div className="text-[11px] text-fg-3">{t("No config loaded.")}</div>
           )}
           {error && (
             <div role="alert" className="rounded border border-red-500/40 p-2 text-[11px] text-red-400" data-testid="ocio-error">
@@ -259,12 +260,12 @@ export const OcioDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           )}
           {draft && draft.ignored.length > 0 && (
             <div className="text-[10px] text-amber-500" data-testid="ocio-ignored">
-              Not used: {draft.ignored.join("; ")}
+              {t("Not used:")} {draft.ignored.join("; ")}
             </div>
           )}
           {inspection && inspection.missingFiles.length > 0 && (
             <div className="rounded border border-amber-500/40 p-2 text-[11px] text-amber-500" data-testid="ocio-missing">
-              LUT files the config names that were not provided: {inspection.missingFiles.join(", ")}. Colour spaces and looks that need them
+              {t("LUT files the config names that were not provided:")} {inspection.missingFiles.join(", ")}. Colour spaces and looks that need them
               are listed as unsupported until you add them.
             </div>
           )}
@@ -272,24 +273,24 @@ export const OcioDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           {inspection && (
             <>
               <div className="text-[11px] text-fg-2" data-testid="ocio-summary">
-                {inspection.name || "OCIO config"} (profile {inspection.version}): {sceneSpaces.length} of {inspection.spaces.filter((s) => !s.isData).length} colour spaces can be read, {workingSpaces.length} used as the working space,{" "}
-                {inspection.displays.reduce((n, d) => n + d.views.filter((v) => !v.problem).length, 0)} views and {supportedLooks.length} of {inspection.looks.length} looks can be run.
+                {inspection.name || t("OCIO config")} {t("(profile")} {inspection.version}): {sceneSpaces.length} {t("of")} {inspection.spaces.filter((s) => !s.isData).length} {t("colour spaces can be read,")} {workingSpaces.length} {t("used as the working space,")}{" "}
+                {inspection.displays.reduce((n, d) => n + d.views.filter((v) => !v.problem).length, 0)} {t("views and")} {supportedLooks.length} {t("of")} {inspection.looks.length} {t("looks can be run.")}
               </div>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <label className="space-y-1">
-                  <span className={label}>Working space (blending happens here)</span>
-                  <select aria-label="OCIO working space" className={select} data-testid="ocio-working-select" value={choice.working} onChange={(e) => setChoice((c) => ({ ...c, working: e.target.value }))}>
+                  <span className={label}>{t("Working space (blending happens here)")}</span>
+                  <select aria-label={t("OCIO working space")} className={select} data-testid="ocio-working-select" value={choice.working} onChange={(e) => setChoice((c) => ({ ...c, working: e.target.value }))}>
                     {workingSpaces.map((s) => (
                       <option key={s.name} value={s.name}>
                         {s.name}
-                        {/scene-linear/i.test(s.encoding) ? "" : " (not scene-linear)"}
+                        {/scene-linear/i.test(s.encoding) ? "" : t(" (not scene-linear)")}
                       </option>
                     ))}
                   </select>
                 </label>
                 <label className="space-y-1">
-                  <span className={label}>Default input space (clips and graphics)</span>
-                  <select aria-label="OCIO default input space" className={select} data-testid="ocio-input-select" value={choice.input} onChange={(e) => setChoice((c) => ({ ...c, input: e.target.value }))}>
+                  <span className={label}>{t("Default input space (clips and graphics)")}</span>
+                  <select aria-label={t("OCIO default input space")} className={select} data-testid="ocio-input-select" value={choice.input} onChange={(e) => setChoice((c) => ({ ...c, input: e.target.value }))}>
                     {sceneSpaces.map((s) => (
                       <option key={s.name} value={s.name}>
                         {s.name}
@@ -298,9 +299,9 @@ export const OcioDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                   </select>
                 </label>
                 <label className="space-y-1">
-                  <span className={label}>Display</span>
+                  <span className={label}>{t("Display")}</span>
                   <select
-                    aria-label="OCIO display"
+                    aria-label={t("OCIO display")}
                     className={select}
                     data-testid="ocio-display-select"
                     value={choice.display}
@@ -319,8 +320,8 @@ export const OcioDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                   </select>
                 </label>
                 <label className="space-y-1">
-                  <span className={label}>View</span>
-                  <select aria-label="OCIO view" className={select} data-testid="ocio-view-select" value={choice.view} onChange={(e) => setChoice((c) => ({ ...c, view: e.target.value }))}>
+                  <span className={label}>{t("View")}</span>
+                  <select aria-label={t("OCIO view")} className={select} data-testid="ocio-view-select" value={choice.view} onChange={(e) => setChoice((c) => ({ ...c, view: e.target.value }))}>
                     {(display?.views ?? [])
                       .filter((v) => !v.problem)
                       .map((v) => (
@@ -333,9 +334,9 @@ export const OcioDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
               </div>
 
               <div className="space-y-1">
-                <div className={label}>Looks (applied in the working space, before the view)</div>
+                <div className={label}>{t("Looks (applied in the working space, before the view)")}</div>
                 {supportedLooks.length === 0 ? (
-                  <div className="text-[11px] text-fg-3">The config has no looks the runtime can run.</div>
+                  <div className="text-[11px] text-fg-3">{t("The config has no looks the runtime can run.")}</div>
                 ) : (
                   <ul className="space-y-1" data-testid="ocio-looks">
                     {supportedLooks.map((l) => {
@@ -348,7 +349,7 @@ export const OcioDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                           </label>
                           <label className="flex items-center gap-1 text-fg-3">
                             <input type="checkbox" disabled={!on} checked={!!on && on.startsWith("-")} onChange={(e) => reverseLook(l.name, e.target.checked)} />
-                            reverse
+                            {t("reverse")}
                           </label>
                         </li>
                       );
@@ -360,7 +361,7 @@ export const OcioDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
               {(unsupportedSpaces.length > 0 || unsupportedViews.length > 0 || unsupportedLooks.length > 0) && (
                 <details className="rounded border border-border p-2" data-testid="ocio-unsupported">
                   <summary className="cursor-pointer text-[11px] text-fg-2">
-                    Not supported by the runtime ({unsupportedSpaces.length} colour spaces, {unsupportedViews.length} views, {unsupportedLooks.length} looks)
+                    {t("Not supported by the runtime (")}{unsupportedSpaces.length} {t("colour spaces,")} {unsupportedViews.length} {t("views,")} {unsupportedLooks.length} {t("looks)")}
                   </summary>
                   <ul className="mt-1 max-h-48 space-y-1 overflow-y-auto text-[10px] text-fg-3" data-testid="ocio-unsupported-list">
                     {unsupportedSpaces.map((s) => (
@@ -378,7 +379,7 @@ export const OcioDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                     ))}
                     {unsupportedLooks.map((l) => (
                       <li key={`l-${l.name}`}>
-                        <span className="text-fg-2">Look {l.name}</span>: {l.problem}
+                        <span className="text-fg-2">{t("Look")} {l.name}</span>: {l.problem}
                       </li>
                     ))}
                   </ul>
@@ -396,14 +397,14 @@ export const OcioDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         <DialogFooter className="gap-2">
           {stored && (
             <Button variant="ghost" onClick={remove} data-testid="ocio-remove">
-              Remove OCIO
+              {t("Remove OCIO")}
             </Button>
           )}
           <Button variant="secondary" onClick={onClose}>
-            Cancel
+            {t("Cancel")}
           </Button>
           <Button onClick={apply} disabled={!candidate || !!buildError} data-testid="ocio-apply">
-            Apply
+            {t("Apply")}
           </Button>
         </DialogFooter>
       </DialogContent>

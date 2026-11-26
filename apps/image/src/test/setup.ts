@@ -1,5 +1,8 @@
 import '@testing-library/jest-dom';
 
+const { loadDictionary } = await import('@openreel/i18n/translate');
+await loadDictionary();
+
 class ResizeObserverMock {
   observe() {}
   unobserve() {}

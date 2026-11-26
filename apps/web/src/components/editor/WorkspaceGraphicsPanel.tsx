@@ -28,6 +28,8 @@ import { WorkspaceTabs, workspaceTabPanel } from "./WorkspacePrimitives";
 import { FONT_CATEGORIES, useCustomFonts } from "./inspector/font-options";
 import { useTextFontEdit } from "./inspector/useTextFontEdit";
 import { ensureFontFamily } from "../../services/project-fonts";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 /** The overlay templates offered here, in order: each is a real editing template, drawn on the card by its own recipe. */
 export const OVERLAY_TEMPLATE_IDS = ["overlay-progress-bar", "cinema-letterbox", "overlay-follow-callout", "cinema-light-frame"] as const;
@@ -88,6 +90,7 @@ export function WorkspaceGraphicsPanel({
   onImportBackground: (preset: BackgroundPreset) => void;
   generatingBackground: string | null;
 }) {
+  const t = useT();
   const [tab, setTab] = useState("shapes");
   const [category, setCategory] = useState("all");
   const [colors, setColors] = useState<string[]>(() => {
@@ -156,10 +159,10 @@ export function WorkspaceGraphicsPanel({
       });
       if (revision !== brandRevision.current || !stillEditable || !edit.isCurrent()) return;
       if (edit.commit({ fontFamily: brandFont, color: colors[0] })) {
-        toast.success("Brand applied", `${targets.length} ${targets.length === 1 ? "title" : "titles"} updated. Locked tracks are unchanged.`);
+        toast.success(translateNow("Brand applied"), `${targets.length} ${targets.length === 1 ? "title" : "titles"} updated. Locked tracks are unchanged.`);
       }
     } catch {
-      if (revision === brandRevision.current && edit.isCurrent()) toast.error("Font unavailable", "Choose another brand font or import it in advanced text settings.");
+      if (revision === brandRevision.current && edit.isCurrent()) toast.error(translateNow("Font unavailable"), "Choose another brand font or import it in advanced text settings.");
     } finally {
       edit.cancel();
       if (applyRequest.current === request) {
@@ -213,13 +216,13 @@ export function WorkspaceGraphicsPanel({
     const target = selected.map((id) => state.getClip(id)).find(Boolean);
     if (!target) {
       toast.warning(
-        "Select a video or image",
+        translateNow("Select a video or image"),
         "Overlays are placed over the selected clip.",
       );
       return;
     }
     if (!state.applyEditingTemplate(id, target.id))
-      toast.error("Could not add overlay", "Try selecting a different clip.");
+      toast.error(translateNow("Could not add overlay"), "Try selecting a different clip.");
   };
   return (
     <div className="workspace-graphics-panel flex flex-col min-h-0 h-full">
@@ -251,13 +254,13 @@ export function WorkspaceGraphicsPanel({
               <h3>BRAND KIT</h3>
               {!brandConfigured && (
                 <p className="workspace-brand-empty" role="status">
-                  No brand kit yet. Name your brand and pick its colors and title font. New shapes use the first color, and one click restyles every title.
+                  {t("No brand kit yet. Name your brand and pick its colors and title font. New shapes use the first color, and one click restyles every title.")}
                 </p>
               )}
               <label>
-                Brand name
+                {t("Brand name")}
                 <Input
-                  placeholder="Your brand"
+                  placeholder={t("Your brand")}
                   value={brandName}
                   onChange={(e) => {
                     setBrandName(e.target.value);
@@ -266,7 +269,7 @@ export function WorkspaceGraphicsPanel({
                   }}
                 />
               </label>
-              <p className="text-[11px] text-fg-muted" id="brand-colors-label">Brand colors</p>
+              <p className="text-[11px] text-fg-muted" id="brand-colors-label">{t("Brand colors")}</p>
               <div className="workspace-brand-colors" role="group" aria-labelledby="brand-colors-label">
                 {colors.map((color, i) => (
                   <ColorPicker
@@ -289,33 +292,32 @@ export function WorkspaceGraphicsPanel({
                 ))}
               </div>
               <div className="mt-3 space-y-1.5">
-                <Label htmlFor="brand-title-font" className="text-[11px] text-fg-muted">Title font</Label>
+                <Label htmlFor="brand-title-font" className="text-[11px] text-fg-muted">{t("Title font")}</Label>
                 <Select value={brandFont} onValueChange={family => {
                   brandRevision.current += 1;
                   setBrandConfigured(true);
                   setBrandFont(family);
                   saveBrandValue("openreel-brand-font", family);
                 }}>
-                  <SelectTrigger id="brand-title-font" aria-label="Brand title font" className="h-[30px] text-[12px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="brand-title-font" aria-label={t("Brand title font")} className="h-[30px] text-[12px]"><SelectValue /></SelectTrigger>
                   <SelectContent>{fonts.map(family => <SelectItem key={family} value={family}>{family}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               {brandConfigured && (
                 <div className="workspace-brand-summary">
-                  <strong>Apply your brand</strong>
+                  <strong>{t("Apply your brand")}</strong>
                   <p className="workspace-brand-fonts">
                     {targets.length === 0
-                      ? "Add a title to the timeline, then restyle it with your title font and first color."
+                      ? t("Add a title to the timeline, then restyle it with your title font and first color.")
                       : `Restyles ${targets.length} ${targets.length === 1 ? "title" : "titles"} with ${brandFont} and ${colors[0]}. Locked tracks are skipped.`}
                   </p>
-                  <Button className="workspace-apply-brand" aria-label="Apply brand to all titles" aria-busy={applyingBrand} disabled={applyingBrand || targets.length === 0} onClick={() => { void applyBrand(); }}>
-                    {applyingBrand ? "Applying brand…" : "Apply brand to all titles"}
+                  <Button className="workspace-apply-brand" aria-label={t("Apply brand to all titles")} aria-busy={applyingBrand} disabled={applyingBrand || targets.length === 0} onClick={() => { void applyBrand(); }}>
+                    {applyingBrand ? t("Applying brand…") : t("Apply brand to all titles")}
                   </Button>
                 </div>
               )}
               <p>
-                Saved on this device. Choose a color when styling your text and
-                graphics.
+                {t("Saved on this device. Choose a color when styling your text and graphics.")}
               </p>
             </div>
           ) : (
@@ -329,8 +331,8 @@ export function WorkspaceGraphicsPanel({
                         <Button
                           key={shape.label}
                           variant="outline"
-                          aria-label={shape.label}
-                          title={shape.label}
+                          aria-label={t(shape.label)}
+                          title={t(shape.label)}
                           onClick={() => {
                             if (shape.type === "speech-bubble") {
                               void addSpeechBubble();
@@ -355,7 +357,7 @@ export function WorkspaceGraphicsPanel({
               <Collapsible className="workspace-more-graphics">
                 <CollapsibleTrigger asChild>
                   <Button variant="ghost" size="sm" className="workspace-more-graphics-trigger group flex h-auto w-full items-center justify-between gap-2 whitespace-normal rounded-md px-2 py-1.5 text-left text-[length:inherit] font-normal leading-[inherit] hover:bg-bg-2 [&_svg]:size-3">
-                    <span className="min-w-0">More shapes, 3D & backgrounds</span>
+                    <span className="min-w-0">{t("More shapes, 3D & backgrounds")}</span>
                     <ChevronRight size={12} className="shrink-0 text-fg-muted transition-transform group-data-[state=open]:rotate-90" aria-hidden />
                   </Button>
                 </CollapsibleTrigger>
@@ -363,7 +365,7 @@ export function WorkspaceGraphicsPanel({
                   <h3>MORE SHAPES</h3>
                   <div className="workspace-shape-grid">
                     {moreShapes.map(shape => (
-                      <Button key={shape.type} variant="outline" aria-label={shape.label} title={shape.label} onClick={() => { void addShape(shape.type); }}>
+                      <Button key={shape.type} variant="outline" aria-label={t(shape.label)} title={t(shape.label)} onClick={() => { void addShape(shape.type); }}>
                         <shape.icon />
                       </Button>
                     ))}
@@ -374,8 +376,8 @@ export function WorkspaceGraphicsPanel({
                       <Button
                         key={mesh.type}
                         variant="outline"
-                        aria-label={mesh.label}
-                        title={mesh.label}
+                        aria-label={t(mesh.label)}
+                        title={t(mesh.label)}
                         onClick={() => {
                           void addShape(mesh.type);
                         }}
@@ -422,7 +424,7 @@ export function WorkspaceGraphicsPanel({
                 onClick={() => svgInput.current?.click()}
               >
                 <FileCode size={14} />
-                Import SVG File
+                {t("Import SVG File")}
               </Button>
               <Button
                 variant="secondary"
@@ -430,14 +432,14 @@ export function WorkspaceGraphicsPanel({
                 onClick={() => setTab("stickers")}
               >
                 <Upload size={14} />
-                Import & Add Sticker
+                {t("Import & Add Sticker")}
               </Button>
               <Input
                 ref={svgInput}
                 className="hidden"
                 type="file"
                 accept=".svg,image/svg+xml"
-                aria-label="Import SVG file"
+                aria-label={t("Import SVG file")}
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
                   e.target.value = "";

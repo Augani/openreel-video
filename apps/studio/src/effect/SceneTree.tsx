@@ -3,8 +3,10 @@ import { Icon } from "../icons";
 import { useScene } from "./store";
 import { getSubjectCapability, listSubjectKinds } from "./subjects";
 import type { SubjectKind } from "./scene";
+import { useT } from "@openreel/i18n/react";
 
 export function SceneTree() {
+  const t = useT();
   const { state, dispatch } = useScene();
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -13,19 +15,19 @@ export function SceneTree() {
   return (
     <aside className="relative flex h-full w-60 flex-col border-r border-zinc-800 bg-zinc-950">
       <header className="flex items-center justify-between border-b border-zinc-900 px-3 py-2">
-        <span className="text-[10px] uppercase tracking-wider text-zinc-500">Scene</span>
+        <span className="text-[10px] uppercase tracking-wider text-zinc-500">{t("Scene")}</span>
         <button
           type="button"
           className="rounded border border-zinc-800 px-2 py-0.5 text-xs text-zinc-300 hover:border-zinc-700"
           onClick={() => setPickerOpen(true)}
         >
-          + Subject
+          {t("+ Subject")}
         </button>
       </header>
 
       <div className="flex-1 overflow-y-auto px-1 py-2">
         {state.scene.subjects.length === 0 ? (
-          <p className="px-2 text-xs text-zinc-600">No subjects yet — start by adding one.</p>
+          <p className="px-2 text-xs text-zinc-600">{t("No subjects yet — start by adding one.")}</p>
         ) : (
           state.scene.subjects.map((subject) => {
             const cap = getSubjectCapability(subject.kind);
@@ -94,10 +96,10 @@ export function SceneTree() {
       {pickerOpen && (
         <div
           role="dialog"
-          aria-label="Add subject"
+          aria-label={t("Add subject")}
           className="absolute left-3 top-12 z-10 w-48 rounded border border-zinc-800 bg-zinc-900 p-2 shadow-xl"
         >
-          <div className="mb-1 px-1 text-[10px] uppercase tracking-wider text-zinc-500">Add subject</div>
+          <div className="mb-1 px-1 text-[10px] uppercase tracking-wider text-zinc-500">{t("Add subject")}</div>
           {listSubjectKinds().map((kind: SubjectKind) => {
             const cap = getSubjectCapability(kind);
             const disabled = usedKinds.has(kind);
@@ -122,7 +124,7 @@ export function SceneTree() {
             className="mt-1 w-full text-center text-[10px] text-zinc-500 hover:text-zinc-300"
             onClick={() => setPickerOpen(false)}
           >
-            Cancel
+            {t("Cancel")}
           </button>
         </div>
       )}

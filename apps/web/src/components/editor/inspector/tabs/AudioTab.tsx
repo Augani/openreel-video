@@ -17,6 +17,7 @@ import {
 import { VoiceOverPanel } from "../VoiceOverPanel";
 import { InspectorSection } from "../shell/InspectorSection";
 import { lazyWithRetry } from "../lazy-retry";
+import { useT } from "@openreel/i18n/react";
 
 // The spectral editor (spectrogram, selection tools, worker client) loads when its section is first opened, never with the editor shell.
 const NativePluginsSection = lazyWithRetry(() => import("../NativePluginsSection").then((m) => ({ default: m.NativePluginsSection })));
@@ -39,6 +40,7 @@ export const AudioTab: React.FC<AudioTabProps> = ({
   noiseReductionSectionTitle,
   selectedNoiseReductionEffect,
 }) => {
+  const t = useT();
   const clip = useProjectStore((state) =>
     state.project.timeline.tracks
       .flatMap((track) => track.clips)
@@ -50,54 +52,54 @@ export const AudioTab: React.FC<AudioTabProps> = ({
   return (
     <>
       {showAudioEffects && clip && (
-        <InspectorSection title="Essential Sound" sectionId="essential-sound" defaultOpen>
+        <InspectorSection title={t("Essential Sound")} sectionId="essential-sound" defaultOpen>
           <EssentialSoundSection clipIds={[clipId]} />
         </InspectorSection>
       )}
       {showAudioEffects && clip && (
-        <InspectorSection title="Enhance Speech" sectionId="enhance-speech" defaultOpen>
+        <InspectorSection title={t("Enhance Speech")} sectionId="enhance-speech" defaultOpen>
           <EnhanceSpeechSection clipId={clipId} />
         </InspectorSection>
       )}
       {showAudioEffects && clip && (
-        <InspectorSection title="Reduce Reverb" sectionId="reduce-reverb" defaultOpen>
-          <Suspense fallback={<div className="min-h-[56px] text-[11px] text-fg-muted" role="status">Loading Reduce Reverb…</div>}>
+        <InspectorSection title={t("Reduce Reverb")} sectionId="reduce-reverb" defaultOpen>
+          <Suspense fallback={<div className="min-h-[56px] text-[11px] text-fg-muted" role="status">{t("Loading Reduce Reverb…")}</div>}>
             <ReduceReverbSection clipId={clipId} />
           </Suspense>
         </InspectorSection>
       )}
       {showAudioEffects && clip && (
-        <InspectorSection title="Audio plugins" sectionId="native-plugins" defaultOpen={false}>
-          <Suspense fallback={<div className="min-h-[56px] text-[11px] text-fg-muted" role="status">Loading audio plugins…</div>}>
+        <InspectorSection title={t("Audio plugins")} sectionId="native-plugins" defaultOpen={false}>
+          <Suspense fallback={<div className="min-h-[56px] text-[11px] text-fg-muted" role="status">{t("Loading audio plugins…")}</div>}>
             <NativePluginsSection clipId={clipId} />
           </Suspense>
         </InspectorSection>
       )}
       {showAudioEffects && clip && <PrimaryAudioProperties clipId={clipId} />}
       {showAudioEffects && clip && (
-        <InspectorSection title="Audio channels" sectionId="audio-channels" defaultOpen>
+        <InspectorSection title={t("Audio channels")} sectionId="audio-channels" defaultOpen>
           <AudioChannelsSection clipIds={[clipId]} />
         </InspectorSection>
       )}
       {showAudioEffects && clip && surround && (
-        <InspectorSection title="Surround pan" sectionId="surround-pan" defaultOpen>
+        <InspectorSection title={t("Surround pan")} sectionId="surround-pan" defaultOpen>
           <SurroundPanSection clipId={clipId} />
         </InspectorSection>
       )}
       {showAudioEffects && clip && (
-        <InspectorSection title="Audio repair" sectionId="audio-repair" defaultOpen>
+        <InspectorSection title={t("Audio repair")} sectionId="audio-repair" defaultOpen>
           <RepairSection clipId={clipId} />
         </InspectorSection>
       )}
       {showAudioEffects && clip && (
-        <InspectorSection title="Spectral editing" sectionId="spectral-editing" defaultOpen={false}>
-          <Suspense fallback={<p className="text-[11px] text-fg-muted">Loading spectral editor…</p>}>
+        <InspectorSection title={t("Spectral editing")} sectionId="spectral-editing" defaultOpen={false}>
+          <Suspense fallback={<p className="text-[11px] text-fg-muted">{t("Loading spectral editor…")}</p>}>
             <SpectralEditor clipId={clipId} />
           </Suspense>
         </InspectorSection>
       )}
       <InspectorSection
-        title="Advanced audio tools"
+        title={t("Advanced audio tools")}
         sectionId="advanced-audio"
         sectionIds={[
           "voice-over",
@@ -110,13 +112,13 @@ export const AudioTab: React.FC<AudioTabProps> = ({
         defaultOpen={false}
       >
         {showAudioEffects && (
-          <InspectorSection title="Voice Over" sectionId="voice-over" defaultOpen={false}>
+          <InspectorSection title={t("Voice Over")} sectionId="voice-over" defaultOpen={false}>
             <VoiceOverPanel />
           </InspectorSection>
         )}
         {showAudioEffects && (
           <InspectorSection
-            title="Auto Cut Silence"
+            title={t("Auto Cut Silence")}
             sectionId="auto-cut-silence"
             defaultOpen={false}
           >
@@ -124,7 +126,7 @@ export const AudioTab: React.FC<AudioTabProps> = ({
           </InspectorSection>
         )}
         {clipType === "audio" && (
-          <InspectorSection title="Beat Sync" sectionId="beat-sync" defaultOpen={false}>
+          <InspectorSection title={t("Beat Sync")} sectionId="beat-sync" defaultOpen={false}>
             <AudioTextSyncPanel clipId={clipId} />
           </InspectorSection>
         )}
@@ -140,7 +142,7 @@ export const AudioTab: React.FC<AudioTabProps> = ({
         {showAudioEffects && (
           <>
             <InspectorSection
-              title="Audio Effects"
+              title={t("Audio Effects")}
               sectionId="audio-effects"
               defaultOpen={false}
             >
@@ -150,7 +152,7 @@ export const AudioTab: React.FC<AudioTabProps> = ({
         )}
         {showAudioEffects && (
           <InspectorSection
-            title="Audio Ducking"
+            title={t("Audio Ducking")}
             sectionId="audio-ducking"
             defaultOpen={false}
           >

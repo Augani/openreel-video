@@ -1,7 +1,9 @@
 import { useUIStore } from '../../../stores/ui-store';
 import { Droplets, RotateCcw } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 export function BlurSharpenToolPanel() {
+  const t = useT();
   const { blurSharpenSettings, setBlurSharpenSettings } = useUIStore();
 
   const resetSettings = () => {
@@ -19,13 +21,13 @@ export function BlurSharpenToolPanel() {
         <div className="flex items-center gap-2">
           <Droplets size={16} className="text-muted-foreground" />
           <h3 className="text-sm font-medium">
-            {blurSharpenSettings.mode === 'blur' ? 'Blur' : 'Sharpen'} Tool
+            {blurSharpenSettings.mode === 'blur' ? t("Blur") : t("Sharpen")} {t("Tool")}
           </h3>
         </div>
         <button
           onClick={resetSettings}
           className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-secondary transition-colors"
-          title="Reset"
+          title={t("Reset")}
         >
           <RotateCcw size={14} />
         </button>
@@ -33,13 +35,13 @@ export function BlurSharpenToolPanel() {
 
       <p className="text-xs text-muted-foreground">
         {blurSharpenSettings.mode === 'blur'
-          ? 'Paint to blur and soften areas.'
-          : 'Paint to sharpen and enhance details.'}
+          ? t("Paint to blur and soften areas.")
+          : t("Paint to sharpen and enhance details.")}
       </p>
 
       <div className="space-y-3">
         <div>
-          <span className="text-xs text-muted-foreground mb-1.5 block">Mode</span>
+          <span className="text-xs text-muted-foreground mb-1.5 block">{t("Mode")}</span>
           <div className="grid grid-cols-2 gap-1">
             <button
               onClick={() => setBlurSharpenSettings({ mode: 'blur' })}
@@ -49,7 +51,7 @@ export function BlurSharpenToolPanel() {
                   : 'bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary'
               }`}
             >
-              Blur
+              {t("Blur")}
             </button>
             <button
               onClick={() => setBlurSharpenSettings({ mode: 'sharpen' })}
@@ -59,14 +61,14 @@ export function BlurSharpenToolPanel() {
                   : 'bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary'
               }`}
             >
-              Sharpen
+              {t("Sharpen")}
             </button>
           </div>
         </div>
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Size</span>
+            <span className="text-xs text-muted-foreground">{t("Size")}</span>
             <span className="text-xs font-mono text-muted-foreground">{blurSharpenSettings.size}px</span>
           </div>
           <input
@@ -86,7 +88,7 @@ export function BlurSharpenToolPanel() {
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Strength</span>
+            <span className="text-xs text-muted-foreground">{t("Strength")}</span>
             <span className="text-xs font-mono text-muted-foreground">{blurSharpenSettings.strength}%</span>
           </div>
           <input
@@ -112,7 +114,7 @@ export function BlurSharpenToolPanel() {
               onChange={(e) => setBlurSharpenSettings({ sampleAllLayers: e.target.checked })}
               className="w-3.5 h-3.5 rounded border-border"
             />
-            Sample All Layers
+            {t("Sample All Layers")}
           </label>
         </div>
       </div>

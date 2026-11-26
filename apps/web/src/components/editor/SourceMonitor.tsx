@@ -31,6 +31,8 @@ import { PreviewTransportIcon } from "./PreviewTransportControls";
 import { MonitorTabs } from "./MonitorTabs";
 import { SourcePatch } from "./SourcePatch";
 import { useSourceVrViewStore } from "../../stores/vr-view-store";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 // The Source monitor VR view loads the first time it is switched on for a VR clip.
 const SourceVrOverlay = React.lazy(() => import("./preview/SourceVrOverlay").then((m) => ({ default: m.SourceVrOverlay })));
@@ -40,6 +42,7 @@ export const SOURCE_DRAG_KEY = "sourceMonitor";
 
 /** Recent-clips dropdown in the Source monitor header (Premiere's source history). */
 function SourceHistory({ current }: { current: MediaItem | undefined }) {
+  const t = useT();
   const history = useSourceMonitorStore((s) => s.history);
   const library = useProjectStore((s) => s.project.mediaLibrary.items);
   const marks = useSourceMonitorStore((s) => s.marks);
@@ -51,18 +54,18 @@ function SourceHistory({ current }: { current: MediaItem | undefined }) {
     .map((id) => library.find((item) => item.id === id))
     .filter((item): item is MediaItem => !!item);
   if (entries.length === 0)
-    return <span>{current ? current.name : "No clip loaded"}</span>;
+    return <span>{current ? current.name : t("No clip loaded")}</span>;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
           data-testid="source-history"
-          aria-label="Recent source clips"
-          title="Recent clips"
+          aria-label={t("Recent source clips")}
+          title={t("Recent clips")}
           className="flex max-w-[260px] items-center gap-1 rounded px-1.5 py-0.5 hover:bg-[#26282d]"
         >
-          <span className="truncate">{current ? current.name : "No clip loaded"}</span>
+          <span className="truncate">{current ? current.name : t("No clip loaded")}</span>
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" /></svg>
         </button>
       </DropdownMenuTrigger>
@@ -73,7 +76,7 @@ function SourceHistory({ current }: { current: MediaItem | undefined }) {
             data-testid="source-history-item"
             onSelect={() => {
               const outcome = openInSourceMonitor(item.id);
-              if (!outcome.success) toast.warning("Source monitor", outcome.message ?? "");
+              if (!outcome.success) toast.warning(translateNow("Source monitor"), outcome.message ?? "");
             }}
             className={item.id === current?.id ? "font-medium text-accent" : undefined}
           >
@@ -169,6 +172,7 @@ function Waveform({
   markIn?: number;
   markOut?: number;
 }) {
+  const t = useT();
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = ref.current;
@@ -203,7 +207,7 @@ function Waveform({
       ref={ref}
       width={960}
       height={240}
-      aria-label="Source waveform"
+      aria-label={t("Source waveform")}
       data-testid="source-waveform"
       className="h-full max-h-[320px] w-full"
     />
@@ -214,6 +218,7 @@ function Waveform({
 const SourceTranscriptPanel = lazy(() => import("./SourceTranscriptPanel"));
 
 export function SourceMonitor() {
+  const t = useT();
   const transcriptOpen = useSourceMonitorStore((s) => s.transcriptOpen);
   const mediaId = useSourceMonitorStore((s) => s.mediaId);
   const position = useSourceMonitorStore((s) => s.position);
@@ -393,7 +398,7 @@ export function SourceMonitor() {
     <div
       ref={containerRef}
       role="region"
-      aria-label="Source monitor"
+      aria-label={t("Source monitor")}
       data-testid="source-monitor"
       data-monitor-focus={focus}
       tabIndex={0}
@@ -414,13 +419,13 @@ export function SourceMonitor() {
             size="sm"
             data-testid="source-vr-toggle"
             aria-pressed={vrViewOn && mediaIsVr}
-            title={mediaIsVr ? "Toggle VR video view of this clip (view only; never changes an export)" : "Set VR Properties on this clip in the project panel to use the VR video view"}
+            title={mediaIsVr ? t("Toggle VR video view of this clip (view only; never changes an export)") : t("Set VR Properties on this clip in the project panel to use the VR video view")}
             onMouseDown={noFocusSteal}
             disabled={!mediaIsVr}
             onClick={() => setVrViewOn(!vrViewOn)}
             className={vrViewOn && mediaIsVr ? "bg-[#26282d] text-fg" : "text-fg-3"}
           >
-            VR view
+            {t("VR view")}
           </Button>
           <Button
             type="button"
@@ -428,14 +433,14 @@ export function SourceMonitor() {
             size="sm"
             data-testid="source-transcript-toggle"
             aria-pressed={transcriptOpen}
-            title="Transcript: select words to set In/Out, then Insert or Overwrite. Search every transcribed clip."
+            title={t("Transcript: select words to set In/Out, then Insert or Overwrite. Search every transcribed clip.")}
             onMouseDown={noFocusSteal}
             onClick={() => useSourceMonitorStore.getState().setTranscriptOpen(!transcriptOpen)}
             className={transcriptOpen ? "bg-[#26282d] text-fg" : "text-fg-3"}
           >
-            Transcript
+            {t("Transcript")}
           </Button>
-          <Button type="button" variant="ghost" size="sm" data-testid="reverse-match-frame" title="Reverse Match Frame (Shift+F)" onMouseDown={noFocusSteal} disabled={!media} onClick={() => runWithToast("Reverse match frame", reverseMatchFrame)}>Find in sequence</Button>
+          <Button type="button" variant="ghost" size="sm" data-testid="reverse-match-frame" title={t("Reverse Match Frame (Shift+F)")} onMouseDown={noFocusSteal} disabled={!media} onClick={() => runWithToast("Reverse match frame", reverseMatchFrame)}>{t("Find in sequence")}</Button>
           <span className="font-mono text-[11px] tabular-nums text-fg-3" data-testid="source-duration">
             {media ? `Dur ${tc(rangeLength)}` : ""}
           </span>
@@ -444,21 +449,21 @@ export function SourceMonitor() {
 
       {external && (
         <div data-testid="source-external-banner" className="flex items-center gap-3 border-b border-border bg-bg-2 px-3 py-1.5 text-[11px] text-fg-2">
-          <span className="rounded bg-accent/20 px-1.5 py-0.5 font-medium text-accent">Preview</span>
-          <span className="min-w-0 truncate">{external.name} is not in the project yet{external.note ? ` (${external.note})` : ""}.</span>
+          <span className="rounded bg-accent/20 px-1.5 py-0.5 font-medium text-accent">{t("Preview")}</span>
+          <span className="min-w-0 truncate">{external.name} {t("is not in the project yet")}{external.note ? ` (${external.note})` : ""}.</span>
           <span className="ml-auto flex gap-2">
-            {external.onImport && <Button type="button" size="sm" variant="secondary" data-testid="source-external-import" onMouseDown={noFocusSteal} onClick={external.onImport}>Import</Button>}
-            <Button type="button" size="sm" variant="ghost" data-testid="source-external-close" onMouseDown={noFocusSteal} onClick={() => useSourceMonitorStore.getState().closeExternal()}>Close preview</Button>
+            {external.onImport && <Button type="button" size="sm" variant="secondary" data-testid="source-external-import" onMouseDown={noFocusSteal} onClick={external.onImport}>{t("Import")}</Button>}
+            <Button type="button" size="sm" variant="ghost" data-testid="source-external-close" onMouseDown={noFocusSteal} onClick={() => useSourceMonitorStore.getState().closeExternal()}>{t("Close preview")}</Button>
           </span>
         </div>
       )}
       <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden p-4">
         {!media ? (
           <p className="text-sm text-fg-3">
-            Double-click a clip in the media bin to load it here.
+            {t("Double-click a clip in the media bin to load it here.")}
           </p>
         ) : !url ? (
-          <p className="text-sm text-fg-3">This media is offline. Relink it to preview.</p>
+          <p className="text-sm text-fg-3">{t("This media is offline. Relink it to preview.")}</p>
         ) : media.type === "image" ? (
           <img
             src={url}
@@ -485,7 +490,7 @@ export function SourceMonitor() {
               />
             ) : (
               <p className="text-sm text-fg-3" data-testid="source-waveform-missing">
-                Waveform unavailable
+                {t("Waveform unavailable")}
               </p>
             )}
           </div>
@@ -512,7 +517,7 @@ export function SourceMonitor() {
 
       {transcriptOpen && (
         <div data-testid="source-transcript-pane" className="flex h-[42%] min-h-[150px] shrink-0 flex-col border-t border-border bg-bg-1">
-          <Suspense fallback={<p className="p-3 text-[11px] text-fg-3">Loading transcript…</p>}>
+          <Suspense fallback={<p className="p-3 text-[11px] text-fg-3">{t("Loading transcript…")}</p>}>
             <SourceTranscriptPanel />
           </Suspense>
         </div>
@@ -557,38 +562,38 @@ export function SourceMonitor() {
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
           <div className="flex items-center" onMouseDown={noFocusSteal}>
-            <Button type="button" variant="ghost" size="icon" aria-label="Mark source in" title="Mark In (I)" disabled={!media} onClick={() => markSource("in")}><PreviewTransportIcon name="in" /></Button>
-            <Button type="button" variant="ghost" size="icon" aria-label="Go to source in" title="Go to In" disabled={!media} onClick={() => goToSourceMark("in")}><PreviewTransportIcon name="start" /></Button>
-            <Button type="button" variant="ghost" size="icon" aria-label="Source previous frame" title="Previous frame (Left)" disabled={!media} onClick={() => stepSourceFrame(-1)}><PreviewTransportIcon name="previous" /></Button>
-            <Button type="button" variant="ghost" size="icon" aria-label={rate === 0 ? "Source play" : "Source pause"} title="Play / pause (Space, K)" disabled={!media || !playable} onClick={() => useSourceMonitorStore.getState().togglePlay()}>
+            <Button type="button" variant="ghost" size="icon" aria-label={t("Mark source in")} title={t("Mark In (I)")} disabled={!media} onClick={() => markSource("in")}><PreviewTransportIcon name="in" /></Button>
+            <Button type="button" variant="ghost" size="icon" aria-label={t("Go to source in")} title={t("Go to In")} disabled={!media} onClick={() => goToSourceMark("in")}><PreviewTransportIcon name="start" /></Button>
+            <Button type="button" variant="ghost" size="icon" aria-label={t("Source previous frame")} title={t("Previous frame (Left)")} disabled={!media} onClick={() => stepSourceFrame(-1)}><PreviewTransportIcon name="previous" /></Button>
+            <Button type="button" variant="ghost" size="icon" aria-label={rate === 0 ? t("Source play") : t("Source pause")} title={t("Play / pause (Space, K)")} disabled={!media || !playable} onClick={() => useSourceMonitorStore.getState().togglePlay()}>
               {rate === 0 ? <PreviewTransportIcon name="play" size={16} /> : <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>}
             </Button>
-            <Button type="button" variant="ghost" size="icon" aria-label="Source next frame" title="Next frame (Right)" disabled={!media} onClick={() => stepSourceFrame(1)}><PreviewTransportIcon name="next" /></Button>
-            <Button type="button" variant="ghost" size="icon" aria-label="Go to source out" title="Go to Out" disabled={!media} onClick={() => goToSourceMark("out")}><PreviewTransportIcon name="end" /></Button>
-            <Button type="button" variant="ghost" size="icon" aria-label="Mark source out" title="Mark Out (O)" disabled={!media} onClick={() => markSource("out")}><PreviewTransportIcon name="out" /></Button>
+            <Button type="button" variant="ghost" size="icon" aria-label={t("Source next frame")} title={t("Next frame (Right)")} disabled={!media} onClick={() => stepSourceFrame(1)}><PreviewTransportIcon name="next" /></Button>
+            <Button type="button" variant="ghost" size="icon" aria-label={t("Go to source out")} title={t("Go to Out")} disabled={!media} onClick={() => goToSourceMark("out")}><PreviewTransportIcon name="end" /></Button>
+            <Button type="button" variant="ghost" size="icon" aria-label={t("Mark source out")} title={t("Mark Out (O)")} disabled={!media} onClick={() => markSource("out")}><PreviewTransportIcon name="out" /></Button>
           </div>
           <div className="flex items-center gap-3 font-mono text-[11px] tabular-nums text-fg-2">
-            <span data-testid="source-timecode" aria-label="Source timecode">{tc(position)}</span>
-            <span className="text-fg-3">In <span data-testid="source-in">{marks?.in !== undefined ? tc(marks.in) : "--:--:--:--"}</span></span>
-            <span className="text-fg-3">Out <span data-testid="source-out">{marks?.out !== undefined ? tc(marks.out) : "--:--:--:--"}</span></span>
+            <span data-testid="source-timecode" aria-label={t("Source timecode")}>{tc(position)}</span>
+            <span className="text-fg-3">{t("In")} <span data-testid="source-in">{marks?.in !== undefined ? tc(marks.in) : "--:--:--:--"}</span></span>
+            <span className="text-fg-3">{t("Out")} <span data-testid="source-out">{marks?.out !== undefined ? tc(marks.out) : "--:--:--:--"}</span></span>
             {rate !== 0 && <span className="text-accent" data-testid="source-rate">{rate}x</span>}
           </div>
           {media && <SourcePatch hasVideo={hasVideo} hasAudio={hasAudio} media={media} />}
           <div className="ml-auto flex flex-wrap items-center justify-end gap-2 [&>*]:whitespace-nowrap">
-            <Button type="button" variant="ghost" size="sm" data-testid="source-add-marker" title="Add a master-clip marker at the playhead (M)" onMouseDown={noFocusSteal} disabled={!media || readOnly} onClick={() => void addSourceMarker()}>Add marker</Button>
-            <Button type="button" variant="ghost" size="sm" onMouseDown={noFocusSteal} disabled={!media || (marks?.in === undefined && marks?.out === undefined)} onClick={clearSourceMarks}>Clear marks</Button>
+            <Button type="button" variant="ghost" size="sm" data-testid="source-add-marker" title={t("Add a master-clip marker at the playhead (M)")} onMouseDown={noFocusSteal} disabled={!media || readOnly} onClick={() => void addSourceMarker()}>{t("Add marker")}</Button>
+            <Button type="button" variant="ghost" size="sm" onMouseDown={noFocusSteal} disabled={!media || (marks?.in === undefined && marks?.out === undefined)} onClick={clearSourceMarks}>{t("Clear marks")}</Button>
             {hasVideo && media?.type === "video" && (
               <span
                 role="button"
                 tabIndex={-1}
                 draggable
-                aria-label="Drag video only"
-                title="Drag video only to the timeline"
+                aria-label={t("Drag video only")}
+                title={t("Drag video only to the timeline")}
                 data-testid="drag-video-only"
                 onDragStart={onDragStart("video")}
                 className="cursor-grab rounded border border-border px-2 py-1 text-[11px] text-fg-2 hover:border-border-strong"
               >
-                Video only
+                {t("Video only")}
               </span>
             )}
             {hasAudio && media?.type === "video" && (
@@ -596,13 +601,13 @@ export function SourceMonitor() {
                 role="button"
                 tabIndex={-1}
                 draggable
-                aria-label="Drag audio only"
-                title="Drag audio only to the timeline"
+                aria-label={t("Drag audio only")}
+                title={t("Drag audio only to the timeline")}
                 data-testid="drag-audio-only"
                 onDragStart={onDragStart("audio")}
                 className="cursor-grab rounded border border-border px-2 py-1 text-[11px] text-fg-2 hover:border-border-strong"
               >
-                Audio only
+                {t("Audio only")}
               </span>
             )}
             {media && media.type !== "image" && !readOnly && (
@@ -613,44 +618,44 @@ export function SourceMonitor() {
                   size="sm"
                   data-testid="subclip-restrict"
                   aria-pressed={restrictSubclip}
-                  title="Restrict trims on clips of the new subclip to its In/Out"
+                  title={t("Restrict trims on clips of the new subclip to its In/Out")}
                   onMouseDown={noFocusSteal}
                   onClick={() => setRestrictSubclip((value) => !value)}
                   className={restrictSubclip ? "bg-[#26282d] text-fg" : "text-fg-3"}
                 >
-                  Restrict
+                  {t("Restrict")}
                 </Button>
                 <Button
                   type="button"
                   variant="secondary"
                   size="sm"
                   data-testid="make-subclip"
-                  title="Make a subclip from the In/Out marks"
+                  title={t("Make a subclip from the In/Out marks")}
                   onMouseDown={noFocusSteal}
                   onClick={() =>
                     void makeSubclipFromSource({ restrictTrims: restrictSubclip }).then((outcome) =>
-                      outcome.success ? toast.info("Make Subclip", outcome.message) : toast.warning("Make Subclip", outcome.message),
+                      outcome.success ? toast.info(translateNow("Make Subclip"), outcome.message) : toast.warning(translateNow("Make Subclip"), outcome.message),
                     )
                   }
                 >
-                  Make Subclip
+                  {t("Make Subclip")}
                 </Button>
               </>
             )}
-            <Button type="button" variant="secondary" size="sm" onMouseDown={noFocusSteal} disabled={!media || readOnly} aria-label="Insert (,)" title="Insert at the timeline playhead (,)" onClick={() => runWithToast("Insert", () => insertFromSource())}>Insert</Button>
-            <Button type="button" variant="secondary" size="sm" onMouseDown={noFocusSteal} disabled={!media || readOnly} aria-label="Overwrite (.)" title="Overwrite at the timeline playhead (.)" onClick={() => runWithToast("Overwrite", () => overwriteFromSource())}>Overwrite</Button>
+            <Button type="button" variant="secondary" size="sm" onMouseDown={noFocusSteal} disabled={!media || readOnly} aria-label={t("Insert (,)")} title={t("Insert at the timeline playhead (,)")} onClick={() => runWithToast("Insert", () => insertFromSource())}>{t("Insert")}</Button>
+            <Button type="button" variant="secondary" size="sm" onMouseDown={noFocusSteal} disabled={!media || readOnly} aria-label={t("Overwrite (.)")} title={t("Overwrite at the timeline playhead (.)")} onClick={() => runWithToast("Overwrite", () => overwriteFromSource())}>{t("Overwrite")}</Button>
             <Button
               type="button"
               variant="secondary"
               size="sm"
               data-testid="replace-edit"
-              aria-label="Replace (⇧G)"
-              title="Replace the selected timeline clip, or the clip under the playhead, with this source. The clip keeps its place and length; the Source playhead lines up with the timeline playhead (Shift+G)"
+              aria-label={t("Replace (⇧G)")}
+              title={t("Replace the selected timeline clip, or the clip under the playhead, with this source. The clip keeps its place and length; the Source playhead lines up with the timeline playhead (Shift+G)")}
               onMouseDown={noFocusSteal}
               disabled={!media || readOnly}
               onClick={() => runWithToast("Replace", () => replaceFromSource())}
             >
-              Replace
+              {t("Replace")}
             </Button>
             <Button
               type="button"
@@ -658,32 +663,32 @@ export function SourceMonitor() {
               size="sm"
               data-testid="replace-keep"
               aria-pressed={replaceKeeps}
-              title="Replace keeps the clip's effects, keyframes and audio settings. Off resets them."
+              title={t("Replace keeps the clip's effects, keyframes and audio settings. Off resets them.")}
               onMouseDown={noFocusSteal}
               disabled={!media}
               onClick={() => useSourceMonitorStore.getState().setReplaceKeepsAttributes(!replaceKeeps)}
               className={replaceKeeps ? "bg-[#26282d] text-fg" : "text-fg-3"}
             >
-              Keep FX
+              {t("Keep FX")}
             </Button>
             <Button
               type="button"
               variant="secondary"
               size="sm"
               data-testid="fit-to-fill"
-              aria-label="Fit to Fill (⌥⇧F)"
+              aria-label={t("Fit to Fill (⌥⇧F)")}
               title={
                 media?.type === "image"
-                  ? "Fit to Fill needs video or audio"
+                  ? t("Fit to Fill needs video or audio")
                   : rangeMarked
-                    ? "Retime the source In/Out to exactly fill the timeline In/Out range (Alt+Shift+F)"
-                    : "Set In and Out marks on the timeline to fill (Alt+Shift+F)"
+                    ? t("Retime the source In/Out to exactly fill the timeline In/Out range (Alt+Shift+F)")
+                    : t("Set In and Out marks on the timeline to fill (Alt+Shift+F)")
               }
               onMouseDown={noFocusSteal}
               disabled={!media || readOnly || media.type === "image" || !rangeMarked}
               onClick={() => runWithToast("Fit to Fill", () => fitToFillFromSource())}
             >
-              Fit to Fill
+              {t("Fit to Fill")}
             </Button>
           </div>
         </div>

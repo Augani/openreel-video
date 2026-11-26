@@ -235,14 +235,14 @@ export const MarkerIndicator: React.FC<MarkerIndicatorProps> = ({
                 />
                 <div
                   data-testid="marker-handle-start"
-                  aria-label="Resize marker start"
+                  aria-label={t("Resize marker start")}
                   className="absolute left-0 top-0 h-full w-[6px] cursor-ew-resize"
                   onMouseDown={beginDrag("start")}
                   onDoubleClick={(event) => event.stopPropagation()}
                 />
                 <div
                   data-testid="marker-handle-end"
-                  aria-label="Resize marker end"
+                  aria-label={t("Resize marker end")}
                   className="absolute right-0 top-0 h-full w-[6px] cursor-ew-resize"
                   onMouseDown={beginDrag("end")}
                   onDoubleClick={(event) => event.stopPropagation()}
@@ -305,7 +305,7 @@ export const MarkerIndicator: React.FC<MarkerIndicatorProps> = ({
             <Flag size={10} />
             {isEditing ? (
               <Input
-                aria-label="Marker label"
+                aria-label={t("Marker label")}
                 className="h-7 w-[92px] text-xs"
                 value={editedLabel}
                 onChange={(event) => setEditedLabel(event.target.value)}
@@ -321,7 +321,7 @@ export const MarkerIndicator: React.FC<MarkerIndicatorProps> = ({
               <span>{marker.label}</span>
             )}
             {isHovered && onRemove && (
-              <Button variant="ghost" size="icon-sm" onClick={handleRemove} type="button" aria-label="Remove marker" title="Remove marker" className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg ml-1">
+              <Button variant="ghost" size="icon-sm" onClick={handleRemove} type="button" aria-label={t("Remove marker")} title={t("Remove marker")} className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg ml-1">
                 {<X size={10} aria-hidden />}
               </Button>
             )}

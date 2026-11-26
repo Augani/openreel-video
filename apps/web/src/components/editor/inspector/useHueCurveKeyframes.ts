@@ -15,6 +15,7 @@ import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { EMPTY_KEYFRAMES } from "./PrimaryVideoProperties";
 import { toast } from "../../../stores/notification-store";
+import { translateNow } from "@openreel/i18n/translate";
 
 export interface HueCurveKeyframing {
   keyframes: Keyframe[];
@@ -98,7 +99,7 @@ export function useHueCurveKeyframes(
         if (after === before) continue;
         const animatedCurve = hueCurveHasKeyframes(keyframes, kind);
         if (animatedCurve && after.length !== before.length) {
-          toast.warning("Hue curve is keyframed", "Remove this curve's keyframes before adding or removing points.");
+          toast.warning(translateNow("Hue curve is keyframed"), "Remove this curve's keyframes before adding or removing points.");
           continue;
         }
         const storedPoints = normalizeHueCurvePoints(stored[kind]);

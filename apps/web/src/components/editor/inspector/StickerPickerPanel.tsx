@@ -19,6 +19,7 @@ import {
   type EmojiItem,
   type StickerItem,
 } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 
 registerBuiltInStickers();
 
@@ -107,6 +108,7 @@ const StickerCard: React.FC<StickerCardProps> = ({ sticker, onAdd }) => (
 );
 
 export const StickerPickerPanel: React.FC = () => {
+  const t = useT();
   const project = useProjectStore((state) => state.project);
   const createStickerClip = useProjectStore((state) => state.createStickerClip);
   const playheadPosition = useTimelineStore((state) => state.playheadPosition);
@@ -238,29 +240,29 @@ export const StickerPickerPanel: React.FC = () => {
   return (
     <div className="space-y-3">
       <div className="flex gap-1">
-        <Button onClick={() => setActiveTab("emojis")} type="button" aria-label="Emojis" className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 px-2.5 text-[12px]", (activeTab === "emojis" ? "bg-accent text-accent-fg hover:bg-accent/90" : "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"), "flex-1")}>
+        <Button onClick={() => setActiveTab("emojis")} type="button" aria-label={t("Emojis")} className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 px-2.5 text-[12px]", (activeTab === "emojis" ? "bg-accent text-accent-fg hover:bg-accent/90" : "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"), "flex-1")}>
           <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Smile size={12} aria-hidden />}</span>
-          <span className="truncate">{"Emojis"}</span>
+          <span className="truncate">{t("Emojis")}</span>
         </Button>
-        <Button onClick={() => setActiveTab("stickers")} type="button" aria-label="Stickers" className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 px-2.5 text-[12px]", (activeTab === "stickers" ? "bg-accent text-accent-fg hover:bg-accent/90" : "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"), "flex-1")}>
+        <Button onClick={() => setActiveTab("stickers")} type="button" aria-label={t("Stickers")} className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 px-2.5 text-[12px]", (activeTab === "stickers" ? "bg-accent text-accent-fg hover:bg-accent/90" : "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"), "flex-1")}>
           <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Sticker size={12} aria-hidden />}</span>
-          <span className="truncate">{"Stickers"}</span>
+          <span className="truncate">{t("Stickers")}</span>
         </Button>
       </div>
 
       <div className="relative">
         <div className="relative min-w-0 flex-1"><span aria-hidden className="pointer-events-none absolute left-2 top-1/2 flex -translate-y-1/2 items-center text-fg-muted">{<Search size={14} aria-hidden />}</span><Input placeholder={
-            activeTab === "emojis" ? "Search emojis..." : "Search stickers..."
+            activeTab === "emojis" ? t("Search emojis...") : t("Search stickers...")
           }
 value={searchQuery}
-aria-label={activeTab === "emojis" ? "Search emojis" : "Search stickers"}
+aria-label={activeTab === "emojis" ? t("Search emojis") : t("Search stickers")}
 onChange={(event) => setSearchQuery(event.currentTarget.value)}
 style={{ width: "100%" }}
 className={cn("flex h-8 w-full min-w-0 rounded-[7px] border border-border bg-bg-1 px-2.5 py-1.5 text-[13px] font-medium text-fg-2 outline-none transition-colors placeholder:text-fg-muted focus:border-accent disabled:cursor-not-allowed disabled:opacity-50", "h-7 text-[12px]", "pl-8")} /></div>
       </div>
 
       {activeTab === "emojis" && !searchQuery && (
-        <div className="flex gap-1 overflow-x-auto pb-1" role="group" aria-label="Emoji categories">
+        <div className="flex gap-1 overflow-x-auto pb-1" role="group" aria-label={t("Emoji categories")}>
           {emojiCategories.map((cat) => (
             <CategoryChip key={cat.id} id={cat.id} name={cat.name} selected={selectedCategory === cat.id} onSelect={() => setSelectedCategory(cat.id)} />
           ))}
@@ -268,7 +270,7 @@ className={cn("flex h-8 w-full min-w-0 rounded-[7px] border border-border bg-bg-
       )}
 
       {activeTab === "stickers" && !searchQuery && stickerCategories.length > 1 && (
-        <div className="flex gap-1 overflow-x-auto pb-1" role="group" aria-label="Sticker categories">
+        <div className="flex gap-1 overflow-x-auto pb-1" role="group" aria-label={t("Sticker categories")}>
           <CategoryChip id="all" name="All stickers" selected={stickerCategory === "all"} onSelect={() => setStickerCategory("all")} />
           {stickerCategories.map((cat) => (
             <CategoryChip key={cat.id} id={cat.id} name={cat.name} selected={stickerCategory === cat.id} onSelect={() => setStickerCategory(cat.id)} />
@@ -286,7 +288,7 @@ className={cn("flex h-8 w-full min-w-0 rounded-[7px] border border-border bg-bg-
                 aria-hidden
               />
               <span className="text-fg-2 font-normal text-[10px]">
-                No emojis found
+                {t("No emojis found")}
               </span>
             </div>
           ) : (
@@ -311,10 +313,10 @@ className={cn("flex h-8 w-full min-w-0 rounded-[7px] border border-border bg-bg-
                 aria-hidden
               />
               <span className="text-fg-2 font-normal block text-[10px]">
-                {searchQuery ? "No stickers found" : "No stickers yet"}
+                {searchQuery ? t("No stickers found") : t("No stickers yet")}
               </span>
               <span className="text-fg-2 font-normal block text-[9px] mt-1">
-                {searchQuery ? "Try a different search." : "Import custom stickers below."}
+                {searchQuery ? t("Try a different search.") : t("Import custom stickers below.")}
               </span>
             </div>
           ) : (
@@ -336,7 +338,7 @@ className={cn("flex h-8 w-full min-w-0 rounded-[7px] border border-border bg-bg-
           ref={fileInputRef}
           type="file"
           accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
-          aria-label="Choose custom sticker image"
+          aria-label={t("Choose custom sticker image")}
           className="sr-only h-px w-px p-0"
           onChange={(event) =>
             void handleImportSticker(event.currentTarget.files?.[0])
@@ -344,7 +346,7 @@ className={cn("flex h-8 w-full min-w-0 rounded-[7px] border border-border bg-bg-
         />
         <Button onClick={() => fileInputRef.current?.click()} type="button" aria-label={(isImporting ? "Importing sticker…" : "Import & Add Sticker").trim() || undefined} disabled={(isImporting)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg w-full">
           <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Plus size={12} aria-hidden />}</span>
-          <span className="truncate">{isImporting ? "Importing sticker…" : "Import & Add Sticker"}</span>
+          <span className="truncate">{isImporting ? t("Importing sticker…") : t("Import & Add Sticker")}</span>
         </Button>
         {importMessage ? (
           <div className="mt-2 flex items-center gap-1.5 rounded-md border border-accent/20 bg-accent-soft px-2 py-1.5 text-[9px] text-accent">

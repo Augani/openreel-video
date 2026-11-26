@@ -10,6 +10,7 @@ import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogH
 import { useProjectStore } from "../../stores/project-store";
 import { setDesktopProxyProfile } from "../../services/desktop-ingest";
 import { useIngestPresetsStore } from "../../services/ingest-presets-store";
+import { useT } from "@openreel/i18n/react";
 
 interface CreateProxiesDialogProps {
   open: boolean;
@@ -26,6 +27,7 @@ interface CreateProxiesDialogProps {
 
 /** Create Proxies dialog (desktop): pick a preset for this batch, and optionally keep it as the project's preset. */
 export const CreateProxiesDialog: React.FC<CreateProxiesDialogProps> = ({ open, onOpenChange, count, scopeLabel, onCreate, onManage }) => {
+  const t = useT();
   const ingestConfig = useProjectStore((s) => s.project.mediaLibrary.desktopIngest);
   const user = useIngestPresetsStore((s) => s.presets);
   const presets = useMemo(() => allIngestPresets(user), [user]);
@@ -52,12 +54,12 @@ export const CreateProxiesDialog: React.FC<CreateProxiesDialogProps> = ({ open, 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md" data-testid="create-proxies-dialog">
         <DialogHeader>
-          <DialogTitle>Create Proxies</DialogTitle>
+          <DialogTitle>{t("Create Proxies")}</DialogTitle>
           <DialogDescription className="text-xs text-fg-muted">
-            {count} {count === 1 ? "clip" : "clips"} ({scopeLabel}). Pick a preset for this batch.
+            {count} {count === 1 ? t("clip") : t("clips")} ({scopeLabel}{t("). Pick a preset for this batch.")}
           </DialogDescription>
         </DialogHeader>
-        <RadioGroup aria-label="Proxy preset" value={choice} onValueChange={setChoice} className="grid max-h-72 gap-2 overflow-y-auto">
+        <RadioGroup aria-label={t("Proxy preset")} value={choice} onValueChange={setChoice} className="grid max-h-72 gap-2 overflow-y-auto">
           {presets.map((preset) => (
             <Label
               key={preset.id}
@@ -76,14 +78,14 @@ export const CreateProxiesDialog: React.FC<CreateProxiesDialogProps> = ({ open, 
           ))}
         </RadioGroup>
         <label className="flex items-center gap-1.5 text-[11px] text-fg-2">
-          <input type="checkbox" aria-label="Use as the project's preset" checked={keep} onChange={(event) => setKeep(event.target.checked)} />
-          Also use it as this project's preset for new imports
+          <input type="checkbox" aria-label={t("Use as the project's preset")} checked={keep} onChange={(event) => setKeep(event.target.checked)} />
+          {t("Also use it as this project's preset for new imports")}
         </label>
-        <p className="text-[10px] leading-snug text-fg-muted">Proxies are for editing only. Exports always read the full-resolution media.</p>
+        <p className="text-[10px] leading-snug text-fg-muted">{t("Proxies are for editing only. Exports always read the full-resolution media.")}</p>
         <DialogFooter>
-          {onManage && <Button type="button" variant="secondary" onClick={onManage}>Manage presets…</Button>}
-          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button type="button" onClick={() => void submit()} disabled={count === 0} data-testid="create-proxies-confirm">Create proxies</Button>
+          {onManage && <Button type="button" variant="secondary" onClick={onManage}>{t("Manage presets…")}</Button>}
+          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>{t("Cancel")}</Button>
+          <Button type="button" onClick={() => void submit()} disabled={count === 0} data-testid="create-proxies-confirm">{t("Create proxies")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

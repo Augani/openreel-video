@@ -11,6 +11,8 @@ import { formatSpeed } from "../../../utils/format-speed";
 import { InspectorToggle } from "./shell/InspectorControls";
 import { trackEditorDraftWrite } from "../../../services/editor-field-drafts";
 import { toast } from "../../../stores/notification-store";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const SPEED_PRESETS = [
   { label: "0.25×", value: 0.25 },
@@ -25,13 +27,15 @@ const SPEED_PRESETS = [
 ];
 
 export const SpeedSection: React.FC<{ clip: Pick<Clip, "id"> }> = ({ clip }) => {
+  const t = useT();
   const project = useProjectStore(state => state.project);
   const current = project.timeline.tracks.flatMap(track => track.clips).find(item => item.id === clip.id);
-  if (!current) return <p className="text-xs text-fg-2">No media clip selected</p>;
+  if (!current) return <p className="text-xs text-fg-2">{t("No media clip selected")}</p>;
   return <SpeedControls key={`${project.id}:${clip.id}`} clip={current} projectId={project.id} />;
 };
 
 function SpeedControls({ clip, projectId }: { clip: Clip; projectId: string }) {
+  const t = useT();
   const [affectAudio, setAffectAudio] = useState(true);
   const queue = useRef(Promise.resolve());
   const exporting = useUIStore(state => state.exportState.isExporting);
@@ -62,7 +66,7 @@ function SpeedControls({ clip, projectId }: { clip: Clip; projectId: string }) {
       }
     });
     trackEditorDraftWrite(queue.current, { projectId, history: owner });
-    void queue.current.catch(error => toast.error("Speed edit failed", error instanceof Error ? error.message : "Try the change again."));
+    void queue.current.catch(error => toast.error(translateNow("Speed edit failed"), error instanceof Error ? error.message : "Try the change again."));
     return queue.current;
   };
   const custom = useNumericDraft({ value: currentSpeed, onChange: speed => enqueue({ speed }),
@@ -73,47 +77,47 @@ function SpeedControls({ clip, projectId }: { clip: Clip; projectId: string }) {
         aria-label={`Set speed to ${preset.label}`} aria-pressed={currentSpeed === preset.value}
         onClick={() => enqueue({ speed: preset.value })}
         className={cn("h-[30px] rounded-[6px] px-2 text-xs font-medium", currentSpeed === preset.value && "border-accent bg-accent text-accent-fg")}>
-        {preset.label}
+        {t(preset.label)}
       </Button>)}
     </div>
     <div className="space-y-2">
       <Label className="flex min-w-0 items-center justify-between gap-3 text-xs font-normal text-fg-2">
-        <span>Custom Speed</span>
+        <span>{t("Custom Speed")}</span>
         <span className="flex h-[30px] w-[120px] min-w-0 items-center gap-1 rounded-[6px] border border-border bg-bg-1 px-2 focus-within:border-accent">
-          <Input {...custom} aria-label="Custom Speed" type="text" inputMode="decimal"
+          <Input {...custom} aria-label={t("Custom Speed")} type="text" inputMode="decimal"
             className="h-5 min-w-0 border-0 bg-transparent p-0 text-right font-mono text-[11px] shadow-none focus-visible:ring-0" />
           <span className="text-fg-3">×</span>
         </span>
       </Label>
-      <p className="text-[11px] text-fg-3">Range: {SPEED_MIN}× (slowest) to {SPEED_MAX}× (fastest)</p>
+      <p className="text-[11px] text-fg-3">{t("Range:")} {SPEED_MIN}{t("× (slowest) to")} {SPEED_MAX}{t("× (fastest)")}</p>
     </div>
     {hasAudio && <Card className="flex min-w-0 items-center justify-between rounded-[7px] border-border bg-bg-2 p-3 shadow-none">
-      <span className="text-xs text-fg-2">Apply speed to audio</span>
+      <span className="text-xs text-fg-2">{t("Apply speed to audio")}</span>
       <InspectorToggle checked={affectAudio} onChange={setAffectAudio} ariaLabel="Apply speed to audio" isDisabled={disabled} />
     </Card>}
-    <Button type="button" variant={isReversed ? "default" : "outline"} aria-label={isReversed ? "Reversed" : "Reverse Clip"}
+    <Button type="button" variant={isReversed ? "default" : "outline"} aria-label={isReversed ? t("Reversed") : t("Reverse Clip")}
       aria-pressed={isReversed} className="h-[30px] w-full rounded-[6px] text-xs"
-      onClick={() => enqueue(current => ({ reversed: !current.reversed }))}><RotateCcw size={14} aria-hidden />{isReversed ? "Reversed" : "Reverse Clip"}</Button>
+      onClick={() => enqueue(current => ({ reversed: !current.reversed }))}><RotateCcw size={14} aria-hidden />{isReversed ? t("Reversed") : t("Reverse Clip")}</Button>
     {isVideoClip && <Card className="min-w-0 space-y-2 rounded-[7px] border-border bg-bg-2 p-3 shadow-none">
-      <Label className="block space-y-1.5 text-xs font-normal text-fg-2"><span className="flex items-center gap-2"><Sparkles size={14} aria-hidden />Time Interpolation</span>
+      <Label className="block space-y-1.5 text-xs font-normal text-fg-2"><span className="flex items-center gap-2"><Sparkles size={14} aria-hidden />{t("Time Interpolation")}</span>
         <Select value={interpolation} disabled={disabled}
           onValueChange={value => { if (isTimeInterpolation(value)) enqueue({ timeInterpolation: value }); }}>
-          <SelectTrigger aria-label="Time Interpolation" className="h-[30px] text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger aria-label={t("Time Interpolation")} className="h-[30px] text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>{TIME_INTERPOLATION_MODES.map(mode => <SelectItem key={mode} value={mode}>{TIME_INTERPOLATION_LABELS[mode]}</SelectItem>)}</SelectContent>
         </Select>
       </Label>
-      {interpolation === "opticalFlow" && <Label className="block space-y-1.5 text-xs font-normal text-fg-2"><span>Quality</span>
+      {interpolation === "opticalFlow" && <Label className="block space-y-1.5 text-xs font-normal text-fg-2"><span>{t("Quality")}</span>
         <Select value={clip.interpolationQuality ?? "medium"} disabled={disabled}
           onValueChange={value => { if (value === "low" || value === "medium" || value === "high") enqueue({ interpolationQuality: value }); }}>
-          <SelectTrigger aria-label="Quality" className="h-[30px] text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="low">Low (faster)</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="high">High (slower)</SelectItem></SelectContent>
+          <SelectTrigger aria-label={t("Quality")} className="h-[30px] text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="low">{t("Low (faster)")}</SelectItem><SelectItem value="medium">{t("Medium")}</SelectItem><SelectItem value="high">{t("High (slower)")}</SelectItem></SelectContent>
         </Select>
       </Label>}
-      <p className="text-[10px] text-fg-3">{interpolation === "frameSampling" ? "Repeats the nearest source frame (default)." : interpolation === "frameBlending" ? "Blends the two nearest source frames." : "Estimates motion to build smooth in-between frames. Heavy: render in to out for real-time playback."}</p>
+      <p className="text-[10px] text-fg-3">{interpolation === "frameSampling" ? t("Repeats the nearest source frame (default).") : interpolation === "frameBlending" ? t("Blends the two nearest source frames.") : t("Estimates motion to build smooth in-between frames. Heavy: render in to out for real-time playback.")}</p>
     </Card>}
     {(currentSpeed !== 1 || isReversed || interpolation !== "frameSampling") && <Card className="min-w-0 rounded-[7px] border-border bg-bg-2 p-3 shadow-none">
-      <p className="mb-1 text-xs text-fg-2">Current Settings</p>
-      <p className="text-sm text-fg">Speed: {formatSpeed(currentSpeed)}× {isReversed && "• Reversed"}{interpolation !== "frameSampling" && ` • ${TIME_INTERPOLATION_LABELS[interpolation]}`}</p>
+      <p className="mb-1 text-xs text-fg-2">{t("Current Settings")}</p>
+      <p className="text-sm text-fg">{t("Speed:")} {formatSpeed(currentSpeed)}× {isReversed && t("• Reversed")}{interpolation !== "frameSampling" && ` • ${TIME_INTERPOLATION_LABELS[interpolation]}`}</p>
     </Card>}
   </fieldset>;
 }

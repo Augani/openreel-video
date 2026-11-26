@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { Plus, Trash2, RotateCw } from 'lucide-react';
 import { Slider } from '@openreel/ui';
 import type { Gradient } from '../../types/project';
+import { useT } from "@openreel/i18n/react";
 
 interface GradientPickerProps {
   value: Gradient | null;
@@ -27,6 +28,7 @@ const DEFAULT_GRADIENT: Gradient = {
 };
 
 export function GradientPicker({ value, onChange }: GradientPickerProps) {
+  const t = useT();
   const gradient = value ?? DEFAULT_GRADIENT;
   const [selectedStopIndex, setSelectedStopIndex] = useState(0);
 
@@ -122,7 +124,7 @@ export function GradientPicker({ value, onChange }: GradientPickerProps) {
               : 'bg-secondary text-secondary-foreground hover:bg-accent'
           }`}
         >
-          Linear
+          {t("Linear")}
         </button>
         <button
           onClick={() => handleTypeChange('radial')}
@@ -132,14 +134,14 @@ export function GradientPicker({ value, onChange }: GradientPickerProps) {
               : 'bg-secondary text-secondary-foreground hover:bg-accent'
           }`}
         >
-          Radial
+          {t("Radial")}
         </button>
       </div>
 
       {gradient.type === 'linear' && (
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <label className="text-[10px] text-muted-foreground">Angle</label>
+            <label className="text-[10px] text-muted-foreground">{t("Angle")}</label>
             <div className="flex items-center gap-1">
               <span className="text-[10px] text-muted-foreground">{gradient.angle}°</span>
               <button
@@ -162,7 +164,7 @@ export function GradientPicker({ value, onChange }: GradientPickerProps) {
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <label className="text-[10px] text-muted-foreground">Color Stops</label>
+          <label className="text-[10px] text-muted-foreground">{t("Color Stops")}</label>
           <button
             onClick={addStop}
             disabled={gradient.stops.length >= 5}

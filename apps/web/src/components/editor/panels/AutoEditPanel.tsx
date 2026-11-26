@@ -35,12 +35,15 @@ import {
   type Clip,
   getMediaItemCapabilities,
 } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 interface AutoEditPanelProps {
   onClose: () => void;
 }
 
 export const AutoEditPanel: React.FC<AutoEditPanelProps> = ({ onClose }) => {
+  const t = useT();
   const project = useProjectStore((s) => s.project);
   const [cutMode, setCutMode] = useState<CutMode>("beats");
   const [sensitivity, setSensitivity] = useState(0.5);
@@ -127,7 +130,7 @@ export const AutoEditPanel: React.FC<AutoEditPanelProps> = ({ onClose }) => {
             (m) => m.id === audioClip.mediaId,
           );
         if (!mediaItem?.blob) {
-          setError("Audio file not loaded");
+          setError(translateNow("Audio file not loaded"));
           setAnalyzing(false);
           return;
         }
@@ -216,18 +219,18 @@ export const AutoEditPanel: React.FC<AutoEditPanelProps> = ({ onClose }) => {
         <div className="flex items-center gap-2">
           <Zap size={14} className="text-primary" aria-hidden />
           <span className="text-fg-2 font-bold text-[11px]">
-            Beat-Synced Auto-Edit
+            {t("Beat-Synced Auto-Edit")}
           </span>
         </div>
       </div>
 
       {audioClips.length === 0 ? (
-        <Card className="flex min-w-0 flex-col items-center justify-center gap-2 border-0 bg-transparent px-3 py-5 text-center text-fg-muted shadow-none"><div className="flex items-center justify-center">{<Music size={24} className="text-text-muted opacity-50" aria-hidden />}</div><p className="text-xs font-semibold text-fg-2">{"Add an audio track to use auto-edit"}</p></Card>
+        <Card className="flex min-w-0 flex-col items-center justify-center gap-2 border-0 bg-transparent px-3 py-5 text-center text-fg-muted shadow-none"><div className="flex items-center justify-center">{<Music size={24} className="text-text-muted opacity-50" aria-hidden />}</div><p className="text-xs font-semibold text-fg-2">{t("Add an audio track to use auto-edit")}</p></Card>
       ) : (
         <>
           <ShadcnLabel className="block min-w-0 space-y-1.5">
             <span className="block truncate text-[11px] font-medium text-text-secondary">
-              {"Audio Source"}
+              {t("Audio Source")}
             </span>
             <ShadcnSelect
               value={selectedAudioClipId || "__openreel_empty_option__"}
@@ -241,7 +244,7 @@ export const AutoEditPanel: React.FC<AutoEditPanelProps> = ({ onClose }) => {
               }
             >
               <ShadcnSelectTrigger
-                aria-label={"Audio Source"}
+                aria-label={t("Audio Source")}
                 className={uiCn(
                   "flex h-8 w-full min-w-0 rounded-[7px] border border-border bg-bg-1 px-2.5 py-1.5 text-[13px] font-medium text-fg-2 outline-none transition-colors focus:border-accent disabled:cursor-not-allowed disabled:opacity-50",
                   "h-7 text-[12px]",
@@ -258,7 +261,7 @@ export const AutoEditPanel: React.FC<AutoEditPanelProps> = ({ onClose }) => {
                     value={option.value || "__openreel_empty_option__"}
                     disabled={"disabled" in option && option.disabled === true}
                   >
-                    {option.label}
+                    {t(option.label)}
                   </ShadcnSelectItem>
                 ))}
               </ShadcnSelectContent>
@@ -267,10 +270,10 @@ export const AutoEditPanel: React.FC<AutoEditPanelProps> = ({ onClose }) => {
 
           <div className="space-y-2">
             <span className="text-fg-2 font-bold block text-[10px]">
-              Cut Mode
+              {t("Cut Mode")}
             </span>
             <ShadcnRadioGroup
-              aria-label={"Cut mode"}
+              aria-label={t("Cut mode")}
               value={cutMode}
               onValueChange={(next) => {
                 if (next) setCutMode(next as Parameters<typeof setCutMode>[0]);
@@ -297,10 +300,10 @@ export const AutoEditPanel: React.FC<AutoEditPanelProps> = ({ onClose }) => {
                   >
                     <ShadcnRadioGroupItem data-value={option.value}
                       value={option.value}
-                      aria-label={option.label ?? option.value}
+                      aria-label={t(option.label) ?? option.value}
                       className="sr-only"
                     />
-                    {option.label}
+                    {t(option.label)}
                   </RadioLabel>
                 ))}
             </ShadcnRadioGroup>
@@ -309,7 +312,7 @@ export const AutoEditPanel: React.FC<AutoEditPanelProps> = ({ onClose }) => {
           <div className="space-y-1.5">
             <div className="flex justify-between">
               <span className="text-fg-2 font-bold text-[10px]">
-                Sensitivity
+                {t("Sensitivity")}
               </span>
               <span className="text-fg-2 font-normal text-[9px]">
                 {Math.round(sensitivity * 100)}%
@@ -328,7 +331,7 @@ showValueLabel={false} />
           <div className="space-y-1.5">
             <div className="flex justify-between">
               <span className="text-fg-2 font-bold text-[10px]">
-                Min Clip Duration
+                {t("Min Clip Duration")}
               </span>
               <span className="text-fg-2 font-normal text-[9px]">
                 {minClipDuration.toFixed(1)}s
@@ -350,7 +353,7 @@ showValueLabel={false} />
               ) : (
                 <Zap size={12} aria-hidden />
               )}</span>
-            <span className="truncate">{analyzing ? "Analyzing beats..." : "Generate Auto-Edit"}</span>
+            <span className="truncate">{analyzing ? t("Analyzing beats...") : t("Generate Auto-Edit")}</span>
           </Button>
 
           {error && (
@@ -364,12 +367,12 @@ showValueLabel={false} />
           {preview && (
             <Card className="min-w-0 rounded-[7px] shadow-none bg-bg-2 text-fg p-3 space-y-2 border border-border">
               <span className="text-fg-2 font-bold block text-[10px]">
-                Preview
+                {t("Preview")}
               </span>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <span className="text-fg-2 font-normal text-[9px]">
-                    Cuts:{" "}
+                    {t("Cuts:")}{" "}
                   </span>
                   <span className="text-fg-2 font-normal text-[9px]">
                     {preview.cuts.length}
@@ -377,15 +380,15 @@ showValueLabel={false} />
                 </div>
                 <div>
                   <span className="text-fg-2 font-normal text-[9px]">
-                    Duration:{" "}
+                    {t("Duration:")}{" "}
                   </span>
                   <span className="text-fg-2 font-normal text-[9px]">
                     {preview.totalDuration.toFixed(1)}s
                   </span>
                 </div>
               </div>
-              <Button onClick={handleApply} type="button" aria-label="Apply Auto-Edit" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90 w-full">
-                <span className="truncate">{"Apply Auto-Edit"}</span>
+              <Button onClick={handleApply} type="button" aria-label={t("Apply Auto-Edit")} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90 w-full">
+                <span className="truncate">{t("Apply Auto-Edit")}</span>
               </Button>
             </Card>
           )}

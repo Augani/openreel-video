@@ -8,6 +8,7 @@ import {
   type WebCodecsEncoderSupport,
 } from "@openreel/core";
 import { Label, RadioGroup, RadioGroupItem, cn } from "@openreel/ui";
+import { useT } from "@openreel/i18n/react";
 
 interface EncoderPickerProps {
   codec: string;
@@ -28,6 +29,7 @@ const isDesktop = (): boolean => typeof window !== "undefined" && window.openree
  * the browser asks WebCodecs. A choice the machine cannot run is disabled with the reason shown.
  */
 export const EncoderPicker: React.FC<EncoderPickerProps> = ({ codec, width, height, frameRate, value, onChange, onBlockedChange }) => {
+  const t = useT();
   const desktop = isDesktop();
   const [encoders, setEncoders] = useState<string[] | null>(null);
   const [platform, setPlatform] = useState<string>("");
@@ -76,8 +78,8 @@ export const EncoderPicker: React.FC<EncoderPickerProps> = ({ codec, width, heig
 
   return (
     <div className="col-span-2 border-t border-border pt-4" data-testid="encoder-picker">
-      <span className="mb-2 block text-[11px] font-bold text-fg-2">Encoder</span>
-      <RadioGroup aria-label="Encoder" value={value} onValueChange={(next) => onChange(next as EncoderChoice)} className="grid grid-cols-3 gap-2">
+      <span className="mb-2 block text-[11px] font-bold text-fg-2">{t("Encoder")}</span>
+      <RadioGroup aria-label={t("Encoder")} value={value} onValueChange={(next) => onChange(next as EncoderChoice)} className="grid grid-cols-3 gap-2">
         {options.map((option) => (
           <Label
             key={option.choice}
@@ -91,19 +93,19 @@ export const EncoderPicker: React.FC<EncoderPickerProps> = ({ codec, width, heig
               value === option.choice && "border-accent bg-selected shadow-[0_0_0_1px_var(--accent)]",
             )}
           >
-            <RadioGroupItem id={`export-encoder-${option.choice}`} value={option.choice} disabled={!option.available} aria-label={option.label} className="sr-only" />
-            <span className="block text-[11px] font-semibold">{option.label}</span>
+            <RadioGroupItem id={`export-encoder-${option.choice}`} value={option.choice} disabled={!option.available} aria-label={t(option.label)} className="sr-only" />
+            <span className="block text-[11px] font-semibold">{t(option.label)}</span>
             <span className="mt-0.5 block text-[9px] leading-3 text-fg-muted">{option.detail}</span>
           </Label>
         ))}
       </RadioGroup>
       {blocked && selectedOption && (
         <p role="alert" data-testid="encoder-unavailable-note" className="mt-2 text-[11px] text-error">
-          {selectedOption.label} is not available here: {selectedOption.detail}. Choose{" "}
+          {selectedOption.label} {t("is not available here:")} {selectedOption.detail}. Choose{" "}
           <button type="button" className="underline" onClick={() => onChange("auto")}>
-            Auto
+            {t("Auto")}
           </button>{" "}
-          or another encoder to export.
+          {t("or another encoder to export.")}
         </p>
       )}
     </div>

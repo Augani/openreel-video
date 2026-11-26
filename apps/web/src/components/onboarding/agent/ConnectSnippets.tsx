@@ -9,6 +9,8 @@ import {
   directHttpSnippet,
   doctorCommand,
 } from "./mcp-connect";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 type TabId = "claude-code" | "desktop" | "http";
 
@@ -21,10 +23,10 @@ const TABS: ReadonlyArray<{ id: TabId; label: string }> = [
 export async function copyText(value: string, label: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(value);
-    toast.success(`${label} copied`);
+    toast.success(translateNow("{label} copied", { label }));
     return true;
   } catch {
-    toast.error("Copy failed", "Clipboard is unavailable.");
+    toast.error(translateNow("Copy failed"), "Clipboard is unavailable.");
     return false;
   }
 }
@@ -41,6 +43,7 @@ interface ConnectSnippetsProps {
  * `getStatus` values (real shim path, real URL and token), never a placeholder when they are known.
  */
 export const ConnectSnippets: React.FC<ConnectSnippetsProps> = ({ status, onRetry, className }) => {
+  const t = useT();
   const [tab, setTab] = useState<TabId>("claude-code");
   const [copied, setCopied] = useState<TabId | null>(null);
   const baseId = useId();
@@ -96,7 +99,7 @@ export const ConnectSnippets: React.FC<ConnectSnippetsProps> = ({ status, onRetr
 
   return (
     <div className={className}>
-      <div role="tablist" aria-label="Connection method" className="flex flex-wrap gap-1 border-b border-border">
+      <div role="tablist" aria-label={t("Connection method")} className="flex flex-wrap gap-1 border-b border-border">
         {TABS.map((t, i) => {
           const selected = t.id === tab;
           return (
@@ -133,14 +136,14 @@ export const ConnectSnippets: React.FC<ConnectSnippetsProps> = ({ status, onRetr
         <p className="text-xs text-fg-2">{active.help}</p>
         {!shimPath && tab !== "http" ? (
           <div role="alert" className="flex items-center justify-between gap-3 rounded-md border border-border bg-bg px-3 py-2.5 text-xs text-fg-2">
-            <span>The connection helper is not available yet, so there is no command to copy. Make sure OpenReel finished starting, then try again.</span>
+            <span>{t("The connection helper is not available yet, so there is no command to copy. Make sure OpenReel finished starting, then try again.")}</span>
             {onRetry && (
               <button
                 type="button"
                 onClick={onRetry}
                 className="shrink-0 rounded-[7px] border border-border px-3 py-1.5 font-medium text-fg outline-none transition-colors hover:bg-bg-2 focus-visible:ring-2 focus-visible:ring-ring"
               >
-                Try again
+                {t("Try again")}
               </button>
             )}
           </div>
@@ -148,7 +151,7 @@ export const ConnectSnippets: React.FC<ConnectSnippetsProps> = ({ status, onRetr
         <div className="relative">
           <pre
             tabIndex={0}
-            aria-label={active.label}
+            aria-label={t(active.label)}
             className="overflow-x-auto rounded-md border border-border bg-bg px-3 py-2.5 pr-11 font-mono text-[11px] leading-5 text-fg-2 outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {active.shown}
@@ -166,7 +169,7 @@ export const ConnectSnippets: React.FC<ConnectSnippetsProps> = ({ status, onRetr
         )}
         {tab !== "http" && shimPath && (
           <p className="text-[11px] text-fg-2">
-            Not connecting? Run <code className="font-mono text-fg">{doctorCommand(shimPath)}</code> to see which step fails.
+            {t("Not connecting? Run")} <code className="font-mono text-fg">{doctorCommand(shimPath)}</code> {t("to see which step fails.")}
           </p>
         )}
       </div>

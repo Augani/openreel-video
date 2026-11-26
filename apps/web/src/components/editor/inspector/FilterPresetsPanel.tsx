@@ -1,4 +1,5 @@
 import React, { Suspense } from "react";
+import { translateNow } from "@openreel/i18n/translate";
 import { lazyWithRetry } from "./lazy-retry";
 
 // The look grid (real-footage previews) loads on demand: it stays out of the editor chunk.
@@ -10,7 +11,7 @@ interface FilterPresetsPanelProps {
 }
 
 export const FilterPresetsPanel: React.FC<FilterPresetsPanelProps> = (props) => (
-  <Suspense fallback={<div className="h-24 animate-pulse rounded-[7px] bg-bg-2" aria-label="Loading looks" role="status" />}>
+  <Suspense fallback={<div className="h-24 animate-pulse rounded-[7px] bg-bg-2" aria-label={translateNow("Loading looks")} role="status" />}>
     <FilterLooksPanel {...props} />
   </Suspense>
 );

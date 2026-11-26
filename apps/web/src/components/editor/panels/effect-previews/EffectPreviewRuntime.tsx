@@ -16,6 +16,7 @@ import { previewNote } from "./preview-params";
 import { createRetargeter } from "./retargeter";
 import { PREVIEW_RETARGET_DEBOUNCE_MS, selectPreviewSource } from "./source-selection";
 import { createWindowLoader, previewSizeForDevice } from "./window-loader";
+import { useT } from "@openreel/i18n/react";
 
 /** How many frames past the one on screen hover playback keeps rendered. */
 const HOVER_LOOKAHEAD_FRAMES = 6;
@@ -133,6 +134,7 @@ function drawBitmap(canvas: HTMLCanvasElement | null, bitmap: ImageBitmap | null
  * window loops with the effect applied. Decorative: hidden from assistive tech.
  */
 export const EffectLivePreviewCard: React.FC<{ def: PreviewEffectDef; active: boolean }> = ({ def, active }) => {
+  const t = useT();
   const engine = useContext(EffectPreviewContext);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [visible, setVisible] = useState(false);
@@ -264,7 +266,7 @@ export const EffectLivePreviewCard: React.FC<{ def: PreviewEffectDef; active: bo
       />
       {failed ? (
         <span className="absolute inset-0 flex items-center justify-center bg-bg-3 px-2 text-center text-[9px] text-fg-3">
-          Preview unavailable
+          {t("Preview unavailable")}
         </span>
       ) : null}
       {note || (origin === "sample" && !failed) ? (
@@ -277,10 +279,10 @@ export const EffectLivePreviewCard: React.FC<{ def: PreviewEffectDef; active: bo
           {origin === "sample" && !failed ? (
             <span
               data-preview-badge="sample"
-              title="Sample footage: this clip's own media could not be decoded"
+              title={t("Sample footage: this clip's own media could not be decoded")}
               className="whitespace-nowrap rounded bg-black/55 px-1.5 py-0.5 text-[8px] uppercase text-white/85 backdrop-blur-sm"
             >
-              Sample
+              {t("Sample")}
             </span>
           ) : null}
         </div>

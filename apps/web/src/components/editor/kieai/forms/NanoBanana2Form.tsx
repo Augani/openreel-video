@@ -11,6 +11,7 @@ import {
 } from "@openreel/ui";
 import type { NanoBanana2Input } from "../../../../services/kieai/image-generation";
 import { ASPECT_RATIO_OPTIONS_AUTO } from "./shared";
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   value: NanoBanana2Input;
@@ -25,6 +26,7 @@ export function NanoBanana2Form({
   onSubmit,
   isLoading,
 }: Props) {
+  const t = useT();
   const id = useId();
   return (
     <fieldset disabled={isLoading} className="min-w-0 space-y-4 border-0 p-0">
@@ -33,7 +35,7 @@ export function NanoBanana2Form({
           htmlFor={`${id}-prompt`}
           className="text-[12px] font-medium text-fg-2"
         >
-          Prompt
+          {t("Prompt")}
         </Label>
         <Textarea
           id={`${id}-prompt`}
@@ -43,7 +45,7 @@ export function NanoBanana2Form({
           }
           required
           disabled={isLoading}
-          placeholder="Describe the image you want to generate..."
+          placeholder={t("Describe the image you want to generate...")}
           maxLength={2000}
           rows={4}
           className="resize-y border-border bg-bg-2 text-[12px] leading-5 text-fg placeholder:text-fg-3"
@@ -56,7 +58,7 @@ export function NanoBanana2Form({
             htmlFor={`${id}-aspect-ratio`}
             className="text-[12px] font-medium text-fg-2"
           >
-            Aspect Ratio
+            {t("Aspect Ratio")}
           </Label>
           <Select
             value={value.aspect_ratio ?? "1:1"}
@@ -77,7 +79,7 @@ export function NanoBanana2Form({
             <SelectContent>
               {[...ASPECT_RATIO_OPTIONS_AUTO].map((option) => (
                 <SelectItem key={option.value} value={option.value}>
-                  {option.label}
+                  {t(option.label)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -89,7 +91,7 @@ export function NanoBanana2Form({
             htmlFor={`${id}-resolution`}
             className="text-[12px] font-medium text-fg-2"
           >
-            Resolution
+            {t("Resolution")}
           </Label>
           <Select
             value={value.resolution ?? "2K"}
@@ -114,7 +116,7 @@ export function NanoBanana2Form({
                 { value: "4K", label: "4K" },
               ].map((option) => (
                 <SelectItem key={option.value} value={option.value}>
-                  {option.label}
+                  {t(option.label)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -126,7 +128,7 @@ export function NanoBanana2Form({
             htmlFor={`${id}-format`}
             className="text-[12px] font-medium text-fg-2"
           >
-            Format
+            {t("Format")}
           </Label>
           <Select
             value={value.output_format ?? "png"}
@@ -151,7 +153,7 @@ export function NanoBanana2Form({
                 { value: "jpg", label: "JPG" },
               ].map((option) => (
                 <SelectItem key={option.value} value={option.value}>
-                  {option.label}
+                  {t(option.label)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -172,7 +174,7 @@ export function NanoBanana2Form({
         className="h-8 w-full bg-accent text-[12px] text-accent-fg hover:bg-accent/90"
       >
         <span className="truncate">
-          {isLoading ? "Generating..." : "Generate with Nano Banana 2"}
+          {isLoading ? t("Generating...") : t("Generate with Nano Banana 2")}
         </span>
       </Button>
     </fieldset>

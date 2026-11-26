@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { translateNow } from "@openreel/i18n/translate";
 
 type Recognition = InstanceType<NonNullable<Window["SpeechRecognition"]>>;
 export function useVoiceEdit(enabled: boolean, onResult: (text: string) => void) {
@@ -27,7 +28,7 @@ export function useVoiceEdit(enabled: boolean, onResult: (text: string) => void)
       return;
     }
     const API = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!API) { setError("Speech input is unavailable in this browser. Type your edit instead."); return; }
+    if (!API) { setError(translateNow("Speech input is unavailable in this browser. Type your edit instead.")); return; }
     const recognition = new API();
     recognitionRef.current = recognition;
     recognition.continuous = false; recognition.interimResults = false;
@@ -52,7 +53,7 @@ export function useVoiceEdit(enabled: boolean, onResult: (text: string) => void)
     };
     setError(""); setListening(true);
     try { recognition.start(); }
-    catch { abort(); setListening(false); setError("Speech input could not start. Try again."); }
+    catch { abort(); setListening(false); setError(translateNow("Speech input could not start. Try again.")); }
   };
   return { supported, listening, error, toggle };
 }

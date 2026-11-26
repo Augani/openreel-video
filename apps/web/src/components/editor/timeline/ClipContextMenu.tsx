@@ -55,6 +55,7 @@ import { runEnhanceSpeechCommand } from "../../../services/enhance-speech";
 import { groupSelectedClips, makeSubsequenceCommand, nestSelectedClips, openNestClip, ungroupSelectedClips } from "../../../services/sequence-commands";
 import { synchronizeSelectedClips } from "../../../services/sync-clips-commands";
 import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 /** Clip ids a label change applies to: the selected timeline clips when this one is among them. */
 function clipLabelTargets(clipId: string): string[] {
@@ -213,7 +214,7 @@ export function ClipContextMenu({
     // One sync-lock aware ripple: a linked partner and every other sync-locked
     // track close the same gap, or the edit is blocked and says which track.
     const result = await closeGapBeforeClip(clip.id);
-    if (!result.success) toast.warning("Close gap", result.error?.message ?? "The gap could not be closed.");
+    if (!result.success) toast.warning(translateNow("Close gap"), result.error?.message ?? "The gap could not be closed.");
     onClose?.();
   };
 
@@ -222,7 +223,7 @@ export function ClipContextMenu({
     onClose?.();
     const result = await separateAudio(clip.id);
     if (!result.success) {
-      toast.error("Could not separate audio", result.error?.message);
+      toast.error(translateNow("Could not separate audio"), result.error?.message);
     }
   };
 
@@ -319,7 +320,7 @@ export function ClipContextMenu({
           />
         </ContextMenuSubContent>
       </ContextMenuSub>
-      {(isVideo || isAudio) && <ContextMenuItem data-testid="clip-make-subclip" onSelect={() => { void makeSubclipFromClip(clip.id).then((outcome) => { if (!outcome.success) toast.warning("Make Subclip", outcome.message); else toast.info("Make Subclip", outcome.message); }); onClose?.(); }}><Scissors size={14} aria-hidden />{t("Make Subclip")}</ContextMenuItem>}
+      {(isVideo || isAudio) && <ContextMenuItem data-testid="clip-make-subclip" onSelect={() => { void makeSubclipFromClip(clip.id).then((outcome) => { if (!outcome.success) toast.warning(translateNow("Make Subclip"), outcome.message); else toast.info(translateNow("Make Subclip"), outcome.message); }); onClose?.(); }}><Scissors size={14} aria-hidden />{t("Make Subclip")}</ContextMenuItem>}
       {(isVideo || isImage || isAudio) && <>
         <ContextMenuSeparator />
         <ContextMenuLabel className="text-xs">{isAudio ? t("Audio") : t("Effects")}</ContextMenuLabel>
@@ -366,7 +367,7 @@ export function ClipContextMenu({
                   if (!canAct(true)) return;
                   const targets = clipLabelTargets(clip.id);
                   onClose?.();
-                  tagAudioType(targets, type).catch((error: unknown) => toast.warning("Set Audio Type", error instanceof Error ? error.message : "The audio type could not be set."));
+                  tagAudioType(targets, type).catch((error: unknown) => toast.warning(translateNow("Set Audio Type"), error instanceof Error ? error.message : "The audio type could not be set."));
                 }}
               >
                 {t(AUDIO_TYPE_LABELS[type])}{clip.audioType === type ? " ✓" : ""}
@@ -380,7 +381,7 @@ export function ClipContextMenu({
                 if (!canAct(true)) return;
                 const targets = clipLabelTargets(clip.id);
                 onClose?.();
-                clearEssentialSound(targets).catch((error: unknown) => toast.warning("Clear Audio Type", error instanceof Error ? error.message : "The audio type could not be cleared."));
+                clearEssentialSound(targets).catch((error: unknown) => toast.warning(translateNow("Clear Audio Type"), error instanceof Error ? error.message : "The audio type could not be cleared."));
               }}
             >
               {t("Clear Audio Type")}

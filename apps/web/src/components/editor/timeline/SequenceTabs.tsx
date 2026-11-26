@@ -101,6 +101,7 @@ const SequenceNameEditor: React.FC<{ sequence: Sequence; onDone: () => void }> =
 };
 
 export const NewSequenceDialog: React.FC<{ open: boolean; onOpenChange: (open: boolean) => void }> = ({ open, onOpenChange }) => {
+  const t = useT();
   const settings = useProjectStore((s) => s.project.settings);
   const [name, setName] = useState("");
   const [preset, setPreset] = useState(-1);
@@ -125,36 +126,36 @@ export const NewSequenceDialog: React.FC<{ open: boolean; onOpenChange: (open: b
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[380px]" data-testid="new-sequence-dialog">
         <DialogHeader>
-          <DialogTitle>New sequence</DialogTitle>
-          <DialogDescription>Opens in its own tab. It starts empty with a video and an audio track.</DialogDescription>
+          <DialogTitle>{t("New sequence")}</DialogTitle>
+          <DialogDescription>{t("Opens in its own tab. It starts empty with a video and an audio track.")}</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-2.5 text-xs">
           <label className="flex flex-col gap-1">
-            Name
-            <Input data-testid="new-sequence-name" value={name} placeholder="Sequence" onChange={(event) => setName(event.target.value)} onKeyDown={(event) => event.key === "Enter" && void submit()} />
+            {t("Name")}
+            <Input data-testid="new-sequence-name" value={name} placeholder={t("Sequence")} onChange={(event) => setName(event.target.value)} onKeyDown={(event) => event.key === "Enter" && void submit()} />
           </label>
           <label className="flex flex-col gap-1">
-            Settings
+            {t("Settings")}
             <select
               data-testid="new-sequence-preset"
               value={preset}
               onChange={(event) => setPreset(Number(event.target.value))}
               className="h-8 rounded-md border border-border bg-bg-2 px-2 text-xs text-fg"
             >
-              <option value={-1}>Same as current ({settings.width}×{settings.height})</option>
+              <option value={-1}>{t("Same as current (")}{settings.width}×{settings.height})</option>
               {PRESETS.map((item, index) => (
-                <option key={item.label} value={index}>{item.label}</option>
+                <option key={item.label} value={index}>{t(item.label)}</option>
               ))}
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            Frame rate
+            {t("Frame rate")}
             <Input data-testid="new-sequence-fps" inputMode="decimal" value={fps} onChange={(event) => setFps(event.target.value)} />
           </label>
         </div>
         <DialogFooter>
-          <Button variant="secondary" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button data-testid="new-sequence-create" onClick={() => void submit()}>Create</Button>
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>{t("Cancel")}</Button>
+          <Button data-testid="new-sequence-create" onClick={() => void submit()}>{t("Create")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -181,7 +182,7 @@ export const SequenceTabs: React.FC = React.memo(function SequenceTabs() {
   return (
     <div
       role="tablist"
-      aria-label="Sequences"
+      aria-label={t("Sequences")}
       data-testid="sequence-tabs"
       className="workspace-sequence-tabs flex h-[26px] shrink-0 items-stretch gap-px overflow-x-auto overflow-y-hidden border-b border-border bg-bg-0 px-1 scrollbar-none"
     >
@@ -266,7 +267,7 @@ export const SequenceTabs: React.FC = React.memo(function SequenceTabs() {
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            aria-label="New sequence"
+            aria-label={t("New sequence")}
             data-testid="sequence-tab-new"
             className="my-auto ml-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] text-fg-3 hover:bg-bg-2 hover:text-fg"
           >

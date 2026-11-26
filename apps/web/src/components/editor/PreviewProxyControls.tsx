@@ -14,6 +14,7 @@ import {
   previewProxyCache,
   usePreviewProxyStore,
 } from "../../stores/preview-proxy-store";
+import { useT } from "@openreel/i18n/react";
 
 const labels = {
   low: "Up to 540p · Faster",
@@ -45,6 +46,7 @@ export const PreviewProxyBadge: React.FC<{ mediaId: string }> = ({
 export const PreviewProxyControls: React.FC<{ item: MediaItem }> = ({
   item,
 }) => {
+  const t = useT();
   const entry = usePreviewProxyStore((state) => state.entries[item.id]);
   const [preset, setPreset] = useState<PreviewProxyPreset>(
     entry?.preset ?? "medium",
@@ -63,24 +65,23 @@ export const PreviewProxyControls: React.FC<{ item: MediaItem }> = ({
       className="min-w-0 rounded-lg border border-border bg-bg-2 p-3 space-y-2"
     >
       <div className="text-xs font-semibold text-fg-2">
-        Smoother preview{" "}
+        {t("Smoother preview")}{" "}
         {heavy && (
-          <span className="font-normal text-accent">· Recommended</span>
+          <span className="font-normal text-accent">{t("· Recommended")}</span>
         )}
       </div>
       <p className="text-[11px] text-fg-muted leading-relaxed">
-        Create a smaller copy for editing. Exports always use your original
-        video. Cached in this tab, up to 256 MB.
+        {t("Create a smaller copy for editing. Exports always use your original video. Cached in this tab, up to 256 MB.")}
       </p>
       <label className="block text-[11px] text-fg-muted">
-        Preview quality
+        {t("Preview quality")}
         <Select
           value={preset}
           onValueChange={(value) => setPreset(value as PreviewProxyPreset)}
           disabled={busy}
         >
           <SelectTrigger
-            aria-label="Proxy quality"
+            aria-label={t("Proxy quality")}
             className="mt-1 min-h-10 text-xs"
           >
             <SelectValue />
@@ -96,7 +97,7 @@ export const PreviewProxyControls: React.FC<{ item: MediaItem }> = ({
       </label>
       {entry?.status === "ready" && entry.width && entry.height && (
         <p className="text-[11px] text-fg-muted">
-          Proxy ready · {entry.width} × {entry.height} ·{" "}
+          {t("Proxy ready ·")} {entry.width} × {entry.height} ·{" "}
           {((entry.blob?.size ?? 0) / 1024 / 1024).toFixed(1)} MB
         </p>
       )}
@@ -104,7 +105,7 @@ export const PreviewProxyControls: React.FC<{ item: MediaItem }> = ({
         <>
           <div role="status" className="text-[11px] text-fg-muted">
             {entry.status === "queued"
-              ? "Queued — one video at a time"
+              ? t("Queued — one video at a time")
               : `Creating proxy · ${Math.round(entry.progress * 100)}%`}
           </div>
           <Progress
@@ -118,7 +119,7 @@ export const PreviewProxyControls: React.FC<{ item: MediaItem }> = ({
             className="min-h-[40px] w-full rounded border border-border text-xs text-fg-2"
             onClick={() => previewProxyCache.remove(item.id)}
           >
-            Cancel proxy
+            {t("Cancel proxy")}
           </Button>
         </>
       ) : (
@@ -127,7 +128,7 @@ export const PreviewProxyControls: React.FC<{ item: MediaItem }> = ({
             <div
               className="flex gap-1"
               role="group"
-              aria-label="Preview source"
+              aria-label={t("Preview source")}
             >
               <Button
                 variant="secondary"
@@ -136,7 +137,7 @@ export const PreviewProxyControls: React.FC<{ item: MediaItem }> = ({
                 onClick={() => previewProxyCache.setEnabled(item.id, false)}
                 className={`min-h-[40px] flex-1 rounded border text-xs ${!entry.enabled ? "border-accent text-accent" : "border-border text-fg-muted"}`}
               >
-                Original
+                {t("Original")}
               </Button>
               <Button
                 variant="secondary"
@@ -145,7 +146,7 @@ export const PreviewProxyControls: React.FC<{ item: MediaItem }> = ({
                 onClick={() => previewProxyCache.setEnabled(item.id, true)}
                 className={`min-h-[40px] flex-1 rounded border text-xs ${entry.enabled ? "border-accent text-accent" : "border-border text-fg-muted"}`}
               >
-                Proxy
+                {t("Proxy")}
               </Button>
             </div>
           )}
@@ -164,8 +165,8 @@ export const PreviewProxyControls: React.FC<{ item: MediaItem }> = ({
             className="min-h-[40px] w-full rounded border border-accent/40 bg-accent-soft text-xs text-accent"
           >
             {entry?.status === "ready"
-              ? "Recreate proxy"
-              : "Create preview proxy"}
+              ? t("Recreate proxy")
+              : t("Create preview proxy")}
           </Button>
           {entry?.status === "ready" && (
             <Button
@@ -174,7 +175,7 @@ export const PreviewProxyControls: React.FC<{ item: MediaItem }> = ({
               onClick={() => previewProxyCache.remove(item.id)}
               className="min-h-[40px] w-full text-[11px] text-fg-muted"
             >
-              Remove cached proxy
+              {t("Remove cached proxy")}
             </Button>
           )}
         </>

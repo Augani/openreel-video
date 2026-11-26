@@ -101,15 +101,13 @@ export function RecoveryDialog({
     setError("");
     try {
       if ((await onRecover(id)) === false && mounted.current) {
-        setError(
-          "Could not recover this save. Your current project is still available. Try again or choose another save.",
+        setError(translateNow("Could not recover this save. Your current project is still available. Try again or choose another save."),
         );
         setSelected(null);
       }
     } catch {
       if (mounted.current) {
-        setError(
-          "Could not recover this save. Try again or choose another save.",
+        setError(translateNow("Could not recover this save. Try again or choose another save."),
         );
         setSelected(null);
       }
@@ -127,7 +125,7 @@ export function RecoveryDialog({
       if (mounted.current) onDismiss();
     } catch {
       if (mounted.current)
-        setError("Could not clear saved projects. Try again.");
+        setError(translateNow("Could not clear saved projects. Try again."));
     } finally {
       operation.current = null;
       if (mounted.current) setClearing(false);

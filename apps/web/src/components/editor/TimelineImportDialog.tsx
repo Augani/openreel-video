@@ -11,6 +11,8 @@ import {
 import type { TimelineImportMode } from "@openreel/core/interchange/index";
 import { toast } from "../../stores/notification-store";
 import { commitTimelineImport, useTimelineImportStore } from "../../services/timeline-interchange";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const FORMAT_NAMES: Record<string, string> = {
   xmeml: "Final Cut Pro XML",
@@ -27,6 +29,7 @@ const MODES: { id: TimelineImportMode; label: string; hint: string }[] = [
 ];
 
 export function TimelineImportDialog() {
+  const t = useT();
   const preview = useTimelineImportStore((s) => s.preview);
   const setPreview = useTimelineImportStore((s) => s.setPreview);
   const [mode, setMode] = useState<TimelineImportMode>("replace");
@@ -43,10 +46,10 @@ export function TimelineImportDialog() {
     try {
       const outcome = await commitTimelineImport(result, mode);
       if (outcome.success) {
-        toast.success("Timeline imported", `${result.clipCount} clips. Undo (⌘Z) reverts the whole import.`);
+        toast.success(translateNow("Timeline imported"), `${result.clipCount} clips. Undo (⌘Z) reverts the whole import.`);
         setPreview(null);
       } else {
-        toast.error("Could not import the timeline", outcome.message);
+        toast.error(translateNow("Could not import the timeline"), outcome.message);
       }
     } finally {
       setBusy(false);
@@ -59,27 +62,27 @@ export function TimelineImportDialog() {
         className="flex max-h-[90dvh] w-[calc(100vw-32px)] max-w-[520px] flex-col gap-0 overflow-hidden border-border bg-bg-1 p-0 text-fg"
       >
         <DialogHeader className="border-b border-border px-5 py-4 text-left">
-          <DialogTitle className="text-[15px] font-semibold text-fg">Import timeline</DialogTitle>
+          <DialogTitle className="text-[15px] font-semibold text-fg">{t("Import timeline")}</DialogTitle>
           <DialogDescription id="timeline-import-desc" className="text-[12px] text-fg-muted">
             {preview.filename} · {FORMAT_NAMES[result.format]} · {result.sequenceName}
           </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 space-y-4 overflow-y-auto p-5 text-[13px]" data-testid="timeline-import-report">
           <p>
-            <span data-testid="import-clip-count">{result.clipCount}</span> clips on{" "}
-            <span data-testid="import-track-count">{result.tracks.length}</span> tracks,{" "}
-            {result.markers.length} markers. {result.matched.length} media files matched the media bin by filename.{result.nests && result.nests.length > 0 && (<span data-testid="import-nest-count"> {result.nests.length} compound {result.nests.length === 1 ? "clip" : "clips"} will be added as nested sequences.</span>)}{result.multicamSources && result.multicamSources.length > 0 && (<span data-testid="import-multicam-count"> {result.multicamSources.length} multi-camera {result.multicamSources.length === 1 ? "source" : "sources"} will be rebuilt with their angles.</span>)}
+            <span data-testid="import-clip-count">{result.clipCount}</span> {t("clips on")}{" "}
+            <span data-testid="import-track-count">{result.tracks.length}</span> {t("tracks,")}{" "}
+            {result.markers.length} markers. {result.matched.length} {t("media files matched the media bin by filename.")}{result.nests && result.nests.length > 0 && (<span data-testid="import-nest-count"> {result.nests.length} {t("compound")} {result.nests.length === 1 ? t("clip") : t("clips")} {t("will be added as nested sequences.")}</span>)}{result.multicamSources && result.multicamSources.length > 0 && (<span data-testid="import-multicam-count"> {result.multicamSources.length} multi-camera {result.multicamSources.length === 1 ? t("source") : t("sources")} {t("will be rebuilt with their angles.")}</span>)}
           </p>
           {result.unmatched.length > 0 && (
             <div role="alert" className="rounded-md border border-border bg-bg-2 p-3" data-testid="import-unmatched">
-              <p className="font-medium">{result.unmatched.length} media files not in the bin</p>
+              <p className="font-medium">{result.unmatched.length} {t("media files not in the bin")}</p>
               <p className="mt-1 text-[12px] text-fg-muted">
-                They are added as offline placeholders; relink them from the media panel.
+                {t("They are added as offline placeholders; relink them from the media panel.")}
               </p>
               <ul className="mt-2 list-disc pl-5 text-[12px]">
                 {result.unmatched.map((u) => (
                   <li key={u.name}>
-                    {u.name} ({u.clipCount} {u.clipCount === 1 ? "clip" : "clips"})
+                    {u.name} ({u.clipCount} {u.clipCount === 1 ? t("clip") : t("clips")})
                   </li>
                 ))}
               </ul>
@@ -87,7 +90,7 @@ export function TimelineImportDialog() {
           )}
           {prproj && prproj.sequences.length > 1 && (
             <label className="block space-y-1" data-testid="prproj-sequence-picker">
-              <span className="font-medium">Sequence to import</span>
+              <span className="font-medium">{t("Sequence to import")}</span>
               <select
                 className="w-full rounded-md border border-border bg-bg-2 px-2 py-1.5 text-[13px]"
                 value={prproj.selectedId}
@@ -96,7 +99,7 @@ export function TimelineImportDialog() {
               >
                 {prproj.sequences.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name} ({s.detail}){s.nested ? " · nested" : ""}
+                    {s.name} ({s.detail}){s.nested ? t(" · nested") : ""}
                   </option>
                 ))}
               </select>
@@ -105,7 +108,7 @@ export function TimelineImportDialog() {
           {report ? (
             <div className="space-y-2" data-testid="import-report">
               <p className="font-medium" data-testid="import-report-summary">
-                {report.dropped} dropped, {report.approximated} approximated
+                {report.dropped} {t("dropped,")} {report.approximated} {t("approximated")}
               </p>
               {report.items.length > 0 && (
                 <ul className="max-h-40 list-disc space-y-0.5 overflow-y-auto pl-5 text-[12px] text-fg-muted">
@@ -134,7 +137,7 @@ export function TimelineImportDialog() {
             </ul>
           )}
           <fieldset className="space-y-2">
-            <legend className="mb-1 font-medium">Where should it go?</legend>
+            <legend className="mb-1 font-medium">{t("Where should it go?")}</legend>
             {MODES.map((m) => (
               <label key={m.id} className="flex cursor-pointer items-start gap-2">
                 <input
@@ -154,10 +157,10 @@ export function TimelineImportDialog() {
         </div>
         <DialogFooter className="border-t border-border px-5 py-3">
           <Button variant="ghost" onClick={close} disabled={busy}>
-            Cancel
+            {t("Cancel")}
           </Button>
           <Button onClick={() => void apply()} disabled={busy || result.clipCount === 0}>
-            Import
+            {t("Import")}
           </Button>
         </DialogFooter>
       </DialogContent>

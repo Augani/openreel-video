@@ -40,6 +40,7 @@ import {
   makeDirectBYOKClient,
   validateAIEndpoint,
 } from "../../../services/agent/direct-llm-transport";
+import { useT } from "@openreel/i18n/react";
 
 const providers = [
   {
@@ -108,6 +109,7 @@ export function AIConnectionDialog() {
   );
 }
 function ConnectionForm({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const connection = useAIConnectionStore.getState();
   const [draft, setDraft] = useState({
     provider: connection.provider,
@@ -187,23 +189,22 @@ function ConnectionForm({ onClose }: { onClose: () => void }) {
           <AssistantIcon size={18} />
         </span>
         <div>
-          <DialogTitle>Connect your AI</DialogTitle>
+          <DialogTitle>{t("Connect your AI")}</DialogTitle>
           <DialogDescription>
-            AI assist edits your timeline for you. Connect the provider you
-            already use, or run a model on your device.
+            {t("AI assist edits your timeline for you. Connect the provider you already use, or run a model on your device.")}
           </DialogDescription>
         </div>
       </div>
       <ScrollArea className="workspace-ai-connect-scroll">
       <div className="workspace-ai-connect-content">
-      <ToggleGroup type="single" value="provider" role="radiogroup" aria-label="How to power AI assist" className="workspace-ai-plans">
-        <ToggleGroupItem value="hosted" disabled title="OpenReel-hosted AI is not available in this installation">
-          <strong>OpenReel AI</strong>
-          <span>Hosted service not configured</span>
+      <ToggleGroup type="single" value="provider" role="radiogroup" aria-label={t("How to power AI assist")} className="workspace-ai-plans">
+        <ToggleGroupItem value="hosted" disabled title={t("OpenReel-hosted AI is not available in this installation")}>
+          <strong>{t("OpenReel AI")}</strong>
+          <span>{t("Hosted service not configured")}</span>
         </ToggleGroupItem>
         <ToggleGroupItem value="provider">
-          <strong>Your own provider</strong>
-          <span>Pay them directly · no OpenReel limits</span>
+          <strong>{t("Your own provider")}</strong>
+          <span>{t("Pay them directly · no OpenReel limits")}</span>
         </ToggleGroupItem>
       </ToggleGroup>
       <div className="workspace-ai-providers">
@@ -240,11 +241,11 @@ function ConnectionForm({ onClose }: { onClose: () => void }) {
       </div>
       <div className="workspace-ai-credentials">
         <label>
-          API key
+          {t("API key")}
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Input
-                aria-label="Session API key"
+                aria-label={t("Session API key")}
                 type={reveal ? "text" : "password"}
                 autoComplete="off"
                 spellCheck={false}
@@ -252,14 +253,14 @@ function ConnectionForm({ onClose }: { onClose: () => void }) {
                 onChange={(e) => update({ apiKey: e.target.value })}
                 placeholder={
                   selected === "ollama"
-                    ? "Optional for local models"
-                    : "Enter your API key"
+                    ? t("Optional for local models")
+                    : t("Enter your API key")
                 }
               />
               <Button
                 variant="ghost"
                 size="icon-xs"
-                aria-label={reveal ? "Hide API key" : "Show API key"}
+                aria-label={reveal ? t("Hide API key") : t("Show API key")}
                 className="workspace-ai-key-visibility absolute right-1 top-1"
                 onClick={() => setReveal(!reveal)}
               >
@@ -274,7 +275,7 @@ function ConnectionForm({ onClose }: { onClose: () => void }) {
               {testing ? (
                 <Loader2 size={14} className="animate-spin" />
               ) : (
-                "Test"
+                t("Test")
               )}
             </Button>
           </div>
@@ -296,54 +297,54 @@ function ConnectionForm({ onClose }: { onClose: () => void }) {
             </>
           ) : (
             rememberAvailable
-              ? "Your key stays on this computer. Tick Remember on this device to keep it in your system keychain. Test sends a short request to your provider."
-              : "Your key stays in this tab and clears on reload. Test sends a short request to your provider."
+              ? t("Your key stays on this computer. Tick Remember on this device to keep it in your system keychain. Test sends a short request to your provider.")
+              : t("Your key stays in this tab and clears on reload. Test sends a short request to your provider.")
           )}
         </div>
         <div className="workspace-ai-model-fields">
           <label>
-            Editing model
+            {t("Editing model")}
             <Popover open={modelOpen} onOpenChange={setModelOpen}>
               <PopoverTrigger asChild>
                 <Button variant="outline" role="combobox" aria-haspopup="dialog" aria-expanded={modelOpen}
-                  aria-label="AI editing model" title={draft.model || "Choose a model or enter a model ID"}>
+                  aria-label={t("AI editing model")} title={draft.model || t("Choose a model or enter a model ID")}>
                   <span className="truncate">{aiModelLabel(draft.provider, draft.model)}</span><span aria-hidden="true" className="workspace-ai-caret">▾</span>
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="start" aria-label="Choose AI editing model" className="workspace-ai-model-menu">
+              <PopoverContent align="start" aria-label={t("Choose AI editing model")} className="workspace-ai-model-menu">
                 {draft.provider !== "compatible" && <Button variant="ghost" className="w-full justify-start"
                   onClick={() => { update({ model: AI_PROVIDER_DEFAULTS[draft.provider].model }); setModelOpen(false); }}>
                   {aiModelLabel(draft.provider, AI_PROVIDER_DEFAULTS[draft.provider].model)}
                 </Button>}
-                <label>Model ID<Input aria-label="AI model ID" value={draft.model} onChange={e => update({ model: e.target.value })}
-                  placeholder="Tool-capable model ID" spellCheck={false} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); setModelOpen(false); } }} /></label>
-                <Button variant="secondary" onClick={() => setModelOpen(false)}>Done</Button>
+                <label>{t("Model ID")}<Input aria-label={t("AI model ID")} value={draft.model} onChange={e => update({ model: e.target.value })}
+                  placeholder={t("Tool-capable model ID")} spellCheck={false} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); setModelOpen(false); } }} /></label>
+                <Button variant="secondary" onClick={() => setModelOpen(false)}>{t("Done")}</Button>
               </PopoverContent>
             </Popover>
           </label>
           <label>
-            Transcription
+            {t("Transcription")}
             <Select value="whisper">
-              <SelectTrigger aria-label="Transcription engine" icon={<span className="workspace-ai-caret" aria-hidden="true">▾</span>}>
+              <SelectTrigger aria-label={t("Transcription engine")} icon={<span className="workspace-ai-caret" aria-hidden="true">▾</span>}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="whisper">On-device (Whisper)</SelectItem>
+                <SelectItem value="whisper">{t("On-device (Whisper)")}</SelectItem>
               </SelectContent>
             </Select>
           </label>
         </div>
         {rememberAvailable && (
           <label className="flex items-center gap-2">
-            <input type="checkbox" aria-label="Remember on this device" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-            Remember on this device (system keychain)
+            <input type="checkbox" aria-label={t("Remember on this device")} checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+            {t("Remember on this device (system keychain)")}
           </label>
         )}
         {draft.provider === "compatible" && (
           <label>
-            Base URL
+            {t("Base URL")}
             <Input
-              aria-label="AI base URL"
+              aria-label={t("AI base URL")}
               value={draft.baseUrl}
               onChange={(e) => update({ baseUrl: e.target.value })}
               spellCheck={false}
@@ -354,36 +355,32 @@ function ConnectionForm({ onClose }: { onClose: () => void }) {
       <div className="workspace-ai-permissions">
         <h3>WHAT THE ASSISTANT MAY DO</h3>
         <label>
-          Edit the timeline directly (every change is undoable)
+          {t("Edit the timeline directly (every change is undoable)")}
           <Switch checked={!dryRun} onCheckedChange={(v) => setDryRun(!v)} />
         </label>
         <label>
-          Approve destructive edits automatically
+          {t("Approve destructive edits automatically")}
           <Switch checked={autoConfirm} onCheckedChange={setAutoConfirm} />
         </label>
-        <label title="Export always opens its settings dialog for your review and confirmation.">
-          Export or publish without asking
-          <Switch checked={false} disabled aria-label="Export or publish without asking" />
+        <label title={t("Export always opens its settings dialog for your review and confirmation.")}>
+          {t("Export or publish without asking")}
+          <Switch checked={false} disabled aria-label={t("Export or publish without asking")} />
         </label>
       </div>
       {privacy && (
         <p className="workspace-ai-privacy">
-          Edit requests, timeline metadata and preview frames requested by the
-          assistant go directly to your chosen endpoint. Original media stays on
-          your device. Connection details and keys are held in memory for this
-          tab only, unless you choose Remember on this device, which keeps the key
-          in your system keychain. Export opens its settings dialog for your review and confirmation.
+          {t("Edit requests, timeline metadata and preview frames requested by the assistant go directly to your chosen endpoint. Original media stays on your device. Connection details and keys are held in memory for this tab only, unless you choose Remember on this device, which keeps the key in your system keychain. Export opens its settings dialog for your review and confirmation.")}
         </p>
       )}
       </div>
       </ScrollArea>
       <footer>
         <Button variant="link" onClick={() => setPrivacy(!privacy)}>
-          What gets sent to the provider?
+          {t("What gets sent to the provider?")}
         </Button>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={onClose}>
-            Cancel
+            {t("Cancel")}
           </Button>
           <Button
             className="workspace-ai-primary"
@@ -406,7 +403,7 @@ function ConnectionForm({ onClose }: { onClose: () => void }) {
               }
             }}
           >
-            Connect and start
+            {t("Connect and start")}
           </Button>
         </div>
       </footer>

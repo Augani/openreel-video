@@ -42,6 +42,7 @@ const RackPluginsPanel = lazy(() => import("./RackPluginsPanel"));
 
 /** Hosted audio plugins (Audio Unit / VST3) on a track, a bus or the master: a button with the count, the panel opens on demand. */
 const RackPluginsButton = memo(function RackPluginsButton({ target, label }: { target: string; label: string }) {
+  const t = useT();
   const count = useProjectStore((state) =>
     rackPluginEffects(target === MASTER_RACK_TARGET ? state.project.timeline.masterPluginRack : (state.project.timeline.tracks.find((t) => t.id === target)?.pluginRack ?? state.project.timeline.audioBuses?.find((b) => b.id === target)?.pluginRack)).length,
   );
@@ -49,11 +50,11 @@ const RackPluginsButton = memo(function RackPluginsButton({ target, label }: { t
     <Popover>
       <PopoverTrigger asChild>
         <Button type="button" variant="outline" size="sm" className="h-6 w-full gap-1 px-1 text-[11px]" aria-label={`Audio plugins on ${label}`} data-testid={`rack-plugins-${target === MASTER_RACK_TARGET ? "master" : target}`}>
-          Plugins{count > 0 ? ` ${count}` : ""}
+          {t("Plugins")}{count > 0 ? ` ${count}` : ""}
         </Button>
       </PopoverTrigger>
       <PopoverContent side="right" align="start" className="max-h-[70vh] w-80 overflow-y-auto">
-        <Suspense fallback={<p className="text-[11px] text-fg-muted">Loading plugins…</p>}>
+        <Suspense fallback={<p className="text-[11px] text-fg-muted">{t("Loading plugins…")}</p>}>
           <RackPluginsPanel target={target} label={label} />
         </Suspense>
       </PopoverContent>
@@ -99,6 +100,7 @@ const RackEffectParams = memo(function RackEffectParams({
   effect: AudioRackEffect;
   onCommit: (effect: AudioRackEffect) => void;
 }) {
+  const t = useT();
   const definition = AUDIO_RACK_EFFECT_DEFINITIONS[effect.type];
   const [draft, setDraft] = useState<Record<string, number | string | boolean>>(
     effect.params,
@@ -140,23 +142,23 @@ const RackEffectParams = memo(function RackEffectParams({
   };
   return (
     <div className="flex flex-col gap-3" data-testid={`rack-params-${effect.id}`}>
-      <span className="text-xs font-semibold text-fg">{definition.label}</span>
-      {definition.description && <p className="text-[11px] text-fg-muted">{definition.description}</p>}
+      <span className="text-xs font-semibold text-fg">{t(definition.label)}</span>
+      {t(definition.description ?? "") && <p className="text-[11px] text-fg-muted">{t(definition.description ?? "")}</p>}
       {effect.type === "compressor" && (
         <label className="flex flex-col gap-1 text-xs text-fg-muted">
-          <span>Sidechain key</span>
+          <span>{t("Sidechain key")}</span>
           <select
             className="h-7 rounded border border-border bg-bg-1 px-1 text-xs text-fg"
-            aria-label="Compressor sidechain key"
+            aria-label={t("Compressor sidechain key")}
             data-testid={`rack-key-${effect.id}`}
             value={compressorKeySource(draft) ?? ""}
             onChange={(event) => update("keySource", event.target.value, true)}
           >
-            <option value="">None (own signal)</option>
+            <option value="">{t("None (own signal)")}</option>
             {keyCandidates.map((candidate) => (
               <option key={candidate.id} value={candidate.id}>
-                {candidate.kind === "bus" ? "Bus: " : "Track: "}
-                {candidate.label}
+                {candidate.kind === "bus" ? t("Bus: ") : t("Track: ")}
+                {t(candidate.label)}
               </option>
             ))}
           </select>
@@ -171,7 +173,7 @@ const RackEffectParams = memo(function RackEffectParams({
         if (spec.options) {
           return (
             <label key={spec.key} className="flex flex-col gap-1 text-xs text-fg-muted">
-              <span>{spec.label}</span>
+              <span>{t(spec.label)}</span>
               <select
                 className="h-7 rounded border border-border bg-bg-1 px-1 text-xs text-fg"
                 aria-label={`${definition.label} ${spec.label}`}
@@ -190,7 +192,7 @@ const RackEffectParams = memo(function RackEffectParams({
         if (spec.toggle) {
           return (
             <label key={spec.key} className="flex items-center justify-between text-xs text-fg-muted">
-              <span>{spec.label}</span>
+              <span>{t(spec.label)}</span>
               <input
                 type="checkbox"
                 aria-label={`${definition.label} ${spec.label}`}
@@ -203,7 +205,7 @@ const RackEffectParams = memo(function RackEffectParams({
         return (
           <div key={spec.key} className="flex flex-col gap-1">
             <div className="flex items-center justify-between text-xs text-fg-muted">
-              <span>{spec.label}</span>
+              <span>{t(spec.label)}</span>
               <span className="font-mono">{formatValue(value, spec.step, spec.unit)}</span>
             </div>
             <Slider
@@ -274,7 +276,7 @@ export const AudioRackSection = memo(function AudioRackSection({
     >
       <div className="flex items-center justify-between gap-1">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">
-          Effects {effects.length}/{maxEffects}
+          {t("Effects")} {effects.length}/{maxEffects}
         </span>
         {rackLatencyMs > 0 && (
           <span
@@ -323,13 +325,13 @@ export const AudioRackSection = memo(function AudioRackSection({
                   aria-label={`Edit ${definition.label} parameters on ${label}`}
                   title={latencyMs > 0 ? `${definition.label} adds ${latencyMs.toFixed(1)} ms of latency (compensated)` : undefined}
                 >
-                  <span className="truncate">{definition.label}</span>
+                  <span className="truncate">{t(definition.label)}</span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent side="right" align="start" className="w-64">
                 {latencyMs > 0 && (
                   <p className="mb-2 text-[11px] text-fg-muted" data-testid={`rack-latency-${target}-${index}`}>
-                    Latency {latencyMs.toFixed(1)} ms, compensated automatically
+                    {t("Latency")} {latencyMs.toFixed(1)} {t("ms, compensated automatically")}
                   </p>
                 )}
                 <RackEffectParams
@@ -388,7 +390,7 @@ export const AudioRackSection = memo(function AudioRackSection({
               aria-label={`Add effect to ${label}`}
             >
               <Plus size={11} aria-hidden />
-              Add effect
+              {t("Add effect")}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">

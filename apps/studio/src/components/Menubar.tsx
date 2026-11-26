@@ -14,6 +14,7 @@ interface Item {
 }
 
 function MenuItem({ item, close }: { item: Item; close: () => void }) {
+  const t = useT();
   if (item.sep) return <div className="my-1 h-px bg-zinc-800" />;
   return (
     <button
@@ -21,7 +22,7 @@ function MenuItem({ item, close }: { item: Item; close: () => void }) {
       onClick={() => { item.onClick?.(); close(); }}
       className="flex w-full items-center justify-between gap-6 rounded px-2 py-1 text-left text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-35 disabled:hover:bg-transparent"
     >
-      <span>{item.label}</span>
+      <span>{t(item.label)}</span>
       {item.shortcut && <span className="font-mono text-[9px] text-zinc-500">{item.shortcut}</span>}
     </button>
   );

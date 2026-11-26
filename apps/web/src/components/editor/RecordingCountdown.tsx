@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
+import { useT } from "@openreel/i18n/react";
 
 export const RecordingCountdown: React.FC = () => {
+  const t = useT();
   const [count, setCount] = useState(3);
 
   useEffect(() => {
@@ -29,51 +31,14 @@ export const RecordingCountdown: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="w-4 h-4 bg-error rounded-full animate-pulse" />
               <span className="text-2xl font-bold text-white">
-                Recording...
+                {t("Recording...")}
               </span>
             </div>
           </div>
         )}
       </div>
 
-      <style>{`
- @keyframes countdown {
- 0% {
- transform: scale(0.5);
- opacity: 0;
- }
- 20% {
- transform: scale(1.2);
- opacity: 1;
- }
- 40% {
- transform: scale(1);
- }
- 100% {
- transform: scale(0.8);
- opacity: 0;
- }
- }
-
- @keyframes fade-in {
- from {
- opacity: 0;
- transform: translateY(20px);
- }
- to {
- opacity: 1;
- transform: translateY(0);
- }
- }
-
- .animate-countdown {
- animation: countdown 1s ease-out forwards;
- }
-
- .animate-fade-in {
- animation: fade-in 0.5s ease-out forwards;
- }
- `}</style>
+      <style>{t("\n @keyframes countdown {\n 0% {\n transform: scale(0.5);\n opacity: 0;\n }\n 20% {\n transform: scale(1.2);\n opacity: 1;\n }\n 40% {\n transform: scale(1);\n }\n 100% {\n transform: scale(0.8);\n opacity: 0;\n }\n }\n\n @keyframes fade-in {\n from {\n opacity: 0;\n transform: translateY(20px);\n }\n to {\n opacity: 1;\n transform: translateY(0);\n }\n }\n\n .animate-countdown {\n animation: countdown 1s ease-out forwards;\n }\n\n .animate-fade-in {\n animation: fade-in 0.5s ease-out forwards;\n }\n ")}</style>
     </div>
   );
 };

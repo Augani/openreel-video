@@ -4,6 +4,7 @@ import type { Layer } from '../../../types/project';
 import type { ChannelMixerAdjustment, ChannelMixerChannel } from '../../../types/adjustments';
 import { DEFAULT_CHANNEL_MIXER } from '../../../types/adjustments';
 import { Blend, RotateCcw } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   layer: Layer;
@@ -52,6 +53,7 @@ function ChannelSlider({ label, color, value, onChange }: { label: string; color
 }
 
 export function ChannelMixerSection({ layer }: Props) {
+  const t = useT();
   const { updateLayer } = useProjectStore();
   const [activeChannel, setActiveChannel] = useState<OutputChannel>('red');
   const [isExpanded, setIsExpanded] = useState(false);
@@ -103,7 +105,7 @@ export function ChannelMixerSection({ layer }: Props) {
       >
         <div className="flex items-center gap-2">
           <Blend size={14} className="text-muted-foreground" />
-          <span className="text-xs font-medium">Channel Mixer</span>
+          <span className="text-xs font-medium">{t("Channel Mixer")}</span>
           {channelMixer.enabled && (
             <span className="w-1.5 h-1.5 rounded-full bg-primary" />
           )}
@@ -141,7 +143,7 @@ export function ChannelMixerSection({ layer }: Props) {
             <button
               onClick={resetChannelMixer}
               className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-secondary transition-colors"
-              title="Reset"
+              title={t("Reset")}
             >
               <RotateCcw size={12} />
             </button>
@@ -161,7 +163,7 @@ export function ChannelMixerSection({ layer }: Props) {
               onChange={(e) => handleMonochromeChange(e.target.checked)}
               className="w-3 h-3 rounded border-border"
             />
-            Monochrome
+            {t("Monochrome")}
           </label>
         </div>
       )}

@@ -1,4 +1,5 @@
 import React, { Component, Suspense, lazy, useState } from "react";
+import { translateNow } from "@openreel/i18n/translate";
 import type { EffectPreviewEngine, PreviewEffectDef } from "./preview-engine";
 import { EffectPreviewContext, effectPreviewsSupported } from "./preview-context";
 
@@ -55,7 +56,7 @@ const placeholder = <div aria-hidden="true" className="absolute inset-0 bg-bg-2"
 /** Shown when the preview runtime cannot run at all (no WebCodecs / ImageBitmap) or its chunk failed to load. */
 const unavailable = (
   <div aria-hidden="true" className="absolute inset-0 flex items-center justify-center bg-bg-3 px-2 text-center text-[9px] text-fg-3">
-    Preview unavailable
+    {translateNow("Preview unavailable")}
   </div>
 );
 

@@ -10,6 +10,7 @@ import React from "react";
 
 
 import { Sparkles } from "@/icons/lucide-compat";
+import { useT } from "@openreel/i18n/react";
 
 interface EnhancedTextPreviewProps {
   enhancedPreview: string;
@@ -22,6 +23,7 @@ export const EnhancedTextPreview: React.FC<EnhancedTextPreviewProps> = ({
   onUpdate,
   onDiscard,
 }) => {
+  const t = useT();
   return (
     <Card className="min-w-0 rounded-[7px] shadow-none text-fg p-2 space-y-1.5 border border-amber-500/20 bg-amber-500/5"
     >
@@ -29,16 +31,16 @@ export const EnhancedTextPreview: React.FC<EnhancedTextPreviewProps> = ({
         <div className="flex items-center gap-1">
           <Sparkles size={9} className="text-amber-400" />
           <span className="text-[9px] font-medium text-amber-400">
-            Enhanced - edit below then Generate
+            {t("Enhanced - edit below then Generate")}
           </span>
         </div>
-        <Button onClick={onDiscard} type="button" aria-label="Discard" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 bg-transparent hover:bg-bg-2 text-[9px] text-fg-3 hover:text-red-400 transition-colors">
-          <span className="truncate">{"Discard"}</span>
+        <Button onClick={onDiscard} type="button" aria-label={t("Discard")} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 bg-transparent hover:bg-bg-2 text-[9px] text-fg-3 hover:text-red-400 transition-colors">
+          <span className="truncate">{t("Discard")}</span>
         </Button>
       </div>
       <ShadcnTextarea
         value={enhancedPreview}
-        aria-label={"Enhanced preview"}
+        aria-label={t("Enhanced preview")}
         onChange={(event) => onUpdate(event.currentTarget.value)}
         style={{ width: "100%" }}
         className={uiCn(

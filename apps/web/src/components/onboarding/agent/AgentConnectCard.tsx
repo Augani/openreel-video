@@ -4,6 +4,7 @@ import { Switch, cn } from "@openreel/ui";
 import { useSettingsStore } from "../../../stores/settings-store";
 import { ConnectSnippets } from "./ConnectSnippets";
 import { connectionLabel, useMcpConnection } from "./mcp-connect";
+import { useT } from "@openreel/i18n/react";
 
 interface AgentConnectCardProps {
   className?: string;
@@ -16,6 +17,7 @@ interface AgentConnectCardProps {
  * the snippets use the real shim path, and the indicator follows the main-side initialize tracker.
  */
 export const AgentConnectCard: React.FC<AgentConnectCardProps> = ({ className, headingId }) => {
+  const t = useT();
   const { status, toolCount, clientStatus, refresh } = useMcpConnection();
   const autoAllow = useSettingsStore((s) => s.mcpAutoAllowTrustedLocal);
   const setAutoAllow = useSettingsStore((s) => s.setMcpAutoAllowTrustedLocal);
@@ -38,11 +40,10 @@ export const AgentConnectCard: React.FC<AgentConnectCardProps> = ({ className, h
           <Plug size={18} aria-hidden />
         </div>
         <h2 id={headingId} className="text-xl font-semibold tracking-tight text-fg">
-          Let your agent drive OpenReel.
+          {t("Let your agent drive OpenReel.")}
         </h2>
         <p className="text-sm text-fg-2">
-          Claude Code, Claude Desktop, Cursor and Cline can create projects, import media, edit and export through the same
-          tools as the built-in chat.
+          {t("Claude Code, Claude Desktop, Cursor and Cline can create projects, import media, edit and export through the same tools as the built-in chat.")}
         </p>
       </header>
 
@@ -84,7 +85,7 @@ export const AgentConnectCard: React.FC<AgentConnectCardProps> = ({ className, h
         >
           <TriangleAlert size={14} className="mt-0.5 shrink-0 text-fg-2" aria-hidden />
           <span>
-            The MCP server could not start: <span className="font-mono">{startError}</span>. Quit and reopen OpenReel, or set
+            {t("The MCP server could not start:")} <span className="font-mono">{startError}</span>. Quit and reopen OpenReel, or set
             a different port with OPENREEL_MCP_PORT.
           </span>
         </div>
@@ -95,17 +96,16 @@ export const AgentConnectCard: React.FC<AgentConnectCardProps> = ({ className, h
       <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-bg-1 px-4 py-3">
         <div className="space-y-0.5">
           <label htmlFor="agent-auto-allow" className="block text-sm font-medium text-fg">
-            Allow agents to delete and export without asking.
+            {t("Allow agents to delete and export without asking.")}
           </label>
           <p className="text-xs text-fg-2">
-            When this is off, destructive and long-running tool calls are refused. Turn it back on to allow them. It is on by
-            default so existing agent setups keep working.
+            {t("When this is off, destructive and long-running tool calls are refused. Turn it back on to allow them. It is on by default so existing agent setups keep working.")}
           </p>
         </div>
         <Switch id="agent-auto-allow" checked={autoAllow} onCheckedChange={setAutoAllow} />
       </div>
 
-      <p className="text-xs text-fg-2">Agents don't need this window open or in front.</p>
+      <p className="text-xs text-fg-2">{t("Agents don't need this window open or in front.")}</p>
     </section>
   );
 };

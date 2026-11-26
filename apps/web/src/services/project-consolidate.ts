@@ -6,6 +6,7 @@ import { toast } from "../stores/notification-store";
 import type { OpenReelProjectManagerEvent, OpenReelProjectManagerOptions } from "../types/global";
 import { projectManager } from "./project-manager";
 import { activateOpenedProject } from "./project-replacement";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * File > Project Manager (desktop): collect or consolidate the project into a new folder. The files are written
@@ -47,10 +48,10 @@ function onEvent(event: OpenReelProjectManagerEvent): void {
       progress: event.fraction,
       ...(event.phase === "error" ? { error: event.error } : {}),
     },
-    active ? { cancel: () => void cancelProjectManagerJob() } : retryArgs ? { retry: () => void startProjectManagerJob(...retryArgs).catch((error: unknown) => toast.error("Project Manager failed", error instanceof Error ? error.message : "")) } : undefined,
+    active ? { cancel: () => void cancelProjectManagerJob() } : retryArgs ? { retry: () => void startProjectManagerJob(...retryArgs).catch((error: unknown) => toast.error(translateNow("Project Manager failed"), error instanceof Error ? error.message : "")) } : undefined,
   );
-  if (event.phase === "done") toast.success("Project Manager finished", event.summary ? `${event.summary.files} files, ${(event.summary.bytes / 1e6).toFixed(1)} MB in ${event.destDir}` : "");
-  else if (event.phase === "error") toast.error("Project Manager failed", event.error ?? "");
+  if (event.phase === "done") toast.success(translateNow("Project Manager finished"), event.summary ? `${event.summary.files} files, ${(event.summary.bytes / 1e6).toFixed(1)} MB in ${event.destDir}` : "");
+  else if (event.phase === "error") toast.error(translateNow("Project Manager failed"), event.error ?? "");
 }
 
 function ensureSubscribed(): void {

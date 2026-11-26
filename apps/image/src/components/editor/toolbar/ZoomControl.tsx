@@ -88,7 +88,7 @@ export function ZoomControl() {
       <button
         onClick={zoomOut}
         className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-        title="Zoom out (-)"
+        title={t("Zoom out (-)")}
       >
         <Minus size={14} />
       </button>
@@ -107,7 +107,7 @@ export function ZoomControl() {
       <button
         onClick={zoomIn}
         className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-        title="Zoom in (+)"
+        title={t("Zoom in (+)")}
       >
         <Plus size={14} />
       </button>
@@ -126,7 +126,7 @@ export function ZoomControl() {
               onClick={() => setZoom(preset.value)}
               className={zoom === preset.value ? 'bg-accent' : ''}
             >
-              {preset.label}
+              {t(preset.label)}
             </DropdownMenuItem>
           ))}
           <DropdownMenuSeparator />

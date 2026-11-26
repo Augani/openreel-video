@@ -5,6 +5,8 @@ import { InspectorToggle } from "./shell/InspectorControls";
 import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
 import { getPersonSegmentationEngine } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 interface BehindSubjectSectionProps {
   clipId: string;
@@ -13,6 +15,7 @@ interface BehindSubjectSectionProps {
 export const BehindSubjectSection: React.FC<BehindSubjectSectionProps> = ({
   clipId,
 }) => {
+  const t = useT();
   const getTitleEngine = useEngineStore((state) => state.getTitleEngine);
   const updateTextBehindSubject = useProjectStore(
     (state) => state.updateTextBehindSubject,
@@ -51,7 +54,7 @@ export const BehindSubjectSection: React.FC<BehindSubjectSectionProps> = ({
             "[BehindSubject] Person model initialization failed:",
             modelError,
           );
-          setError("Failed to load AI model. Check your connection.");
+          setError(translateNow("Failed to load AI model. Check your connection."));
           updateTextBehindSubject(clipId, false);
           setEnabled(false);
           setIsLoading(false);
@@ -70,10 +73,10 @@ export const BehindSubjectSection: React.FC<BehindSubjectSectionProps> = ({
       <div className="flex items-center justify-between">
         <div className="flex flex-1 flex-col gap-0.5">
           <span className="text-[12px] leading-5 text-fg font-normal block">
-            Place Behind Subject
+            {t("Place Behind Subject")}
           </span>
           <span className="text-fg-2 font-normal block text-[9px]">
-            Text appears behind people in the video
+            {t("Text appears behind people in the video")}
           </span>
         </div>
         {isLoading ? (
@@ -88,7 +91,7 @@ export const BehindSubjectSection: React.FC<BehindSubjectSectionProps> = ({
       </div>
       {isLoading && (
         <span className="text-fg-2 font-normal text-[9px]">
-          Loading AI model...
+          {t("Loading AI model...")}
         </span>
       )}
       {error && (

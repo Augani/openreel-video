@@ -5,6 +5,8 @@ import { useObjectMaskStore } from "../../../stores/object-mask-store";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
 import { toast } from "../../../stores/notification-store";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 /** Clip the pen tool should target: the single selected timeline clip. */
 export function maskPenTargetClipId(): string | null {
@@ -27,7 +29,7 @@ export function toggleMaskPen(): void {
   const clipId = maskPenTargetClipId();
   if (!clipId) {
     toast.warning(
-      "Select a clip first",
+      translateNow("Select a clip first"),
       "Select one video or image clip, then use the pen to draw a mask on the Program monitor.",
     );
     return;
@@ -38,13 +40,14 @@ export function toggleMaskPen(): void {
 
 /** Program monitor header toggle for the mask pen tool. */
 export function MaskPenButton() {
+  const t = useT();
   const active = useMaskPenStore((s) => s.active);
   return (
     <Button
       variant={active ? "secondary" : "ghost"}
-      aria-label="Mask pen tool"
+      aria-label={t("Mask pen tool")}
       aria-pressed={active}
-      title="Mask pen tool: draw and edit Bezier masks on the Program monitor (Esc to leave)"
+      title={t("Mask pen tool: draw and edit Bezier masks on the Program monitor (Esc to leave)")}
       onClick={toggleMaskPen}
       className={`workspace-preview-guides h-7 w-7 p-0 ${active ? "text-accent bg-accent-soft" : ""}`}
     >

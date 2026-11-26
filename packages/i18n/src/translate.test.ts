@@ -1,6 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { initLanguage } from "./index";
-import { translate, translateNow } from "./translate";
+import { loadDictionary, translate, translateNow } from "./translate";
+
+beforeAll(async () => {
+  await loadDictionary();
+});
 
 describe("translate", () => {
   it("translates known keys", () => {

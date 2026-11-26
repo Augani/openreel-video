@@ -11,6 +11,7 @@ import {
 } from "@openreel/ui";
 import type { Flux2Input } from "../../../../services/kieai/image-generation";
 import { ASPECT_RATIO_OPTIONS } from "./shared";
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   value: Flux2Input;
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export function Flux2Form({ value, onChange, onSubmit, isLoading }: Props) {
+  const t = useT();
   const id = useId();
   return (
     <fieldset disabled={isLoading} className="min-w-0 space-y-4 border-0 p-0">
@@ -28,7 +30,7 @@ export function Flux2Form({ value, onChange, onSubmit, isLoading }: Props) {
           htmlFor={`${id}-prompt`}
           className="text-[12px] font-medium text-fg-2"
         >
-          Prompt
+          {t("Prompt")}
         </Label>
         <Textarea
           id={`${id}-prompt`}
@@ -38,7 +40,7 @@ export function Flux2Form({ value, onChange, onSubmit, isLoading }: Props) {
           }
           required
           disabled={isLoading}
-          placeholder="Describe the image you want to generate..."
+          placeholder={t("Describe the image you want to generate...")}
           maxLength={2000}
           rows={4}
           className="resize-y border-border bg-bg-2 text-[12px] leading-5 text-fg placeholder:text-fg-3"
@@ -51,7 +53,7 @@ export function Flux2Form({ value, onChange, onSubmit, isLoading }: Props) {
             htmlFor={`${id}-aspect-ratio`}
             className="text-[12px] font-medium text-fg-2"
           >
-            Aspect Ratio
+            {t("Aspect Ratio")}
           </Label>
           <Select
             value={value.aspect_ratio}
@@ -72,7 +74,7 @@ export function Flux2Form({ value, onChange, onSubmit, isLoading }: Props) {
             <SelectContent>
               {[...ASPECT_RATIO_OPTIONS].map((option) => (
                 <SelectItem key={option.value} value={option.value}>
-                  {option.label}
+                  {t(option.label)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -84,7 +86,7 @@ export function Flux2Form({ value, onChange, onSubmit, isLoading }: Props) {
             htmlFor={`${id}-resolution`}
             className="text-[12px] font-medium text-fg-2"
           >
-            Resolution
+            {t("Resolution")}
           </Label>
           <Select
             value={value.resolution}
@@ -108,7 +110,7 @@ export function Flux2Form({ value, onChange, onSubmit, isLoading }: Props) {
                 { value: "2K", label: "2K" },
               ].map((option) => (
                 <SelectItem key={option.value} value={option.value}>
-                  {option.label}
+                  {t(option.label)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -127,7 +129,7 @@ export function Flux2Form({ value, onChange, onSubmit, isLoading }: Props) {
         className="h-8 w-full bg-accent text-[12px] text-accent-fg hover:bg-accent/90"
       >
         <span className="truncate">
-          {isLoading ? "Generating..." : "Generate with Flux 2"}
+          {isLoading ? t("Generating...") : t("Generate with Flux 2")}
         </span>
       </Button>
     </fieldset>

@@ -18,6 +18,7 @@ import { useSourceMonitorStore } from "../stores/source-monitor-store";
 import { toast } from "../stores/notification-store";
 import { rememberNativePath } from "./native-decode";
 import { setMediaMetadata } from "./media-metadata-commands";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * Renderer side of the Media Browser. Desktop talks to the main process (volumes, camera cards as clips,
@@ -282,7 +283,7 @@ export async function previewEntry(entry: OpenReelBrowserEntry, onImport?: () =>
     monitor.openExternal({ id: `external:${entry.id}`, name: entry.name, blob: file, duration: type === "image" ? 5 : await blobDuration(file), type, hasAudio: type !== "image", note, onImport });
     return true;
   } catch (error) {
-    toast.warning("Preview", error instanceof Error ? error.message : "The preview could not be made.");
+    toast.warning(translateNow("Preview"), error instanceof Error ? error.message : "The preview could not be made.");
     return false;
   }
 }
@@ -398,8 +399,8 @@ export async function importEntries(entries: readonly OpenReelBrowserEntry[], on
   } catch (error) {
     if (!(error instanceof DOMException && error.name === "AbortError") && !report.failed.length) throw error;
   }
-  if (report.imported) toast.success("Imported", `${report.imported} clip${report.imported === 1 ? "" : "s"} added to the project.`);
-  for (const failure of report.failed) toast.warning(`Could not import ${failure.name}`, failure.reason);
+  if (report.imported) toast.success(translateNow("Imported"), `${report.imported} clip${report.imported === 1 ? "" : "s"} added to the project.`);
+  for (const failure of report.failed) toast.warning(translateNow("Could not import {name}", { name: failure.name }), failure.reason);
   return report;
 }
 
@@ -409,14 +410,14 @@ export async function writeSidecarForItem(mediaId: string): Promise<string | nul
   const item = useProjectStore.getState().project.mediaLibrary.items.find((i) => i.id === mediaId);
   const filePath = item?.sourceFile?.path;
   if (!desktop || !item || !filePath) {
-    toast.warning("Sidecar", "This clip has no file path on disk, so there is nowhere to write a sidecar.");
+    toast.warning(translateNow("Sidecar"), "This clip has no file path on disk, so there is nowhere to write a sidecar.");
     return null;
   }
   try {
     const result = await desktop.writeSidecar({ path: filePath, fields: mediaFieldsToXmpFields(item) });
     return result.path;
   } catch (error) {
-    toast.warning("Sidecar", error instanceof Error ? error.message : "The sidecar could not be written.");
+    toast.warning(translateNow("Sidecar"), error instanceof Error ? error.message : "The sidecar could not be written.");
     return null;
   }
 }
@@ -427,15 +428,15 @@ export async function rereadXmpForItem(mediaId: string): Promise<boolean> {
   const item = useProjectStore.getState().project.mediaLibrary.items.find((i) => i.id === mediaId);
   const filePath = item?.sourceFile?.path;
   if (!desktop || !filePath) {
-    toast.warning("Read XMP", "Reading XMP needs the file on disk (desktop app).");
+    toast.warning(translateNow("Read XMP"), "Reading XMP needs the file on disk (desktop app).");
     return false;
   }
   const xmp = await desktop.readXmp(filePath).catch(() => null);
   if (!xmp) {
-    toast.info("Read XMP", "No XMP was found in the file or next to it.");
+    toast.info(translateNow("Read XMP"), "No XMP was found in the file or next to it.");
     return false;
   }
   const outcome = await setMediaMetadata([mediaId], { ...xmpFieldsToMediaFields(xmp.fields), xmpSource: xmp.source }, "Read XMP");
-  if (!outcome.success) toast.warning("Read XMP", outcome.message);
+  if (!outcome.success) toast.warning(translateNow("Read XMP"), outcome.message);
   return outcome.success;
 }

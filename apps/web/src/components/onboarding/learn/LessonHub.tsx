@@ -3,6 +3,7 @@ import { Check, Circle, Minus, RotateCcw } from "../../../icons/lucide-compat";
 import { lessonButton, LessonText, useLiveLessonKeys } from "./lesson-ui";
 import { useLessonProgress } from "./useLessonProgress";
 import type { LessonId } from "./lessons";
+import { useT } from "@openreel/i18n/react";
 
 interface LessonHubProps {
   /** The user chose a lesson (or Resume). The caller decides whether a project must be created first. */
@@ -17,6 +18,7 @@ const STATE_LABEL = { done: "Done", skipped: "Skipped", todo: "To do" } as const
  * buttons, so the whole list is keyboard reachable; nothing here depends on a lesson run being active.
  */
 export function LessonHub({ onLaunch, onStartOver }: LessonHubProps): JSX.Element {
+  const t = useT();
   const progress = useLessonProgress();
   const keys = useLiveLessonKeys();
   const allSettled = progress.settledCount === progress.total;
@@ -27,17 +29,17 @@ export function LessonHub({ onLaunch, onStartOver }: LessonHubProps): JSX.Elemen
     <div>
       <div className="mb-5">
         <h1 id="learn-sheet-title" className="text-xl font-semibold tracking-tight text-fg">
-          Learn OpenReel
+          {t("Learn OpenReel")}
         </h1>
         <p className="mt-1 text-sm text-fg-2">
           <span className="tabular-nums">
-            {progress.doneCount} of {progress.total}
+            {progress.doneCount} {t("of")} {progress.total}
           </span>{" "}
-          lessons done. Pick up where you left off, or redo any of them.
+          {t("lessons done. Pick up where you left off, or redo any of them.")}
         </p>
         <div
           role="progressbar"
-          aria-label="Lessons completed"
+          aria-label={t("Lessons completed")}
           aria-valuemin={0}
           aria-valuemax={progress.total}
           aria-valuenow={progress.doneCount}
@@ -50,7 +52,7 @@ export function LessonHub({ onLaunch, onStartOver }: LessonHubProps): JSX.Elemen
         </div>
       </div>
 
-      <ol className="overflow-hidden rounded-2xl border border-border bg-bg-1" aria-label="Lessons">
+      <ol className="overflow-hidden rounded-2xl border border-border bg-bg-1" aria-label={t("Lessons")}>
         {progress.items.map((item) => {
           const upNext = item.isCurrent && item.state === "todo";
           return (
@@ -83,7 +85,7 @@ export function LessonHub({ onLaunch, onStartOver }: LessonHubProps): JSX.Elemen
                     </span>
                     {upNext && (
                       <span className="rounded-full bg-accent-soft px-2 py-0.5 text-2xs font-medium text-accent">
-                        Up next
+                        {t("Up next")}
                       </span>
                     )}
                   </span>
@@ -110,7 +112,7 @@ export function LessonHub({ onLaunch, onStartOver }: LessonHubProps): JSX.Elemen
         {started && (
           <button type="button" className={lessonButton("quiet")} onClick={onStartOver}>
             <RotateCcw size={13} aria-hidden="true" />
-            Start over
+            {t("Start over")}
           </button>
         )}
       </div>

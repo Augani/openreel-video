@@ -26,6 +26,8 @@ import { ColorSelector } from "../../../motion/components/primitives";
 import { toast } from "../../../stores/notification-store";
 import { FONT_CATEGORIES } from "./font-options";
 import { useNumericDraft } from "./shell/useNumericDraft";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const controlClass = "flex h-7 w-full min-w-0 rounded-[7px] border border-border bg-bg-1 px-2 py-1 text-[12px] font-medium text-fg-2 outline-none transition-colors focus:border-accent";
 const iconButtonClass = "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring";
@@ -44,6 +46,7 @@ const Num: React.FC<{
   label: string; value: number; onChange: (value: number) => void;
   min: number; max: number; step?: number; unit?: string; mixed?: boolean;
 }> = ({ label, value, onChange, min, max, step = 1, unit, mixed }) => {
+  const t = useT();
   const id = useId();
   const input = useNumericDraft({ value, onChange, min, max, step, ...(mixed ? { displayValue: "" } : {}) });
   return (
@@ -51,7 +54,7 @@ const Num: React.FC<{
       <Label htmlFor={id} className="block truncate text-[11px] font-medium leading-[1.4] text-text-secondary">{label}</Label>
       <div className="relative min-w-0">
         <Input {...input} id={id} type="number" inputMode="decimal" min={min} max={max} step={step}
-          placeholder={mixed ? "Mixed" : undefined}
+          placeholder={mixed ? t("Mixed") : undefined}
           className={cn(controlClass, "font-mono tabular-nums", unit && "pr-8")} />
         {unit && <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-fg-muted">{unit}</span>}
       </div>
@@ -78,6 +81,7 @@ const DEFAULT_STOPS = [{ offset: 0, color: "#ffd166" }, { offset: 1, color: "#ef
 
 /** Fill editor shared by the clip fill and by a selected run. */
 const FillEditor: React.FC<{ fill: TextFill; onChange: (fill: TextFill) => void; label: string }> = ({ fill, onChange, label }) => {
+  const t = useT();
   const stops = fill.type === "solid" ? DEFAULT_STOPS : fill.stops;
   const setType = (type: string) => {
     if (type === "solid") onChange({ type: "solid", color: fill.type === "solid" ? fill.color : (fill.stops[0]?.color ?? "#ffffff") });
@@ -94,9 +98,9 @@ const FillEditor: React.FC<{ fill: TextFill; onChange: (fill: TextFill) => void;
         <Select value={fill.type} onValueChange={setType}>
           <SelectTrigger aria-label={`${label} type`} className={cn(controlClass, "w-[120px]")}><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="solid">Solid</SelectItem>
-            <SelectItem value="linear">Linear gradient</SelectItem>
-            <SelectItem value="radial">Radial gradient</SelectItem>
+            <SelectItem value="solid">{t("Solid")}</SelectItem>
+            <SelectItem value="linear">{t("Linear gradient")}</SelectItem>
+            <SelectItem value="radial">{t("Radial gradient")}</SelectItem>
           </SelectContent>
         </Select>
       </Field>
@@ -112,13 +116,13 @@ const FillEditor: React.FC<{ fill: TextFill; onChange: (fill: TextFill) => void;
                 onChange={(percent) => setStops(stops.map((s, i) => (i === index ? { ...s, offset: percent / 100 } : s)))} />
               <Button type="button" size="sm" variant="ghost" className={cn(wordButtonClass, inactiveClass)} disabled={stops.length <= 2}
                 aria-label={`Remove stop ${index + 1}`} onClick={() => setStops(stops.filter((_, i) => i !== index))}>
-                Remove
+                {t("Remove")}
               </Button>
             </div>
           ))}
           <Button type="button" size="sm" variant="ghost" className={cn(wordButtonClass, inactiveClass)} disabled={stops.length >= 8}
             onClick={() => setStops([...stops, { offset: 1, color: stops[stops.length - 1]?.color ?? "#ffffff" }])}>
-            Add stop
+            {t("Add stop")}
           </Button>
         </div>
       )}
@@ -138,6 +142,7 @@ interface RichTextSectionProps {
  * Every change is one undoable store update; the renderer is shared with export.
  */
 const RichTextSection: React.FC<RichTextSectionProps> = ({ clipId, clip }) => {
+  const t = useT();
   const updateTextRuns = useProjectStore((s) => s.updateTextRuns);
   const updateTextStyle = useProjectStore((s) => s.updateTextStyle);
   // Both the Text Content field and the Program monitor's in-place editor publish here.
@@ -177,7 +182,7 @@ const RichTextSection: React.FC<RichTextSectionProps> = ({ clipId, clip }) => {
 
   const setFamily = async (next: string) => {
     if (next === INHERIT) { apply({ fontFamily: undefined }); return; }
-    try { await ensureFontFamily(next, boldNow ? 700 : 400, text); } catch { toast.error("Font unavailable", `${next} could not be loaded; the fallback face is used.`); }
+    try { await ensureFontFamily(next, boldNow ? 700 : 400, text); } catch { toast.error(translateNow("Font unavailable"), `${next} could not be loaded; the fallback face is used.`); }
     apply({ fontFamily: next });
   };
 
@@ -191,26 +196,26 @@ const RichTextSection: React.FC<RichTextSectionProps> = ({ clipId, clip }) => {
     <div className="space-y-3" data-testid="rich-text-section">
       <div className="space-y-2 rounded-[7px] bg-bg-2 p-3">
         <div className="flex items-center justify-between">
-          <span className="text-[12px] leading-5 text-fg font-medium">Character</span>
+          <span className="text-[12px] leading-5 text-fg font-medium">{t("Character")}</span>
           <span className="text-[11px] text-fg-muted" data-testid="rich-text-range">
-            {hasSelection ? `Selected ${start + 1}–${end} (${end - start})` : "Whole text"}
+            {hasSelection ? `Selected ${start + 1}–${end} (${end - start})` : t("Whole text")}
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-1">
           <Toggle label="Bold selection" pressed={boldNow} onClick={() => apply({ fontWeight: boldNow ? 400 : 700 })}><Bold size={14} /></Toggle>
           <Toggle label="Italic selection" pressed={italicNow} onClick={() => apply({ fontStyle: italicNow ? "normal" : "italic" })}><Italic size={14} /></Toggle>
           <Toggle label="Underline selection" pressed={underlineNow} onClick={() => apply({ underline: underlineNow ? undefined : true })}><Underline size={14} /></Toggle>
-          <Toggle word label="Small caps" pressed={smallCapsNow} onClick={() => apply({ smallCaps: smallCapsNow ? undefined : true })}>Sc</Toggle>
-          <Toggle word label="Disable ligatures" pressed={ligaturesOff} onClick={() => apply({ ligatures: ligaturesOff ? undefined : false })}>No fi</Toggle>
+          <Toggle word label="Small caps" pressed={smallCapsNow} onClick={() => apply({ smallCaps: smallCapsNow ? undefined : true })}>{t("Sc")}</Toggle>
+          <Toggle word label="Disable ligatures" pressed={ligaturesOff} onClick={() => apply({ ligatures: ligaturesOff ? undefined : false })}>{t("No fi")}</Toggle>
           <Toggle word label="Tabular figures" pressed={tabularNow} onClick={() => apply({ tabularFigures: tabularNow ? undefined : true })}>1 0 1</Toggle>
         </div>
         <Field label="Font">
           <Select value={family === "mixed" ? "" : (family ?? INHERIT)} onValueChange={(next) => void setFamily(next)}>
-            <SelectTrigger aria-label="Selection font" className={cn(controlClass, "w-[160px]")}>
-              <SelectValue placeholder={isMixed("fontFamily") ? "Mixed" : undefined} />
+            <SelectTrigger aria-label={t("Selection font")} className={cn(controlClass, "w-[160px]")}>
+              <SelectValue placeholder={isMixed("fontFamily") ? t("Mixed") : undefined} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={INHERIT}>Clip font ({style.fontFamily})</SelectItem>
+              <SelectItem value={INHERIT}>{t("Clip font (")}{style.fontFamily})</SelectItem>
               {FONT_NAMES.map(([category, fonts]) => (
                 <SelectGroup key={category}>
                   <SelectLabel>{category}</SelectLabel>
@@ -236,26 +241,26 @@ const RichTextSection: React.FC<RichTextSectionProps> = ({ clipId, clip }) => {
         <div className="flex gap-1">
           <Button type="button" size="sm" variant="ghost" className={cn(wordButtonClass, inactiveClass)}
             onClick={() => apply({ fill: { type: "linear", angle: 90, stops: [...DEFAULT_STOPS] } })}>
-            Gradient on selection
+            {t("Gradient on selection")}
           </Button>
           <Button type="button" size="sm" variant="ghost" className={cn(wordButtonClass, inactiveClass)}
             disabled={!hasRunOverrides(clip.runs)} onClick={() => updateTextRuns(clipId, undefined)}>
-            Clear character styles
+            {t("Clear character styles")}
           </Button>
         </div>
       </div>
 
       <div className="space-y-2 rounded-[7px] bg-bg-2 p-3">
-        <span className="text-[12px] leading-5 text-fg font-medium">Fill</span>
+        <span className="text-[12px] leading-5 text-fg font-medium">{t("Fill")}</span>
         <FillEditor label="Fill type" fill={fill} onChange={(next) => updateTextStyle(clipId, next.type === "solid" ? { fill: undefined, color: next.color } : { fill: next })} />
       </div>
 
       <div className="space-y-2 rounded-[7px] bg-bg-2 p-3">
         <div className="flex items-center justify-between">
-          <span className="text-[12px] leading-5 text-fg font-medium">Strokes</span>
+          <span className="text-[12px] leading-5 text-fg font-medium">{t("Strokes")}</span>
           <Button type="button" size="sm" variant="ghost" className={cn(wordButtonClass, inactiveClass)}
             onClick={() => setStrokes([...strokes, { color: strokes.length ? "#ffd166" : "#000000", width: strokes.length ? 10 : 4 }])}>
-            Add stroke
+            {t("Add stroke")}
           </Button>
         </div>
         {strokes.map((stroke, index) => (
@@ -266,9 +271,9 @@ const RichTextSection: React.FC<RichTextSectionProps> = ({ clipId, clip }) => {
               <Num label="Stroke width" unit="px" min={0} max={100} step={0.5} value={stroke.width}
                 onChange={(width) => setStrokes(strokes.map((s, i) => (i === index ? { ...s, width } : s)))} />
               <Toggle word label={`Stroke ${index + 1} over fill`} pressed={stroke.position === "over"}
-                onClick={() => setStrokes(strokes.map((s, i) => (i === index ? { ...s, position: s.position === "over" ? undefined : "over" } : s)))}>Over</Toggle>
+                onClick={() => setStrokes(strokes.map((s, i) => (i === index ? { ...s, position: s.position === "over" ? undefined : "over" } : s)))}>{t("Over")}</Toggle>
               <Button type="button" size="sm" variant="ghost" className={cn(wordButtonClass, inactiveClass)} aria-label={`Remove stroke ${index + 1}`}
-                onClick={() => setStrokes(strokes.filter((_, i) => i !== index))}>Remove</Button>
+                onClick={() => setStrokes(strokes.filter((_, i) => i !== index))}>{t("Remove")}</Button>
             </div>
           </div>
         ))}
@@ -276,10 +281,10 @@ const RichTextSection: React.FC<RichTextSectionProps> = ({ clipId, clip }) => {
 
       <div className="space-y-2 rounded-[7px] bg-bg-2 p-3">
         <div className="flex items-center justify-between">
-          <span className="text-[12px] leading-5 text-fg font-medium">Background box</span>
+          <span className="text-[12px] leading-5 text-fg font-medium">{t("Background box")}</span>
           <Toggle word label="Background box" pressed={!!style.backgroundBox}
             onClick={() => setBox(style.backgroundBox ? undefined : { color: box?.color ?? "#000000", paddingX: 24, paddingY: 12, radius: 12 })}>
-            {style.backgroundBox ? "On" : "Off"}
+            {style.backgroundBox ? t("On") : t("Off")}
           </Toggle>
         </div>
         {style.backgroundBox && (

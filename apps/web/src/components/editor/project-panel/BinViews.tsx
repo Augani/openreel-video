@@ -113,6 +113,7 @@ export const BinContextMenu: React.FC<{ bin: MediaBin; children: React.ReactNode
 
 /** Grid-view bin tile. */
 export const BinTile: React.FC<{ bin: MediaBin; itemCount: number }> = ({ bin, itemCount }) => {
+  const t = useT();
   const renaming = useProjectPanelStore((s) => s.renamingBinId === bin.id);
   const selected = useProjectPanelStore((s) => s.selectedBinIds.includes(bin.id));
   const drop = useBinDropTarget(bin.id);
@@ -148,7 +149,7 @@ export const BinTile: React.FC<{ bin: MediaBin; itemCount: number }> = ({ bin, i
         >
           <Folder size={34} className="text-fg-3" fill="currentColor" fillOpacity={0.18} style={{ color: getMediaLabel(bin.label)?.color }} aria-hidden />
           {bin.label && <LabelChip label={bin.label} className="absolute left-1.5 top-1.5" />}
-          <span className="workspace-media-duration">{itemCount} {itemCount === 1 ? "item" : "items"}</span>
+          <span className="workspace-media-duration">{itemCount} {itemCount === 1 ? t("item") : t("items")}</span>
         </div>
         <div className="workspace-media-filename truncate text-fg-2" title={bin.name}>
           {renaming ? <BinNameEditor bin={bin} className="w-full" /> : bin.name}

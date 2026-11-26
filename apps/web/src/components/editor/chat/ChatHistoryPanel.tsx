@@ -3,6 +3,7 @@ import type { JSX, MouseEvent } from "react";
 import { MessageSquareText, Plus, Trash2 } from "@/icons/lucide-compat";
 import { useChatHistoryStore } from "../../../stores/chat-history-store";
 import { useChatStore } from "../../../stores/chat-store";
+import { useT } from "@openreel/i18n/react";
 
 function formatUpdatedAt(timestamp: number): string {
   const date = new Date(timestamp);
@@ -22,6 +23,7 @@ export function ChatHistoryPanel({
   readonly projectId: string | null;
   readonly onClose: () => void;
 }): JSX.Element {
+  const t = useT();
   const conversations = useChatHistoryStore((state) => state.conversations);
   const activeConversationId = useChatStore(
     (state) => state.currentConversationId,
@@ -45,15 +47,15 @@ export function ChatHistoryPanel({
     <div className="workspace-chat-history absolute inset-x-2 top-11 z-30 overflow-hidden rounded-xl border border-border bg-bg-1 shadow-xl">
       <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
         <div>
-          <div className="text-[12px] font-semibold text-fg">Conversations</div>
+          <div className="text-[12px] font-semibold text-fg">{t("Conversations")}</div>
           <div className="mt-0.5 text-[10px] text-fg-muted">
-            Saved on this device for this project
+            {t("Saved on this device for this project")}
           </div>
         </div>
         <Button
           type="button"
-          aria-label="New chat"
-          title="New chat"
+          aria-label={t("New chat")}
+          title={t("New chat")}
           size="sm"
           variant="secondary"
           className="h-7 rounded-[7px] border border-border bg-bg-2 px-2.5 text-[12px] font-semibold text-fg-2 hover:bg-bg-3 hover:text-fg"
@@ -73,10 +75,10 @@ export function ChatHistoryPanel({
               <MessageSquareText size={15} aria-hidden />
             </div>
             <div className="mt-2 text-[11px] font-medium text-fg-2">
-              No saved conversations yet
+              {t("No saved conversations yet")}
             </div>
             <div className="mt-1 max-w-48 text-[10px] leading-relaxed text-fg-muted">
-              Completed chats will appear here automatically.
+              {t("Completed chats will appear here automatically.")}
             </div>
           </div>
         ) : (
@@ -111,7 +113,7 @@ export function ChatHistoryPanel({
                     />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[11px] font-medium">
-                        {conversation.title}
+                        {t(conversation.title)}
                       </span>
                       <span className="mt-0.5 block text-[9px] text-fg-muted">
                         {
@@ -119,7 +121,7 @@ export function ChatHistoryPanel({
                             (message) => message.role === "user",
                           ).length
                         }{" "}
-                        requests · {formatUpdatedAt(conversation.updatedAt)}
+                        {t("requests ·")} {formatUpdatedAt(conversation.updatedAt)}
                       </span>
                     </span>
                   </Button>

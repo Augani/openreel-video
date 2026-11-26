@@ -7,6 +7,8 @@ import {
   toggleSelectedEditPointKind,
   trimSelectedEditPoint,
 } from "../../../services/edit-point-commands";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * Numeric trim for the selected edit point: type +N or -N frames and press
@@ -14,6 +16,7 @@ import {
  * does what Cmd/Ctrl-clicking the edit point does.
  */
 export const EditPointTrimEntry = React.memo(function EditPointTrimEntry() {
+  const t = useT();
   const kind = useEditPointStore((s) => (s.selection?.type === "edit" ? s.selection.kind : null));
   const [text, setText] = useState("");
   const dynamicEnabled = useEditPointStore((s) => s.dynamicTrimEnabled);
@@ -23,11 +26,11 @@ export const EditPointTrimEntry = React.memo(function EditPointTrimEntry() {
   const apply = () => {
     const frames = parseTrimFrames(text);
     if (frames === null) {
-      toast.warning("Trim edit point", "Type a whole number of frames, like +5 or -3.");
+      toast.warning(translateNow("Trim edit point"), "Type a whole number of frames, like +5 or -3.");
       return;
     }
     const outcome = trimSelectedEditPoint(frames, false);
-    if (!outcome.success) toast.warning("Trim edit point", outcome.message);
+    if (!outcome.success) toast.warning(translateNow("Trim edit point"), outcome.message);
     else setText("");
   };
 
@@ -36,16 +39,16 @@ export const EditPointTrimEntry = React.memo(function EditPointTrimEntry() {
       <button
         type="button"
         className="px-1.5 py-0.5 rounded border border-border hover:bg-background-secondary"
-        title="Toggle Ripple / Roll (Cmd/Ctrl-click the edit point)"
+        title={t("Toggle Ripple / Roll (Cmd/Ctrl-click the edit point)")}
         onClick={toggleSelectedEditPointKind}
       >
-        {kind === "roll" ? "Roll" : "Ripple"}
+        {kind === "roll" ? t("Roll") : t("Ripple")}
       </button>
       <button
         type="button"
         aria-pressed={dynamicEnabled}
         className={`px-1.5 py-0.5 rounded border border-border hover:bg-background-secondary ${dynamicEnabled ? "bg-background-secondary" : ""}`}
-        title="Dynamic trimming: J / K / L trim the selected edit point"
+        title={t("Dynamic trimming: J / K / L trim the selected edit point")}
         onClick={() => useEditPointStore.getState().setDynamicTrimEnabled(!dynamicEnabled)}
       >
         JKL
@@ -54,15 +57,15 @@ export const EditPointTrimEntry = React.memo(function EditPointTrimEntry() {
         <span
           data-testid="dynamic-trim-indicator"
           role="status"
-          title="The Program monitor shows the trimmed result live. K or Space commits, Esc cancels."
+          title={t("The Program monitor shows the trimmed result live. K or Space commits, Esc cancels.")}
           className={dynamic.limited ? "text-warning" : undefined}
         >
           {dynamic.appliedFrames > 0 ? "+" : ""}
-          {dynamic.appliedFrames}f{dynamic.limited ? " (limit)" : ""}
+          {dynamic.appliedFrames}f{dynamic.limited ? t(" (limit)") : ""}
         </span>
       )}
       <input
-        aria-label="Trim selected edit point by frames"
+        aria-label={t("Trim selected edit point by frames")}
         className="w-16 px-1 py-0.5 rounded border border-border bg-background text-foreground"
         placeholder="+5 / -3"
         inputMode="numeric"

@@ -33,8 +33,11 @@ import {
 } from "../../../services/secure-storage";
 import { MasterPasswordDialog } from "./MasterPasswordDialog";
 import { toast } from "../../../stores/notification-store";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 export const ApiKeysPanel: React.FC = () => {
+  const t = useT();
   const addConfiguredService = useSettingsStore(state => state.addConfiguredService);
   const removeConfiguredService = useSettingsStore(state => state.removeConfiguredService);
 
@@ -99,7 +102,7 @@ export const ApiKeysPanel: React.FC = () => {
         await setupMasterPassword(password);
         setPasswordDialogMode(null);
         await refreshState();
-        toast.success("Master password set", "Your API keys will be encrypted with AES-256-GCM.");
+        toast.success(translateNow("Master password set"), "Your API keys will be encrypted with AES-256-GCM.");
         return true;
       }
 
@@ -108,7 +111,7 @@ export const ApiKeysPanel: React.FC = () => {
         if (success) {
           setPasswordDialogMode(null);
           await refreshState();
-          toast.success("Session unlocked", "You can now manage API keys.");
+          toast.success(translateNow("Session unlocked"), "You can now manage API keys.");
         }
         return success;
       }
@@ -118,7 +121,7 @@ export const ApiKeysPanel: React.FC = () => {
         if (success) {
           setPasswordDialogMode(null);
           await refreshState();
-          toast.success("Password changed", "All keys have been re-encrypted.");
+          toast.success(translateNow("Password changed"), "All keys have been re-encrypted.");
         }
         return success;
       }
@@ -141,9 +144,9 @@ export const ApiKeysPanel: React.FC = () => {
         setNewKeyValue("");
         setAddingService(null);
         await refreshState();
-        toast.success(`${service.label} key saved`, "API key encrypted and stored.");
+        toast.success(translateNow("{service} key saved", { service: service.label }), translateNow("API key encrypted and stored."));
       } catch (err) {
-        toast.error("Failed to save", err instanceof Error ? err.message : "Unknown error");
+        toast.error(translateNow("Failed to save"), err instanceof Error ? err.message : "Unknown error");
       }
     },
     [newKeyValue, addConfiguredService, refreshState],
@@ -161,9 +164,9 @@ export const ApiKeysPanel: React.FC = () => {
           return next;
         });
         await refreshState();
-        toast.success(`${service?.label ?? serviceId} key removed`);
+        toast.success(translateNow("{service} key removed", { service: service?.label ?? serviceId }));
       } catch (err) {
-        toast.error("Failed to delete", err instanceof Error ? err.message : "Unknown error");
+        toast.error(translateNow("Failed to delete"), err instanceof Error ? err.message : "Unknown error");
       }
     },
     [removeConfiguredService, refreshState],
@@ -184,7 +187,7 @@ export const ApiKeysPanel: React.FC = () => {
         setShowKey((prev) => ({ ...prev, [serviceId]: true }));
       }
     } catch (err) {
-      toast.error("Failed to decrypt", err instanceof Error ? err.message : "Unknown error");
+      toast.error(translateNow("Failed to decrypt"), err instanceof Error ? err.message : "Unknown error");
     }
   }, [revealedKeys]);
 
@@ -205,15 +208,14 @@ export const ApiKeysPanel: React.FC = () => {
           <Shield size={32} className="text-primary" aria-hidden />
         </div>
         <h3 className="text-[15px] leading-5 text-fg-2 font-bold block mb-2">
-          Secure API Key Storage
+          {t("Secure API Key Storage")}
         </h3>
         <p className="text-[12px] leading-5 text-fg-2 font-normal block mb-6 max-w-sm">
-          Set up a master password to encrypt and store your API keys locally.
-          Keys are encrypted with AES-256-GCM and are only sent when making a request to the selected service.
+          {t("Set up a master password to encrypt and store your API keys locally. Keys are encrypted with AES-256-GCM and are only sent when making a request to the selected service.")}
         </p>
-        <Button onClick={() => setPasswordDialogMode("setup")} type="button" aria-label="Set Up Master Password" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-accent text-accent-fg hover:bg-accent/90">
+        <Button onClick={() => setPasswordDialogMode("setup")} type="button" aria-label={t("Set Up Master Password")} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-accent text-accent-fg hover:bg-accent/90">
           <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<KeyRound size={16} aria-hidden />}</span>
-          <span className="truncate">{"Set Up Master Password"}</span>
+          <span className="truncate">{t("Set Up Master Password")}</span>
         </Button>
 
         {passwordDialogMode && (
@@ -236,14 +238,14 @@ export const ApiKeysPanel: React.FC = () => {
           <Lock size={32} className="text-amber-500" aria-hidden />
         </div>
         <h3 className="text-[15px] leading-5 text-fg-2 font-bold block mb-2">
-          Session Locked
+          {t("Session Locked")}
         </h3>
         <p className="text-[12px] leading-5 text-fg-2 font-normal block mb-6 max-w-sm">
-          Enter your master password to view and manage API keys.
+          {t("Enter your master password to view and manage API keys.")}
         </p>
-        <Button onClick={() => setPasswordDialogMode("unlock")} type="button" aria-label="Unlock" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-accent text-accent-fg hover:bg-accent/90">
+        <Button onClick={() => setPasswordDialogMode("unlock")} type="button" aria-label={t("Unlock")} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-accent text-accent-fg hover:bg-accent/90">
           <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Unlock size={16} aria-hidden />}</span>
-          <span className="truncate">{"Unlock"}</span>
+          <span className="truncate">{t("Unlock")}</span>
         </Button>
 
         {passwordDialogMode && (
@@ -266,17 +268,17 @@ export const ApiKeysPanel: React.FC = () => {
         <div className="flex items-center gap-2">
           <Shield size={14} className="text-primary" aria-hidden />
           <span className="text-[12px] leading-5 text-fg-2 font-normal">
-            {storedKeys.length} key{storedKeys.length !== 1 ? "s" : ""} stored
+            {storedKeys.length} {t("key")}{storedKeys.length !== 1 ? "s" : ""} {t("stored")}
           </span>
         </div>
-        {systemKeychain ? <span className="text-xs text-fg-2">System keychain</span> : <div className="flex items-center gap-2">
-          <Button onClick={() => setPasswordDialogMode("change")} type="button" aria-label="Change Password" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+        {systemKeychain ? <span className="text-xs text-fg-2">{t("System keychain")}</span> : <div className="flex items-center gap-2">
+          <Button onClick={() => setPasswordDialogMode("change")} type="button" aria-label={t("Change Password")} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
             <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Key size={14} aria-hidden />}</span>
-            <span className="truncate">{"Change Password"}</span>
+            <span className="truncate">{t("Change Password")}</span>
           </Button>
-          <Button onClick={handleLock} type="button" aria-label="Lock" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+          <Button onClick={handleLock} type="button" aria-label={t("Lock")} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
             <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Lock size={14} aria-hidden />}</span>
-            <span className="truncate">{"Lock"}</span>
+            <span className="truncate">{t("Lock")}</span>
           </Button>
         </div>}
       </div>
@@ -294,7 +296,7 @@ export const ApiKeysPanel: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <Key size={14} className="text-primary" aria-hidden />
                   <span className="text-[12px] leading-4 text-fg-2 font-bold">
-                    {service?.label ?? stored.label}
+                    {t(service?.label ?? "") || stored.label}
                   </span>
                   {service?.docsUrl && (
                     <Button asChild variant="link" size="icon-sm" className="h-6 w-6 text-fg-muted hover:text-primary">
@@ -303,10 +305,10 @@ export const ApiKeysPanel: React.FC = () => {
                   )}
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="icon-sm" onClick={() => handleRevealKey(stored.id)} type="button" aria-label={isRevealed ? "Hide key" : "Show key"} title={isRevealed ? "Hide key" : "Show key"} className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg">
+                  <Button variant="ghost" size="icon-sm" onClick={() => handleRevealKey(stored.id)} type="button" aria-label={isRevealed ? t("Hide key") : t("Show key")} title={isRevealed ? t("Hide key") : t("Show key")} className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg">
                     {isRevealed ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />}
                   </Button>
-                  <Button variant="ghost" size="icon-sm" onClick={() => handleDeleteKey(stored.id)} type="button" aria-label="Delete key" title="Delete key" className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-status-error/12 text-status-error hover:bg-status-error/20">
+                  <Button variant="ghost" size="icon-sm" onClick={() => handleDeleteKey(stored.id)} type="button" aria-label={t("Delete key")} title={t("Delete key")} className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-status-error/12 text-status-error hover:bg-status-error/20">
                     {<Trash2 size={14} aria-hidden />}
                   </Button>
                 </div>
@@ -314,7 +316,7 @@ export const ApiKeysPanel: React.FC = () => {
 
               {service && (
                 <p className="text-[12px] leading-5 text-fg-2 font-normal block mb-2">
-                  {service.description}
+                  {t(service.description)}
                 </p>
               )}
 
@@ -327,7 +329,7 @@ export const ApiKeysPanel: React.FC = () => {
               <span className="text-fg-2 font-normal block mt-2 text-[10px]">
                 {stored.createdAt > 0
                   ? `Added ${new Date(stored.createdAt).toLocaleDateString()} · Updated ${new Date(stored.updatedAt).toLocaleDateString()}`
-                  : "Stored securely in the system keychain"}
+                  : t("Stored securely in the system keychain")}
               </span>
             </Card>
           );
@@ -340,21 +342,21 @@ export const ApiKeysPanel: React.FC = () => {
           <div className="flex items-center gap-2 mb-3">
             <Plus size={14} className="text-primary" aria-hidden />
             <span className="text-[12px] leading-4 text-fg-2 font-bold">
-              Add{" "}
+              {t("Add")}{" "}
               {SERVICE_REGISTRY.find((s) => s.id === addingService)?.keyOptional
                 ? `Optional ${SERVICE_REGISTRY.find((s) => s.id === addingService)?.label} Key`
                 : `${SERVICE_REGISTRY.find((s) => s.id === addingService)?.label} Key`}
             </span>
           </div>
           <Input
-            aria-label="API key"
+            aria-label={t("API key")}
             type="password"
             value={newKeyValue}
             onChange={event => setNewKeyValue(event.target.value)}
             placeholder={
               SERVICE_REGISTRY.find((s) => s.id === addingService)?.keyOptional
-                ? "Paste an API key if your endpoint requires one"
-                : "Paste your API key here"
+                ? t("Paste an API key if your endpoint requires one")
+                : t("Paste your API key here")
             }
             autoFocus
             autoComplete="off"
@@ -364,18 +366,18 @@ export const ApiKeysPanel: React.FC = () => {
             <Button onClick={() => {
                 setAddingService(null);
                 setNewKeyValue("");
-              }} type="button" aria-label="Cancel" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
-              <span className="truncate">{"Cancel"}</span>
+              }} type="button" aria-label={t("Cancel")} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+              <span className="truncate">{t("Cancel")}</span>
             </Button>
-            <Button onClick={() => handleSaveKey(addingService)} type="button" aria-label="Save Key" disabled={(!newKeyValue.trim())} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90">
-              <span className="truncate">{"Save Key"}</span>
+            <Button onClick={() => handleSaveKey(addingService)} type="button" aria-label={t("Save Key")} disabled={(!newKeyValue.trim())} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90">
+              <span className="truncate">{t("Save Key")}</span>
             </Button>
           </div>
         </Card>
       ) : availableServices.length > 0 ? (
         <div>
           <h3 className="text-[12px] leading-4 text-fg-2 font-bold block mb-3">
-            Add API Key
+            {t("Add API Key")}
           </h3>
           <div className="grid gap-2">
             {availableServices.map((service) => (
@@ -386,10 +388,10 @@ export const ApiKeysPanel: React.FC = () => {
                   </div>
                   <div>
                     <span className="text-[12px] leading-4 text-fg-2 font-bold block">
-                      {service.label}{service.keyOptional ? " (optional key)" : ""}
+                      {t(service.label)}{service.keyOptional ? t(" (optional key)") : ""}
                     </span>
                     <span className="text-[12px] leading-5 text-fg-2 font-normal block">
-                      {service.description}
+                      {t(service.description)}
                     </span>
                   </div>
                 </div>

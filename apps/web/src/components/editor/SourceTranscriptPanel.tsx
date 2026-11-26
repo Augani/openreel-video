@@ -15,6 +15,8 @@ import { runWithToast } from "../../services/premiere-edit-commands";
 import { cuesFromTranscriptText } from "../../services/source-transcripts/import-cues";
 import { toast } from "../../stores/notification-store";
 import { formatFrameTimecode } from "../../utils/frame-timecode";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * Transcript tab of the Source monitor: text-based editing on a source clip. Selecting words sets the clip's Source
@@ -31,6 +33,7 @@ interface Selection {
 const PAD_SECONDS = 0;
 
 export function SourceTranscriptPanel() {
+  const t = useT();
   const mediaId = useSourceMonitorStore((s) => s.mediaId);
   const external = useSourceMonitorStore((s) => s.externalPreview);
   const position = useSourceMonitorStore((s) => s.position);
@@ -96,10 +99,10 @@ export function SourceTranscriptPanel() {
       try {
         const marks = selectionToSourceMarks(from, first, last, { pad: PAD_SECONDS, ...(duration ? { duration } : {}) });
         const outcome = setSourceMarks(id, marks);
-        if (!outcome.success) return void toast.warning("Transcript selection", outcome.message);
+        if (!outcome.success) return void toast.warning(translateNow("Transcript selection"), outcome.message);
         setSelection({ mediaId: id, first, last });
       } catch (error) {
-        toast.warning("Transcript selection", error instanceof Error ? error.message : "That selection cannot be marked.");
+        toast.warning(translateNow("Transcript selection"), error instanceof Error ? error.message : "That selection cannot be marked.");
       }
     },
     [transcript, media?.metadata.duration],
@@ -130,7 +133,7 @@ export function SourceTranscriptPanel() {
   const importFile = async (file: File) => {
     if (!media) return;
     const { cues, errors } = cuesFromTranscriptText(await file.text(), `imp-${media.id.slice(0, 6)}`);
-    if (!cues.length) return void toast.warning("Import transcript", errors[0] ?? "No transcript was found in that file.");
+    if (!cues.length) return void toast.warning(translateNow("Import transcript"), errors[0] ?? "No transcript was found in that file.");
     await getSourceTranscriptStore().getState().adopt(media, cues, "import");
   };
 
@@ -150,18 +153,18 @@ export function SourceTranscriptPanel() {
   const selectedText = selected ? words.slice(lo, hi + 1).map((w) => w.text).join(" ") : "";
 
   return (
-    <div data-testid="source-transcript-panel" aria-label="Source transcript" className="flex min-h-0 flex-1 flex-col text-[11px]">
+    <div data-testid="source-transcript-panel" aria-label={t("Source transcript")} className="flex min-h-0 flex-1 flex-col text-[11px]">
       <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border px-2.5 py-1.5">
         <Input
-          aria-label="Find in transcripts"
+          aria-label={t("Find in transcripts")}
           data-testid="source-transcript-search"
-          placeholder={scope === "all" ? "Find in all transcripts (speaker:Ann)" : "Find in this transcript"}
+          placeholder={scope === "all" ? t("Find in all transcripts (speaker:Ann)") : t("Find in this transcript")}
           value={query}
           onChange={(e) => setQuery(e.currentTarget.value)}
           onKeyDown={(e) => e.stopPropagation()}
           className="h-7 min-w-[140px] flex-1 text-[11px]"
         />
-        <div role="group" aria-label="Search scope" className="flex overflow-hidden rounded border border-border">
+        <div role="group" aria-label={t("Search scope")} className="flex overflow-hidden rounded border border-border">
           {(["clip", "all"] as const).map((value) => (
             <button
               key={value}
@@ -171,18 +174,18 @@ export function SourceTranscriptPanel() {
               onClick={() => setScope(value)}
               className={`px-2 py-1 ${scope === value ? "bg-bg-2 font-semibold text-fg" : "text-fg-3 hover:text-fg-2"}`}
             >
-              {value === "clip" ? "This clip" : "All clips"}
+              {value === "clip" ? t("This clip") : t("All clips")}
             </button>
           ))}
         </div>
         <label className="flex items-center gap-1 text-fg-3">
           <input type="checkbox" checked={fuzzy} onChange={(e) => setFuzzy(e.currentTarget.checked)} data-testid="source-transcript-fuzzy" />
-          Fuzzy
+          {t("Fuzzy")}
         </label>
         {(speakers.length > 0 || scope === "all") && (
           <Input
-            aria-label="Speaker filter"
-            placeholder="Speaker"
+            aria-label={t("Speaker filter")}
+            placeholder={t("Speaker")}
             value={speaker}
             onChange={(e) => setSpeaker(e.currentTarget.value)}
             onKeyDown={(e) => e.stopPropagation()}
@@ -193,22 +196,22 @@ export function SourceTranscriptPanel() {
           <span className="text-fg-3" data-testid="source-transcript-selection-range">
             {selected ? `${tc(words[lo].start)} – ${tc(words[hi].end)}` : ""}
           </span>
-          <Button type="button" variant="secondary" size="sm" data-testid="source-transcript-insert" disabled={!selected} title="Insert the selected text at the timeline playhead" onMouseDown={(e) => e.preventDefault()} onClick={() => edit("insert")}>
-            Insert
+          <Button type="button" variant="secondary" size="sm" data-testid="source-transcript-insert" disabled={!selected} title={t("Insert the selected text at the timeline playhead")} onMouseDown={(e) => e.preventDefault()} onClick={() => edit("insert")}>
+            {t("Insert")}
           </Button>
-          <Button type="button" variant="secondary" size="sm" data-testid="source-transcript-overwrite" disabled={!selected} title="Overwrite the timeline from the playhead with the selected text" onMouseDown={(e) => e.preventDefault()} onClick={() => edit("overwrite")}>
-            Overwrite
+          <Button type="button" variant="secondary" size="sm" data-testid="source-transcript-overwrite" disabled={!selected} title={t("Overwrite the timeline from the playhead with the selected text")} onMouseDown={(e) => e.preventDefault()} onClick={() => edit("overwrite")}>
+            {t("Overwrite")}
           </Button>
         </span>
       </div>
 
       {(query.trim() || speaker) && (
-        <ul data-testid="source-transcript-results" aria-label="Transcript search results" className="max-h-[38%] shrink-0 overflow-y-auto border-b border-border">
+        <ul data-testid="source-transcript-results" aria-label={t("Transcript search results")} className="max-h-[38%] shrink-0 overflow-y-auto border-b border-border">
           {hits.length === 0 ? (
             <li className="px-2.5 py-1.5 text-fg-3" data-testid="source-transcript-no-results">
               {scope === "all" && Object.values(entries).every((e) => !e.transcript)
-                ? "No clip has a transcript yet. Open a clip and transcribe it."
-                : "No matches."}
+                ? t("No clip has a transcript yet. Open a clip and transcribe it.")
+                : t("No matches.")}
             </li>
           ) : (
             hits.map((hit) => (
@@ -236,19 +239,19 @@ export function SourceTranscriptPanel() {
 
       <div className="min-h-0 flex-1 overflow-y-auto px-2.5 py-2">
         {!media ? (
-          <p className="text-fg-3">Load a clip in the Source monitor to see its transcript.</p>
+          <p className="text-fg-3">{t("Load a clip in the Source monitor to see its transcript.")}</p>
         ) : media.type === "image" ? (
-          <p className="text-fg-3">Images have no transcript.</p>
+          <p className="text-fg-3">{t("Images have no transcript.")}</p>
         ) : status === "offline" ? (
-          <p className="text-fg-3">This media is offline. Relink it to work with its transcript.</p>
+          <p className="text-fg-3">{t("This media is offline. Relink it to work with its transcript.")}</p>
         ) : status === "transcribing" ? (
           <p data-testid="source-transcript-progress" className="text-fg-2">
-            {entry?.message ?? "Transcribing…"} {typeof entry?.progress === "number" ? `${Math.round(entry.progress * 100)}%` : ""}
+            {entry?.message ?? t("Transcribing…")} {typeof entry?.progress === "number" ? `${Math.round(entry.progress * 100)}%` : ""}
           </p>
         ) : transcript && words.length ? (
           <div data-testid="source-transcript-words" className="leading-[1.9]">
             {entry?.record?.engine === "whisper" && (
-              <p className="mb-1 text-fg-3">Word times inside each phrase are estimated.</p>
+              <p className="mb-1 text-fg-3">{t("Word times inside each phrase are estimated.")}</p>
             )}
             {transcript.sentences.map((sentence) => (
               <p key={sentence.index} className="mb-1.5">
@@ -289,17 +292,17 @@ export function SourceTranscriptPanel() {
         ) : (
           <div className="flex flex-col items-start gap-2">
             <p className="text-fg-2">
-              {status === "error" ? entry?.error ?? "Transcription failed." : entry?.relinked ? "This media was relinked to different content, so its earlier transcript was dropped." : "This clip has not been transcribed yet."}
+              {status === "error" ? entry?.error ?? t("Transcription failed.") : entry?.relinked ? t("This media was relinked to different content, so its earlier transcript was dropped.") : t("This clip has not been transcribed yet.")}
             </p>
             <div className="flex gap-2">
               <Button type="button" size="sm" variant="secondary" data-testid="source-transcript-transcribe" disabled={status === "checking"} onMouseDown={(e) => e.preventDefault()} onClick={() => void getSourceTranscriptStore().getState().transcribe(media)}>
-                Transcribe clip
+                {t("Transcribe clip")}
               </Button>
               <Button type="button" size="sm" variant="ghost" data-testid="source-transcript-import" onMouseDown={(e) => e.preventDefault()} onClick={() => fileRef.current?.click()}>
-                Import transcript
+                {t("Import transcript")}
               </Button>
             </div>
-            <p className="text-fg-3">Transcribing runs on this device and the result is remembered for this file.</p>
+            <p className="text-fg-3">{t("Transcribing runs on this device and the result is remembered for this file.")}</p>
           </div>
         )}
         <input
@@ -319,7 +322,7 @@ export function SourceTranscriptPanel() {
         <div className="flex shrink-0 items-center gap-2 border-t border-border px-2.5 py-1 text-fg-3">
           <span className="min-w-0 flex-1 truncate" data-testid="source-transcript-selected-text">{selectedText}</span>
           <button type="button" className="hover:text-fg-2" onClick={() => setSelection(null)}>
-            Deselect
+            {t("Deselect")}
           </button>
         </div>
       )}

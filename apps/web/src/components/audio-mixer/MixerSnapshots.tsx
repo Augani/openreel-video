@@ -10,6 +10,7 @@ import {
 } from "@openreel/core/audio/mixer-snapshots";
 import { useProjectStore } from "../../stores/project-store";
 import { toast } from "../../stores/notification-store";
+import { useT } from "@openreel/i18n/react";
 
 async function commit(plan: SnapshotPlan): Promise<boolean> {
   const result = await useProjectStore.getState().applyMixerSnapshot(plan);
@@ -22,6 +23,7 @@ async function commit(plan: SnapshotPlan): Promise<boolean> {
 
 /** Save / recall / rename / delete of Audio Track Mixer snapshots. Loaded on demand from the mixer header. */
 export default function MixerSnapshots(): React.ReactElement {
+  const t = useT();
   const timeline = useProjectStore((state) => state.project.timeline);
   const snapshots = getMixerSnapshots(timeline);
   const [open, setOpen] = useState(false);
@@ -44,7 +46,7 @@ export default function MixerSnapshots(): React.ReactElement {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" data-testid="mixer-snapshots-open">
-          Snapshots{snapshots.length > 0 ? ` (${snapshots.length})` : ""}
+          {t("Snapshots")}{snapshots.length > 0 ? ` (${snapshots.length})` : ""}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-2" align="end" data-testid="mixer-snapshots-panel">
@@ -55,18 +57,18 @@ export default function MixerSnapshots(): React.ReactElement {
             onKeyDown={(e) => {
               if (e.key === "Enter") void save();
             }}
-            placeholder="Snapshot name"
-            aria-label="Snapshot name"
+            placeholder={t("Snapshot name")}
+            aria-label={t("Snapshot name")}
             className="h-7 min-w-0 flex-1 rounded border border-border bg-bg-0 px-2 text-xs text-fg"
             data-testid="mixer-snapshot-name"
           />
           <Button type="button" size="sm" className="h-7 px-2 text-xs" onClick={() => void save()} data-testid="mixer-snapshot-save">
-            Save
+            {t("Save")}
           </Button>
         </div>
         {snapshots.length === 0 ? (
           <p className="px-1 py-2 text-xs text-fg-muted">
-            Saves every fader, pan, mute, solo and effect rack. Recall it later in one undoable step.
+            {t("Saves every fader, pan, mute, solo and effect rack. Recall it later in one undoable step.")}
           </p>
         ) : (
           <ul className="flex max-h-60 flex-col gap-1 overflow-y-auto" data-testid="mixer-snapshot-list">
@@ -76,10 +78,10 @@ export default function MixerSnapshots(): React.ReactElement {
                   {snap.name}
                 </Button>
                 <Button type="button" variant="ghost" size="sm" className="h-7 px-1.5 text-xs" onClick={() => rename(snap.id, snap.name)} aria-label={`Rename ${snap.name}`}>
-                  Rename
+                  {t("Rename")}
                 </Button>
                 <Button type="button" variant="ghost" size="sm" className="h-7 px-1.5 text-xs" onClick={() => void commit(planDeleteSnapshot(useProjectStore.getState().project.timeline, snap.id))} aria-label={`Delete ${snap.name}`}>
-                  Delete
+                  {t("Delete")}
                 </Button>
               </li>
             ))}

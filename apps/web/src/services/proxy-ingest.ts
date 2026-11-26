@@ -32,6 +32,7 @@ import {
   startDesktopIngest,
   useDesktopIngestStore,
 } from "./desktop-ingest";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * Proxy / ingest workflow on the web side: the ingest preset, the background proxy job queue
@@ -270,7 +271,7 @@ async function finalizeGenerated(mediaId: string): Promise<void> {
   } catch (error) {
     finalizeFailed.add(blob);
     console.warn("[proxy-ingest] Could not store the proxy:", error);
-    toast.warning("Proxy kept for this session only", "It could not be saved with the project. It will be rebuilt after a reload.");
+    toast.warning(translateNow("Proxy kept for this session only"), "It could not be saved with the project. It will be rebuilt after a reload.");
   } finally {
     finalizing.delete(mediaId);
   }
@@ -346,8 +347,8 @@ export async function attachProxyFiles(files: readonly File[]): Promise<AttachRe
   if (report.unmatchedFiles.length) parts.push(`${report.unmatchedFiles.length} with no matching media`);
   if (report.ambiguous.length) parts.push(`${report.ambiguous.length} ambiguous`);
   const text = parts.join(" · ");
-  if (report.attached.length) toast.success("Proxies attached", text);
-  else toast.warning("No proxies attached", [text, report.skipped[0]?.reason].filter(Boolean).join(" — "));
+  if (report.attached.length) toast.success(translateNow("Proxies attached"), text);
+  else toast.warning(translateNow("No proxies attached"), [text, report.skipped[0]?.reason].filter(Boolean).join(" — "));
   return report;
 }
 

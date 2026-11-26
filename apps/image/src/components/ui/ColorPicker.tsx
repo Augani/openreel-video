@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Pipette, Check } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 interface ColorPickerProps {
   color: string;
@@ -97,6 +98,7 @@ export function ColorPicker({
   recentColors = [],
   onRecentColorAdd,
 }: ColorPickerProps) {
+  const t = useT();
   const [isPickingColor, setIsPickingColor] = useState(false);
   const svPanelRef = useRef<HTMLDivElement>(null);
   const hueSliderRef = useRef<HTMLDivElement>(null);
@@ -404,7 +406,7 @@ export function ColorPicker({
 
       {recentColors.length > 0 && (
         <div className="space-y-1">
-          <label className="text-[9px] text-muted-foreground uppercase tracking-wide">Recent</label>
+          <label className="text-[9px] text-muted-foreground uppercase tracking-wide">{t("Recent")}</label>
           <div className="flex gap-1 flex-wrap">
             {recentColors.slice(0, 10).map((c, i) => (
               <button

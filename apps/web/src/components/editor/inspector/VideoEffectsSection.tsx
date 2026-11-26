@@ -69,6 +69,8 @@ import {
   subscribeToVideoEffectStackClipboard,
 } from "../../../utils/video-effect-stack-clipboard";
 import { lazyWithRetry } from "./lazy-retry";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 function shaderEffectNumberValue(
   value: unknown,
@@ -157,6 +159,7 @@ const BurnInTextField: React.FC<{
   disabled: boolean;
   onCommit: (value: string) => void;
 }> = ({ spec, value, disabled, onCommit }) => {
+  const t = useT();
   const [draft, setDraft] = React.useState(value);
   React.useEffect(() => setDraft(value), [value]);
   const commit = () => {
@@ -164,9 +167,9 @@ const BurnInTextField: React.FC<{
   };
   return (
     <div className="flex items-center justify-between gap-2">
-      <span className="text-fg-2 font-normal text-[10px]">{spec.label}</span>
+      <span className="text-fg-2 font-normal text-[10px]">{t(spec.label)}</span>
       <Input
-        aria-label={spec.label}
+        aria-label={t(spec.label)}
         value={draft}
         disabled={disabled}
         maxLength={spec.maxLength}
@@ -192,6 +195,7 @@ const BurnInControls: React.FC<{
   onChange: (params: Record<string, unknown>) => void;
   disabled: boolean;
 }> = ({ type, params, onChange, disabled }) => {
+  const t = useT();
   const values = resolveBurnInParams(type, params);
   const visible = (spec: BurnInParamSpec): boolean => {
     if (spec.key === "hideExtension") return values.nameSource === "file";
@@ -213,9 +217,9 @@ const BurnInControls: React.FC<{
                 case "toggle":
                   return (
                     <div key={spec.key} className="flex items-center justify-between gap-2">
-                      <span className="text-fg-2 font-normal text-[10px]">{spec.label}</span>
+                      <span className="text-fg-2 font-normal text-[10px]">{t(spec.label)}</span>
                       <Switch
-                        aria-label={spec.label}
+                        aria-label={t(spec.label)}
                         checked={value === true}
                         disabled={disabled}
                         onCheckedChange={(checked) => onChange({ [spec.key]: checked })}
@@ -225,15 +229,15 @@ const BurnInControls: React.FC<{
                 case "select":
                   return (
                     <div key={spec.key} className="flex items-center justify-between gap-2">
-                      <span className="text-fg-2 font-normal text-[10px]">{spec.label}</span>
+                      <span className="text-fg-2 font-normal text-[10px]">{t(spec.label)}</span>
                       <Select value={String(value)} disabled={disabled} onValueChange={(next) => onChange({ [spec.key]: next })}>
-                        <SelectTrigger aria-label={spec.label} className="h-6 max-w-[150px] text-[10px]">
+                        <SelectTrigger aria-label={t(spec.label)} className="h-6 max-w-[150px] text-[10px]">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           {spec.options.map((option) => (
                             <SelectItem key={option.value} value={option.value}>
-                              {option.label}
+                              {t(option.label)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -285,6 +289,7 @@ const BurnInControls: React.FC<{
 
 /** Turns the Corner Pin handles on the Program monitor on or off for one effect instance. */
 const CornerPinMonitorToggle: React.FC<{ clipId: string; effectId: string }> = ({ clipId, effectId }) => {
+  const t = useT();
   const active = useCornerPinOverlayStore((s) => s.clipId === clipId && s.effectId === effectId);
   React.useEffect(() => () => { const s = useCornerPinOverlayStore.getState(); if (s.clipId === clipId && s.effectId === effectId) s.close(); }, [clipId, effectId]);
   return (
@@ -295,7 +300,7 @@ const CornerPinMonitorToggle: React.FC<{ clipId: string; effectId: string }> = (
       aria-pressed={active}
       onClick={() => (active ? useCornerPinOverlayStore.getState().close() : useCornerPinOverlayStore.getState().open(clipId, effectId))}
     >
-      {active ? "Hide corner handles" : "Edit corners on the Program monitor"}
+      {active ? t("Hide corner handles") : t("Edit corners on the Program monitor")}
     </Button>
   );
 };
@@ -310,6 +315,7 @@ const ProEffectControls: React.FC<{
   onChange: (params: Record<string, unknown>) => void;
   disabled: boolean;
 }> = ({ type, params, onChange, disabled }) => {
+  const t = useT();
   const values = resolveProEffectParams(type, params);
   return (
     <>
@@ -317,9 +323,9 @@ const ProEffectControls: React.FC<{
         if (spec.kind === "toggle") {
           return (
             <div key={spec.key} className="flex items-center justify-between gap-2">
-              <span className="text-fg-2 font-normal text-[10px]">{spec.label}</span>
+              <span className="text-fg-2 font-normal text-[10px]">{t(spec.label)}</span>
               <Switch
-                aria-label={spec.label}
+                aria-label={t(spec.label)}
                 checked={values[spec.key] === true}
                 disabled={disabled}
                 onCheckedChange={(checked) => onChange({ [spec.key]: checked })}
@@ -330,19 +336,19 @@ const ProEffectControls: React.FC<{
         if (spec.kind === "select") {
           return (
             <div key={spec.key} className="flex items-center justify-between gap-2">
-              <span className="text-fg-2 font-normal text-[10px]">{spec.label}</span>
+              <span className="text-fg-2 font-normal text-[10px]">{t(spec.label)}</span>
               <Select
                 value={String(values[spec.key])}
                 disabled={disabled}
                 onValueChange={(value) => onChange({ [spec.key]: value })}
               >
-                <SelectTrigger aria-label={spec.label} className="h-6 max-w-[150px] text-[10px]">
+                <SelectTrigger aria-label={t(spec.label)} className="h-6 max-w-[150px] text-[10px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {spec.options?.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
-                      {option.label}
+                      {t(option.label)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -379,6 +385,7 @@ const PluginEffectControls: React.FC<{
   onChange: (params: Record<string, unknown>) => void;
   disabled: boolean;
 }> = ({ effect, onChange, disabled }) => {
+  const t = useT();
   useInstalledPlugins();
   const status = describePluginEffect(effect);
   if (!status) return null;
@@ -387,8 +394,7 @@ const PluginEffectControls: React.FC<{
     return (
       <div className="space-y-2" data-testid="plugin-missing-placeholder">
         <p className="text-fg-2 font-normal text-[10px] leading-4">
-          The plugin &quot;{status.id}&quot;{status.storedVersion ? ` (v${status.storedVersion})` : ""} is not
-          installed, so this effect is not rendered. Its settings are kept and will apply again once you install it.
+          {t("The plugin \"")}{status.id}&quot;{status.storedVersion ? ` (v${status.storedVersion})` : ""} {t("is not installed, so this effect is not rendered. Its settings are kept and will apply again once you install it.")}
         </p>
         {shown.length > 0 && (
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[10px] text-fg-2">
@@ -405,7 +411,7 @@ const PluginEffectControls: React.FC<{
           size="sm"
           onClick={() => usePluginManagerStore.getState().setOpen(true)}
         >
-          Manage plugins
+          {t("Manage plugins")}
         </Button>
       </div>
     );
@@ -416,7 +422,7 @@ const PluginEffectControls: React.FC<{
     <>
       {status.kind === "version-mismatch" && (
         <p className="text-fg-2 font-normal text-[10px] leading-4" data-testid="plugin-version-note">
-          Saved with v{status.storedVersion}; v{manifest.version} is installed.
+          {t("Saved with v")}{status.storedVersion}; v{manifest.version} {t("is installed.")}
         </p>
       )}
       {health.state !== "ok" && (
@@ -426,7 +432,7 @@ const PluginEffectControls: React.FC<{
             : `Shader error, using the CPU fallback: ${health.gpuError ?? ""}`}
           {health.tripped && (
             <Button variant="secondary" size="sm" className="ml-2" onClick={() => retryPlugin(manifest.id)}>
-              Retry
+              {t("Retry")}
             </Button>
           )}
         </p>
@@ -437,9 +443,9 @@ const PluginEffectControls: React.FC<{
           case "bool":
             return (
               <div key={def.key} className="flex items-center justify-between gap-2">
-                <span className="text-fg-2 font-normal text-[10px]">{def.label}</span>
+                <span className="text-fg-2 font-normal text-[10px]">{t(def.label)}</span>
                 <Switch
-                  aria-label={def.label}
+                  aria-label={t(def.label)}
                   checked={value === true}
                   disabled={disabled}
                   onCheckedChange={(checked) => onChange({ [def.key]: checked })}
@@ -449,15 +455,15 @@ const PluginEffectControls: React.FC<{
           case "choice":
             return (
               <div key={def.key} className="flex items-center justify-between gap-2">
-                <span className="text-fg-2 font-normal text-[10px]">{def.label}</span>
+                <span className="text-fg-2 font-normal text-[10px]">{t(def.label)}</span>
                 <Select value={String(value)} disabled={disabled} onValueChange={(next) => onChange({ [def.key]: next })}>
-                  <SelectTrigger aria-label={def.label} className="h-6 max-w-[150px] text-[10px]">
+                  <SelectTrigger aria-label={t(def.label)} className="h-6 max-w-[150px] text-[10px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {def.choices?.map((choice) => (
                       <SelectItem key={choice.value} value={choice.value}>
-                        {choice.label}
+                        {t(choice.label)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -541,6 +547,7 @@ const EffectItem: React.FC<{
   canMoveDown,
   editingDisabled,
 }) => {
+  const t = useT();
   const [isExpanded, setIsExpanded] = React.useState(true);
 
   const effectLabels: Record<VideoEffectType, string> = {
@@ -586,7 +593,7 @@ const EffectItem: React.FC<{
       if (!shaderDef) {
         return (
           <span className="text-fg-2 font-normal text-[10px]">
-            Unknown shader
+            {t("Unknown shader")}
           </span>
         );
       }
@@ -636,7 +643,7 @@ const EffectItem: React.FC<{
     if (effect.type === "hsl-secondary") {
       return (
         <span className="text-fg-2 font-normal text-[10px]">
-          Edit this secondary in the Color tab, HSL Secondary.
+          {t("Edit this secondary in the Color tab, HSL Secondary.")}
         </span>
       );
     }
@@ -988,7 +995,7 @@ const EffectItem: React.FC<{
             draggable={!editingDisabled}
             disabled={editingDisabled}
             aria-label={`Reorder ${headerLabel}`}
-            title="Drag to reorder effect"
+            title={t("Drag to reorder effect")}
             onDragStart={(event) => {
               event.dataTransfer.effectAllowed = "move";
               event.dataTransfer.setData(
@@ -1027,17 +1034,17 @@ const EffectItem: React.FC<{
           <Button variant="ghost" size="icon-sm" onClick={() => onMove(effect.id, 1)} type="button" aria-label={`Move ${headerLabel} down`} title={`Move ${headerLabel} down`} disabled={editingDisabled || !canMoveDown} className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-6 w-6 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg">
             {<ArrowDown size={11} aria-hidden />}
           </Button>
-          <Button variant="ghost" size="icon-sm" onClick={() => onToggle(effect.id, !effect.enabled)} disabled={editingDisabled} type="button" aria-label={effect.enabled ? "Disable effect" : "Enable effect"} title={effect.enabled ? "Disable effect" : "Enable effect"} className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-6 w-6 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg">
+          <Button variant="ghost" size="icon-sm" onClick={() => onToggle(effect.id, !effect.enabled)} disabled={editingDisabled} type="button" aria-label={effect.enabled ? t("Disable effect") : t("Enable effect")} title={effect.enabled ? t("Disable effect") : t("Enable effect")} className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-6 w-6 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg">
             {effect.enabled ? (
                 <Eye size={12} className="text-fg-2" aria-hidden />
               ) : (
                 <EyeOff size={12} className="text-fg-3" aria-hidden />
               )}
           </Button>
-          <Button variant="ghost" size="icon-sm" onClick={() => onDuplicate(effect.id)} disabled={editingDisabled} type="button" aria-label="Duplicate effect" title="Duplicate effect" className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-6 w-6 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg">
+          <Button variant="ghost" size="icon-sm" onClick={() => onDuplicate(effect.id)} disabled={editingDisabled} type="button" aria-label={t("Duplicate effect")} title={t("Duplicate effect")} className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-6 w-6 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg">
             {<Copy size={12} aria-hidden />}
           </Button>
-          <Button variant="ghost" size="icon-sm" onClick={() => onRemove(effect.id)} disabled={editingDisabled} type="button" aria-label="Remove effect" title="Remove effect" className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-6 w-6 bg-transparent hover:bg-bg-2 text-fg-3 hover:text-red-400">
+          <Button variant="ghost" size="icon-sm" onClick={() => onRemove(effect.id)} disabled={editingDisabled} type="button" aria-label={t("Remove effect")} title={t("Remove effect")} className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-6 w-6 bg-transparent hover:bg-bg-2 text-fg-3 hover:text-red-400">
             {<RotateCcw size={12} aria-hidden />}
           </Button>
         </div>
@@ -1057,6 +1064,7 @@ function VisualEffectPreview({
   def: EditorEffectPreviewDef;
   onSelect: (def: EditorEffectPreviewDef) => void;
 }): React.ReactElement {
+  const t = useT();
   const effectedStyle = def.previewStyle(0.82);
   return (
     <Button variant="ghost" size="sm"
@@ -1067,7 +1075,7 @@ function VisualEffectPreview({
     >
       <span className="relative block h-[66px] overflow-hidden rounded-[7px] bg-[linear-gradient(135deg,#22d3ee,#8b5cf6_52%,#fb7185)]">
         <span className="absolute inset-0 grid place-items-center text-lg font-black tracking-tight text-white/95">
-          Aa
+          {t("Aa")}
         </span>
         <span
           className="absolute inset-0 grid place-items-center overflow-hidden border-l border-white/45 bg-[linear-gradient(135deg,#22d3ee,#8b5cf6_52%,#fb7185)] text-lg font-black tracking-tight text-white/95"
@@ -1076,20 +1084,20 @@ function VisualEffectPreview({
             clipPath: "inset(0 0 0 50%)",
           }}
         >
-          Aa
+          {t("Aa")}
         </span>
         <span className="absolute bottom-1 left-1 rounded bg-black/45 px-1 py-0.5 text-[8px] font-semibold uppercase text-white/75">
-          Before
+          {t("Before")}
         </span>
         <span className="absolute bottom-1 right-1 rounded bg-black/55 px-1 py-0.5 text-[8px] font-semibold uppercase text-white/90">
-          Effect
+          {t("Effect")}
         </span>
       </span>
       <span className="mt-1.5 block truncate text-[11px] font-semibold text-fg-2">
-        {def.label}
+        {t(def.label)}
       </span>
       <span className="block truncate text-[9px] text-fg-4">
-        {def.category} · {def.description}
+        {def.category} · {t(def.description)}
       </span>
     </Button>
   );
@@ -1104,6 +1112,7 @@ function EffectPickerContent({
   onSelectShader: (shaderId: string) => void;
   mediaKind: string;
 }) {
+  const t = useT();
   const [query, setQuery] = React.useState("");
   const tabId = useId();
   const shaderDefs = useMemo(() => getMotionShaderEffectDefs(), []);
@@ -1119,15 +1128,15 @@ function EffectPickerContent({
   }, [availableEffects, query]);
 
   return <Tabs defaultValue="effects" className="min-w-0">
-    <TabsList aria-label="Effect picker categories" layoutId={tabId} className="grid h-8 shrink-0 grid-cols-2 bg-bg-2 p-0.5">
-      <TabsTrigger value="effects" className="h-7 text-[11px]">Effects · {availableEffects.length}</TabsTrigger>
-      <TabsTrigger value="shaders" className="h-7 text-[11px]">Shaders · {shaderDefs.length}</TabsTrigger>
+    <TabsList aria-label={t("Effect picker categories")} layoutId={tabId} className="grid h-8 shrink-0 grid-cols-2 bg-bg-2 p-0.5">
+      <TabsTrigger value="effects" className="h-7 text-[11px]">{t("Effects ·")} {availableEffects.length}</TabsTrigger>
+      <TabsTrigger value="shaders" className="h-7 text-[11px]">{t("Shaders ·")} {shaderDefs.length}</TabsTrigger>
     </TabsList>
     <TabsContent value="effects" className="mt-2.5 min-w-0 space-y-2.5">
       <label className="relative block shrink-0">
         <Search size={13} aria-hidden className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-muted" />
         <Input type="search" value={query} onChange={event => setQuery(event.target.value)}
-          placeholder="Search visual effects" aria-label="Search visual effects" autoFocus
+          placeholder={t("Search visual effects")} aria-label={t("Search visual effects")} autoFocus
           className="h-8 min-w-0 rounded-md bg-bg-2 py-0 pl-8 pr-2.5 text-xs md:text-xs" />
       </label>
       <div className="space-y-3 overflow-y-auto pr-2" style={{ maxHeight: "min(390px, calc(var(--radix-popover-content-available-height) - 110px))" }}>
@@ -1144,7 +1153,7 @@ function EffectPickerContent({
               </div>
             </section>;
           })}
-          {!visibleEffects.length && <p role="status" className="rounded-md border border-dashed px-3 py-8 text-center text-xs text-fg-muted">No effects match “{query}”.</p>}
+          {!visibleEffects.length && <p role="status" className="rounded-md border border-dashed px-3 py-8 text-center text-xs text-fg-muted">{t("No effects match “")}{query}”.</p>}
       </div>
     </TabsContent>
     <TabsContent value="shaders" className="mt-2.5 min-w-0">
@@ -1159,6 +1168,7 @@ function EffectTypeSelector({ onSelect, onSelectShader, disabled, mediaKind }: {
   disabled: boolean;
   mediaKind: string;
 }) {
+  const t = useT();
   const [open, setOpen] = React.useState(false);
   const pending = React.useRef(false);
   const navigated = React.useRef(false);
@@ -1176,12 +1186,12 @@ function EffectTypeSelector({ onSelect, onSelectShader, disabled, mediaKind }: {
   React.useEffect(() => { if (disabled) setOpen(false); }, [disabled]);
   return <Popover open={open} onOpenChange={next => { if (next) navigated.current = false; setOpen(next); }}>
     <PopoverTrigger asChild>
-      <Button variant="outline" type="button" aria-label="Add Effect" disabled={disabled}
+      <Button variant="outline" type="button" aria-label={t("Add Effect")} disabled={disabled}
         className="h-7 w-full justify-center gap-1.5 rounded-md border-primary/30 bg-primary/10 px-2.5 text-xs text-primary hover:bg-primary/20">
-        Add Effect <ChevronDown size={12} aria-hidden />
+        {t("Add Effect")} <ChevronDown size={12} aria-hidden />
       </Button>
     </PopoverTrigger>
-    <PopoverContent side="bottom" align="end" collisionPadding={16} aria-label="Add video effect"
+    <PopoverContent side="bottom" align="end" collisionPadding={16} aria-label={t("Add video effect")}
       onCloseAutoFocus={event => { if (navigated.current) event.preventDefault(); }}
       className="max-h-[min(520px,var(--radix-popover-content-available-height))] w-[430px] max-w-[calc(100vw-32px)] min-w-0 overflow-y-auto rounded-lg bg-bg-1 p-2.5 text-fg">
       <EffectPickerContent mediaKind={mediaKind} onSelect={def => { void choose(() => onSelect(def), def.type === "stabilize"); }}
@@ -1227,6 +1237,7 @@ function displayEffects(effects: readonly Effect[]): VideoEffect[] {
 }
 
 export const VideoEffectsSection: React.FC<VideoEffectsSectionProps> = React.memo(({ clipId }) => {
+  const t = useT();
   const { projectId, authoredEffects, trackLocked, mediaKind } = useProjectStore(useShallow(state => {
     const clip = findEffectClip(state.project, clipId);
     const track = state.project.timeline.tracks.find(candidate => candidate.id === clip?.trackId);
@@ -1264,10 +1275,10 @@ export const VideoEffectsSection: React.FC<VideoEffectsSectionProps> = React.mem
     if (!canAct()) return false;
     try {
       const applied = await applyEditorEffectToClip(clipId, { effectType: def.type, effectParams: def.params });
-      if (!applied) toast.error("Effect could not be applied", "Select an unlocked compatible layer and try again.");
+      if (!applied) toast.error(translateNow("Effect could not be applied"), "Select an unlocked compatible layer and try again.");
       return applied;
     } catch {
-      toast.error("Effect could not be applied", "The effect could not be saved on this clip.");
+      toast.error(translateNow("Effect could not be applied"), "The effect could not be saved on this clip.");
       return false;
     }
   }, [clipId, canAct]);
@@ -1279,7 +1290,7 @@ export const VideoEffectsSection: React.FC<VideoEffectsSectionProps> = React.mem
         shaderId, ...defaultMotionShaderParams(def),
       });
     } catch {
-      toast.error("Effect could not be applied", "The shader could not be saved on this clip.");
+      toast.error(translateNow("Effect could not be applied"), "The shader could not be saved on this clip.");
       return false;
     }
   }, [clipId, canAct]);
@@ -1330,25 +1341,25 @@ export const VideoEffectsSection: React.FC<VideoEffectsSectionProps> = React.mem
   }, [clipId, canAct, currentEffects]);
 
   return (
-    <div key={`${projectId}:${clipId}`} role="group" aria-label="Visual effect stack" className="space-y-3">
+    <div key={`${projectId}:${clipId}`} role="group" aria-label={t("Visual effect stack")} className="space-y-3">
       <div className="grid grid-cols-2 gap-1.5">
-        <Button onClick={handleCopyStack} type="button" aria-label="Copy effect stack" disabled={(effects.length === 0)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
-          <span className="truncate">{"Copy effect stack"}</span>
+        <Button onClick={handleCopyStack} type="button" aria-label={t("Copy effect stack")} disabled={(effects.length === 0)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+          <span className="truncate">{t("Copy effect stack")}</span>
         </Button>
-        <Button onClick={() => handlePasteStack("append")} type="button" aria-label="Paste effect stack" disabled={editingDisabled || !hasStackClipboard} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
-          <span className="truncate">{"Paste effect stack"}</span>
+        <Button onClick={() => handlePasteStack("append")} type="button" aria-label={t("Paste effect stack")} disabled={editingDisabled || !hasStackClipboard} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+          <span className="truncate">{t("Paste effect stack")}</span>
         </Button>
-        <Button onClick={() => handlePasteStack("replace")} type="button" aria-label="Paste and replace effects" disabled={editingDisabled || !hasStackClipboard} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
-          <span className="truncate">Paste &amp; replace</span>
+        <Button onClick={() => handlePasteStack("replace")} type="button" aria-label={t("Paste and replace effects")} disabled={editingDisabled || !hasStackClipboard} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+          <span className="truncate">{t("Paste & replace")}</span>
         </Button>
-        <Button onClick={handleClearStack} type="button" aria-label="Clear effect stack" disabled={editingDisabled || effects.length === 0} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
-          <span className="truncate">{"Clear effect stack"}</span>
+        <Button onClick={handleClearStack} type="button" aria-label={t("Clear effect stack")} disabled={editingDisabled || effects.length === 0} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+          <span className="truncate">{t("Clear effect stack")}</span>
         </Button>
       </div>
       {effects.length === 0 ? (
         <span className="text-fg-2 font-normal block py-2 text-center text-[10px]"
         >
-          No effects applied
+          {t("No effects applied")}
         </span>
       ) : (
         <div className="space-y-2">

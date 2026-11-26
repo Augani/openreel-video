@@ -4,6 +4,7 @@ import { useTimelineStore } from "../stores/timeline-store";
 import { useUIStore } from "../stores/ui-store";
 import { toast } from "../stores/notification-store";
 import { commitSequenceEdit } from "./sequence-commands";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * Synchronize (timeline) and Merge Clips (project panel), the Premiere pair.
@@ -74,22 +75,22 @@ export async function mergeSelectedAssets(options: { muteCameraAudio: boolean },
   const pair = mergeCandidates(items, selectedIds);
   if (!pair) {
     const message = "Select one video and one audio asset to merge.";
-    toast.warning("Merge Clips", message);
+    toast.warning(translateNow("Merge Clips"), message);
     return { ok: false, message };
   }
   let analysed: { offsets: number[]; confidence: number[] };
   try {
-    analysed = await offsetsFor([pair.video.id, pair.audio.id], (message) => toast.info("Merge Clips", message));
+    analysed = await offsetsFor([pair.video.id, pair.audio.id], (message) => toast.info(translateNow("Merge Clips"), message));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not read the audio of those assets.";
-    toast.warning("Merge Clips", message);
+    toast.warning(translateNow("Merge Clips"), message);
     return { ok: false, message };
   }
   const startTime = useTimelineStore.getState().playheadPosition;
   const result = (await commitSequenceEdit("Merge clips", (p) =>
     mergeClips(p, { videoMediaId: pair.video.id, audioMediaId: pair.audio.id, offsetSeconds: analysed.offsets[1], confidence: analysed.confidence[1], muteCameraAudio: options.muteCameraAudio, startTime }),
   )) as ClipSyncResult;
-  if (!result.ok) toast.warning("Merge Clips", result.message);
-  else toast.success("Merge Clips", `Merged ${pair.video.name} with ${pair.audio.name} at the playhead.`);
+  if (!result.ok) toast.warning(translateNow("Merge Clips"), result.message);
+  else toast.success(translateNow("Merge Clips"), `Merged ${pair.video.name} with ${pair.audio.name} at the playhead.`);
   return result;
 }

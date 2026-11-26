@@ -192,7 +192,7 @@ const GraphicClipComponentImpl: React.FC<GraphicClipComponentProps> = ({
         <div
           key={edge}
           data-timeline-trim={edge}
-          aria-label={edge === "left" ? "Trim start" : "Trim end"}
+          aria-label={edge === "left" ? t("Trim start") : t("Trim end")}
           onMouseDown={(event) =>
             begin(event, { kind: edge, originX: event.clientX, startTime: instance.startTime, duration: instance.duration })
           }
@@ -202,7 +202,7 @@ const GraphicClipComponentImpl: React.FC<GraphicClipComponentProps> = ({
         />
       ))}
       <div className="relative w-full h-full flex items-center gap-1 px-3 pointer-events-none">
-        {linkedId && <Link2 size={10} aria-label="Linked composition" className="shrink-0 text-fg" />}
+        {linkedId && <Link2 size={10} aria-label={t("Linked composition")} className="shrink-0 text-fg" />}
         <span className="text-[10px] font-semibold text-fg truncate">{instance.name}</span>
       </div>
     </div>

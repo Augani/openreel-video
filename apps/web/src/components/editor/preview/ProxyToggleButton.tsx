@@ -3,6 +3,7 @@ import { Button } from "@openreel/ui";
 import { usePreviewProxyStore } from "../../../stores/preview-proxy-store";
 import { toggleProxies } from "../../../services/proxy-ingest";
 import { toast } from "../../../stores/notification-store";
+import { useT } from "@openreel/i18n/react";
 
 /** Toggle Proxies (Shift+P): decode proxies for preview/scrub/playback, or the full-resolution media. */
 export function toggleProxiesWithFeedback(): void {
@@ -15,12 +16,13 @@ export function toggleProxiesWithFeedback(): void {
 
 /** Program monitor header button for Toggle Proxies. */
 export function ProxyToggleButton() {
+  const t = useT();
   const on = usePreviewProxyStore((state) => state.proxiesOn);
   const ready = usePreviewProxyStore((state) => Object.values(state.entries).filter((entry) => entry.status === "ready").length);
   return (
     <Button
       variant={on ? "secondary" : "ghost"}
-      aria-label="Toggle proxies"
+      aria-label={t("Toggle proxies")}
       aria-pressed={on}
       data-testid="toggle-proxies"
       title={`Toggle proxies (Shift+P): ${on ? "preview is using proxies" : "preview is using full-resolution media"}${ready ? ` · ${ready} ready` : ""}. Exports always use full resolution.`}

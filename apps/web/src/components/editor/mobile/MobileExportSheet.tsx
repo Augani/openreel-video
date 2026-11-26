@@ -10,6 +10,7 @@ import { useProjectStore } from "../../../stores/project-store";
 import { MobileEditorIcon } from "./MobileEditorIcon";
 import "./mobile-tools.css";
 import "./mobile-export.css";
+import { useT } from "@openreel/i18n/react";
 
 /** Keep the chosen aspect ratio and round to the even dimensions required by H.264. */
 export function mobileExportResolution(width: number, height: number, shortEdge: number) {
@@ -42,6 +43,7 @@ export function MobileExportSheet({ open, onOpenChange, settings, onSettingsChan
   /** When set, a secondary "Add to queue" action sits under the primary export button. */
   onAddToQueue?: () => void;
 }) {
+  const t = useT();
   const contentRef = useRef<HTMLDivElement>(null);
   const project = useProjectStore(state => state.project);
   const preview = getProjectPreview(project.id, project.modifiedAt);
@@ -59,44 +61,44 @@ export function MobileExportSheet({ open, onOpenChange, settings, onSettingsChan
       data-platform={android ? "android" : "ios"}
       onOpenAutoFocus={event => { event.preventDefault(); contentRef.current?.focus({ preventScroll: true }); }}>
       <div className="mobile-sheet-grabber" aria-hidden><span/></div>
-      <div className="mobile-sheet-heading"><DialogTitle>Export</DialogTitle>
-        <Button variant="ghost" className="mobile-export-options" aria-label="Advanced export settings" onClick={() => onAdvanced()}>•••</Button>
-        <Button variant="ghost" onClick={() => onOpenChange(false)} aria-label="Close export">{android ? <MobileEditorIcon name="close" size={20}/> : "Done"}</Button>
+      <div className="mobile-sheet-heading"><DialogTitle>{t("Export")}</DialogTitle>
+        <Button variant="ghost" className="mobile-export-options" aria-label={t("Advanced export settings")} onClick={() => onAdvanced()}>•••</Button>
+        <Button variant="ghost" onClick={() => onOpenChange(false)} aria-label={t("Close export")}>{android ? <MobileEditorIcon name="close" size={20}/> : t("Done")}</Button>
       </div>
       <ScrollArea className="mobile-sheet-scroll">
         <div className="mobile-export-content">
           <div className="mobile-export-summary">
-            <div className="mobile-export-thumbnail">{preview?.thumbnailUrl ? <img src={preview.thumbnailUrl} alt="Project preview"/> : <MobileEditorIcon name="play" size={24}/>}</div>
-            <div><div className="mobile-export-name">{project.name || "Untitled project"}</div><div className="mobile-export-meta">{time} · {ratioLabel(settings.width, settings.height)} · ~{size}{section === "range" ? " · In/Out" : ""}</div></div>
+            <div className="mobile-export-thumbnail">{preview?.thumbnailUrl ? <img src={preview.thumbnailUrl} alt={t("Project preview")}/> : <MobileEditorIcon name="play" size={24}/>}</div>
+            <div><div className="mobile-export-name">{project.name || t("Untitled project")}</div><div className="mobile-export-meta">{time} · {ratioLabel(settings.width, settings.height)} · ~{size}{section === "range" ? t(" · In/Out") : ""}</div></div>
           </div>
-          <div className="mobile-export-field"><span>Resolution</span>
-            <ToggleGroup type="single" value={resolution ? String(resolution) : "custom"} aria-label="Resolution" className="mobile-export-segmented" onValueChange={value => {
+          <div className="mobile-export-field"><span>{t("Resolution")}</span>
+            <ToggleGroup type="single" value={resolution ? String(resolution) : "custom"} aria-label={t("Resolution")} className="mobile-export-segmented" onValueChange={value => {
               if (value && value !== "custom") onSettingsChange(mobileExportResolution(settings.width, settings.height, Number(value)));
             }}>
               <ToggleGroupItem value="720">720p</ToggleGroupItem><ToggleGroupItem value="1080">1080p</ToggleGroupItem><ToggleGroupItem value="2160">4K</ToggleGroupItem>
               {!resolution && <ToggleGroupItem value="custom" onClick={() => onAdvanced()}>{settings.width}×{settings.height}</ToggleGroupItem>}
             </ToggleGroup>
           </div>
-          <div className="mobile-export-field"><span>Frame rate</span>
-            <ToggleGroup type="single" value={String(settings.frameRate)} aria-label="Frame rate" className="mobile-export-segmented" onValueChange={value => { if (value) onSettingsChange({ frameRate: Number(value), keyframeInterval: Math.round(Number(value) * 2) }); }}>
+          <div className="mobile-export-field"><span>{t("Frame rate")}</span>
+            <ToggleGroup type="single" value={String(settings.frameRate)} aria-label={t("Frame rate")} className="mobile-export-segmented" onValueChange={value => { if (value) onSettingsChange({ frameRate: Number(value), keyframeInterval: Math.round(Number(value) * 2) }); }}>
               <ToggleGroupItem value="30">30 fps</ToggleGroupItem><ToggleGroupItem value="60">60 fps</ToggleGroupItem>
               {![30, 60].includes(settings.frameRate) && <ToggleGroupItem value={String(settings.frameRate)}>{settings.frameRate} fps</ToggleGroupItem>}
             </ToggleGroup>
           </div>
           {error && <p role="alert" className="mobile-export-error">{error}</p>}
-          {adjustment && <p role="alert" className="mobile-export-notice">Browser safety limits: {adjustment.width}×{adjustment.height} · {adjustment.frameRate} fps.</p>}
-          {nativeEncoderRequired && <div className="mobile-export-notice"><p>ProRes, transparency and high bit depth require the desktop encoder.</p>{fallbackAcknowledged ? <p>Will export H.264 without transparency.</p> : <Button variant="secondary" onClick={onAcknowledgeFallback}>Use H.264 without transparency</Button>}</div>}
-          <Button className="mobile-export-primary" disabled={disabled} onClick={onExport}>{checking ? "Checking encoder…" : delivery === "file" ? "Choose a file location" : "Save to device"}</Button>
-          {onAddToQueue && <Button variant="secondary" className="mobile-export-queue" disabled={disabled} onClick={onAddToQueue}>Add to queue</Button>}
-          <div className="mobile-export-share"><span>Share to</span><div>
-            {shares.map(share => <Popover key={share.label}><PopoverTrigger asChild><Button variant="ghost" className="mobile-export-share-target" aria-label={`Export for ${share.label}`}><span>{share.glyph}</span><span>{share.label}</span></Button></PopoverTrigger>
+          {adjustment && <p role="alert" className="mobile-export-notice">{t("Browser safety limits:")} {adjustment.width}×{adjustment.height} · {adjustment.frameRate} fps.</p>}
+          {nativeEncoderRequired && <div className="mobile-export-notice"><p>{t("ProRes, transparency and high bit depth require the desktop encoder.")}</p>{fallbackAcknowledged ? <p>{t("Will export H.264 without transparency.")}</p> : <Button variant="secondary" onClick={onAcknowledgeFallback}>{t("Use H.264 without transparency")}</Button>}</div>}
+          <Button className="mobile-export-primary" disabled={disabled} onClick={onExport}>{checking ? t("Checking encoder…") : delivery === "file" ? t("Choose a file location") : t("Save to device")}</Button>
+          {onAddToQueue && <Button variant="secondary" className="mobile-export-queue" disabled={disabled} onClick={onAddToQueue}>{t("Add to queue")}</Button>}
+          <div className="mobile-export-share"><span>{t("Share to")}</span><div>
+            {shares.map(share => <Popover key={share.label}><PopoverTrigger asChild><Button variant="ghost" className="mobile-export-share-target" aria-label={`Export for ${share.label}`}><span>{share.glyph}</span><span>{t(share.label)}</span></Button></PopoverTrigger>
               <PopoverContent className="mobile-export-share-options" collisionPadding={16}>
-                <strong>Export for {share.label}</strong><p>Save the video, then upload it in {share.label}. Your current canvas and framing are preserved.</p>
-                <Button disabled={disabled} onClick={onExport}>Export current settings</Button>
-                <Button variant="secondary" onClick={() => onAdvanced(share.platform)}>Choose {share.label} preset</Button>
+                <strong>{t("Export for")} {t(share.label)}</strong><p>{t("Save the video, then upload it in")} {t(share.label)}. Your current canvas and framing are preserved.</p>
+                <Button disabled={disabled} onClick={onExport}>{t("Export current settings")}</Button>
+                <Button variant="secondary" onClick={() => onAdvanced(share.platform)}>{t("Choose")} {t(share.label)} {t("preset")}</Button>
               </PopoverContent>
             </Popover>)}
-            <Button variant="ghost" className="mobile-export-share-target" aria-label="More export options" onClick={() => onAdvanced()}><span>•••</span><span>More</span></Button>
+            <Button variant="ghost" className="mobile-export-share-target" aria-label={t("More export options")} onClick={() => onAdvanced()}><span>•••</span><span>{t("More")}</span></Button>
           </div></div>
         </div>
       </ScrollArea>

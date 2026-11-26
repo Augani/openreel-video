@@ -16,6 +16,8 @@ import {
   webRootNames,
 } from "../../services/media-browser";
 import { toast } from "../../stores/notification-store";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const SELECT_CLASS = "h-7 rounded-md border border-border bg-bg-2 px-1.5 text-[12px] text-fg outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
@@ -93,6 +95,7 @@ function BrowserThumb({ entry, className }: { entry: OpenReelBrowserEntry; class
  * see camera cards as clips, scrub and preview before importing, and import the selection.
  */
 export function MediaBrowserPanel() {
+  const t = useT();
   const backend = browserBackend();
   const store = useMediaBrowserStore();
   const { path, listing, loading, view, typeFilter, query, favourites, selected, importing, importMessage, rawFolders } = store;
@@ -108,7 +111,7 @@ export function MediaBrowserPanel() {
       const result = await listPath(target, raw);
       if (id !== requestId.current) return;
       useMediaBrowserStore.getState().setListing(result);
-      if (result.error) toast.warning("Media Browser", result.error);
+      if (result.error) toast.warning(translateNow("Media Browser"), result.error);
     } catch (error) {
       if (id === requestId.current) {
         useMediaBrowserStore.getState().setListing({ path: target, parent: null, entries: [], error: error instanceof Error ? error.message : "The folder could not be read." });
@@ -195,7 +198,7 @@ export function MediaBrowserPanel() {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center text-[12px] text-fg-3" data-testid="media-browser-unsupported">
         <FolderOpen size={22} aria-hidden="true" />
-        <p>The Media Browser needs the desktop app, or a browser that can open folders (Chrome, Edge). Use Import to add files here.</p>
+        <p>{t("The Media Browser needs the desktop app, or a browser that can open folders (Chrome, Edge). Use Import to add files here.")}</p>
       </div>
     );
   }
@@ -254,18 +257,18 @@ export function MediaBrowserPanel() {
   return (
     <div className="flex h-full min-h-0 flex-col bg-bg-1" data-testid="media-browser" data-backend={backend}>
       <div className="flex flex-wrap items-center gap-1.5 border-b border-border p-2">
-        <Button type="button" variant="ghost" size="icon" aria-label="Up one folder" title="Up one folder" disabled={!listing?.parent} onClick={() => go(listing?.parent ?? null)}>
+        <Button type="button" variant="ghost" size="icon" aria-label={t("Up one folder")} title={t("Up one folder")} disabled={!listing?.parent} onClick={() => go(listing?.parent ?? null)}>
           <ArrowUp size={14} aria-hidden="true" />
         </Button>
         {backend === "desktop" ? (
           <select
-            aria-label="Locations"
+            aria-label={t("Locations")}
             data-testid="media-browser-locations"
             className={`${SELECT_CLASS} max-w-[130px]`}
             value=""
             onChange={(event) => go(event.target.value)}
           >
-            <option value="" disabled>Locations</option>
+            <option value="" disabled>{t("Locations")}</option>
             {favourites.length > 0 && (
               <optgroup label="Favourites">
                 {favourites.map((f) => <option key={`f:${f.path}`} value={f.path}>{f.name}</option>)}
@@ -283,10 +286,10 @@ export function MediaBrowserPanel() {
         ) : (
           <>
             <Button type="button" variant="secondary" size="sm" data-testid="media-browser-open-folder" onClick={() => void chooseWebFolder()}>
-              <HardDrive size={13} aria-hidden="true" /> Open folder
+              <HardDrive size={13} aria-hidden="true" /> {t("Open folder")}
             </Button>
             {webRoots.length > 1 && (
-              <select aria-label="Opened folders" className={SELECT_CLASS} value={path?.split("/")[0] ?? ""} onChange={(event) => go(event.target.value)}>
+              <select aria-label={t("Opened folders")} className={SELECT_CLASS} value={path?.split("/")[0] ?? ""} onChange={(event) => go(event.target.value)}>
                 {webRoots.map((name) => <option key={name} value={name}>{name}</option>)}
               </select>
             )}
@@ -296,9 +299,9 @@ export function MediaBrowserPanel() {
           type="button"
           variant="ghost"
           size="icon"
-          aria-label={isFavourite ? "Remove from favourites" : "Add to favourites"}
+          aria-label={isFavourite ? t("Remove from favourites") : t("Add to favourites")}
           aria-pressed={isFavourite}
-          title={isFavourite ? "Remove from favourites" : "Add this folder to favourites"}
+          title={isFavourite ? t("Remove from favourites") : t("Add this folder to favourites")}
           data-testid="media-browser-favourite"
           disabled={!path}
           onClick={() => path && store.toggleFavourite({ name: path.split(/[\\/]/).filter(Boolean).pop() ?? path, path })}
@@ -306,8 +309,8 @@ export function MediaBrowserPanel() {
           <Star size={14} aria-hidden="true" className={isFavourite ? "fill-current text-accent" : ""} />
         </Button>
         <span className="ml-auto flex items-center gap-0.5">
-          <Button type="button" variant="ghost" size="icon" aria-label="Icon view" aria-pressed={view === "icons"} data-testid="media-browser-view-icons" onClick={() => store.setView("icons")}><LayoutGrid size={14} aria-hidden="true" /></Button>
-          <Button type="button" variant="ghost" size="icon" aria-label="List view" aria-pressed={view === "list"} data-testid="media-browser-view-list" onClick={() => store.setView("list")}><List size={14} aria-hidden="true" /></Button>
+          <Button type="button" variant="ghost" size="icon" aria-label={t("Icon view")} aria-pressed={view === "icons"} data-testid="media-browser-view-icons" onClick={() => store.setView("icons")}><LayoutGrid size={14} aria-hidden="true" /></Button>
+          <Button type="button" variant="ghost" size="icon" aria-label={t("List view")} aria-pressed={view === "list"} data-testid="media-browser-view-list" onClick={() => store.setView("list")}><List size={14} aria-hidden="true" /></Button>
         </span>
       </div>
 
@@ -319,26 +322,26 @@ export function MediaBrowserPanel() {
             go(pathDraft.trim());
           }}
         >
-          <Input aria-label="Folder path" data-testid="media-browser-path" value={pathDraft} onChange={(event) => setPathDraft(event.target.value)} className="h-7 flex-1 text-[11px]" spellCheck={false} />
+          <Input aria-label={t("Folder path")} data-testid="media-browser-path" value={pathDraft} onChange={(event) => setPathDraft(event.target.value)} className="h-7 flex-1 text-[11px]" spellCheck={false} />
         </form>
       )}
 
       <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-2 py-1.5">
-        <Input aria-label="Search this folder" placeholder="Search" data-testid="media-browser-search" value={query} onChange={(event) => store.setQuery(event.target.value)} className="h-7 min-w-[90px] flex-1 text-[11px]" />
-        <select aria-label="Filter by type" data-testid="media-browser-type" className={SELECT_CLASS} value={typeFilter} onChange={(event) => store.setTypeFilter(event.target.value as BrowserTypeFilter)}>
-          <option value="all">All</option>
-          <option value="video">Video</option>
-          <option value="audio">Audio</option>
-          <option value="image">Images</option>
+        <Input aria-label={t("Search this folder")} placeholder={t("Search")} data-testid="media-browser-search" value={query} onChange={(event) => store.setQuery(event.target.value)} className="h-7 min-w-[90px] flex-1 text-[11px]" />
+        <select aria-label={t("Filter by type")} data-testid="media-browser-type" className={SELECT_CLASS} value={typeFilter} onChange={(event) => store.setTypeFilter(event.target.value as BrowserTypeFilter)}>
+          <option value="all">{t("All")}</option>
+          <option value="video">{t("Video")}</option>
+          <option value="audio">{t("Audio")}</option>
+          <option value="image">{t("Images")}</option>
         </select>
       </div>
 
       {(listing?.card || rawFolders) && (
         <div className="flex items-center gap-2 border-b border-border bg-bg-2 px-2 py-1 text-[11px] text-fg-2" data-testid="media-browser-card-banner" data-raw={rawFolders}>
-          {listing?.card ? <span className="rounded bg-accent/20 px-1.5 py-0.5 font-medium text-accent">{listing.card.kinds.map((k) => k.label).join(" + ")} card</span> : <span className="text-fg-3">Folder view</span>}
-          <span className="min-w-0 truncate text-fg-3">{rawFolders ? "Showing folders" : "Showing clips"}</span>
+          {listing?.card ? <span className="rounded bg-accent/20 px-1.5 py-0.5 font-medium text-accent">{listing.card.kinds.map((k) => k.label).join(" + ")} {t("card")}</span> : <span className="text-fg-3">{t("Folder view")}</span>}
+          <span className="min-w-0 truncate text-fg-3">{rawFolders ? t("Showing folders") : t("Showing clips")}</span>
           <label className="ml-auto flex shrink-0 items-center gap-1 text-fg-3">
-            <input type="checkbox" data-testid="media-browser-raw" checked={rawFolders} onChange={(event) => store.setRawFolders(event.target.checked)} /> Folders
+            <input type="checkbox" data-testid="media-browser-raw" checked={rawFolders} onChange={(event) => store.setRawFolders(event.target.checked)} /> {t("Folders")}
           </label>
         </div>
       )}
@@ -346,7 +349,7 @@ export function MediaBrowserPanel() {
       <div
         role="listbox"
         aria-multiselectable="true"
-        aria-label="Media in this folder"
+        aria-label={t("Media in this folder")}
         data-testid="media-browser-list"
         data-view={view}
         className={`min-h-0 flex-1 overflow-auto ${view === "icons" ? "grid grid-cols-[repeat(auto-fill,minmax(112px,1fr))] content-start gap-1.5 p-2" : ""}`}
@@ -354,9 +357,9 @@ export function MediaBrowserPanel() {
           if (event.target === event.currentTarget) store.clearSelection();
         }}
       >
-        {!path && backend === "web" && <p className="col-span-full p-3 text-[12px] text-fg-3">Open a folder (a card, a drive or a project folder) to browse its footage.</p>}
-        {loading && entries.length === 0 && <p className="col-span-full p-3 text-[12px] text-fg-3" role="status">Reading folder...</p>}
-        {!loading && path && entries.length === 0 && <p className="col-span-full p-3 text-[12px] text-fg-3" data-testid="media-browser-empty">{listing?.error ?? "No media here."}</p>}
+        {!path && backend === "web" && <p className="col-span-full p-3 text-[12px] text-fg-3">{t("Open a folder (a card, a drive or a project folder) to browse its footage.")}</p>}
+        {loading && entries.length === 0 && <p className="col-span-full p-3 text-[12px] text-fg-3" role="status">{t("Reading folder...")}</p>}
+        {!loading && path && entries.length === 0 && <p className="col-span-full p-3 text-[12px] text-fg-3" data-testid="media-browser-empty">{listing?.error ?? t("No media here.")}</p>}
         {entries.map(renderEntry)}
       </div>
 
@@ -370,13 +373,13 @@ export function MediaBrowserPanel() {
           size="sm"
           data-testid="media-browser-preview"
           disabled={selectedEntries.length !== 1 || selectedEntries[0].kind === "dir"}
-          title="Preview the selected clip in the Source monitor"
+          title={t("Preview the selected clip in the Source monitor")}
           onClick={() => selectedEntries[0] && onActivate(selectedEntries[0])}
         >
-          <Eye size={13} aria-hidden="true" /> Preview
+          <Eye size={13} aria-hidden="true" /> {t("Preview")}
         </Button>
         <Button type="button" variant="secondary" size="sm" data-testid="media-browser-import" disabled={importing || importable.length === 0} onClick={() => void runImport(importable)}>
-          <Download size={13} aria-hidden="true" /> Import{importable.length > 1 ? ` ${importable.length}` : ""}
+          <Download size={13} aria-hidden="true" /> {t("Import")}{importable.length > 1 ? ` ${importable.length}` : ""}
         </Button>
       </div>
     </div>

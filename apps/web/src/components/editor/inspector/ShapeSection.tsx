@@ -34,6 +34,7 @@ import {
   ShaderParamFields,
 } from "./ShaderControls";
 import { ColorSelector } from "../../../motion/components/primitives";
+import { useT } from "@openreel/i18n/react";
 
 const ColorField: React.FC<{
   label: string;
@@ -101,6 +102,7 @@ const StrokeStyleSelector: React.FC<{
   value: number[] | undefined;
   onChange: (dashArray: number[] | undefined) => void;
 }> = ({ value, onChange }) => {
+  const t = useT();
   const styles = [
     { value: undefined, label: "Solid", preview: "────" },
     { value: [5, 5], label: "Dashed", preview: "- - -" },
@@ -110,7 +112,7 @@ const StrokeStyleSelector: React.FC<{
   return (
     <div className="flex items-center justify-between">
       <span className="text-[12px] leading-5 text-fg-2 font-normal">
-        Style
+        {t("Style")}
       </span>
       <div className="flex gap-1">
         {styles.map((style, index) => (
@@ -127,6 +129,7 @@ const StrokeStyleSelector: React.FC<{
 const ShapeTypeDisplay: React.FC<{
   shapeType: string;
 }> = ({ shapeType }) => {
+  const t = useT();
   const shapeIcons: Record<string, React.ReactNode> = {
     rectangle: <Square size={16} />,
     circle: <Circle size={16} />,
@@ -147,7 +150,7 @@ const ShapeTypeDisplay: React.FC<{
           {shapeType}
         </span>
         <span className="text-fg-2 font-normal text-[9px]">
-          Shape clip
+          {t("Shape clip")}
         </span>
       </div>
     </div>
@@ -163,6 +166,7 @@ interface ShapeSectionProps {
 }
 
 export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
+  const t = useT();
   const { getShapeClip, project } = useProjectStore(useShallow(state => ({ getShapeClip: state.getShapeClip, project: state.project })));
   const exporting = useUIStore(state => state.exportState.isExporting);
   const operationLocked = useTimelineStore(state => Boolean(state.playbackLockedReason));
@@ -206,7 +210,7 @@ export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
       <div className="p-4 text-center">
         <Square size={24} className="mx-auto mb-2 text-fg-3" />
         <span className="text-[12px] leading-5 text-fg-2 font-normal">
-          No shape clip selected
+          {t("No shape clip selected")}
         </span>
       </div>
     );
@@ -219,10 +223,10 @@ export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
       <Card className="min-w-0 rounded-[7px] border shadow-none border-transparent bg-bg-2 text-fg p-3">
         <div className="space-y-2">
           <span className="text-[12px] leading-5 text-fg font-medium">
-            Fill
+            {t("Fill")}
           </span>
           <ToggleGroup type="single"
-            aria-label="Fill Type" className="grid grid-cols-2 gap-1"
+            aria-label={t("Fill Type")} className="grid grid-cols-2 gap-1"
             value={style.fill?.type === "shader" ? "shader" : "solid"}
             onValueChange={(fillType) => {
               if (fillType !== "solid" && fillType !== "shader") return;
@@ -251,8 +255,8 @@ export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
               });
             }}
           >
-            <ToggleGroupItem value="solid" className="h-[30px] text-xs">Solid</ToggleGroupItem>
-            <ToggleGroupItem value="shader" className="h-[30px] text-xs">Shader</ToggleGroupItem>
+            <ToggleGroupItem value="solid" className="h-[30px] text-xs">{t("Solid")}</ToggleGroupItem>
+            <ToggleGroupItem value="shader" className="h-[30px] text-xs">{t("Shader")}</ToggleGroupItem>
           </ToggleGroup>
           {style.fill?.type === "shader" && style.fill.shader ? (
             <ShapeShaderFillControls
@@ -307,7 +311,7 @@ export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
       <Card className="min-w-0 rounded-[7px] border shadow-none border-transparent bg-bg-2 text-fg p-3">
         <div className="space-y-2">
           <span className="text-[12px] leading-5 text-fg font-medium">
-            Stroke
+            {t("Stroke")}
           </span>
           <ColorField
             label="Color"
@@ -361,7 +365,7 @@ export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
         <Card className="min-w-0 rounded-[7px] border shadow-none border-transparent bg-bg-2 text-fg p-3">
           <div className="space-y-2">
             <span className="text-[12px] leading-5 text-fg font-medium">
-              Corners
+              {t("Corners")}
             </span>
             <SliderField
               label="Radius"
@@ -378,7 +382,7 @@ export const ShapeSection: React.FC<ShapeSectionProps> = ({ clipId }) => {
       <Card className="min-w-0 rounded-[7px] border shadow-none border-transparent bg-bg-2 text-fg p-3">
         <div className="space-y-2">
           <span className="text-[12px] leading-5 text-fg font-medium">
-            Shadow
+            {t("Shadow")}
           </span>
           <ColorField
             label="Color"
@@ -457,6 +461,7 @@ const ShapeShaderFillControls: React.FC<{
   shader: MotionShaderFill;
   onChange: (shader: MotionShaderFill) => void;
 }> = ({ historyKey, shader, onChange }) => {
+  const t = useT();
   const shaderOptions = useMemo(
     () => groupShaderDefsByCollection(getMotionShaderFillDefs()),
     [],
@@ -490,10 +495,10 @@ const ShapeShaderFillControls: React.FC<{
   return (
     <div className="space-y-2 rounded border border-border/70 bg-bg-2 p-2">
       <Select value={shader.shaderId} onValueChange={handleShaderSelect}>
-        <SelectTrigger aria-label="Shader Fill" className="h-[30px] min-w-0 text-xs"><SelectValue>{def?.name ?? shader.shaderId}</SelectValue></SelectTrigger>
+        <SelectTrigger aria-label={t("Shader Fill")} className="h-[30px] min-w-0 text-xs"><SelectValue>{def?.name ?? shader.shaderId}</SelectValue></SelectTrigger>
         <SelectContent>{shaderOptions.map(group => <SelectGroup key={group.title}>
-          <SelectLabel>{group.title}</SelectLabel>
-          {group.options.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+          <SelectLabel>{t(group.title)}</SelectLabel>
+          {group.options.map(option => <SelectItem key={option.value} value={option.value}>{t(option.label)}</SelectItem>)}
         </SelectGroup>)}</SelectContent>
       </Select>
       {def ? (

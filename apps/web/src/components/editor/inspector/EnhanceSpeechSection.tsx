@@ -14,6 +14,7 @@ import {
   useEnhanceStatus,
 } from "../../../services/enhance-speech";
 import { PropertySlider } from "./shell/PropertySlider";
+import { useT } from "@openreel/i18n/react";
 
 interface EnhanceSpeechSectionProps {
   clipId: string;
@@ -25,6 +26,7 @@ interface EnhanceSpeechSectionProps {
  * and the preview and the export both play that same cached result. "Hear Original / Enhanced" is a preview-only A/B.
  */
 export const EnhanceSpeechSection: React.FC<EnhanceSpeechSectionProps> = ({ clipId }) => {
+  const t = useT();
   const clip = useProjectStore((state) =>
     state.project.timeline.tracks.flatMap((track) => track.clips).find((candidate) => candidate.id === clipId),
   );
@@ -71,7 +73,7 @@ export const EnhanceSpeechSection: React.FC<EnhanceSpeechSectionProps> = ({ clip
   return (
     <div className="space-y-2.5" data-testid="enhance-speech-section">
       <p className="text-[11px] leading-relaxed text-fg-3">
-        Removes background noise and room reverb from dialogue. Runs on this device; the first use downloads a 9 MB model.
+        {t("Removes background noise and room reverb from dialogue. Runs on this device; the first use downloads a 9 MB model.")}
       </p>
       {!hasEffect ? (
         <Button
@@ -81,27 +83,27 @@ export const EnhanceSpeechSection: React.FC<EnhanceSpeechSectionProps> = ({ clip
           disabled={locked}
           onClick={() => void guard(() => applyEnhanceSpeech([clipId]))}
         >
-          Enhance Speech
+          {t("Enhance Speech")}
         </Button>
       ) : (
         <>
           {running && (
             <div className="space-y-1.5 rounded-[7px] border border-border bg-bg-1 p-2.5" data-testid="enhance-speech-progress" role="status" aria-live="polite">
               <div className="flex items-center justify-between text-[11px]">
-                <span>Enhancing speech… {percent}%</span>
+                <span>{t("Enhancing speech…")} {percent}%</span>
                 <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" data-testid="enhance-speech-cancel" onClick={() => void guard(() => cancelEnhanceSpeech(clipId))}>
-                  Cancel
+                  {t("Cancel")}
                 </Button>
               </div>
               <Progress value={percent} className="h-1.5" />
-              <p className="text-[10px] text-fg-3">You can keep editing and playing; the enhanced voice is swapped in when it is ready.</p>
+              <p className="text-[10px] text-fg-3">{t("You can keep editing and playing; the enhanced voice is swapped in when it is ready.")}</p>
             </div>
           )}
           {status.state === "failed" && (
             <div className="space-y-1.5 rounded-[7px] border border-destructive/40 bg-bg-1 p-2.5 text-[11px]" role="alert" data-testid="enhance-speech-failed">
-              <p>Enhance Speech could not run{status.error ? `: ${status.error}` : "."}</p>
+              <p>{t("Enhance Speech could not run")}{status.error ? `: ${status.error}` : "."}</p>
               <Button size="sm" variant="outline" className="h-6 text-[11px]" onClick={() => void startEnhanceJob(clipId)}>
-                Try again
+                {t("Try again")}
               </Button>
             </div>
           )}
@@ -137,20 +139,20 @@ export const EnhanceSpeechSection: React.FC<EnhanceSpeechSectionProps> = ({ clip
             }}
           />
           <p className="text-[10px] leading-relaxed text-fg-3" data-testid="enhance-speech-balance-note">
-            Background is what the model removed (original minus enhanced). Moving this remixes the two; the model does not run again.
+            {t("Background is what the model removed (original minus enhanced). Moving this remixes the two; the model does not run again.")}
           </p>
           <div className="space-y-2 rounded-[7px] border border-border bg-bg-1 p-2.5">
-            <p className="text-[11px] font-medium">Before / After</p>
+            <p className="text-[11px] font-medium">{t("Before / After")}</p>
             <Tabs value={previewingOriginal ? "original" : "enhanced"} onValueChange={(value) => setEnhancePreviewOriginal(clipId, value === "original")}>
               <TabsList className="grid h-7 w-full grid-cols-2">
-                <TabsTrigger value="original" className="text-[11px]" data-testid="enhance-speech-hear-original">Hear Original</TabsTrigger>
-                <TabsTrigger value="enhanced" className="text-[11px]" data-testid="enhance-speech-hear-enhanced" disabled={running}>Hear Enhanced</TabsTrigger>
+                <TabsTrigger value="original" className="text-[11px]" data-testid="enhance-speech-hear-original">{t("Hear Original")}</TabsTrigger>
+                <TabsTrigger value="enhanced" className="text-[11px]" data-testid="enhance-speech-hear-enhanced" disabled={running}>{t("Hear Enhanced")}</TabsTrigger>
               </TabsList>
             </Tabs>
-            <p className="text-[10px] leading-relaxed text-fg-3">Preview only. Export always uses the enhanced audio at this Mix.</p>
+            <p className="text-[10px] leading-relaxed text-fg-3">{t("Preview only. Export always uses the enhanced audio at this Mix.")}</p>
           </div>
           <Button size="sm" variant="outline" className="w-full text-[11px]" data-testid="enhance-speech-remove" disabled={locked} onClick={() => void guard(() => removeEnhanceSpeech(clipId))}>
-            Remove Enhance Speech
+            {t("Remove Enhance Speech")}
           </Button>
         </>
       )}

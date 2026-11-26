@@ -1,7 +1,9 @@
 import { useUIStore } from '../../../stores/ui-store';
 import { PaintBucket, RotateCcw } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 export function PaintBucketToolPanel() {
+  const t = useT();
   const { paintBucketSettings, setPaintBucketSettings, brushSettings, setBrushSettings } = useUIStore();
 
   const resetSettings = () => {
@@ -20,24 +22,24 @@ export function PaintBucketToolPanel() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <PaintBucket size={16} className="text-muted-foreground" />
-          <h3 className="text-sm font-medium">Paint Bucket</h3>
+          <h3 className="text-sm font-medium">{t("Paint Bucket")}</h3>
         </div>
         <button
           onClick={resetSettings}
           className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-secondary transition-colors"
-          title="Reset"
+          title={t("Reset")}
         >
           <RotateCcw size={14} />
         </button>
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Click on canvas to fill area with color.
+        {t("Click on canvas to fill area with color.")}
       </p>
 
       <div className="space-y-3">
         <div>
-          <span className="text-xs text-muted-foreground mb-1.5 block">Fill Color</span>
+          <span className="text-xs text-muted-foreground mb-1.5 block">{t("Fill Color")}</span>
           <div className="flex items-center gap-2">
             <input
               type="color"
@@ -56,7 +58,7 @@ export function PaintBucketToolPanel() {
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Tolerance</span>
+            <span className="text-xs text-muted-foreground">{t("Tolerance")}</span>
             <span className="text-xs font-mono text-muted-foreground">{paintBucketSettings.tolerance}</span>
           </div>
           <input
@@ -76,7 +78,7 @@ export function PaintBucketToolPanel() {
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Opacity</span>
+            <span className="text-xs text-muted-foreground">{t("Opacity")}</span>
             <span className="text-xs font-mono text-muted-foreground">{Math.round(paintBucketSettings.opacity * 100)}%</span>
           </div>
           <input
@@ -102,7 +104,7 @@ export function PaintBucketToolPanel() {
               onChange={(e) => setPaintBucketSettings({ contiguous: e.target.checked })}
               className="w-3.5 h-3.5 rounded border-border"
             />
-            Contiguous
+            {t("Contiguous")}
           </label>
           <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
             <input
@@ -111,7 +113,7 @@ export function PaintBucketToolPanel() {
               onChange={(e) => setPaintBucketSettings({ antiAlias: e.target.checked })}
               className="w-3.5 h-3.5 rounded border-border"
             />
-            Anti-alias
+            {t("Anti-alias")}
           </label>
         </div>
       </div>

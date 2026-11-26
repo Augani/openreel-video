@@ -36,6 +36,8 @@ import { dropSourceRange } from "../../../services/source-monitor-commands";
 import { mediaDisplayDuration } from "@openreel/core";
 import { phoneTrackLayout } from "../mobile/mobile-timeline-layout";
 import { placeSequenceOnTimeline } from "../../../services/sequence-commands";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const CLIP_SCROLL_BUCKET = 96;
 /** Must match the Timeline, which quantises the scroll position it hands to each lane. */
@@ -132,6 +134,7 @@ export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane
   onSelectTransition,
   selectedTransitionId = null,
 }) {
+  const t = useT();
   const isExpanded = useTimelineStore((state) => state.expandedTracks.has(track.id));
   const viewportWidth = useTimelineStore((state) => state.viewportWidth);
   const snapSettings = useUIStore((state) => state.snapSettings);
@@ -259,7 +262,7 @@ export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane
                 .project.mediaLibrary.items.find(i => !beforeIds.has(i.id));
               if (newItem) {
                 await placeMediaClip(newItem.id, track.id, snapResult.time);
-                toast.success(`Added to ${track.name}`, file.name);
+                toast.success(translateNow("Added to {name}", { name: track.name }), file.name);
               }
             }
           } catch (err) {
@@ -307,7 +310,7 @@ export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane
             const component =
               data.component === "video" || data.component === "audio" ? data.component : "both";
             const outcome = dropSourceRange(data.mediaId, track.id, snapResult.time, component);
-            if (!outcome.success) toast.warning("Source drop", outcome.message);
+            if (!outcome.success) toast.warning(translateNow("Source drop"), outcome.message);
             return;
           }
           onDropMedia(track.id, data.mediaId, snapResult.time);
@@ -474,7 +477,7 @@ export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane
           return (
             <div
               data-gap-selected={track.id}
-              aria-label="Selected gap"
+              aria-label={t("Selected gap")}
               className="absolute top-0 bottom-0 z-10 pointer-events-none border-x border-amber-400 bg-amber-400/20"
               style={{ left: start * pixelsPerSecond, width: (end - start) * pixelsPerSecond }}
             />

@@ -62,7 +62,7 @@ export function PagesBar() {
           className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
         >
           {isExpanded ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-          <span>Pages</span>
+          <span>{t("Pages")}</span>
           <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded-full">
             {artboards.length}
           </span>
@@ -73,7 +73,7 @@ export function PagesBar() {
           className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors"
         >
           <Plus size={14} />
-          <span>Add Page</span>
+          <span>{t("Add Page")}</span>
         </button>
       </div>
 

@@ -11,6 +11,7 @@ import {
   Slider,
 } from "@openreel/ui";
 import type { QwenInput } from "../../../../services/kieai/image-generation";
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   value: QwenInput;
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export function QwenForm({ value, onChange, onSubmit, isLoading }: Props) {
+  const t = useT();
   const id = useId();
   const strength = value.strength ?? 0.8;
 
@@ -30,7 +32,7 @@ export function QwenForm({ value, onChange, onSubmit, isLoading }: Props) {
           htmlFor={`${id}-prompt`}
           className="text-[12px] font-medium text-fg-2"
         >
-          Prompt
+          {t("Prompt")}
         </Label>
         <Textarea
           id={`${id}-prompt`}
@@ -40,7 +42,7 @@ export function QwenForm({ value, onChange, onSubmit, isLoading }: Props) {
           }
           required
           disabled={isLoading}
-          placeholder="Describe the image you want to generate..."
+          placeholder={t("Describe the image you want to generate...")}
           maxLength={2000}
           rows={4}
           className="resize-y border-border bg-bg-2 text-[12px] leading-5 text-fg placeholder:text-fg-3"
@@ -49,13 +51,13 @@ export function QwenForm({ value, onChange, onSubmit, isLoading }: Props) {
 
       <div className="space-y-1.5">
         <span className="text-[12px] leading-5 text-fg-2 font-bold block">
-          Strength — {strength.toFixed(2)}
+          {t("Strength —")} {strength.toFixed(2)}
           <span className="text-[12px] leading-5 text-fg-2 font-normal ml-2">
-            (0 = preserve original, 1 = full remake)
+            {t("(0 = preserve original, 1 = full remake)")}
           </span>
         </span>
         <Slider
-          aria-label="Strength"
+          aria-label={t("Strength")}
           aria-valuetext={strength.toFixed(2)}
           min={0}
           max={1}
@@ -68,8 +70,8 @@ export function QwenForm({ value, onChange, onSubmit, isLoading }: Props) {
           className="workspace-property-slider"
         />
         <div className="flex justify-between">
-          <span className="text-fg-2 font-normal text-[10px]">Preserve</span>
-          <span className="text-fg-2 font-normal text-[10px]">Remake</span>
+          <span className="text-fg-2 font-normal text-[10px]">{t("Preserve")}</span>
+          <span className="text-fg-2 font-normal text-[10px]">{t("Remake")}</span>
         </div>
       </div>
 
@@ -79,7 +81,7 @@ export function QwenForm({ value, onChange, onSubmit, isLoading }: Props) {
             htmlFor={`${id}-format`}
             className="text-[12px] font-medium text-fg-2"
           >
-            Format
+            {t("Format")}
           </Label>
           <Select
             value={value.output_format ?? "png"}
@@ -103,7 +105,7 @@ export function QwenForm({ value, onChange, onSubmit, isLoading }: Props) {
                 { value: "jpeg", label: "JPEG" },
               ].map((option) => (
                 <SelectItem key={option.value} value={option.value}>
-                  {option.label}
+                  {t(option.label)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -115,7 +117,7 @@ export function QwenForm({ value, onChange, onSubmit, isLoading }: Props) {
             htmlFor={`${id}-acceleration`}
             className="text-[12px] font-medium text-fg-2"
           >
-            Acceleration
+            {t("Acceleration")}
           </Label>
           <Select
             value={value.acceleration ?? "regular"}
@@ -140,7 +142,7 @@ export function QwenForm({ value, onChange, onSubmit, isLoading }: Props) {
                 { value: "high", label: "High (fastest)" },
               ].map((option) => (
                 <SelectItem key={option.value} value={option.value}>
-                  {option.label}
+                  {t(option.label)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -153,7 +155,7 @@ export function QwenForm({ value, onChange, onSubmit, isLoading }: Props) {
           htmlFor={`${id}-negative_prompt`}
           className="text-[12px] font-medium text-fg-2"
         >
-          Negative Prompt (optional)
+          {t("Negative Prompt (optional)")}
         </Label>
         <Textarea
           id={`${id}-negative_prompt`}
@@ -165,7 +167,7 @@ export function QwenForm({ value, onChange, onSubmit, isLoading }: Props) {
             })
           }
           disabled={isLoading}
-          placeholder="Describe what you don't want in the result..."
+          placeholder={t("Describe what you don't want in the result...")}
           maxLength={500}
           rows={2}
           className="resize-y border-border bg-bg-2 text-[12px] leading-5 text-fg placeholder:text-fg-3"
@@ -183,7 +185,7 @@ export function QwenForm({ value, onChange, onSubmit, isLoading }: Props) {
         className="h-8 w-full bg-accent text-[12px] text-accent-fg hover:bg-accent/90"
       >
         <span className="truncate">
-          {isLoading ? "Generating..." : "Generate with Qwen"}
+          {isLoading ? t("Generating...") : t("Generate with Qwen")}
         </span>
       </Button>
     </fieldset>

@@ -1,5 +1,6 @@
 import React, { useRef } from "react";
 import { dragPlanarCorner, dragPlanarQuad, usePlanarTrackOverlayStore } from "../../../stores/planar-track-overlay-store";
+import { useT } from "@openreel/i18n/react";
 
 interface Bounds { x: number; y: number; width: number; height: number }
 const NAMES = ["top left", "top right", "bottom right", "bottom left"];
@@ -10,6 +11,7 @@ const NAMES = ["top left", "top right", "bottom right", "bottom left"];
  * picture on the monitor, in the monitor frame's own pixels.
  */
 export const PlanarTrackOverlay: React.FC<{ clipId: string | null; bounds: Bounds | null }> = ({ clipId, bounds }) => {
+  const t = useT();
   const state = usePlanarTrackOverlayStore();
   const drag = useRef<{ corner: number | "quad"; x: number; y: number; start: number[] } | null>(null);
   if (!clipId || !bounds || state.clipId !== clipId || !state.corners || state.mediaWidth <= 0 || state.mediaHeight <= 0) return null;
@@ -73,7 +75,7 @@ export const PlanarTrackOverlay: React.FC<{ clipId: string | null; bounds: Bound
         />
       ))}
       <span className="pointer-events-none absolute rounded bg-black/65 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white/85" style={{ left: pts[0].x, top: Math.max(0, pts[0].y - 18) }}>
-        Planar surface
+        {t("Planar surface")}
       </span>
     </div>
   );

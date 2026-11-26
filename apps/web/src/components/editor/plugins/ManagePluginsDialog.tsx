@@ -20,6 +20,8 @@ import {
   uninstallPlugin,
 } from "../../../services/plugin-service";
 import { toast } from "../../../stores/notification-store";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 interface Report {
   readonly kind: "success" | "error";
@@ -34,6 +36,7 @@ function implementationBadges(plugin: LoadedPlugin): string {
 }
 
 function PluginRow({ plugin }: { plugin: LoadedPlugin }) {
+  const t = useT();
   const { manifest } = plugin;
   const health = getPluginRegistry().getHealth(manifest.id);
   const [busy, setBusy] = useState(false);
@@ -50,7 +53,7 @@ function PluginRow({ plugin }: { plugin: LoadedPlugin }) {
             <span className="text-[11px] text-fg-2">{manifest.category}</span>
           </div>
           {manifest.description ? (
-            <p className="mt-1 text-xs leading-5 text-fg-2">{manifest.description}</p>
+            <p className="mt-1 text-xs leading-5 text-fg-2">{t(manifest.description)}</p>
           ) : null}
           <p className="mt-1 text-[11px] text-fg-3">
             {manifest.id} · {implementationBadges(plugin)}
@@ -71,7 +74,7 @@ function PluginRow({ plugin }: { plugin: LoadedPlugin }) {
         <div className="flex shrink-0 gap-2">
           {health.tripped ? (
             <Button variant="secondary" size="sm" onClick={() => retryPlugin(manifest.id)}>
-              Retry
+              {t("Retry")}
             </Button>
           ) : null}
           <Button
@@ -83,15 +86,15 @@ function PluginRow({ plugin }: { plugin: LoadedPlugin }) {
               setBusy(true);
               try {
                 await uninstallPlugin(manifest.id);
-                toast.success("Plugin uninstalled", `${manifest.name} was removed. Effects that use it are kept and will render again once it is reinstalled.`);
+                toast.success(translateNow("Plugin uninstalled"), `${manifest.name} was removed. Effects that use it are kept and will render again once it is reinstalled.`);
               } catch (error) {
-                toast.error("Could not uninstall", error instanceof Error ? error.message : String(error));
+                toast.error(translateNow("Could not uninstall"), error instanceof Error ? error.message : String(error));
               } finally {
                 setBusy(false);
               }
             }}
           >
-            Uninstall
+            {t("Uninstall")}
           </Button>
         </div>
       </div>
@@ -100,6 +103,7 @@ function PluginRow({ plugin }: { plugin: LoadedPlugin }) {
 }
 
 export function ManagePluginsDialog() {
+  const t = useT();
   const open = usePluginManagerStore((state) => state.open);
   const setOpen = usePluginManagerStore((state) => state.setOpen);
   const plugins = useInstalledPlugins();
@@ -146,23 +150,22 @@ export function ManagePluginsDialog() {
         <DialogHeader className="shrink-0 border-b border-border px-5 py-4 pr-12 text-left">
           <DialogTitle className="flex items-center gap-2 text-sm">
             <Plug size={18} className="text-primary" aria-hidden />
-            Manage Plugins
+            {t("Manage Plugins")}
           </DialogTitle>
           <DialogDescription className="text-xs leading-5 text-fg-2">
-            Install effect plugins (.orplugin) built with the OpenReel plugin SDK. Installed plugins appear in the
-            Effects panel and are saved by id and version in your projects.
+            {t("Install effect plugins (.orplugin) built with the OpenReel plugin SDK. Installed plugins appear in the Effects panel and are saved by id and version in your projects.")}
           </DialogDescription>
         </DialogHeader>
         <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-5 py-3">
           <Button size="sm" disabled={installing} onClick={() => fileInput.current?.click()}>
-            Install from file…
+            {t("Install from file…")}
           </Button>
           <Button size="sm" variant="secondary" disabled={installing} onClick={() => folderInput.current?.click()}>
-            Install from folder…
+            {t("Install from folder…")}
           </Button>
           {desktop ? (
             <Button size="sm" variant="secondary" onClick={() => void window.openreel?.plugins?.revealFolder()}>
-              Open plugins folder
+              {t("Open plugins folder")}
             </Button>
           ) : null}
           <input
@@ -172,7 +175,7 @@ export function ManagePluginsDialog() {
             multiple
             hidden
             data-testid="plugin-file-input"
-            aria-label="Plugin file"
+            aria-label={t("Plugin file")}
             onChange={(event) => void install(event.target.files)}
           />
           <input
@@ -181,7 +184,7 @@ export function ManagePluginsDialog() {
             hidden
             // @ts-expect-error webkitdirectory is a non-standard attribute React passes through
             webkitdirectory=""
-            aria-label="Plugin folder"
+            aria-label={t("Plugin folder")}
             onChange={(event) => void install(event.target.files)}
           />
         </div>
@@ -193,7 +196,7 @@ export function ManagePluginsDialog() {
               report.kind === "error" ? "border-red-500/40 bg-red-500/10 text-fg" : "border-border bg-bg-2 text-fg"
             }`}
           >
-            <strong className="block">{report.title}</strong>
+            <strong className="block">{t(report.title)}</strong>
             {report.lines.map((line, index) => (
               <span key={index} className="block whitespace-pre-wrap text-fg-2">
                 {line}
@@ -205,10 +208,10 @@ export function ManagePluginsDialog() {
           <div className="px-5 py-4">
             {plugins.length === 0 ? (
               <p className="py-8 text-center text-xs text-fg-2" data-testid="plugin-empty">
-                No plugins installed yet.
+                {t("No plugins installed yet.")}
               </p>
             ) : (
-              <ul className="space-y-2" aria-label="Installed plugins">
+              <ul className="space-y-2" aria-label={t("Installed plugins")}>
                 {plugins.map((plugin) => (
                   <PluginRow key={plugin.manifest.id} plugin={plugin} />
                 ))}

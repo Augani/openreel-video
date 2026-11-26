@@ -19,6 +19,7 @@ import {
 import { useProjectStore } from "../../stores/project-store";
 import { useTimelineStore } from "../../stores/timeline-store";
 import { formatFrameTimecode } from "../../utils/frame-timecode";
+import { useT } from "@openreel/i18n/react";
 
 /** Radix Select items cannot have an empty value; the default caption track ("") uses this. */
 const DEFAULT_TRACK_VALUE = "__default__";
@@ -52,6 +53,7 @@ const LIMITS: ReadonlyArray<{ key: LimitKey; label: string; step: number }> = [
  * project's captions (`checkCaptions`). Clicking an issue puts the playhead on that caption.
  */
 export function CaptionQcPanel() {
+  const t = useT();
   const subtitles = useProjectStore((s) => s.project.timeline.subtitles);
   const frameRate = useProjectStore((s) => s.project.settings.frameRate);
   const seekTo = useTimelineStore((s) => s.seekTo);
@@ -90,13 +92,13 @@ export function CaptionQcPanel() {
       <div className="shrink-0 space-y-2 border-b border-border px-2.5 py-2">
         {tracks.length > 1 && (
           <Select value={activeTrack || DEFAULT_TRACK_VALUE} onValueChange={(v) => setTrackId(v === DEFAULT_TRACK_VALUE ? "" : v)}>
-            <SelectTrigger aria-label="Caption track to check" className="h-7 text-[11px]">
+            <SelectTrigger aria-label={t("Caption track to check")} className="h-7 text-[11px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {tracks.map((t) => (
-                <SelectItem key={t.id || "default"} value={t.id || DEFAULT_TRACK_VALUE}>
-                  {t.id ? `${t.id}${t.language ? ` (${t.language})` : ""}` : "Default captions"} · {t.cueCount}
+              {tracks.map((track) => (
+                <SelectItem key={track.id || "default"} value={track.id || DEFAULT_TRACK_VALUE}>
+                  {track.id ? `${track.id}${track.language ? ` (${track.language})` : ""}` : t("Default captions")} · {track.cueCount}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -104,17 +106,17 @@ export function CaptionQcPanel() {
         )}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]" data-testid="caption-qc-summary">
           <span className={report.errorCount ? "font-medium text-status-error" : "text-fg-3"}>
-            {report.errorCount} error{report.errorCount === 1 ? "" : "s"}
+            {report.errorCount} {t("error")}{report.errorCount === 1 ? "" : "s"}
           </span>
           <span className={report.warningCount ? "font-medium text-status-warning" : "text-fg-3"}>
-            {report.warningCount} warning{report.warningCount === 1 ? "" : "s"}
+            {report.warningCount} {t("warning")}{report.warningCount === 1 ? "" : "s"}
           </span>
           <span className="text-fg-3">
-            {report.cueCount} caption{report.cueCount === 1 ? "" : "s"} · avg {report.averageCps} cps · worst {report.worstCps}
+            {report.cueCount} {t("caption")}{report.cueCount === 1 ? "" : "s"} {t("· avg")} {report.averageCps} {t("cps · worst")} {report.worstCps}
           </span>
         </div>
         <details className="group">
-          <summary className="cursor-pointer select-none text-[11px] text-fg-2 hover:text-fg">Limits</summary>
+          <summary className="cursor-pointer select-none text-[11px] text-fg-2 hover:text-fg">{t("Limits")}</summary>
           <div className="mt-1.5 grid grid-cols-2 gap-x-2 gap-y-1.5">
             {LIMITS.map(({ key, label, step }) => (
               <label key={key} className="flex min-w-0 flex-col gap-0.5 text-[10px] text-fg-3">
@@ -140,23 +142,23 @@ export function CaptionQcPanel() {
               type="checkbox"
               checked={errorsOnly}
               onChange={(e) => setErrorsOnly(e.currentTarget.checked)}
-              aria-label="Show errors only"
+              aria-label={t("Show errors only")}
             />
-            Errors only
+            {t("Errors only")}
           </label>
         )}
       </div>
       <ScrollArea className="min-h-0 flex-1">
         {!report.cueCount ? (
           <p className="px-3 py-6 text-center text-[11px] text-fg-3">
-            No captions to check. Generate or import captions first.
+            {t("No captions to check. Generate or import captions first.")}
           </p>
         ) : !visible.length ? (
           <p className="px-3 py-6 text-center text-[11px] text-fg-3" data-testid="caption-qc-clear">
-            {report.issues.length ? "No errors." : `All ${report.cueCount} captions pass.`}
+            {report.issues.length ? t("No errors.") : `All ${report.cueCount} captions pass.`}
           </p>
         ) : (
-          <ul className="m-0 list-none p-1" aria-label="Caption issues">
+          <ul className="m-0 list-none p-1" aria-label={t("Caption issues")}>
             {visible.map((issue, i) => (
               <li key={`${issue.cueId}-${issue.code}-${i}`}>
                 <button

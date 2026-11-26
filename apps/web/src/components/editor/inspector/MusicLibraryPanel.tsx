@@ -41,6 +41,7 @@ import { toast } from "../../../stores/notification-store";
 import { WorkspaceTabs, workspaceTabPanel } from "../WorkspacePrimitives";
 import { AudioLibraryIcon } from "@/icons/audio-library";
 import { formatSoundDuration } from "./sound-library-format";
+import { translateNow } from "@openreel/i18n/translate";
 
 type TabType = "music" | "sfx";
 type PreviewStatus = "loading" | "playing" | "paused" | "resuming";
@@ -150,7 +151,7 @@ function SoundCard({
             aria-label={`${isLoading ? "Cancel preview of" : isPlaying ? "Pause" : isPaused ? "Resume" : "Preview"} ${sound.name}`}
             title={
               isPlaying || isPaused || isLoading
-                ? "Esc to stop preview"
+                ? t("Esc to stop preview")
                 : undefined
             }
             onClick={isLoading ? onStop : isPlaying ? onPause : onPlay}
@@ -170,7 +171,7 @@ function SoundCard({
               <time>{formatSoundDuration(sound.duration)}</time>
             </div>
             <p>
-              {isUsed ? "In timeline" : category}
+              {isUsed ? t("In timeline") : category}
               {sound.bpm ? ` · ${sound.bpm} BPM` : ""}
             </p>
             {peaks.length ? (
@@ -332,7 +333,7 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
       if (!cancelled) {
         setLibraryStatus("error");
         toast.error(
-          "Sound library unavailable",
+          translateNow("Sound library unavailable"),
           "Reload the editor to try again.",
         );
       }
@@ -490,7 +491,7 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
           previewSession.current = null;
           setPreview(null);
         }
-        toast.error("Could not play sound", "Try previewing it again.");
+        toast.error(translateNow("Could not play sound"), "Try previewing it again.");
       }
     },
     [getSoundLibraryEngine, preview],
@@ -539,7 +540,7 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
           const blob = engine.getSoundBlob(sound.id);
           if (!blob) {
             toast.error(
-              "Sound unavailable",
+              translateNow("Sound unavailable"),
               "Choose another sound or reopen the audio browser.",
             );
             return;
@@ -563,11 +564,11 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
           useTimelineStore.getState().playheadPosition,
         );
         if (!placed.success)
-          toast.error("Could not add sound", placed.error?.message);
+          toast.error(translateNow("Could not add sound"), placed.error?.message);
       } catch (error) {
         if (isCurrent())
           toast.error(
-            "Could not add sound",
+            translateNow("Could not add sound"),
             error instanceof Error ? error.message : "Try again.",
           );
       } finally {
@@ -611,11 +612,11 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
           <div className="workspace-search">
             <AudioLibraryIcon name="search" className="workspace-audio-icon workspace-audio-search-icon" />
             <Input
-              aria-label="Search sounds"
+              aria-label={t("Search sounds")}
               placeholder={
                 activeTab === "music"
-                  ? "Search music by mood, genre, BPM"
-                  : "Search sound effects"
+                  ? t("Search music by mood, genre, BPM")
+                  : t("Search sound effects")
               }
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -628,13 +629,13 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
               <div
                 className="workspace-chips"
                 role="group"
-                aria-label="Sound filters"
-                aria-description="Right-click or press Shift+F10 for all genres and mood filters."
+                aria-label={t("Sound filters")}
+                aria-description={t("Right-click or press Shift+F10 for all genres and mood filters.")}
               >
                 <Button
                   ref={allFiltersButton}
                   variant="ghost"
-                  aria-description="Right-click or press Shift+F10 for all genres and mood filters."
+                  aria-description={t("Right-click or press Shift+F10 for all genres and mood filters.")}
                   aria-pressed={
                     (activeTab === "music"
                       ? selectedGenre
@@ -647,7 +648,7 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
                     setSelectedMoods([]);
                   }}
                 >
-                  All
+                  {t("All")}
                 </Button>
                 {activeTab === "music" ? (
                   <>
@@ -667,7 +668,7 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
                         aria-pressed={selectedMoods.includes("calm")}
                         onClick={() => toggleMood("calm")}
                       >
-                        Chill
+                        {t("Chill")}
                       </Button>
                     )}
                     {selectedGenre !== "all" &&
@@ -714,7 +715,7 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
                   ))}
               </div>
             </ContextMenuTrigger>
-            <ContextMenuContent aria-label="Audio filters"
+            <ContextMenuContent aria-label={t("Audio filters")}
               onPointerDownOutside={() => { keyboardFilters.current = false; }}
               onCloseAutoFocus={event => {
                 if (keyboardFilters.current) { event.preventDefault(); allFiltersButton.current?.focus(); }
@@ -774,8 +775,8 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
         </div>
         <p className="workspace-sound-note">
           {activeTab === "music"
-            ? "Generated demo loops, synthesised in your browser. Not licensed music."
-            : "Generated sound effects, synthesised in your browser."}
+            ? t("Generated demo loops, synthesised in your browser. Not licensed music.")
+            : t("Generated sound effects, synthesised in your browser.")}
         </p>
         {libraryStatus === "loading" && loadProgress[activeTab].total > 0 && (
           <div
@@ -788,22 +789,22 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
             data-testid="sound-library-progress"
           >
             <span>
-              Generating {activeTab === "music" ? "demo loops" : "sound effects"}{" "}
-              {loadProgress[activeTab].done} of {loadProgress[activeTab].total}
+              {t("Generating")} {activeTab === "music" ? t("demo loops") : t("sound effects")}{" "}
+              {loadProgress[activeTab].done} {t("of")} {loadProgress[activeTab].total}
             </span>
             <i style={{ width: `${(100 * loadProgress[activeTab].done) / loadProgress[activeTab].total}%` }} />
           </div>
         )}
         <ScrollArea className="workspace-sound-list flex-1 min-h-0">
           {libraryStatus === "loading" && sounds.length === 0 ? (
-            <div role="status" aria-label="Loading sounds" className="workspace-sound-skeletons">
+            <div role="status" aria-label={t("Loading sounds")} className="workspace-sound-skeletons">
               {Array.from({ length: 6 }, (_, i) => (
                 <div key={i} className="workspace-sound-skeleton" aria-hidden="true" />
               ))}
             </div>
           ) : libraryStatus === "error" ? (
             <p role="alert" className="p-6 text-center text-xs text-fg-muted">
-              Sound library unavailable. Reload the editor to try again.
+              {t("Sound library unavailable. Reload the editor to try again.")}
             </p>
           ) : sounds.length ? (
             sounds.slice(0, visibleCount).map((sound) => (
@@ -843,9 +844,9 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
           ) : (
             <div className="p-6 text-center text-xs text-fg-3">
               <Volume2 className="mx-auto mb-2" />
-              No sounds found
+              {t("No sounds found")}
               <br />
-              Try adjusting your filters.
+              {t("Try adjusting your filters.")}
             </div>
           )}
           {sounds.length > visibleCount && (
@@ -854,7 +855,7 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
               className="w-full h-8 text-xs"
               onClick={() => setVisibleCount((n) => n + 20)}
             >
-              Load more sounds
+              {t("Load more sounds")}
             </Button>
           )}
         </ScrollArea>

@@ -3,6 +3,7 @@ import { getChannelLayout, resolveSurroundPan } from "@openreel/core";
 import { useProjectStore } from "../../../stores/project-store";
 import { SurroundPanner } from "../../audio-mixer/SurroundPanner";
 import { setSurroundPan } from "../../../services/surround-audio";
+import { useT } from "@openreel/i18n/react";
 
 /**
  * Clip-level surround position (5.1 sequences). A clip without its own position
@@ -10,6 +11,7 @@ import { setSurroundPan } from "../../../services/surround-audio";
  * removes it again. 5.1 sources are not panned (they already are a layout).
  */
 export const SurroundPanSection: React.FC<{ clipId: string }> = ({ clipId }) => {
+  const t = useT();
   const surround = useProjectStore((state) => getChannelLayout(state.project.settings) === "5.1");
   const located = useProjectStore((state) => {
     for (const track of state.project.timeline.tracks) {
@@ -37,7 +39,7 @@ export const SurroundPanSection: React.FC<{ clipId: string }> = ({ clipId }) => 
       />
       {sourceChannels !== undefined && sourceChannels >= 3 && (
         <p className="text-[10px] text-fg-muted" data-testid="clip-surround-passthrough">
-          This source has {sourceChannels} channels. A 5.1 source plays on its own channels and is not positioned by the panner.
+          {t("This source has")} {sourceChannels} {t("channels. A 5.1 source plays on its own channels and is not positioned by the panner.")}
         </p>
       )}
     </div>

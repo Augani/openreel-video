@@ -4,6 +4,8 @@ import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, Select
 import { toast } from "../../stores/notification-store";
 import { detectTranslator, languageName, makeTranslator, type TranslatorAvailability } from "../../services/caption-translator";
 import { translateCaptionTrackCommand } from "../../services/transcript-commands";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 export const TRANSLATION_LANGUAGES = [
   "en", "es", "fr", "de", "it", "pt", "nl", "sv", "pl", "tr", "ru", "uk", "ar", "hi", "bn", "id", "vi", "th", "ja", "ko", "zh", "zh-Hant",
@@ -19,6 +21,7 @@ interface Props {
 
 /** Translate the active caption track into a new track in another language. */
 export function CaptionTranslateSection({ trackId, trackLanguage, cueCount, onTranslated }: Props) {
+  const t = useT();
   const [target, setTarget] = useState("es");
   const [source, setSource] = useState(trackLanguage ?? "");
   const [availability, setAvailability] = useState<TranslatorAvailability | null>(null);
@@ -62,15 +65,18 @@ export function CaptionTranslateSection({ trackId, trackLanguage, cueCount, onTr
         onProgress: setProgress,
       });
       if (outcome.success && outcome.trackId) {
-        toast.success(`Translated ${outcome.added} captions to ${languageName(target)}`, "The translation is kept out of the picture so languages do not overlap. Use Show this track in the picture to display it. Undo removes the new track.");
+        toast.success(
+          translateNow("Translated {count} captions to {language}", { count: outcome.added ?? 0, language: languageName(target) }),
+          translateNow("The translation is kept out of the picture so languages do not overlap. Use Show this track in the picture to display it. Undo removes the new track."),
+        );
         onTranslated(outcome.trackId);
       } else if (outcome.cancelled) {
-        toast.info("Translation cancelled", "Nothing was added.");
+        toast.info(translateNow("Translation cancelled"), "Nothing was added.");
       } else {
-        toast.error("Translation failed", outcome.message);
+        toast.error(translateNow("Translation failed"), outcome.message);
       }
     } catch (error) {
-      toast.error("Translation failed", error instanceof Error ? error.message : undefined);
+      toast.error(translateNow("Translation failed"), error instanceof Error ? error.message : undefined);
     } finally {
       controller.current = null;
       setProgress(null);
@@ -82,11 +88,11 @@ export function CaptionTranslateSection({ trackId, trackLanguage, cueCount, onTr
   const pct = progress && progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
 
   return (
-    <section aria-label="Caption translation" className="space-y-1.5 rounded-md border border-border bg-bg-1 p-2">
+    <section aria-label={t("Caption translation")} className="space-y-1.5 rounded-md border border-border bg-bg-1 p-2">
       <div className="flex items-center gap-1.5 text-[11px] text-fg-2">
         <Input
-          aria-label="Source language"
-          placeholder="From (en…)"
+          aria-label={t("Source language")}
+          placeholder={t("From (en…)")}
           value={source}
           disabled={running}
           onChange={(e) => setSource(e.currentTarget.value)}
@@ -95,7 +101,7 @@ export function CaptionTranslateSection({ trackId, trackLanguage, cueCount, onTr
         />
         <span aria-hidden>→</span>
         <Select value={target} onValueChange={setTarget} disabled={running}>
-          <SelectTrigger aria-label="Target language" className="h-7 min-w-0 flex-1 text-[11px]">
+          <SelectTrigger aria-label={t("Target language")} className="h-7 min-w-0 flex-1 text-[11px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -113,14 +119,14 @@ export function CaptionTranslateSection({ trackId, trackLanguage, cueCount, onTr
         </p>
       ) : (
         <p className="text-[10px] text-fg-3" data-testid="translate-engine">
-          {availability && availability.state !== "unavailable" ? `Translator: ${availability.engine === "ai" ? "AI model" : "Browser"} · ${availability.label}` : "Checking translators…"}
+          {availability && availability.state !== "unavailable" ? `Translator: ${availability.engine === "ai" ? "AI model" : "Browser"} · ${availability.label}` : t("Checking translators…")}
         </p>
       )}
       {!unavailable && availability && availability.state !== "unavailable" ? (
         <p className="text-[10px] text-fg-3" data-testid="translate-privacy">
           {availability.engine === "ai"
-            ? "Pressing Translate sends this track's caption text to your connected AI provider. Nothing is sent before that."
-            : "Runs on this device. No caption text leaves it."}
+            ? t("Pressing Translate sends this track's caption text to your connected AI provider. Nothing is sent before that.")
+            : t("Runs on this device. No caption text leaves it.")}
         </p>
       ) : null}
       {running ? (
@@ -135,7 +141,7 @@ export function CaptionTranslateSection({ trackId, trackLanguage, cueCount, onTr
                 : `${progress?.done ?? 0} / ${progress?.total ?? 0} captions`}
             </span>
             <Button type="button" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => controller.current?.abort()}>
-              Cancel
+              {t("Cancel")}
             </Button>
           </div>
         </div>
@@ -146,7 +152,7 @@ export function CaptionTranslateSection({ trackId, trackLanguage, cueCount, onTr
           disabled={!availability || availability.engine === null || target === source.trim() || cueCount === 0}
           onClick={() => void start()}
         >
-          Translate to {languageName(target)}
+          {t("Translate to")} {languageName(target)}
         </Button>
       )}
     </section>

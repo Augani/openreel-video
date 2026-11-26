@@ -4,6 +4,7 @@ import { Button } from "@openreel/ui";
 import { Square, Pause, Play, X, Minimize2 } from "@/icons/lucide-compat";
 import { useRecorderStore } from "../../stores/recorder-store";
 import { formatDuration } from "../../services/screen-recorder";
+import { useT } from "@openreel/i18n/react";
 
 interface RecordingControlsProps {
   onStop: () => void;
@@ -18,6 +19,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
   onResume,
   onCancel,
 }) => {
+  const t = useT();
   const {
     status,
     duration,
@@ -58,27 +60,27 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
 
         <div className="flex items-center gap-2">
           {isPaused ? (
-            <Button variant="ghost" size="icon-sm" onClick={onResume} type="button" aria-label="Resume recording" title="Resume recording" className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 w-9 text-accent-fg p-3 bg-primary hover:bg-primary-hover rounded-xl transition-colors">
+            <Button variant="ghost" size="icon-sm" onClick={onResume} type="button" aria-label={t("Resume recording")} title={t("Resume recording")} className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 w-9 text-accent-fg p-3 bg-primary hover:bg-primary-hover rounded-xl transition-colors">
               {<Play size={20} className="text-white" aria-hidden />}
             </Button>
           ) : (
-            <Button variant="ghost" size="icon-sm" onClick={onPause} type="button" aria-label="Pause recording" title="Pause recording" className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 w-9 border border-border text-fg-2 hover:text-fg p-3 bg-warning/20 hover:bg-warning/30 rounded-xl transition-colors">
+            <Button variant="ghost" size="icon-sm" onClick={onPause} type="button" aria-label={t("Pause recording")} title={t("Pause recording")} className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 w-9 border border-border text-fg-2 hover:text-fg p-3 bg-warning/20 hover:bg-warning/30 rounded-xl transition-colors">
               {<Pause size={20} className="text-warning" aria-hidden />}
             </Button>
           )}
 
-          <Button variant="ghost" size="icon-sm" onClick={onStop} type="button" aria-label="Stop recording" title="Stop recording" className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 w-9 text-status-error p-3 bg-red-600 hover:bg-red-700 rounded-xl transition-colors">
+          <Button variant="ghost" size="icon-sm" onClick={onStop} type="button" aria-label={t("Stop recording")} title={t("Stop recording")} className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 w-9 text-status-error p-3 bg-red-600 hover:bg-red-700 rounded-xl transition-colors">
             {<Square size={20} className="text-white fill-white" aria-hidden />}
           </Button>
 
-          <Button variant="ghost" size="icon-sm" onClick={onCancel} type="button" aria-label="Cancel recording" title="Cancel recording" className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 w-9 text-fg-muted hover:text-fg p-3 bg-background-tertiary hover:bg-background-elevated rounded-xl transition-colors">
+          <Button variant="ghost" size="icon-sm" onClick={onCancel} type="button" aria-label={t("Cancel recording")} title={t("Cancel recording")} className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 w-9 text-fg-muted hover:text-fg p-3 bg-background-tertiary hover:bg-background-elevated rounded-xl transition-colors">
             {<X size={20} className="text-text-muted" aria-hidden />}
           </Button>
         </div>
 
         <div className="w-px h-8 bg-border" />
 
-        <Button variant="ghost" size="icon-sm" onClick={minimizeControls} type="button" aria-label="Minimize controls" title="Minimize controls" className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent p-2 text-text-muted hover:text-text-primary rounded-lg hover:bg-background-tertiary transition-colors">
+        <Button variant="ghost" size="icon-sm" onClick={minimizeControls} type="button" aria-label={t("Minimize controls")} title={t("Minimize controls")} className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent p-2 text-text-muted hover:text-text-primary rounded-lg hover:bg-background-tertiary transition-colors">
           {<Minimize2 size={16} aria-hidden />}
         </Button>
       </div>

@@ -1,12 +1,14 @@
 import { useMemo, useState } from "react";
 import { Icon } from "../icons";
 import { listBehaviors, registerAllBehaviors } from "../effect/behaviors/registry";
+import { useT } from "@openreel/i18n/react";
 
 registerAllBehaviors();
 
 type Filter = "all" | "subject" | "filter";
 
 export function PresetGallery({ onOpen }: { onOpen: (id: string) => void }) {
+  const t = useT();
   const [filter, setFilter] = useState<Filter>("all");
   const presets = useMemo(() => listBehaviors().filter((b) => b.kind === "preset"), []);
   const visible = presets.filter((p) => {
@@ -40,7 +42,7 @@ export function PresetGallery({ onOpen }: { onOpen: (id: string) => void }) {
             <div className="mb-2 flex aspect-video w-full items-center justify-center rounded bg-zinc-950 text-zinc-700">
               <Icon name={preset.iconName} size={20} />
             </div>
-            <span className="text-xs text-zinc-200">{preset.label}</span>
+            <span className="text-xs text-zinc-200">{t(preset.label)}</span>
           </button>
         ))}
       </div>

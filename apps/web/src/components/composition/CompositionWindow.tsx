@@ -4,6 +4,7 @@ import { GraphicTemplateEditor } from "../editor/graphics/EssentialGraphicsPanel
 import { GraphicTemplateThumb } from "../editor/graphics/GraphicTemplateThumb";
 import { getLinkedCompTransport, type LinkedCompTransport } from "../../services/linked-comp-bridge";
 import type { LinkedCompMessage } from "../../services/linked-comp-protocol";
+import { useT } from "@openreel/i18n/react";
 
 type Status = "connecting" | "ready" | "gone" | "unreachable";
 
@@ -19,6 +20,7 @@ export const CompositionWindow: React.FC<{ compositionId: string; transport?: Li
   compositionId,
   transport: injected,
 }) => {
+  const t = useT();
   const [status, setStatus] = useState<Status>("connecting");
   const [name, setName] = useState("");
   const [template, setTemplate] = useState<GraphicTemplate | null>(null);
@@ -120,7 +122,7 @@ export const CompositionWindow: React.FC<{ compositionId: string; transport?: Li
   if (status === "connecting") {
     return (
       <div className="flex h-screen items-center justify-center bg-bg text-sm text-fg-muted" data-testid="composition-window" data-status={status}>
-        Connecting to the editor…
+        {t("Connecting to the editor…")}
       </div>
     );
   }
@@ -128,12 +130,12 @@ export const CompositionWindow: React.FC<{ compositionId: string; transport?: Li
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-2 bg-bg p-6 text-center" data-testid="composition-window" data-status={status}>
         <p className="text-sm font-medium text-fg">
-          {status === "gone" ? "This composition no longer exists." : "The editor window could not be reached."}
+          {status === "gone" ? t("This composition no longer exists.") : t("The editor window could not be reached.")}
         </p>
         <p className="max-w-sm text-xs text-fg-muted">
           {status === "gone"
-            ? "It was removed or the project was closed. Close this window."
-            : "Keep the OpenReel editor open with the same project, then open the composition again from its Clip menu."}
+            ? t("It was removed or the project was closed. Close this window.")
+            : t("Keep the OpenReel editor open with the same project, then open the composition again from its Clip menu.")}
         </p>
       </div>
     );
@@ -144,9 +146,9 @@ export const CompositionWindow: React.FC<{ compositionId: string; transport?: Li
       <header className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-2">
         <div className="min-w-0">
           <h1 className="truncate text-sm font-semibold" data-testid="composition-name">{name}</h1>
-          <p className="text-[11px] text-fg-muted">Live: every change appears on the timeline immediately. Undo in the editor window also undoes it here.</p>
+          <p className="text-[11px] text-fg-muted">{t("Live: every change appears on the timeline immediately. Undo in the editor window also undoes it here.")}</p>
         </div>
-        <span className="shrink-0 rounded bg-bg-2 px-2 py-0.5 text-[11px] text-fg-muted">Revision {revision}</span>
+        <span className="shrink-0 rounded bg-bg-2 px-2 py-0.5 text-[11px] text-fg-muted">{t("Revision")} {revision}</span>
       </header>
       {notice && (
         <p role="alert" className="border-b border-border/60 bg-warning/10 px-4 py-1.5 text-xs text-fg" data-testid="composition-notice">{notice}</p>

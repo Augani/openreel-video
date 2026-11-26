@@ -156,7 +156,7 @@ export const TemplatePlaceholderField = memo(function TemplatePlaceholderField({
           )}
           {choices.map((option) => (
             <SelectItem key={option.value} value={option.value}>
-              {option.label}
+              {t(option.label)}
             </SelectItem>
           ))}
         </SelectContent>

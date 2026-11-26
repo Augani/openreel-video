@@ -4,6 +4,7 @@ import { AlignLeft, AlignCenter, AlignRight, Bold, Italic, Underline, CaseUpper,
 import { FontPicker } from '../../ui/FontPicker';
 import { GradientPicker } from '../../ui/GradientPicker';
 import { Slider, Switch } from '@openreel/ui';
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   layer: TextLayer;
@@ -61,6 +62,7 @@ const TEXT_PRESETS: TextPreset[] = [
 ];
 
 export function TextSection({ layer }: Props) {
+  const t = useT();
   const { updateLayer } = useProjectStore();
 
   const handleContentChange = (content: string) => {
@@ -119,13 +121,13 @@ export function TextSection({ layer }: Props) {
   return (
     <div className="space-y-4">
       <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-        Text
+        {t("Text")}
       </h4>
 
       <div>
         <div className="flex items-center gap-2 mb-2">
           <Type size={14} className="text-muted-foreground" />
-          <label className="text-[10px] text-muted-foreground">Text Presets</label>
+          <label className="text-[10px] text-muted-foreground">{t("Text Presets")}</label>
         </div>
         <div className="flex flex-wrap gap-1.5">
           {TEXT_PRESETS.map((preset) => (
@@ -141,7 +143,7 @@ export function TextSection({ layer }: Props) {
       </div>
 
       <div>
-        <label className="block text-[10px] text-muted-foreground mb-1">Content</label>
+        <label className="block text-[10px] text-muted-foreground mb-1">{t("Content")}</label>
         <textarea
           value={layer.content}
           onChange={(e) => handleContentChange(e.target.value)}
@@ -151,7 +153,7 @@ export function TextSection({ layer }: Props) {
       </div>
 
       <div>
-        <label className="block text-[10px] text-muted-foreground mb-1">Font</label>
+        <label className="block text-[10px] text-muted-foreground mb-1">{t("Font")}</label>
         <FontPicker
           value={layer.style.fontFamily}
           onChange={(fontFamily) => handleStyleChange({ fontFamily })}
@@ -160,7 +162,7 @@ export function TextSection({ layer }: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-[10px] text-muted-foreground mb-1">Size</label>
+          <label className="block text-[10px] text-muted-foreground mb-1">{t("Size")}</label>
           <select
             value={layer.style.fontSize}
             onChange={(e) => handleStyleChange({ fontSize: Number(e.target.value) })}
@@ -174,17 +176,17 @@ export function TextSection({ layer }: Props) {
           </select>
         </div>
         <div>
-          <label className="block text-[10px] text-muted-foreground mb-1">Weight</label>
+          <label className="block text-[10px] text-muted-foreground mb-1">{t("Weight")}</label>
           <select
             value={layer.style.fontWeight}
             onChange={(e) => handleStyleChange({ fontWeight: Number(e.target.value) })}
             className="w-full px-2 py-1.5 text-xs bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
           >
-            <option value={300}>Light</option>
-            <option value={400}>Regular</option>
-            <option value={500}>Medium</option>
-            <option value={600}>Semibold</option>
-            <option value={700}>Bold</option>
+            <option value={300}>{t("Light")}</option>
+            <option value={400}>{t("Regular")}</option>
+            <option value={500}>{t("Medium")}</option>
+            <option value={600}>{t("Semibold")}</option>
+            <option value={700}>{t("Bold")}</option>
           </select>
         </div>
       </div>
@@ -197,7 +199,7 @@ export function TextSection({ layer }: Props) {
               ? 'bg-primary text-primary-foreground'
               : 'bg-secondary text-secondary-foreground hover:bg-accent'
           }`}
-          title="Bold"
+          title={t("Bold")}
         >
           <Bold size={14} />
         </button>
@@ -208,7 +210,7 @@ export function TextSection({ layer }: Props) {
               ? 'bg-primary text-primary-foreground'
               : 'bg-secondary text-secondary-foreground hover:bg-accent'
           }`}
-          title="Italic"
+          title={t("Italic")}
         >
           <Italic size={14} />
         </button>
@@ -219,7 +221,7 @@ export function TextSection({ layer }: Props) {
               ? 'bg-primary text-primary-foreground'
               : 'bg-secondary text-secondary-foreground hover:bg-accent'
           }`}
-          title="Underline"
+          title={t("Underline")}
         >
           <Underline size={14} />
         </button>
@@ -230,7 +232,7 @@ export function TextSection({ layer }: Props) {
               ? 'bg-primary text-primary-foreground'
               : 'bg-secondary text-secondary-foreground hover:bg-accent'
           }`}
-          title="Strikethrough"
+          title={t("Strikethrough")}
         >
           <Strikethrough size={14} />
         </button>
@@ -244,7 +246,7 @@ export function TextSection({ layer }: Props) {
               ? 'bg-primary text-primary-foreground'
               : 'bg-secondary text-secondary-foreground hover:bg-accent'
           }`}
-          title="Align Left"
+          title={t("Align Left")}
         >
           <AlignLeft size={14} />
         </button>
@@ -255,7 +257,7 @@ export function TextSection({ layer }: Props) {
               ? 'bg-primary text-primary-foreground'
               : 'bg-secondary text-secondary-foreground hover:bg-accent'
           }`}
-          title="Align Center"
+          title={t("Align Center")}
         >
           <AlignCenter size={14} />
         </button>
@@ -266,7 +268,7 @@ export function TextSection({ layer }: Props) {
               ? 'bg-primary text-primary-foreground'
               : 'bg-secondary text-secondary-foreground hover:bg-accent'
           }`}
-          title="Align Right"
+          title={t("Align Right")}
         >
           <AlignRight size={14} />
         </button>
@@ -283,14 +285,14 @@ export function TextSection({ layer }: Props) {
         <button
           onClick={transformToLowercase}
           className="p-2 rounded-md transition-colors bg-secondary text-secondary-foreground hover:bg-accent"
-          title="lowercase"
+          title={t("lowercase")}
         >
           <CaseLower size={14} />
         </button>
         <button
           onClick={transformToCapitalize}
           className="p-2 rounded-md transition-colors bg-secondary text-secondary-foreground hover:bg-accent"
-          title="Capitalize"
+          title={t("Capitalize")}
         >
           <CaseSensitive size={14} />
         </button>
@@ -298,7 +300,7 @@ export function TextSection({ layer }: Props) {
 
       <div className="space-y-3 p-3 bg-secondary/50 rounded-lg">
         <div className="flex items-center justify-between">
-          <label className="text-xs font-medium">Fill</label>
+          <label className="text-xs font-medium">{t("Fill")}</label>
           <div className="flex gap-1">
             <button
               onClick={() => handleStyleChange({ fillType: 'solid' as TextFillType })}
@@ -308,7 +310,7 @@ export function TextSection({ layer }: Props) {
                   : 'bg-secondary text-secondary-foreground hover:bg-accent'
               }`}
             >
-              Solid
+              {t("Solid")}
             </button>
             <button
               onClick={() => {
@@ -328,7 +330,7 @@ export function TextSection({ layer }: Props) {
                   : 'bg-secondary text-secondary-foreground hover:bg-accent'
               }`}
             >
-              Gradient
+              {t("Gradient")}
             </button>
           </div>
         </div>
@@ -358,7 +360,7 @@ export function TextSection({ layer }: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-[10px] text-muted-foreground mb-1">Line Height</label>
+          <label className="block text-[10px] text-muted-foreground mb-1">{t("Line Height")}</label>
           <input
             type="number"
             value={layer.style.lineHeight}
@@ -370,7 +372,7 @@ export function TextSection({ layer }: Props) {
           />
         </div>
         <div>
-          <label className="block text-[10px] text-muted-foreground mb-1">Letter Spacing</label>
+          <label className="block text-[10px] text-muted-foreground mb-1">{t("Letter Spacing")}</label>
           <input
             type="number"
             value={layer.style.letterSpacing}
@@ -383,7 +385,7 @@ export function TextSection({ layer }: Props) {
 
       <div className="space-y-2 p-3 bg-secondary/50 rounded-lg">
         <div className="flex items-center justify-between">
-          <label className="text-xs font-medium">Text Stroke</label>
+          <label className="text-xs font-medium">{t("Text Stroke")}</label>
           <button
             onClick={() => handleStyleChange({ strokeColor: layer.style.strokeColor ? null : '#000000', strokeWidth: layer.style.strokeColor ? 0 : 2 })}
             className={`px-2 py-1 text-[10px] rounded-md transition-colors ${
@@ -392,7 +394,7 @@ export function TextSection({ layer }: Props) {
                 : 'bg-secondary text-secondary-foreground hover:bg-accent'
             }`}
           >
-            {layer.style.strokeColor ? 'On' : 'Off'}
+            {layer.style.strokeColor ? t("On") : t("Off")}
           </button>
         </div>
         {layer.style.strokeColor && (
@@ -413,7 +415,7 @@ export function TextSection({ layer }: Props) {
             </div>
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-[10px] text-muted-foreground">Width</label>
+                <label className="text-[10px] text-muted-foreground">{t("Width")}</label>
                 <span className="text-[10px] text-muted-foreground">{layer.style.strokeWidth ?? 0}px</span>
               </div>
               <Slider
@@ -430,7 +432,7 @@ export function TextSection({ layer }: Props) {
 
       <div className="space-y-2 p-3 bg-secondary/50 rounded-lg">
         <div className="flex items-center justify-between">
-          <label className="text-xs font-medium">Background</label>
+          <label className="text-xs font-medium">{t("Background")}</label>
           <button
             onClick={() => handleStyleChange({ backgroundColor: layer.style.backgroundColor ? null : '#000000' })}
             className={`px-2 py-1 text-[10px] rounded-md transition-colors ${
@@ -439,7 +441,7 @@ export function TextSection({ layer }: Props) {
                 : 'bg-secondary text-secondary-foreground hover:bg-accent'
             }`}
           >
-            {layer.style.backgroundColor ? 'On' : 'Off'}
+            {layer.style.backgroundColor ? t("On") : t("Off")}
           </button>
         </div>
         {layer.style.backgroundColor && (
@@ -461,7 +463,7 @@ export function TextSection({ layer }: Props) {
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-[10px] text-muted-foreground">Padding</label>
+                  <label className="text-[10px] text-muted-foreground">{t("Padding")}</label>
                   <span className="text-[10px] text-muted-foreground">{layer.style.backgroundPadding ?? 8}px</span>
                 </div>
                 <Slider
@@ -474,7 +476,7 @@ export function TextSection({ layer }: Props) {
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-[10px] text-muted-foreground">Radius</label>
+                  <label className="text-[10px] text-muted-foreground">{t("Radius")}</label>
                   <span className="text-[10px] text-muted-foreground">{layer.style.backgroundRadius ?? 4}px</span>
                 </div>
                 <Slider
@@ -492,7 +494,7 @@ export function TextSection({ layer }: Props) {
 
       <div className="space-y-2 p-3 bg-secondary/50 rounded-lg">
         <div className="flex items-center justify-between">
-          <label className="text-xs font-medium">Text Shadow</label>
+          <label className="text-xs font-medium">{t("Text Shadow")}</label>
           <Switch
             checked={layer.style.textShadow?.enabled ?? false}
             onCheckedChange={(enabled) =>
@@ -508,7 +510,7 @@ export function TextSection({ layer }: Props) {
         {layer.style.textShadow?.enabled && (
           <div className="space-y-3">
             <div>
-              <label className="block text-[10px] text-muted-foreground mb-1.5">Color</label>
+              <label className="block text-[10px] text-muted-foreground mb-1.5">{t("Color")}</label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
@@ -535,7 +537,7 @@ export function TextSection({ layer }: Props) {
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-[10px] text-muted-foreground">Blur</label>
+                <label className="text-[10px] text-muted-foreground">{t("Blur")}</label>
                 <span className="text-[10px] text-muted-foreground">{layer.style.textShadow?.blur ?? 4}px</span>
               </div>
               <Slider
@@ -554,7 +556,7 @@ export function TextSection({ layer }: Props) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-[10px] text-muted-foreground">Offset X</label>
+                  <label className="text-[10px] text-muted-foreground">{t("Offset X")}</label>
                   <span className="text-[10px] text-muted-foreground">{layer.style.textShadow?.offsetX ?? 0}px</span>
                 </div>
                 <Slider
@@ -571,7 +573,7 @@ export function TextSection({ layer }: Props) {
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-[10px] text-muted-foreground">Offset Y</label>
+                  <label className="text-[10px] text-muted-foreground">{t("Offset Y")}</label>
                   <span className="text-[10px] text-muted-foreground">{layer.style.textShadow?.offsetY ?? 2}px</span>
                 </div>
                 <Slider

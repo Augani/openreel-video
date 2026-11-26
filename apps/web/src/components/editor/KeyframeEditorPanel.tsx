@@ -62,7 +62,7 @@ function InterpolationMenu({ children, disabled, side, resolveIds, typesOf, onAp
         }}>
         {children}
       </ContextMenuTrigger>
-      <ContextMenuContent aria-label="Keyframe interpolation">
+      <ContextMenuContent aria-label={t("Keyframe interpolation")}>
         <ContextMenuLabel>{t("Temporal Interpolation ({side})", { side: t(KEYFRAME_INTERPOLATION_SIDE_LABELS[side]) })}</ContextMenuLabel>
         {KEYFRAME_INTERPOLATION_OPS.map(op => (
           <ContextMenuCheckboxItem key={op} checked={isCurrent(op)} onSelect={() => onApply(ids.current, op)}>{t(KEYFRAME_INTERPOLATION_LABELS[op])}</ContextMenuCheckboxItem>
@@ -200,6 +200,7 @@ function handlePoints(key: NumericKey, next: NumericKey, handles: BezierHandles)
 
 export function KeyframeEditorPanel({ clip, disabled = false, playheadTime = 0, onClose, onUpdateKeyframes, onApplyInterpolation, onApplySpatialInterpolation, onMoveKeyframes, onSelectKeyframes, onDeleteKeyframes,
   onCopyKeyframes, onPasteKeyframes, selectedKeyframeIds, onSelectKeyframe, copiedKeyframes }: KeyframeEditorPanelProps) {
+  const t = useT();
   const [activeProperty, setActiveProperty] = useState<string | null>(null);
   const [overlay, setOverlay] = useState<string[]>([]);
   const [mode, setMode] = useState<"value" | "speed">("value");
@@ -569,45 +570,45 @@ export function KeyframeEditorPanel({ clip, disabled = false, playheadTime = 0, 
   const toggleOverlay = (property: string) =>
     setOverlay(current => current.includes(property) ? current.filter(name => name !== property) : [...current, property]);
 
-  if (!clip) return <div className="grid h-full min-w-0 place-items-center p-4 text-sm text-fg-muted">Select a clip with keyframes to edit</div>;
+  if (!clip) return <div className="grid h-full min-w-0 place-items-center p-4 text-sm text-fg-muted">{t("Select a clip with keyframes to edit")}</div>;
   const pageCount = Math.max(1, Math.ceil((activeGroup?.keyframes.length ?? 0) / PAGE_SIZE));
   const visiblePage = Math.min(page, pageCount);
   const rows = activeGroup?.keyframes.slice((visiblePage - 1) * PAGE_SIZE, visiblePage * PAGE_SIZE) ?? [];
   const numericActive = Boolean(activeLayer);
   return (
-    <section aria-label="Keyframe editor" className="flex h-full min-h-0 min-w-0 flex-col border-l border-border bg-bg-1 text-fg">
+    <section aria-label={t("Keyframe editor")} className="flex h-full min-h-0 min-w-0 flex-col border-l border-border bg-bg-1 text-fg">
       <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-2">
-        <h2 className="text-[12px] font-semibold">Keyframe Editor</h2>
-        <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close keyframe editor"><X size={16}/></Button>
+        <h2 className="text-[12px] font-semibold">{t("Keyframe Editor")}</h2>
+        <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label={t("Close keyframe editor")}><X size={16}/></Button>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border bg-bg-2 px-3 py-2">
         <Select value={activeGroup?.property ?? ""} onValueChange={setActiveProperty} disabled={!propertyGroups.length}>
-          <SelectTrigger aria-label="Property" className="mr-auto h-7 w-44 min-w-0 bg-bg-1 px-2 text-[12px]"><SelectValue placeholder="No keyframes"/></SelectTrigger>
+          <SelectTrigger aria-label={t("Property")} className="mr-auto h-7 w-44 min-w-0 bg-bg-1 px-2 text-[12px]"><SelectValue placeholder={t("No keyframes")}/></SelectTrigger>
           <SelectContent>{propertyGroups.map(group => <SelectItem key={group.property} value={group.property}>{group.property}</SelectItem>)}</SelectContent>
         </Select>
-        <Button variant="ghost" size="sm" onClick={() => onCopyKeyframes(selectedIds)} disabled={!selectedIds.length} aria-label="Copy" className="h-7 gap-1 px-2 text-[11px]"><Copy size={13}/>Copy</Button>
+        <Button variant="ghost" size="sm" onClick={() => onCopyKeyframes(selectedIds)} disabled={!selectedIds.length} aria-label={t("Copy")} className="h-7 gap-1 px-2 text-[11px]"><Copy size={13}/>{t("Copy")}</Button>
         <Button variant="ghost" size="sm" onClick={() => pasteIntoActive && activeGroup ? onPasteKeyframes(clip.id, playheadTime, activeGroup.property) : onPasteKeyframes(clip.id, playheadTime)}
-          disabled={disabled || !copiedKeyframes.length} aria-label="Paste" title="Paste at the playhead" className="h-7 gap-1 px-2 text-[11px]"><Clipboard size={13}/>Paste</Button>
-        <Button variant="ghost" size="sm" onClick={() => onDeleteKeyframes(selectedIds)} disabled={disabled || !selectedIds.length} aria-label="Delete" className="h-7 gap-1 px-2 text-[11px] text-red-400"><Trash2 size={13}/>Delete</Button>
-        <label className="flex items-center gap-1 text-[10px] text-fg-muted" title="Paste copied keys into the property shown in the graph">
-          <input type="checkbox" checked={pasteIntoActive} onChange={event => setPasteIntoActive(event.target.checked)} aria-label="Paste into active property"/>into {activeGroup?.property ?? "property"}
+          disabled={disabled || !copiedKeyframes.length} aria-label={t("Paste")} title={t("Paste at the playhead")} className="h-7 gap-1 px-2 text-[11px]"><Clipboard size={13}/>{t("Paste")}</Button>
+        <Button variant="ghost" size="sm" onClick={() => onDeleteKeyframes(selectedIds)} disabled={disabled || !selectedIds.length} aria-label={t("Delete")} className="h-7 gap-1 px-2 text-[11px] text-red-400"><Trash2 size={13}/>{t("Delete")}</Button>
+        <label className="flex items-center gap-1 text-[10px] text-fg-muted" title={t("Paste copied keys into the property shown in the graph")}>
+          <input type="checkbox" checked={pasteIntoActive} onChange={event => setPasteIntoActive(event.target.checked)} aria-label={t("Paste into active property")}/>{t("into")} {activeGroup?.property ?? t("property")}
         </label>
       </div>
       <ScrollArea className="min-h-0 flex-1">
-      {propertyGroups.length > 0 && <div role="group" aria-label="Overlay properties" className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border px-3 py-1.5">
-        <span className="mr-1 text-[10px] text-fg-muted">Overlay</span>
+      {propertyGroups.length > 0 && <div role="group" aria-label={t("Overlay properties")} className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border px-3 py-1.5">
+        <span className="mr-1 text-[10px] text-fg-muted">{t("Overlay")}</span>
         {propertyGroups.map(group => {
           const isActive = group.property === activeGroup?.property, on = isActive || overlay.includes(group.property);
           return <button key={group.property} type="button" aria-pressed={on} aria-label={`Show ${group.property} curve`} disabled={isActive}
-            onClick={() => toggleOverlay(group.property)} title={isActive ? "Active property (always shown)" : `Overlay ${group.property}`}
+            onClick={() => toggleOverlay(group.property)} title={isActive ? t("Active property (always shown)") : `Overlay ${group.property}`}
             className={cn("inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px]", on ? "border-border bg-bg-3 text-fg" : "border-transparent text-fg-muted hover:bg-bg-2")}>
             <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: group.color, opacity: on ? 1 : 0.35 }}/>{group.property}
           </button>;
         })}
         <div className="ml-auto flex gap-1">
           {(["value", "speed"] as const).map(name => <button key={name} type="button" aria-pressed={mode === name} onClick={() => setMode(name)}
-            aria-label={name === "value" ? "Value graph" : "Speed graph"}
-            className={cn("rounded border px-1.5 py-0.5 text-[10px]", mode === name ? "border-border bg-bg-3 text-fg" : "border-transparent text-fg-muted hover:bg-bg-2")}>{name === "value" ? "Value" : "Speed"}</button>)}
+            aria-label={name === "value" ? t("Value graph") : t("Speed graph")}
+            className={cn("rounded border px-1.5 py-0.5 text-[10px]", mode === name ? "border-border bg-bg-3 text-fg" : "border-transparent text-fg-muted hover:bg-bg-2")}>{name === "value" ? t("Value") : t("Speed")}</button>)}
         </div>
       </div>}
         <div className="p-3">
@@ -620,14 +621,14 @@ export function KeyframeEditorPanel({ clip, disabled = false, playheadTime = 0, 
             if (!selectedIdSet.has(hit.key.id)) onSelectKeyframe(hit.key.id, false);
             return selectedIdSet.has(hit.key.id) ? selectedIds : [hit.key.id];
           }}>
-          <canvas ref={canvasRef} width={GRAPH_WIDTH} height={GRAPH_HEIGHT} data-graph-mode={mode} aria-label="Keyframe value graph" className={cn("w-full touch-none rounded-md border border-border bg-bg-1", disabled ? "cursor-default" : "cursor-crosshair")} style={{ height: GRAPH_HEIGHT }} onPointerDown={startDrag} onPointerMove={moveDrag}/>
+          <canvas ref={canvasRef} width={GRAPH_WIDTH} height={GRAPH_HEIGHT} data-graph-mode={mode} aria-label={t("Keyframe value graph")} className={cn("w-full touch-none rounded-md border border-border bg-bg-1", disabled ? "cursor-default" : "cursor-crosshair")} style={{ height: GRAPH_HEIGHT }} onPointerDown={startDrag} onPointerMove={moveDrag}/>
           </InterpolationMenu>
-          {!numericActive && <p className="mt-2 text-[11px] text-fg-muted">{activeGroup ? "This property has no numeric curve." : "Add keyframes in the inspector to start animating."}</p>}
-          {numericActive && mode === "value" && <p className="mt-2 text-[10px] text-fg-muted">Select a keyframe to drag its Bézier handles; drag on empty space to box-select (Shift adds); drag a selected key to move the whole selection. Right-click for interpolation types. {layers.length > 1 ? "Overlaid curves are each scaled to their own range." : ""}</p>}
-          {mode === "speed" && <p className="mt-2 text-[10px] text-fg-muted">Speed graph: rate of change per second. Select a keyframe, then drag its square handles: sideways sets the influence, up and down the speed. Each curve is scaled to its own peak.</p>}
+          {!numericActive && <p className="mt-2 text-[11px] text-fg-muted">{activeGroup ? t("This property has no numeric curve.") : t("Add keyframes in the inspector to start animating.")}</p>}
+          {numericActive && mode === "value" && <p className="mt-2 text-[10px] text-fg-muted">{t("Select a keyframe to drag its Bézier handles; drag on empty space to box-select (Shift adds); drag a selected key to move the whole selection. Right-click for interpolation types.")} {layers.length > 1 ? t("Overlaid curves are each scaled to their own range.") : ""}</p>}
+          {mode === "speed" && <p className="mt-2 text-[10px] text-fg-muted">{t("Speed graph: rate of change per second. Select a keyframe, then drag its square handles: sideways sets the influence, up and down the speed. Each curve is scaled to its own peak.")}</p>}
         </div>
         {!!rows.length && <div className="border-t border-border px-2 py-1">
-          <div aria-hidden className="grid grid-cols-[1fr_1fr_2fr] gap-2 px-2 py-1 text-[10px] text-fg-muted"><span>Time</span><span>Value</span><span>Easing</span></div>
+          <div aria-hidden className="grid grid-cols-[1fr_1fr_2fr] gap-2 px-2 py-1 text-[10px] text-fg-muted"><span>{t("Time")}</span><span>{t("Value")}</span><span>{t("Easing")}</span></div>
           {rows.map(key => <InterpolationMenu key={key.id} disabled={disabled || !onApplyInterpolation} side={interpSide} typesOf={typesOf} spatial={spatialMenu} onApply={(ids, op) => onApplyInterpolation?.(ids, op, interpSide)} resolveIds={() => {
             if (!selectedIdSet.has(key.id)) onSelectKeyframe(key.id, false);
             return selectedIdSet.has(key.id) ? selectedIds : [key.id];
@@ -635,32 +636,32 @@ export function KeyframeEditorPanel({ clip, disabled = false, playheadTime = 0, 
             <span className="font-mono">{key.time.toFixed(3)}s</span><span className="min-w-0 break-words font-mono">{formatValue(key.value)}</span><span>{sideTypesLabel(typesOf(key.id))}{pathLabelOf(key.id)}</span>
           </Button></InterpolationMenu>)}
           {pageCount > 1 && <div className="flex items-center justify-between py-2">
-            <Button variant="ghost" size="icon-sm" aria-label="Previous keyframe page" disabled={visiblePage === 1} onClick={() => setPage(visiblePage - 1)}><ChevronLeft size={14}/></Button>
-            <span className="text-[10px] text-fg-muted">Page {visiblePage} of {pageCount}</span>
-            <Button variant="ghost" size="icon-sm" aria-label="Next keyframe page" disabled={visiblePage === pageCount} onClick={() => setPage(visiblePage + 1)}><ChevronRight size={14}/></Button>
+            <Button variant="ghost" size="icon-sm" aria-label={t("Previous keyframe page")} disabled={visiblePage === 1} onClick={() => setPage(visiblePage - 1)}><ChevronLeft size={14}/></Button>
+            <span className="text-[10px] text-fg-muted">{t("Page")} {visiblePage} {t("of")} {pageCount}</span>
+            <Button variant="ghost" size="icon-sm" aria-label={t("Next keyframe page")} disabled={visiblePage === pageCount} onClick={() => setPage(visiblePage + 1)}><ChevronRight size={14}/></Button>
           </div>}
         </div>}
       </ScrollArea>
       <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-t border-border bg-bg-2 px-3 py-1.5 text-[11px]">
                 <Select value={selectedEasing} onValueChange={value => onUpdateKeyframes(selectedIds, { easing: value as Keyframe["easing"] })} disabled={disabled || !selectedIds.length}>
-          <SelectTrigger aria-label="Easing" className="h-7 w-32 bg-bg-1 px-2 text-[12px]"><SelectValue placeholder={selectedIds.length ? "Mixed" : "Select keyframes"}/></SelectTrigger>
+          <SelectTrigger aria-label={t("Easing")} className="h-7 w-32 bg-bg-1 px-2 text-[12px]"><SelectValue placeholder={selectedIds.length ? t("Mixed") : t("Select keyframes")}/></SelectTrigger>
           <SelectContent>{EASING_TYPES.map(easing => <SelectItem key={easing} value={easing}>{easingLabel(easing)}</SelectItem>)}</SelectContent>
         </Select>
         <Select value={interpSide} onValueChange={value => setInterpSide(value as KeyframeInterpolationSide)} disabled={disabled}>
-          <SelectTrigger aria-label="Interpolation side" title="Which side of each selected keyframe an interpolation type applies to" className="h-7 w-24 bg-bg-1 px-2 text-[12px]"><SelectValue/></SelectTrigger>
+          <SelectTrigger aria-label={t("Interpolation side")} title={t("Which side of each selected keyframe an interpolation type applies to")} className="h-7 w-24 bg-bg-1 px-2 text-[12px]"><SelectValue/></SelectTrigger>
           <SelectContent>{(Object.keys(KEYFRAME_INTERPOLATION_SIDE_LABELS) as KeyframeInterpolationSide[]).map(sideId => <SelectItem key={sideId} value={sideId}>{KEYFRAME_INTERPOLATION_SIDE_LABELS[sideId]}</SelectItem>)}</SelectContent>
         </Select>
         <Select value="" onValueChange={value => onApplyInterpolation?.(selectedIds, value as KeyframeInterpolationOp, interpSide)} disabled={disabled || !selectedIds.length || !onApplyInterpolation}>
-          <SelectTrigger aria-label="Interpolation" className="h-7 w-32 bg-bg-1 px-2 text-[12px]"><SelectValue placeholder="Interpolation"/></SelectTrigger>
+          <SelectTrigger aria-label={t("Interpolation")} className="h-7 w-32 bg-bg-1 px-2 text-[12px]"><SelectValue placeholder={t("Interpolation")}/></SelectTrigger>
           <SelectContent>{KEYFRAME_INTERPOLATION_OPS.map(op => <SelectItem key={op} value={op}>{KEYFRAME_INTERPOLATION_LABELS[op]}</SelectItem>)}</SelectContent>
         </Select>
-        <div role="group" aria-label="Ease presets" className="flex flex-wrap gap-1">
+        <div role="group" aria-label={t("Ease presets")} className="flex flex-wrap gap-1">
           {PRESET_BUTTONS.map(preset => <Button key={preset.id} variant="ghost" size="sm" aria-label={`Apply ${preset.label}`}
             disabled={disabled || !selectedIds.length}
             onClick={() => onUpdateKeyframes(selectedIds, { easing: EASE_PRESETS[preset.id].easing, bezierHandles: EASE_PRESETS[preset.id].bezierHandles })}
-            className="h-7 px-2 text-[11px]">{preset.label}</Button>)}
+            className="h-7 px-2 text-[11px]">{t(preset.label)}</Button>)}
         </div>
-        <span className="ml-auto text-fg-muted">{selectedIds.length} keyframe{selectedIds.length !== 1 ? "s" : ""} selected</span>
+        <span className="ml-auto text-fg-muted">{selectedIds.length} {t("keyframe")}{selectedIds.length !== 1 ? "s" : ""} {t("selected")}</span>
       </div>
     </section>
   );

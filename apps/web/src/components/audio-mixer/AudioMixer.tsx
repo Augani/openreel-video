@@ -53,6 +53,8 @@ import { exportStemsAsDownloads } from "../../services/audio-stems";
 import { toast } from "../../stores/notification-store";
 import { automationRecorder, startAutomationRecorder } from "../../services/automation-recorder";
 import { createMixerChannelSelector } from "../../services/audio-mixer-channels";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const MixerSnapshots = lazy(() => import("./MixerSnapshots"));
 
@@ -79,6 +81,7 @@ const MasterChannel = memo(function MasterChannel({
   onVolumeChange: (volume: number) => void;
   onVolumeCommit: (volume: number) => void;
 }) {
+  const t = useT();
   const dbValue = volumeToDb(volume);
   return (
     <div className="flex flex-col items-center gap-2 p-3 bg-bg-1 rounded-lg min-w-[148px] w-[148px] shrink-0 border border-border" data-testid="master-channel">
@@ -92,7 +95,7 @@ const MasterChannel = memo(function MasterChannel({
           {formatDb(dbValue)} dB
         </span>
         <Slider
-          aria-label="Master volume fader"
+          aria-label={t("Master volume fader")}
           aria-valuetext={`${formatDb(dbValue)} dB`}
           min={0}
           max={4}
@@ -136,6 +139,7 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
   visible = true,
   onClose,
 }) => {
+  const t = useT();
   const selectChannels = useMemo(createMixerChannelSelector, []);
   const selectProjectChannels = useCallback(
     (state: ReturnType<typeof useProjectStore.getState>) =>
@@ -449,7 +453,7 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
     setExportingStems(0);
     try {
       const stems = await exportStemsAsDownloads({ onProgress: (fraction) => setExportingStems(fraction) });
-      toast.success(`Exported ${stems.length} stem${stems.length === 1 ? "" : "s"}: ${stems.map((s) => s.fileName).join(", ")}`);
+      toast.success(translateNow(stems.length === 1 ? "Exported {count} stem: {names}" : "Exported {count} stems: {names}", { count: stems.length, names: stems.map((s) => s.fileName).join(", ") }));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Stem export failed.");
     } finally {
@@ -465,13 +469,13 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
       className="bg-bg-1 p-4"
       data-testid="audio-mixer"
       role="region"
-      aria-label="Audio Mixing Console"
+      aria-label={t("Audio Mixing Console")}
     >
       {/* Header */}
       <div className="mb-4 flex flex-wrap items-center gap-y-2">
-        <span className="whitespace-nowrap text-lg font-semibold text-fg">Audio Mixer</span>
+        <span className="whitespace-nowrap text-lg font-semibold text-fg">{t("Audio Mixer")}</span>
         <div className="ml-3 flex shrink-0 items-center gap-1.5" data-testid="mixer-channel-layout-group">
-          <span className="text-xs text-fg-muted" id="mixer-channel-layout-label">Sequence audio</span>
+          <span className="text-xs text-fg-muted" id="mixer-channel-layout-label">{t("Sequence audio")}</span>
           <Select value={channelLayout} onValueChange={(next) => void setSequenceChannelLayout(next as ChannelLayout)}>
             <SelectTrigger className="h-7 w-[140px] text-xs" aria-labelledby="mixer-channel-layout-label" data-testid="mixer-channel-layout">
               <SelectValue />
@@ -486,13 +490,13 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
           </Select>
         </div>
         <div className="ml-3 flex shrink-0 items-center gap-1.5" data-testid="mixer-output-device-group">
-          <span className="text-xs text-fg-muted">Output</span>
+          <span className="text-xs text-fg-muted">{t("Output")}</span>
           <AudioOutputSelect compact testId="mixer-audio-output" />
         </div>
         <div className="ml-auto mr-2 flex flex-wrap items-center justify-end gap-1.5" data-testid="mixer-routing-actions">
           <Button type="button" variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={addBus} data-testid="add-bus">
             <Plus size={12} aria-hidden />
-            Add bus
+            {t("Add bus")}
           </Button>
           <Button
             type="button"
@@ -500,10 +504,10 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
             size="sm"
             className="h-7 px-2 text-xs"
             onClick={addStemBuses}
-            title="Create Dialogue, Music and FX buses and route tracks by role"
+            title={t("Create Dialogue, Music and FX buses and route tracks by role")}
             data-testid="add-stem-buses"
           >
-            Dialogue / Music / FX
+            {t("Dialogue / Music / FX")}
           </Button>
           <Suspense fallback={null}>
             <MixerSnapshots />
@@ -514,11 +518,11 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
             size="sm"
             className="h-7 px-2 text-xs"
             disabled={buses.length === 0 || exportingStems !== null}
-            title={buses.length === 0 ? "Add a bus and route tracks into it to export stems" : "Export every bus as its own WAV"}
+            title={buses.length === 0 ? t("Add a bus and route tracks into it to export stems") : t("Export every bus as its own WAV")}
             onClick={() => void exportStems()}
             data-testid="export-stems"
           >
-            {exportingStems === null ? "Export stems" : `Exporting ${Math.round(exportingStems * 100)}%`}
+            {exportingStems === null ? t("Export stems") : `Exporting ${Math.round(exportingStems * 100)}%`}
           </Button>
         </div>
         {onClose && (
@@ -527,8 +531,8 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
             size="icon-sm"
             onClick={onClose}
             type="button"
-            aria-label="Close mixer"
-            title="Close mixer"
+            aria-label={t("Close mixer")}
+            title={t("Close mixer")}
             className="text-fg-muted hover:text-fg"
           >
             {<X size={16} aria-hidden />}
@@ -560,8 +564,7 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
             ))
           ) : (
             <span className="font-normal text-fg-muted text-sm py-8 px-4">
-              No audio tracks in timeline. Add audio or video tracks to see
-              channel strips.
+              {t("No audio tracks in timeline. Add audio or video tracks to see channel strips.")}
             </span>
           )}
 
@@ -597,19 +600,19 @@ export const AudioMixer: React.FC<AudioMixerProps> = ({
       {/* Status bar */}
       <div className="mt-3 pt-3 border-t border-border flex flex-wrap items-center justify-between gap-2 text-xs text-fg-muted">
         <span>
-          {channels.length} channel{channels.length !== 1 ? "s" : ""}
+          {channels.length} {t("channel")}{channels.length !== 1 ? "s" : ""}
           {buses.length > 0 && (
             <span className="ml-2">
-              {buses.length} bus{buses.length !== 1 ? "es" : ""}
+              {buses.length} {t("bus")}{buses.length !== 1 ? t("es") : ""}
             </span>
           )}
           {hasSoloedTracks && (
-            <span className="ml-2 text-status-warning">• Solo active</span>
+            <span className="ml-2 text-status-warning">{t("• Solo active")}</span>
           )}
         </span>
         <span>
-          Sample Rate: {sampleRate}Hz | Channels: {channelCount}
-          {surround ? " (5.1: L R C LFE Ls Rs)" : ""}
+          {t("Sample Rate:")} {sampleRate}{t("Hz | Channels:")} {channelCount}
+          {surround ? t(" (5.1: L R C LFE Ls Rs)") : ""}
         </span>
       </div>
     </div>

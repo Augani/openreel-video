@@ -11,6 +11,7 @@ import {
   pinReferenceToPlayhead,
   removeStill,
 } from "../../../services/comparison-service";
+import { useT } from "@openreel/i18n/react";
 
 const MODES: ReadonlyArray<{ value: ComparisonMode; label: string }> = [
   { value: "off", label: "Off" },
@@ -37,13 +38,14 @@ const segment = (active: boolean) =>
  * it never affects the scopes or an export.
  */
 export const ComparisonSection: React.FC = () => {
+  const t = useT();
   const comparison = useColorMonitorStore((state) => state.comparison);
   const stills = useColorMonitorStore((state) => state.stills);
   const setComparison = useColorMonitorStore((state) => state.setComparison);
 
   return (
     <div className="flex flex-col gap-2" data-testid="comparison-section">
-      <div role="group" aria-label="Comparison mode" className="flex overflow-hidden rounded-[6px] border border-border">
+      <div role="group" aria-label={t("Comparison mode")} className="flex overflow-hidden rounded-[6px] border border-border">
         {MODES.map((mode) => (
           <button
             key={mode.value}
@@ -52,12 +54,12 @@ export const ComparisonSection: React.FC = () => {
             className={segment(comparison.mode === mode.value)}
             onClick={() => setComparison({ mode: mode.value })}
           >
-            {mode.label}
+            {t(mode.label)}
           </button>
         ))}
       </div>
-      <span className="text-[10px] font-medium text-fg-2">Reference</span>
-      <div role="group" aria-label="Comparison reference" className="flex overflow-hidden rounded-[6px] border border-border">
+      <span className="text-[10px] font-medium text-fg-2">{t("Reference")}</span>
+      <div role="group" aria-label={t("Comparison reference")} className="flex overflow-hidden rounded-[6px] border border-border">
         {REFERENCES.map((reference) => (
           <button
             key={reference.value}
@@ -70,7 +72,7 @@ export const ComparisonSection: React.FC = () => {
                 : setComparison({ reference: reference.value })
             }
           >
-            {reference.label}
+            {t(reference.label)}
           </button>
         ))}
       </div>
@@ -83,12 +85,12 @@ export const ComparisonSection: React.FC = () => {
           onClick={() => void grabStill()}
         >
           <Camera className="mr-1 h-3 w-3" />
-          Grab still
+          {t("Grab still")}
         </Button>
         <span className="text-[9px] leading-snug text-fg-3">
           {comparison.reference === "playhead"
-            ? "Pinned to the playhead position when selected."
-            : "Stills are kept for this session only."}
+            ? t("Pinned to the playhead position when selected.")
+            : t("Stills are kept for this session only.")}
         </span>
       </div>
       {stills.length > 0 ? (
@@ -109,9 +111,9 @@ export const ComparisonSection: React.FC = () => {
                 onClick={() => setComparison({ stillId: still.id, reference: "still" })}
               >
                 {still.thumb ? (
-                  <img src={still.thumb} alt={still.label} className="block w-full" />
+                  <img src={still.thumb} alt={t(still.label)} className="block w-full" />
                 ) : (
-                  <span className="block py-3 text-[9px] text-fg-3">{still.label}</span>
+                  <span className="block py-3 text-[9px] text-fg-3">{t(still.label)}</span>
                 )}
               </button>
               <Button

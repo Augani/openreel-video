@@ -1,5 +1,6 @@
 import React from "react";
 import type { MogrtImportReport } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 
 /**
  * What a .mogrt import did: layers and controls brought over, and every item that was dropped or approximated.
@@ -11,28 +12,29 @@ export const MogrtImportReportPanel: React.FC<{
   failure?: string;
   onDismiss: () => void;
 }> = ({ report, failure, onDismiss }) => {
+  const t = useT();
   const shown = report.items.filter((item) => item.severity !== "info" || failure || report.items.length <= 6);
   return (
     <section
       className="flex flex-col gap-2 rounded-[4px] border border-border/60 bg-bg-2 p-2 text-[11px]"
       data-testid="mogrt-import-report"
-      aria-label="Motion Graphics Template import report"
+      aria-label={t("Motion Graphics Template import report")}
     >
       <div className="flex items-start justify-between gap-2">
         <p className="font-medium text-fg" data-testid="mogrt-import-summary">
           {failure ?? report.summary}
         </p>
-        <button type="button" className="text-fg-muted hover:text-fg" onClick={onDismiss} aria-label="Dismiss import report">
-          Close
+        <button type="button" className="text-fg-muted hover:text-fg" onClick={onDismiss} aria-label={t("Dismiss import report")}>
+          {t("Close")}
         </button>
       </div>
       {!failure && (
         <p className="text-fg-muted" data-testid="mogrt-import-counts">
-          {report.layersImported}/{report.layersTotal} layers · {report.controlsImported}/{report.controlsTotal} controls
+          {report.layersImported}/{report.layersTotal} {t("layers ·")} {report.controlsImported}/{report.controlsTotal} {t("controls")}
         </p>
       )}
       {shown.length > 0 && (
-        <ul className="flex max-h-48 flex-col gap-1 overflow-y-auto" aria-label="Import report items">
+        <ul className="flex max-h-48 flex-col gap-1 overflow-y-auto" aria-label={t("Import report items")}>
           {shown.map((item, index) => (
             <li key={`${item.feature}-${index}`} className="flex gap-1.5" data-severity={item.severity}>
               <span

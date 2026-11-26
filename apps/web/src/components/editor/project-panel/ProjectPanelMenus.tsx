@@ -40,15 +40,17 @@ import {
 } from "../../../services/project-panel-commands";
 import { toast } from "../../../stores/notification-store";
 import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 /** Small label colour square used in bins, lists and menus. */
 export const LabelChip: React.FC<{ label?: MediaLabelId | null; className?: string }> = ({ label, className }) => {
+  const t = useT();
   const def = getMediaLabel(label);
   return (
     <span
       data-testid="label-chip"
       data-label={def?.id ?? "none"}
-      title={def?.name ?? "No label"}
+      title={def?.name ?? t("No label")}
       className={`inline-block size-2.5 shrink-0 rounded-[3px] ${def ? "" : "border border-border-strong"} ${className ?? ""}`}
       style={def ? { backgroundColor: def.color } : undefined}
     />
@@ -154,7 +156,7 @@ export const MediaOrganizeItems: React.FC<{ item: MediaItem; kind: MenuKind }> =
             if (!hasMarks) return;
             // Marks live per media in the Source monitor store.
             void makeSubclipFromSource({}, item.id).then((outcome) => {
-              if (!outcome.success) toast.warning("Make Subclip", outcome.message);
+              if (!outcome.success) toast.warning(translateNow("Make Subclip"), outcome.message);
             });
           }}
         >

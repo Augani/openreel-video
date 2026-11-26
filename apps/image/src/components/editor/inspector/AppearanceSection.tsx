@@ -1,5 +1,6 @@
 import { useProjectStore } from '../../../stores/project-store';
 import type { Layer, BlendMode } from '../../../types/project';
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   layer: Layer;
@@ -21,6 +22,7 @@ const BLEND_MODES: BlendMode['mode'][] = [
 ];
 
 export function AppearanceSection({ layer }: Props) {
+  const t = useT();
   const { updateLayer } = useProjectStore();
 
   const handleBlendModeChange = (mode: BlendMode['mode']) => {
@@ -54,7 +56,7 @@ export function AppearanceSection({ layer }: Props) {
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-[10px] text-muted-foreground mb-1">Blend Mode</label>
+        <label className="block text-[10px] text-muted-foreground mb-1">{t("Blend Mode")}</label>
         <select
           value={layer.blendMode.mode}
           onChange={(e) => handleBlendModeChange(e.target.value as BlendMode['mode'])}
@@ -70,7 +72,7 @@ export function AppearanceSection({ layer }: Props) {
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <label className="text-[10px] text-muted-foreground">Drop Shadow</label>
+          <label className="text-[10px] text-muted-foreground">{t("Drop Shadow")}</label>
           <button
             onClick={handleShadowToggle}
             className={`w-8 h-5 rounded-full transition-colors ${
@@ -88,7 +90,7 @@ export function AppearanceSection({ layer }: Props) {
         {layer.shadow.enabled && (
           <div className="pl-2 border-l-2 border-border space-y-2">
             <div className="flex items-center gap-2">
-              <label className="text-[10px] text-muted-foreground w-12">Color</label>
+              <label className="text-[10px] text-muted-foreground w-12">{t("Color")}</label>
               <input
                 type="color"
                 value={layer.shadow.color.replace(/rgba?\([^)]+\)/, '#000000')}
@@ -97,7 +99,7 @@ export function AppearanceSection({ layer }: Props) {
               />
             </div>
             <div className="flex items-center gap-2">
-              <label className="text-[10px] text-muted-foreground w-12">Blur</label>
+              <label className="text-[10px] text-muted-foreground w-12">{t("Blur")}</label>
               <input
                 type="range"
                 value={layer.shadow.blur}
@@ -132,7 +134,7 @@ export function AppearanceSection({ layer }: Props) {
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <label className="text-[10px] text-muted-foreground">Stroke</label>
+          <label className="text-[10px] text-muted-foreground">{t("Stroke")}</label>
           <button
             onClick={handleStrokeToggle}
             className={`w-8 h-5 rounded-full transition-colors ${
@@ -150,7 +152,7 @@ export function AppearanceSection({ layer }: Props) {
         {layer.stroke.enabled && (
           <div className="pl-2 border-l-2 border-border space-y-2">
             <div className="flex items-center gap-2">
-              <label className="text-[10px] text-muted-foreground w-12">Color</label>
+              <label className="text-[10px] text-muted-foreground w-12">{t("Color")}</label>
               <input
                 type="color"
                 value={layer.stroke.color}
@@ -159,7 +161,7 @@ export function AppearanceSection({ layer }: Props) {
               />
             </div>
             <div className="flex items-center gap-2">
-              <label className="text-[10px] text-muted-foreground w-12">Width</label>
+              <label className="text-[10px] text-muted-foreground w-12">{t("Width")}</label>
               <input
                 type="range"
                 value={layer.stroke.width}

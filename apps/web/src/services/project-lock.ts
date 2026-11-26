@@ -9,6 +9,7 @@
 import { create } from "zustand";
 import type { OpenReelProjectLockResult } from "../types/global";
 import { toast } from "../stores/notification-store";
+import { translateNow } from "@openreel/i18n/translate";
 
 export type ProjectLockHolder = Extract<OpenReelProjectLockResult, { status: "held" }>["holder"];
 
@@ -73,7 +74,7 @@ async function take(path: string, notify: boolean): Promise<boolean> {
   }
   if (result.status === "held") {
     useProjectLockStore.setState({ readOnly: true, holder: result.holder });
-    if (notify) toast.warning("Project is open elsewhere", `${readOnlyMessage(result.holder)} Close it there and choose Retry, or Save As a copy.`);
+    if (notify) toast.warning(translateNow("Project is open elsewhere"), `${readOnlyMessage(result.holder)} Close it there and choose Retry, or Save As a copy.`);
     return false;
   }
   useProjectLockStore.setState({ readOnly: false, holder: null });
@@ -99,8 +100,8 @@ export async function retryProjectLock(): Promise<boolean> {
   const { path } = useProjectLockStore.getState();
   if (!path) return true;
   const ok = await take(path, false);
-  if (ok) toast.success("Project unlocked", "You can edit this project now.");
-  else toast.warning("Still open elsewhere", readOnlyMessage());
+  if (ok) toast.success(translateNow("Project unlocked"), "You can edit this project now.");
+  else toast.warning(translateNow("Still open elsewhere"), readOnlyMessage());
   return ok;
 }
 

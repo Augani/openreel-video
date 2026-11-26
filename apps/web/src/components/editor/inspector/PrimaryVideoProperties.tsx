@@ -24,6 +24,8 @@ import { InspectorSlider } from "./shell/InspectorSlider";
 import { InspectorSection } from "./shell/InspectorSection";
 import { toast } from "../../../stores/notification-store";
 import type { VideoEffectType } from "../../../bridges/effects-bridge";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 export function ValueField({
   label,
@@ -180,6 +182,7 @@ export function PrimaryVideoProperties({
   transform: Transform;
   onTransformChange: (v: Partial<Transform>) => void;
 }) {
+  const t = useT();
   const project = useProjectStore((s) => s.project);
   const store = useProjectStore.getState();
   const clip = project.timeline.tracks
@@ -244,7 +247,7 @@ export function PrimaryVideoProperties({
       } finally {
         state.actionHistory.endGroup();
       }
-    }).catch(() => { toast.error("Could not animate color", "Try the keyframe again."); });
+    }).catch(() => { toast.error(translateNow("Could not animate color"), "Try the keyframe again."); });
   };
   const changeEffect = (type: VideoEffectType, value: number) => {
     const existing = store.getVideoEffects(clipId).find(e => e.type === type);
@@ -274,7 +277,7 @@ export function PrimaryVideoProperties({
       } finally {
         if (reenable) state.actionHistory.endGroup();
       }
-    }).catch(() => { toast.error("Could not adjust color", "Try the adjustment again."); });
+    }).catch(() => { toast.error(translateNow("Could not adjust color"), "Try the adjustment again."); });
   };
   const effectValue = (type: VideoEffectType, fallback: number) => {
     const effect = store.getVideoEffects(clipId).find(e => e.type === type);
@@ -283,7 +286,7 @@ export function PrimaryVideoProperties({
   const position = transform.position;
   return (
     <>
-      <InspectorSection title="Transform" sectionId="transform" defaultOpen>
+      <InspectorSection title={t("Transform")} sectionId="transform" defaultOpen>
         <div className="workspace-primary-properties">
           <Row
             label="Position"
@@ -389,7 +392,7 @@ export function PrimaryVideoProperties({
             <InspectorSlider
               historyKey={`${clipId}:opacity`}
               className="workspace-opacity-slider"
-              aria-label="Opacity"
+              aria-label={t("Opacity")}
               disabled={!inside && isAnimated("opacity")}
               value={[transform.opacity * 100]}
               onValueChange={([v]) => updateTransform({ opacity: v / 100 }, { opacity: v / 100 })}
@@ -413,7 +416,7 @@ export function PrimaryVideoProperties({
                 void store.updateClipBlendMode(clipId, v as BlendMode);
               }}
             >
-              <SelectTrigger aria-label="Blend mode" icon={<span aria-hidden="true">▾</span>}>
+              <SelectTrigger aria-label={t("Blend mode")} icon={<span aria-hidden="true">▾</span>}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -424,7 +427,7 @@ export function PrimaryVideoProperties({
         </div>
       </InspectorSection>
       <InspectorSection
-        title="Color correction"
+        title={t("Color correction")}
         sectionId="primary-color"
         defaultOpen
       >

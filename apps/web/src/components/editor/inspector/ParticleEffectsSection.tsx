@@ -42,6 +42,7 @@ import {
 import { PropertySlider } from "./shell/PropertySlider";
 import { useNumericDraft } from "./shell/useNumericDraft";
 import { ColorSelector } from "../../../motion/components/primitives";
+import { useT } from "@openreel/i18n/react";
 interface ParticleEffectsSectionProps {
   clipId: string;
   clipDuration: number;
@@ -77,6 +78,7 @@ export function ParticleEffectsSection({
   onAddEffect,
   ...handlers
 }: ParticleEffectsSectionProps) {
+  const t = useT();
   const [selectedPreset, setSelectedPreset] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const add = () => {
@@ -101,10 +103,10 @@ export function ParticleEffectsSection({
           disabled={disabled}
         >
           <SelectTrigger
-            aria-label="Particle effect preset"
+            aria-label={t("Particle effect preset")}
             className="h-[30px] min-w-0 flex-1 text-xs"
           >
-            <SelectValue placeholder="Select effect preset…" />
+            <SelectValue placeholder={t("Select effect preset…")} />
           </SelectTrigger>
           <SelectContent>
             {Object.entries(groupedPresets).map(([type, presets]) => (
@@ -121,19 +123,19 @@ export function ParticleEffectsSection({
         </Select>
         <Button
           type="button"
-          aria-label="Add"
+          aria-label={t("Add")}
           disabled={disabled || !selectedPreset}
           onClick={add}
           className="h-[30px] gap-1.5 px-2.5 text-xs"
         >
           <Plus size={14} aria-hidden />
-          Add
+          {t("Add")}
         </Button>
       </div>
       <EffectPreviewProvider>
         <div
           className="grid grid-cols-2 gap-2"
-          aria-label="Particle preset previews"
+          aria-label={t("Particle preset previews")}
         >
           {PARTICLE_PRESETS.map((preset) => (
             <ParticlePresetCard
@@ -148,9 +150,9 @@ export function ParticleEffectsSection({
       {effects.length === 0 ? (
         <div className="py-6 text-center text-xs text-fg-3">
           <Sparkles size={24} className="mx-auto mb-2 opacity-50" aria-hidden />
-          <p className="text-fg-2">No particle effects added</p>
+          <p className="text-fg-2">{t("No particle effects added")}</p>
           <p className="mt-1 text-[10px]">
-            Select a preset above to add effects
+            {t("Select a preset above to add effects")}
           </p>
         </div>
       ) : (
@@ -209,6 +211,7 @@ function ParticleEditor({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   const [settingsOpen, setSettingsOpen] = useState(false),
     [colorsOpen, setColorsOpen] = useState(false);
   const relative = effect.startTime - clipStartTime,
@@ -250,7 +253,7 @@ function ParticleEditor({
               type="button"
               variant="ghost"
               size="icon-sm"
-              aria-label={open ? "Collapse effect" : "Expand effect"}
+              aria-label={open ? t("Collapse effect") : t("Expand effect")}
               className="h-7 w-7"
             >
               {open ? (
@@ -268,7 +271,7 @@ function ParticleEditor({
               type="button"
               variant="ghost"
               size="icon-sm"
-              aria-label="Preview effect"
+              aria-label={t("Preview effect")}
               onClick={() => onPreviewEffect(effect.id)}
               className="h-7 w-7"
             >
@@ -279,7 +282,7 @@ function ParticleEditor({
             type="button"
             variant="ghost"
             size="icon-sm"
-            aria-label={effect.enabled ? "Disable effect" : "Enable effect"}
+            aria-label={effect.enabled ? t("Disable effect") : t("Enable effect")}
             aria-pressed={effect.enabled}
             onClick={() => onToggleEffect(effect.id, !effect.enabled)}
             className={cn(
@@ -297,7 +300,7 @@ function ParticleEditor({
             type="button"
             variant="ghost"
             size="icon-sm"
-            aria-label="Remove effect"
+            aria-label={t("Remove effect")}
             onClick={() => onRemoveEffect(effect.id)}
             className="h-7 w-7 text-fg-3 hover:text-red-400"
           >
@@ -308,21 +311,21 @@ function ParticleEditor({
           <CollapsibleContent className="space-y-3 border-t border-border px-3 pb-3 pt-3">
             <div className="grid grid-cols-2 gap-3">
               <Label className="space-y-1.5 text-xs font-normal text-fg-2">
-                <span>Start Time (s)</span>
+                <span>{t("Start Time (s)")}</span>
                 <Input
                   {...start}
-                  aria-label="Start Time"
-                  aria-description="Seconds from the clip start"
+                  aria-label={t("Start Time")}
+                  aria-description={t("Seconds from the clip start")}
                   inputMode="decimal"
                   className="h-[30px] text-right font-mono text-[11px]"
                 />
               </Label>
               <Label className="space-y-1.5 text-xs font-normal text-fg-2">
-                <span>Duration (s)</span>
+                <span>{t("Duration (s)")}</span>
                 <Input
                   {...duration}
-                  aria-label="Duration"
-                  aria-description="Seconds"
+                  aria-label={t("Duration")}
+                  aria-description={t("Seconds")}
                   inputMode="decimal"
                   className="h-[30px] text-right font-mono text-[11px]"
                 />
@@ -335,7 +338,7 @@ function ParticleEditor({
                   variant="ghost"
                   className="h-7 w-full justify-between px-0 text-[11px] text-fg-2"
                 >
-                  Particle Settings
+                  {t("Particle Settings")}
                   <ChevronDown size={12} className={settingsOpen ? undefined : "-rotate-90"} aria-hidden />
                 </Button>
               </CollapsibleTrigger>
@@ -423,7 +426,7 @@ function ParticleEditor({
                     onChange={(value) => update({ turbulence: value })}
                   />
                   <Label className="block space-y-1.5 text-xs font-normal text-fg-2">
-                    <span>Blend Mode</span>
+                    <span>{t("Blend Mode")}</span>
                     <Select
                       value={effect.config.blendMode}
                       disabled={disabled}
@@ -439,16 +442,16 @@ function ParticleEditor({
                       }}
                     >
                       <SelectTrigger
-                        aria-label="Blend Mode"
+                        aria-label={t("Blend Mode")}
                         className="h-[30px] text-xs"
                       >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="normal">Normal</SelectItem>
-                        <SelectItem value="add">Additive</SelectItem>
-                        <SelectItem value="multiply">Multiply</SelectItem>
-                        <SelectItem value="screen">Screen</SelectItem>
+                        <SelectItem value="normal">{t("Normal")}</SelectItem>
+                        <SelectItem value="add">{t("Additive")}</SelectItem>
+                        <SelectItem value="multiply">{t("Multiply")}</SelectItem>
+                        <SelectItem value="screen">{t("Screen")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </Label>
@@ -462,7 +465,7 @@ function ParticleEditor({
                   variant="ghost"
                   className="h-7 w-full justify-between px-0 text-[11px] text-fg-2"
                 >
-                  Colors ({effect.config.colors.length})
+                  {t("Colors (")}{effect.config.colors.length})
                   <ChevronDown size={12} className={colorsOpen ? undefined : "-rotate-90"} aria-hidden />
                 </Button>
               </CollapsibleTrigger>
@@ -500,7 +503,7 @@ function ParticleEditor({
                       type="button"
                       variant="outline"
                       size="icon-sm"
-                      aria-label="Add color"
+                      aria-label={t("Add color")}
                       onClick={() =>
                         update((current) => ({
                           colors: [...current.colors, "#ffffff"],
@@ -526,6 +529,7 @@ const ParticlePresetCard: React.FC<{
   selected: boolean;
   onSelect: () => void;
 }> = ({ preset, selected, onSelect }) => {
+  const t = useT();
   const { active, handlers } = useLivePreviewActivity();
   const def = useMemo(() => particlePreviewDef(preset), [preset]);
 
@@ -556,7 +560,7 @@ const ParticlePresetCard: React.FC<{
         {preset.name}
       </span>
       <span className="block truncate text-[8px] text-fg-4">
-        {preset.description}
+        {t(preset.description)}
       </span>
     </Button>
   );
@@ -575,6 +579,7 @@ const ColorSwatch: React.FC<ColorSwatchProps> = ({
   onRemove,
   disabled,
 }) => {
+  const t = useT();
   return (
     <div className="flex items-center gap-1">
       <ColorSelector
@@ -590,8 +595,8 @@ const ColorSwatch: React.FC<ColorSwatchProps> = ({
           size="icon-sm"
           onClick={onRemove}
           type="button"
-          aria-label="Remove color"
-          title="Remove color"
+          aria-label={t("Remove color")}
+          title={t("Remove color")}
           className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent hover:bg-bg-2 text-fg-3 hover:text-red-400"
         >
           {<Trash2 size={12} aria-hidden />}

@@ -25,6 +25,7 @@ import { getLinkedTimelineSelection } from "../../../utils/linked-timeline-selec
 import { describeToolPreview, formatSignedDelta } from "./timeline-tool-readout";
 import { commitNudgePlan } from "../../../services/timeline-tool-nudge";
 import { useTimelineToolPreview } from "./timeline-tool-preview";
+import { translateNow } from "@openreel/i18n/translate";
 
 const EDGE_MODES = ["ripple", "roll", "stretch"];
 const BODY_MODES = ["slip", "slide"];
@@ -153,7 +154,7 @@ export function useTimelineToolGesture(
       );
     } catch (error) {
       toast.warning(
-        "Cannot edit this item",
+        translateNow("Cannot edit this item"),
         error instanceof Error ? error.message : "Try again.",
       );
       return;
@@ -272,7 +273,7 @@ export function useTimelineToolGesture(
             );
         } catch (error) {
           toast.error(
-            "Timeline edit failed",
+            translateNow("Timeline edit failed"),
             error instanceof Error ? error.message : "Try again.",
           );
         }
@@ -389,7 +390,7 @@ export function useTimelineToolGesture(
         if (!result.success) throw new Error(result.error?.message);
       } catch (error) {
         toast.warning(
-          "Cannot edit this item",
+          translateNow("Cannot edit this item"),
           error instanceof Error ? error.message : "Try again.",
         );
       }

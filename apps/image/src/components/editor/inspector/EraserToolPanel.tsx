@@ -1,5 +1,6 @@
 import { useUIStore } from '../../../stores/ui-store';
 import { Eraser, Square, Pencil, Circle } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 interface SliderProps {
   label: string;
@@ -46,6 +47,7 @@ function Slider({ label, value, min, max, step = 1, unit = '', onChange }: Slide
 }
 
 export function EraserToolPanel() {
+  const t = useT();
   const { activeTool, eraserSettings, setEraserSettings } = useUIStore();
 
   if (activeTool !== 'eraser') {
@@ -62,12 +64,12 @@ export function EraserToolPanel() {
     <div className="border-b border-border">
       <div className="px-3 py-2 flex items-center gap-2">
         <Eraser size={14} className="text-muted-foreground" />
-        <span className="text-xs font-medium">Eraser Tool</span>
+        <span className="text-xs font-medium">{t("Eraser Tool")}</span>
       </div>
 
       <div className="px-3 pb-3 space-y-3">
         <div className="space-y-1.5">
-          <span className="text-[10px] text-muted-foreground font-medium">Mode</span>
+          <span className="text-[10px] text-muted-foreground font-medium">{t("Mode")}</span>
           <div className="flex gap-1">
             {eraserModes.map((mode) => (
               <button
@@ -80,7 +82,7 @@ export function EraserToolPanel() {
                 }`}
               >
                 <mode.icon size={12} />
-                {mode.label}
+                {t(mode.label)}
               </button>
             ))}
           </div>
@@ -135,16 +137,16 @@ export function EraserToolPanel() {
             />
           </div>
           <p className="text-[9px] text-muted-foreground text-center mt-1.5">
-            Brush preview
+            {t("Brush preview")}
           </p>
         </div>
 
         <div className="space-y-1.5">
-          <span className="text-[10px] text-muted-foreground font-medium">Tips</span>
+          <span className="text-[10px] text-muted-foreground font-medium">{t("Tips")}</span>
           <ul className="text-[9px] text-muted-foreground space-y-0.5">
-            <li>• Hold Shift for straight lines</li>
-            <li>• [ and ] to adjust size</li>
-            <li>• Shift+[ and ] for hardness</li>
+            <li>{t("• Hold Shift for straight lines")}</li>
+            <li>{t("• [ and ] to adjust size")}</li>
+            <li>{t("• Shift+[ and ] for hardness")}</li>
           </ul>
         </div>
       </div>

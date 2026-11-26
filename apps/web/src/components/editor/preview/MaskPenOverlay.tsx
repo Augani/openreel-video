@@ -34,6 +34,7 @@ import {
   type MaskGesture,
 } from "../../../services/mask-pen";
 import { displayPathOf, storedPathOf } from "../../../services/object-mask";
+import { useT } from "@openreel/i18n/react";
 
 /** Pointer hit radii in CSS pixels, constant at every Program zoom. */
 const VERTEX_HIT = 9;
@@ -83,6 +84,7 @@ export function MaskPenOverlay({ disabled = false }: { disabled?: boolean }) {
 }
 
 function MaskPenOverlayArmed({ disabled = false }: { disabled?: boolean }) {
+  const t = useT();
   const { active, clipId, maskId, vertex } = useMaskPenStore(
     useShallow((s) => ({ active: s.active, clipId: s.clipId, maskId: s.maskId, vertex: s.vertex })),
   );
@@ -356,7 +358,7 @@ function MaskPenOverlayArmed({ disabled = false }: { disabled?: boolean }) {
       tabIndex={-1}
       data-testid="mask-pen-overlay"
       data-mask-pen-mode={editing ? "edit" : "draw"}
-      aria-label={editing ? "Mask pen: edit mask" : "Mask pen: draw mask"}
+      aria-label={editing ? t("Mask pen: edit mask") : t("Mask pen: draw mask")}
       className="absolute inset-0 z-40 outline-none"
       style={{ cursor: disabled ? "not-allowed" : cursor, touchAction: "none" }}
       onPointerDown={onPointerDown}
@@ -462,10 +464,10 @@ function MaskPenOverlayArmed({ disabled = false }: { disabled?: boolean }) {
       </svg>
       <div className="pointer-events-none absolute left-2 top-2 rounded bg-black/65 px-2 py-1 text-[10px] font-medium text-white/90">
         {editing
-          ? "Pen · drag points · click edge to add · double-click to smooth/corner · Del removes · Esc exits"
+          ? t("Pen · drag points · click edge to add · double-click to smooth/corner · Del removes · Esc exits")
           : draft.length >= 3
-            ? "Pen · click the first point or press Enter to close · Esc cancels"
-            : "Pen · click for a corner, drag for a smooth point"}
+            ? t("Pen · click the first point or press Enter to close · Esc cancels")
+            : t("Pen · click for a corner, drag for a smooth point")}
       </div>
     </div>
   );

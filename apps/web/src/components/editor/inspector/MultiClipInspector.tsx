@@ -39,6 +39,7 @@ import {
   copyVideoEffectStack,
   hasVideoEffectStackClipboard,
 } from "../../../utils/video-effect-stack-clipboard";
+import { useT } from "@openreel/i18n/react";
 
 interface MultiClipInspectorProps {
   clipIds: readonly string[];
@@ -80,6 +81,7 @@ function PasteClipboardButton({ onPaste, disabled, className }: { onPaste: () =>
 }
 
 export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.Element {
+  const t = useT();
   const project = useProjectStore((state) => state.project);
   const updateClipTransform = useProjectStore(
     (state) => state.updateClipTransform,
@@ -438,36 +440,36 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
           </span>
           <span className="min-w-0">
             <span className="text-[13px] leading-5 font-bold block text-fg">
-              {clipIds.length} clip{clipIds.length === 1 ? "" : "s"} selected
+              {clipIds.length} {t("clip")}{clipIds.length === 1 ? "" : "s"} {t("selected")}
             </span>
             <span className="font-normal block text-[10px] text-fg-3">
-              Batch changes stay synchronized with the timeline
+              {t("Batch changes stay synchronized with the timeline")}
             </span>
           </span>
         </div>
       </Card>
 
       {audioClipIds.length > 0 && (
-        <InspectorSection title="Essential Sound" sectionId="essential-sound" defaultOpen>
+        <InspectorSection title={t("Essential Sound")} sectionId="essential-sound" defaultOpen>
           <EssentialSoundSection clipIds={audioClipIds} />
         </InspectorSection>
       )}
       {audioClipIds.length > 0 && (
-        <InspectorSection title="Audio channels" sectionId="audio-channels" defaultOpen>
+        <InspectorSection title={t("Audio channels")} sectionId="audio-channels" defaultOpen>
           <AudioChannelsSection clipIds={audioClipIds} />
         </InspectorSection>
       )}
 
       {visualEntries.length > 0 ? (
         <InspectorSection
-          title="Batch Transform"
+          title={t("Batch Transform")}
           sectionId="batch-transform"
           defaultOpen
         >
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <span className="w-[74px] text-[12px] font-medium text-fg-3">
-                Nudge
+                {t("Nudge")}
               </span>
               <div className="grid flex-1 grid-cols-4 gap-1.5">
                 <BatchIconButton label="Nudge clips left" icon={ArrowLeft} onClick={() => nudgeSelection(-10, 0)} disabled={isBusy} />
@@ -479,7 +481,7 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
 
             <div className="flex items-center gap-3">
               <span className="w-[74px] text-[12px] font-medium text-fg-3">
-                Align
+                {t("Align")}
               </span>
               <div className="grid flex-1 grid-cols-3 gap-1.5">
                 <BatchIconButton label="Align positions left" icon={ArrowLeft} onClick={() => alignSelection("x", 0, "Align clips left")} disabled={isBusy} />
@@ -492,11 +494,11 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              <Button onClick={() => void distributeSelection("x")} type="button" aria-label="Distribute horizontally" disabled={(isBusy || visualEntries.length < 3)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
-                <span className="truncate">{"Distribute horizontally"}</span>
+              <Button onClick={() => void distributeSelection("x")} type="button" aria-label={t("Distribute horizontally")} disabled={(isBusy || visualEntries.length < 3)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+                <span className="truncate">{t("Distribute horizontally")}</span>
               </Button>
-              <Button onClick={() => void distributeSelection("y")} type="button" aria-label="Distribute vertically" disabled={(isBusy || visualEntries.length < 3)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
-                <span className="truncate">{"Distribute vertically"}</span>
+              <Button onClick={() => void distributeSelection("y")} type="button" aria-label={t("Distribute vertically")} disabled={(isBusy || visualEntries.length < 3)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+                <span className="truncate">{t("Distribute vertically")}</span>
               </Button>
             </div>
 
@@ -515,14 +517,14 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
             />
             <div className="flex items-center gap-3">
               <span className="w-[74px] text-[12px] font-medium text-fg-3">
-                Rotation
+                {t("Rotation")}
               </span>
               <div className="min-w-0 flex-1">
                 <ShadcnNumericInput
                   {...numericField0}
                   type="number"
                   inputMode="decimal"
-                  aria-label={"Selected clips rotation"}
+                  aria-label={t("Selected clips rotation")}
                   min={-180}
                   max={180}
                   step={1}
@@ -554,7 +556,7 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
 
       {selectedTextClipIds.length > 0 ? (
         <InspectorSection
-          title="Batch Text"
+          title={t("Batch Text")}
           sectionId="batch-text"
           defaultOpen
         >
@@ -567,33 +569,32 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
 
       {visualEntries.length > 0 ? (
         <InspectorSection
-          title="Batch Effects"
+          title={t("Batch Effects")}
           sectionId="batch-effects"
           defaultOpen
         >
           <div className="space-y-2">
             <span className="font-normal block text-[10px] text-fg-3"
             >
-              Copy from the first selected visual layer, then apply the stack to
-              all {visualEntries.length} selected visual layers.
+              {t("Copy from the first selected visual layer, then apply the stack to all")} {visualEntries.length} {t("selected visual layers.")}
             </span>
             <div className="grid grid-cols-2 gap-2">
-              <Button onClick={copyFirstEffectStack} type="button" aria-label="Copy first effect stack" disabled={(isBusy || sourceEffects.length === 0)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+              <Button onClick={copyFirstEffectStack} type="button" aria-label={t("Copy first effect stack")} disabled={(isBusy || sourceEffects.length === 0)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Copy size={14} aria-hidden />}</span>
-                <span className="truncate">{"Copy first effect stack"}</span>
+                <span className="truncate">{t("Copy first effect stack")}</span>
               </Button>
-              <Button onClick={() => void pasteEffectsToSelection("append")} type="button" aria-label="Append effects to selection" disabled={(isBusy || !hasEffectClipboard)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+              <Button onClick={() => void pasteEffectsToSelection("append")} type="button" aria-label={t("Append effects to selection")} disabled={(isBusy || !hasEffectClipboard)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<ClipboardPaste size={14} aria-hidden />}</span>
-                <span className="truncate">{"Append effects to selection"}</span>
+                <span className="truncate">{t("Append effects to selection")}</span>
               </Button>
-              <Button onClick={() => void pasteEffectsToSelection("replace")} type="button" aria-label="Replace effects on selection" disabled={(isBusy || !hasEffectClipboard)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+              <Button onClick={() => void pasteEffectsToSelection("replace")} type="button" aria-label={t("Replace effects on selection")} disabled={(isBusy || !hasEffectClipboard)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<ClipboardPaste size={14} aria-hidden />}</span>
-                <span className="truncate">{"Replace effects on selection"}</span>
+                <span className="truncate">{t("Replace effects on selection")}</span>
               </Button>
-              <Button onClick={() => void clearSelectedEffectStacks()} type="button" aria-label="Clear effects from selection" disabled={(isBusy ||
+              <Button onClick={() => void clearSelectedEffectStacks()} type="button" aria-label={t("Clear effects from selection")} disabled={(isBusy ||
                   !hasAnyVideoEffects)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Trash2 size={14} aria-hidden />}</span>
-                <span className="truncate">{"Clear effects from selection"}</span>
+                <span className="truncate">{t("Clear effects from selection")}</span>
               </Button>
             </div>
           </div>
@@ -601,7 +602,7 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
       ) : null}
 
       <InspectorSection
-        title="Selection Actions"
+        title={t("Selection Actions")}
         sectionId="batch-actions"
         defaultOpen
       >
@@ -616,9 +617,9 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
                 rotation: 0,
                 opacity: 1,
               }))
-            } type="button" aria-label="Reset transforms" disabled={(isBusy || visualEntries.length === 0)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+            } type="button" aria-label={t("Reset transforms")} disabled={(isBusy || visualEntries.length === 0)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
             <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<RotateCcw size={14} aria-hidden />}</span>
-            <span className="truncate">{"Reset transforms"}</span>
+            <span className="truncate">{t("Reset transforms")}</span>
           </Button>
           <Button onClick={copySelection} type="button" aria-label={(`Copy ${selectedEntries.length} selected clips`).trim() || undefined} disabled={(isBusy || selectedEntries.length === 0)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
             <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Copy size={14} aria-hidden />}</span>
@@ -629,16 +630,16 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
             <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Copy size={14} aria-hidden />}</span>
             <span className="truncate">{`Duplicate ${selectedEntries.length} selected clips`}</span>
           </Button>
-          <Button onClick={() => void deleteSelection()} type="button" aria-label="Delete selected clips" disabled={(false)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-status-error text-white hover:bg-status-error/90 col-span-2">
+          <Button onClick={() => void deleteSelection()} type="button" aria-label={t("Delete selected clips")} disabled={(false)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-status-error text-white hover:bg-status-error/90 col-span-2">
             <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Trash2 size={14} aria-hidden />}</span>
-            <span className="truncate">{"Delete selected clips"}</span>
+            <span className="truncate">{t("Delete selected clips")}</span>
           </Button>
         </div>
       </InspectorSection>
 
       {timelineEntryCount >= 2 ? (
         <InspectorSection
-          title="Compound Clip"
+          title={t("Compound Clip")}
           sectionId="batch-compound"
           defaultOpen
         >
@@ -686,9 +687,10 @@ formatValue={formatValue} />
 }
 
 function MixedBadge(): JSX.Element {
+  const t = useT();
   return (
     <span className="rounded bg-bg-3 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-fg-muted">
-      Mixed
+      {t("Mixed")}
     </span>
   );
 }

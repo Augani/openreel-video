@@ -13,6 +13,7 @@ import {
   Plus,
   Download,
 } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   layer: Layer;
@@ -63,6 +64,7 @@ function Slider({ label, value, min, max, step = 1, onChange }: SliderProps) {
 }
 
 export function MaskSection({ layer }: Props) {
+  const t = useT();
   const { updateLayer } = useProjectStore();
   const { active: selection, clearSelection } = useSelectionStore();
 
@@ -136,7 +138,7 @@ export function MaskSection({ layer }: Props) {
   return (
     <div className="border-b border-border">
       <div className="px-3 py-2">
-        <span className="text-xs font-medium">Masks</span>
+        <span className="text-xs font-medium">{t("Masks")}</span>
       </div>
 
       <div className="px-3 pb-3 space-y-3">
@@ -144,8 +146,8 @@ export function MaskSection({ layer }: Props) {
           <div className="space-y-2">
             <p className="text-[10px] text-muted-foreground">
               {hasSelection
-                ? 'Create mask from current selection'
-                : 'Add a mask to control layer visibility'}
+                ? t("Create mask from current selection")
+                : t("Add a mask to control layer visibility")}
             </p>
 
             <div className="flex gap-1.5">
@@ -154,14 +156,14 @@ export function MaskSection({ layer }: Props) {
                 className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] rounded bg-secondary hover:bg-secondary/80 transition-colors"
               >
                 <Plus size={10} />
-                Reveal All
+                {t("Reveal All")}
               </button>
               <button
                 onClick={() => handleAddMask(false)}
                 className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] rounded bg-secondary hover:bg-secondary/80 transition-colors"
               >
                 <Plus size={10} />
-                Hide All
+                {t("Hide All")}
               </button>
             </div>
           </div>
@@ -171,11 +173,11 @@ export function MaskSection({ layer }: Props) {
               <div className="w-8 h-8 rounded bg-gradient-to-br from-white to-black border border-border" />
               <div className="flex-1 min-w-0">
                 <p className="text-[10px] font-medium truncate">
-                  {mask.type === 'pixel' ? 'Pixel Mask' : 'Vector Mask'}
+                  {mask.type === 'pixel' ? t("Pixel Mask") : t("Vector Mask")}
                 </p>
                 <p className="text-[9px] text-muted-foreground">
-                  {mask.enabled ? 'Enabled' : 'Disabled'}
-                  {mask.invert ? ' • Inverted' : ''}
+                  {mask.enabled ? t("Enabled") : t("Disabled")}
+                  {mask.invert ? t(" • Inverted") : ''}
                 </p>
               </div>
             </div>
@@ -188,7 +190,7 @@ export function MaskSection({ layer }: Props) {
                     ? 'bg-secondary text-foreground'
                     : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
                 }`}
-                title={mask.enabled ? 'Disable Mask' : 'Enable Mask'}
+                title={mask.enabled ? t("Disable Mask") : t("Enable Mask")}
               >
                 {mask.enabled ? <Eye size={12} /> : <EyeOff size={12} />}
               </button>
@@ -199,7 +201,7 @@ export function MaskSection({ layer }: Props) {
                     ? 'bg-secondary text-foreground'
                     : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
                 }`}
-                title={mask.linked ? 'Unlink Mask' : 'Link Mask'}
+                title={mask.linked ? t("Unlink Mask") : t("Link Mask")}
               >
                 {mask.linked ? <Link size={12} /> : <Unlink size={12} />}
               </button>
@@ -210,14 +212,14 @@ export function MaskSection({ layer }: Props) {
                     ? 'bg-secondary text-foreground'
                     : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
                 }`}
-                title={mask.invert ? 'Remove Invert' : 'Invert Mask'}
+                title={mask.invert ? t("Remove Invert") : t("Invert Mask")}
               >
                 <RotateCcw size={12} />
               </button>
               <button
                 onClick={handleDeleteMask}
                 className="flex-1 p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                title="Delete Mask"
+                title={t("Delete Mask")}
               >
                 <Trash2 size={12} />
               </button>
@@ -242,20 +244,20 @@ export function MaskSection({ layer }: Props) {
             {hasSelection && (
               <div className="pt-2 border-t border-border space-y-1.5">
                 <span className="text-[10px] text-muted-foreground font-medium">
-                  Apply Selection
+                  {t("Apply Selection")}
                 </span>
                 <div className="flex gap-1.5">
                   <button
                     onClick={() => {}}
                     className="flex-1 px-2 py-1.5 text-[10px] rounded bg-secondary hover:bg-secondary/80 transition-colors"
                   >
-                    Add to Mask
+                    {t("Add to Mask")}
                   </button>
                   <button
                     onClick={() => {}}
                     className="flex-1 px-2 py-1.5 text-[10px] rounded bg-secondary hover:bg-secondary/80 transition-colors"
                   >
-                    Subtract
+                    {t("Subtract")}
                   </button>
                 </div>
               </div>
@@ -273,7 +275,7 @@ export function MaskSection({ layer }: Props) {
             }`}
           >
             <Circle size={10} className={layer.clippingMask ? 'fill-primary' : ''} />
-            <span>{layer.clippingMask ? 'Release Clipping Mask' : 'Create Clipping Mask'}</span>
+            <span>{layer.clippingMask ? t("Release Clipping Mask") : t("Create Clipping Mask")}</span>
           </button>
         </div>
 
@@ -281,10 +283,10 @@ export function MaskSection({ layer }: Props) {
           <button
             onClick={() => {}}
             className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] rounded bg-secondary hover:bg-secondary/80 transition-colors"
-            title="Load mask from selection"
+            title={t("Load mask from selection")}
           >
             <Download size={10} />
-            Load Selection
+            {t("Load Selection")}
           </button>
         </div>
       </div>

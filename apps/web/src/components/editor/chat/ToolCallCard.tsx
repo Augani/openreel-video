@@ -16,6 +16,7 @@ import {
   Undo2,
 } from "@/icons/lucide-compat";
 import type { ToolCallView } from "../../../stores/chat-store";
+import { useT } from "@openreel/i18n/react";
 
 const STATUS_META: Record<
   ToolCallView["status"],
@@ -54,11 +55,12 @@ const STATUS_META: Record<
 };
 
 function ToolCallDetails({ call }: { call: ToolCallView }): JSX.Element {
+  const t = useT();
   return <>
     <div className="font-mono text-fg-muted">{call.name}</div>
     {Object.keys(call.args ?? {}).length > 0 && (
       <div>
-        <div className="mb-0.5 text-[9px] uppercase tracking-wide text-fg-muted">Arguments</div>
+        <div className="mb-0.5 text-[9px] uppercase tracking-wide text-fg-muted">{t("Arguments")}</div>
         <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded bg-bg-2 p-1.5 font-mono text-[10px] text-fg-2">
           {JSON.stringify(call.args, null, 2)}
         </pre>
@@ -66,7 +68,7 @@ function ToolCallDetails({ call }: { call: ToolCallView }): JSX.Element {
     )}
     {call.result && (
       <div>
-        <div className="mb-0.5 text-[9px] uppercase tracking-wide text-fg-muted">Result</div>
+        <div className="mb-0.5 text-[9px] uppercase tracking-wide text-fg-muted">{t("Result")}</div>
         <div className={call.result.ok || call.status === "corrected" ? "text-fg-2" : call.status === "retrying" ? "text-status-warning" : "text-status-error"}>
           {call.result.summary}
           {call.result.error && !call.result.ok ? ` — ${call.result.error.message}` : ""}

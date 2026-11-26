@@ -23,6 +23,7 @@ import { keyboardShortcuts } from "./services/keyboard-shortcuts";
 import { createEditorProject } from "./services/project-creation";
 import { toast } from "./stores/notification-store";
 import { useSceneDetectionDialogStore } from "./stores/scene-detection-dialog-store";
+import { translateNow } from "@openreel/i18n/translate";
 
 // Polls accepted KieAI generations; loads after first paint so the poller and the KieAI client are not in the startup chunk.
 const KieAIPollerHost = lazy(() => import("./hooks/KieAIPollerHost"));
@@ -195,7 +196,7 @@ function App() {
           )
             return;
           toast.error(
-            "Could not create project",
+            translateNow("Could not create project"),
             error instanceof Error
               ? error.message
               : "Your current project is still open. Please try again.",

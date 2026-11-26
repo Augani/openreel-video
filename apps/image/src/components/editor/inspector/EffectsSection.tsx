@@ -3,6 +3,7 @@ import type { Layer, Shadow, InnerShadow, Stroke, Glow } from '../../../types/pr
 import { Slider } from '@openreel/ui';
 import { ChevronDown, Droplets, Pencil, Sparkles, CircleDot } from 'lucide-react';
 import { useState } from 'react';
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   layer: Layer;
@@ -48,6 +49,7 @@ function EffectHeader({ icon: Icon, label, enabled, isOpen, onToggle, onEnabledC
 }
 
 export function EffectsSection({ layer }: Props) {
+  const t = useT();
   const { updateLayer } = useProjectStore();
   const [openSection, setOpenSection] = useState<EffectSection>('shadow');
 
@@ -94,7 +96,7 @@ export function EffectsSection({ layer }: Props) {
         {openSection === 'shadow' && (
           <div className="p-3 space-y-3 bg-background/50 rounded-b-lg border border-t-0 border-border">
             <div>
-              <label className="block text-[10px] text-muted-foreground mb-1.5">Color</label>
+              <label className="block text-[10px] text-muted-foreground mb-1.5">{t("Color")}</label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
@@ -115,7 +117,7 @@ export function EffectsSection({ layer }: Props) {
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-[10px] text-muted-foreground">Blur</label>
+                <label className="text-[10px] text-muted-foreground">{t("Blur")}</label>
                 <span className="text-[10px] text-muted-foreground">{layer.shadow.blur}px</span>
               </div>
               <Slider
@@ -131,7 +133,7 @@ export function EffectsSection({ layer }: Props) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-[10px] text-muted-foreground">Offset X</label>
+                  <label className="text-[10px] text-muted-foreground">{t("Offset X")}</label>
                   <span className="text-[10px] text-muted-foreground">{layer.shadow.offsetX}px</span>
                 </div>
                 <Slider
@@ -145,7 +147,7 @@ export function EffectsSection({ layer }: Props) {
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-[10px] text-muted-foreground">Offset Y</label>
+                  <label className="text-[10px] text-muted-foreground">{t("Offset Y")}</label>
                   <span className="text-[10px] text-muted-foreground">{layer.shadow.offsetY}px</span>
                 </div>
                 <Slider
@@ -174,7 +176,7 @@ export function EffectsSection({ layer }: Props) {
         {openSection === 'innerShadow' && (
           <div className="p-3 space-y-3 bg-background/50 rounded-b-lg border border-t-0 border-border">
             <div>
-              <label className="block text-[10px] text-muted-foreground mb-1.5">Color</label>
+              <label className="block text-[10px] text-muted-foreground mb-1.5">{t("Color")}</label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
@@ -195,7 +197,7 @@ export function EffectsSection({ layer }: Props) {
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-[10px] text-muted-foreground">Blur</label>
+                <label className="text-[10px] text-muted-foreground">{t("Blur")}</label>
                 <span className="text-[10px] text-muted-foreground">{layer.innerShadow?.blur ?? 10}px</span>
               </div>
               <Slider
@@ -211,7 +213,7 @@ export function EffectsSection({ layer }: Props) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-[10px] text-muted-foreground">Offset X</label>
+                  <label className="text-[10px] text-muted-foreground">{t("Offset X")}</label>
                   <span className="text-[10px] text-muted-foreground">{layer.innerShadow?.offsetX ?? 2}px</span>
                 </div>
                 <Slider
@@ -225,7 +227,7 @@ export function EffectsSection({ layer }: Props) {
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-[10px] text-muted-foreground">Offset Y</label>
+                  <label className="text-[10px] text-muted-foreground">{t("Offset Y")}</label>
                   <span className="text-[10px] text-muted-foreground">{layer.innerShadow?.offsetY ?? 2}px</span>
                 </div>
                 <Slider
@@ -254,7 +256,7 @@ export function EffectsSection({ layer }: Props) {
         {openSection === 'stroke' && (
           <div className="p-3 space-y-3 bg-background/50 rounded-b-lg border border-t-0 border-border">
             <div>
-              <label className="block text-[10px] text-muted-foreground mb-1.5">Color</label>
+              <label className="block text-[10px] text-muted-foreground mb-1.5">{t("Color")}</label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
@@ -275,7 +277,7 @@ export function EffectsSection({ layer }: Props) {
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-[10px] text-muted-foreground">Width</label>
+                <label className="text-[10px] text-muted-foreground">{t("Width")}</label>
                 <span className="text-[10px] text-muted-foreground">{layer.stroke.width}px</span>
               </div>
               <Slider
@@ -289,7 +291,7 @@ export function EffectsSection({ layer }: Props) {
             </div>
 
             <div>
-              <label className="block text-[10px] text-muted-foreground mb-1.5">Style</label>
+              <label className="block text-[10px] text-muted-foreground mb-1.5">{t("Style")}</label>
               <div className="grid grid-cols-3 gap-1">
                 {(['solid', 'dashed', 'dotted'] as const).map((style) => (
                   <button
@@ -323,7 +325,7 @@ export function EffectsSection({ layer }: Props) {
         {openSection === 'glow' && (
           <div className="p-3 space-y-3 bg-background/50 rounded-b-lg border border-t-0 border-border">
             <div>
-              <label className="block text-[10px] text-muted-foreground mb-1.5">Color</label>
+              <label className="block text-[10px] text-muted-foreground mb-1.5">{t("Color")}</label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
@@ -344,7 +346,7 @@ export function EffectsSection({ layer }: Props) {
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-[10px] text-muted-foreground">Blur</label>
+                <label className="text-[10px] text-muted-foreground">{t("Blur")}</label>
                 <span className="text-[10px] text-muted-foreground">{layer.glow.blur}px</span>
               </div>
               <Slider
@@ -359,7 +361,7 @@ export function EffectsSection({ layer }: Props) {
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-[10px] text-muted-foreground">Intensity</label>
+                <label className="text-[10px] text-muted-foreground">{t("Intensity")}</label>
                 <span className="text-[10px] text-muted-foreground">{Math.round(layer.glow.intensity * 100)}%</span>
               </div>
               <Slider

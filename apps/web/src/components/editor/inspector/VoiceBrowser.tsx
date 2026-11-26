@@ -23,6 +23,7 @@ import {
 
 import { useSettingsStore } from "../../../stores/settings-store";
 import type { ElevenLabsVoice } from "./tts-types";
+import { useT } from "@openreel/i18n/react";
 
 interface VoiceBrowserProps {
   selectedVoice: string;
@@ -37,6 +38,7 @@ export const VoiceBrowser: React.FC<VoiceBrowserProps> = ({
   allVoices,
   isLoadingVoices,
 }) => {
+  const t = useT();
   const {
     favoriteVoices,
     addFavoriteVoice,
@@ -126,13 +128,13 @@ export const VoiceBrowser: React.FC<VoiceBrowserProps> = ({
   return (
     <div className="space-y-2">
       <span className="font-medium text-[10px] text-fg-2">
-        Voice
+        {t("Voice")}
       </span>
       <div className="space-y-2">
         {favoriteVoices.length > 0 && (
           <div className="space-y-1.5">
             <span className="text-[9px] text-fg-3 flex items-center gap-1">
-              <Star size={9} className="text-amber-400 fill-amber-400" /> Favorites
+              <Star size={9} className="text-amber-400 fill-amber-400" /> {t("Favorites")}
             </span>
             <div className="flex flex-wrap gap-1.5">
               {favoriteVoices.map((fav) => (
@@ -148,7 +150,7 @@ export const VoiceBrowser: React.FC<VoiceBrowserProps> = ({
                     <Button variant="ghost" size="icon-sm" onClick={(e) => {
                         e.stopPropagation();
                         previewVoice(fav.previewUrl, fav.voiceId);
-                      }} type="button" aria-label="Preview voice" title="Preview voice" className="relative z-10 inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg ml-0.5 opacity-60 hover:opacity-100">
+                      }} type="button" aria-label={t("Preview voice")} title={t("Preview voice")} className="relative z-10 inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg ml-0.5 opacity-60 hover:opacity-100">
                       {previewingVoice === fav.voiceId ? (
                           <Pause size={8} />
                         ) : (
@@ -165,7 +167,7 @@ export const VoiceBrowser: React.FC<VoiceBrowserProps> = ({
         <Button onClick={() => setShowAllVoices(!showAllVoices)} type="button" aria-label={(showAllVoices ? "Hide voice browser" : "Browse and search voices").trim() || undefined} className="min-w-0 font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 bg-transparent hover:bg-bg-2 w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[10px] border border-dashed border-border text-fg-3 hover:text-fg hover:border-primary/50 transition-colors"
         >
           <Search size={10} />
-          {showAllVoices ? "Hide voice browser" : "Browse & search voices"}
+          {showAllVoices ? t("Hide voice browser") : t("Browse & search voices")}
           <ChevronDown size={10} className={`transition-transform ${showAllVoices ? "rotate-180" : ""}`} />
         </Button>
 
@@ -175,8 +177,8 @@ export const VoiceBrowser: React.FC<VoiceBrowserProps> = ({
               <Search size={12} className="text-fg-3 shrink-0" />
               <ShadcnInput
                 value={voiceSearch}
-                placeholder="Search by name, accent, gender..."
-                aria-label={"Search voices"}
+                placeholder={t("Search by name, accent, gender...")}
+                aria-label={t("Search voices")}
                 onChange={(event) => setVoiceSearch(event.currentTarget.value)}
                 autoFocus={true}
                 className={cn(
@@ -190,12 +192,12 @@ export const VoiceBrowser: React.FC<VoiceBrowserProps> = ({
             <div className="max-h-48 overflow-y-auto">
               {filteredVoices.length === 0 ? (
                 <div className="p-3 text-center text-[10px] text-fg-3">
-                  {isLoadingVoices ? "Loading voices..." : allVoices.length === 0 ? (
-                    <Button onClick={() => openSettings("api-keys")} type="button" aria-label="Unlock session to browse voices" className="min-w-0 justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 text-[12px] hover:text-fg inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition-colors font-medium">
+                  {isLoadingVoices ? t("Loading voices...") : allVoices.length === 0 ? (
+                    <Button onClick={() => openSettings("api-keys")} type="button" aria-label={t("Unlock session to browse voices")} className="min-w-0 justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 text-[12px] hover:text-fg inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 hover:bg-amber-500/25 transition-colors font-medium">
                       <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Settings size={12} />}</span>
-                      <span className="truncate">{"Unlock session to browse voices"}</span>
+                      <span className="truncate">{t("Unlock session to browse voices")}</span>
                     </Button>
-                  ) : "No voices match your search"}
+                  ) : t("No voices match your search")}
                 </div>
               ) : (
                 filteredVoices.map((voice) => {
@@ -221,7 +223,7 @@ export const VoiceBrowser: React.FC<VoiceBrowserProps> = ({
                           </span>
                           {voice.category === "cloned" && (
                             <span className="text-[8px] px-1 py-0.5 rounded bg-primary/20 text-primary">
-                              Cloned
+                              {t("Cloned")}
                             </span>
                           )}
                         </div>
@@ -235,7 +237,7 @@ export const VoiceBrowser: React.FC<VoiceBrowserProps> = ({
                           <Button variant="ghost" size="icon-sm" onClick={(e) => {
                               e.stopPropagation();
                               previewVoice(voice.preview_url, voice.voice_id);
-                            }} type="button" aria-label="Preview" title="Preview" className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent p-1 rounded hover:bg-bg-elev text-fg-3 hover:text-fg transition-colors">
+                            }} type="button" aria-label={t("Preview")} title={t("Preview")} className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent p-1 rounded hover:bg-bg-elev text-fg-3 hover:text-fg transition-colors">
                             {previewingVoice === voice.voice_id ? (
                                 <Pause size={10} />
                               ) : (
@@ -246,7 +248,7 @@ export const VoiceBrowser: React.FC<VoiceBrowserProps> = ({
                         <Button variant="ghost" size="icon-sm" onClick={(e) => {
                             e.stopPropagation();
                             toggleFavoriteVoice(voice);
-                          }} type="button" aria-label={isFav ? "Remove from favorites" : "Add to favorites"} title={isFav ? "Remove from favorites" : "Add to favorites"} className={cn("inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", "bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg", `p-1 rounded hover:bg-bg-elev transition-colors ${
+                          }} type="button" aria-label={isFav ? t("Remove from favorites") : t("Add to favorites")} title={isFav ? t("Remove from favorites") : t("Add to favorites")} className={cn("inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", "bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg", `p-1 rounded hover:bg-bg-elev transition-colors ${
                             isFav ? "text-amber-400" : "text-fg-3 hover:text-amber-400"
                           }`)}>
                           {isFav ? (
@@ -263,7 +265,7 @@ export const VoiceBrowser: React.FC<VoiceBrowserProps> = ({
             </div>
 
             <div className="px-2 py-1 border-t border-border bg-bg-1 text-[8px] text-fg-3 text-center">
-              {filteredVoices.length} of {allVoices.length} voices
+              {filteredVoices.length} {t("of")} {allVoices.length} {t("voices")}
             </div>
           </div>
         )}

@@ -76,6 +76,7 @@ const Crumb: React.FC<{ label: string; binId: string | null; current: boolean }>
 /** Breadcrumb + bin / view / column / search-scope controls above the media. */
 /** Name field shown while a new bin is pending; Enter / blur creates it, Escape cancels. */
 const PendingBinRow: React.FC<{ placeholder: string }> = ({ placeholder }) => {
+  const t = useT();
   const pending = useProjectPanelStore((s) => s.pendingBin);
   const [value, setValue] = useState("");
   const done = React.useRef(false);
@@ -95,7 +96,7 @@ const PendingBinRow: React.FC<{ placeholder: string }> = ({ placeholder }) => {
       <FolderPlus size={13} aria-hidden />
       <input
         autoFocus
-        aria-label="New bin name"
+        aria-label={t("New bin name")}
         data-testid="bin-name-input"
         placeholder={placeholder}
         value={value}
@@ -108,7 +109,7 @@ const PendingBinRow: React.FC<{ placeholder: string }> = ({ placeholder }) => {
         onBlur={() => finish(true)}
         className="min-w-0 flex-1 rounded-[4px] border border-accent bg-bg-0 px-1.5 py-0.5 text-[11.5px] text-fg outline-none"
       />
-      {pending.mediaIds.length > 0 && <span>{pending.mediaIds.length} selected</span>}
+      {pending.mediaIds.length > 0 && <span>{pending.mediaIds.length} {t("selected")}</span>}
     </div>
   );
 };
@@ -129,8 +130,8 @@ const SmartBinsMenu: React.FC<{ data: ProjectPanelData }> = ({ data }) => {
           variant="ghost"
           size="icon"
           className={`${iconButton} ${active ? "text-accent" : ""}`}
-          aria-label="Smart bins"
-          title="Smart bins: saved searches that update live"
+          aria-label={t("Smart bins")}
+          title={t("Smart bins: saved searches that update live")}
         >
           <FolderSearch size={14} aria-hidden />
         </Button>
@@ -196,7 +197,7 @@ export const ProjectPanelBar: React.FC<{ data: ProjectPanelData; selectionCount:
   return (
     <>
     <div className="flex items-center gap-1 px-[10px] pb-1.5" data-testid="project-panel-bar">
-      <nav aria-label="Bin path" className="flex min-w-0 flex-1 items-center overflow-hidden">
+      <nav aria-label={t("Bin path")} className="flex min-w-0 flex-1 items-center overflow-hidden">
         {data.activeSmartBin ? (
           <span className="flex min-w-0 items-center gap-1.5 px-1.5 text-[11.5px] text-fg" data-testid="smart-bin-crumb">
             <FolderSearch size={12} className="shrink-0 text-accent" aria-hidden />
@@ -204,8 +205,8 @@ export const ProjectPanelBar: React.FC<{ data: ProjectPanelData; selectionCount:
             <span className="shrink-0 tabular-nums text-fg-muted" data-testid="smart-bin-crumb-count">{data.items.length}</span>
             <button
               type="button"
-              aria-label="Back to the project"
-              title="Back to the project"
+              aria-label={t("Back to the project")}
+              title={t("Back to the project")}
               data-testid="smart-bin-exit"
               onClick={() => useProjectPanelStore.getState().openSmartBin(null)}
               className="shrink-0 rounded-[4px] px-1 text-fg-muted hover:bg-bg-2 hover:text-fg"
@@ -215,7 +216,7 @@ export const ProjectPanelBar: React.FC<{ data: ProjectPanelData; selectionCount:
           </span>
         ) : data.searching ? (
           <span className="truncate px-1.5 text-[11.5px] text-fg-muted" data-testid="search-scope">
-            {data.items.length} result{data.items.length === 1 ? "" : "s"} for "{query.trim()}" in {searchLabel}
+            {data.items.length} {t("result")}{data.items.length === 1 ? "" : "s"} {t("for \"")}{query.trim()}{t("\" in")} {searchLabel}
           </span>
         ) : (
           <>
@@ -229,7 +230,7 @@ export const ProjectPanelBar: React.FC<{ data: ProjectPanelData; selectionCount:
           </>
         )}
       </nav>
-      <Button type="button" variant="ghost" size="icon" className={iconButton} aria-label="New bin" title="New bin" onClick={() => void createBinHere()}>
+      <Button type="button" variant="ghost" size="icon" className={iconButton} aria-label={t("New bin")} title={t("New bin")} onClick={() => void createBinHere()}>
         <FolderPlus size={14} aria-hidden />
       </Button>
       <Button
@@ -237,8 +238,8 @@ export const ProjectPanelBar: React.FC<{ data: ProjectPanelData; selectionCount:
         variant="ghost"
         size="icon"
         className={iconButton}
-        aria-label="New bin from selection"
-        title="New bin from selection"
+        aria-label={t("New bin from selection")}
+        title={t("New bin from selection")}
         disabled={selectionCount === 0}
         onClick={() => void newBinFromSelection()}
       >
@@ -249,8 +250,8 @@ export const ProjectPanelBar: React.FC<{ data: ProjectPanelData; selectionCount:
         variant="ghost"
         size="icon"
         className={iconButton}
-        aria-label="Automate to Sequence"
-        title="Automate to Sequence"
+        aria-label={t("Automate to Sequence")}
+        title={t("Automate to Sequence")}
         data-testid="automate-to-sequence"
         disabled={selectionCount === 0}
         onClick={() => useProjectPanelStore.getState().openDialog({ kind: "automate-to-sequence" })}
@@ -260,7 +261,7 @@ export const ProjectPanelBar: React.FC<{ data: ProjectPanelData; selectionCount:
       <SmartBinsMenu data={data} />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" variant="ghost" size="icon" className={iconButton} aria-label="Search in column" title={`Search in: ${searchLabel}`}>
+          <Button type="button" variant="ghost" size="icon" className={iconButton} aria-label={t("Search in column")} title={`Search in: ${searchLabel}`}>
             <Search size={14} aria-hidden />
           </Button>
         </DropdownMenuTrigger>
@@ -282,7 +283,7 @@ export const ProjectPanelBar: React.FC<{ data: ProjectPanelData; selectionCount:
       {view === "list" && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button type="button" variant="ghost" size="icon" className={iconButton} aria-label="Columns" title="Show or hide columns">
+            <Button type="button" variant="ghost" size="icon" className={iconButton} aria-label={t("Columns")} title={t("Show or hide columns")}>
               <Columns3 size={14} aria-hidden />
             </Button>
           </DropdownMenuTrigger>
@@ -306,14 +307,14 @@ export const ProjectPanelBar: React.FC<{ data: ProjectPanelData; selectionCount:
           </DropdownMenuContent>
         </DropdownMenu>
       )}
-      <div role="group" aria-label="View" className="flex shrink-0 overflow-hidden rounded-[6px] border border-bg-3">
+      <div role="group" aria-label={t("View")} className="flex shrink-0 overflow-hidden rounded-[6px] border border-bg-3">
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          aria-label="Grid view"
+          aria-label={t("Grid view")}
           aria-pressed={view === "grid"}
-          title="Grid view"
+          title={t("Grid view")}
           className={`h-[24px] w-[26px] rounded-none ${view === "grid" ? "bg-[#26282d] text-fg" : "bg-[#1c1d21] text-fg-3"}`}
           onClick={() => setView("grid")}
         >
@@ -323,9 +324,9 @@ export const ProjectPanelBar: React.FC<{ data: ProjectPanelData; selectionCount:
           type="button"
           variant="ghost"
           size="icon"
-          aria-label="List view"
+          aria-label={t("List view")}
           aria-pressed={view === "list"}
-          title="List view"
+          title={t("List view")}
           className={`h-[24px] w-[26px] rounded-none ${view === "list" ? "bg-[#26282d] text-fg" : "bg-[#1c1d21] text-fg-3"}`}
           onClick={() => setView("list")}
         >
@@ -340,6 +341,7 @@ export const ProjectPanelBar: React.FC<{ data: ProjectPanelData; selectionCount:
 
 /** Rename / comment / description prompts and the delete-bin confirmation. */
 export const ProjectPanelDialogs: React.FC = () => {
+  const t = useT();
   const dialog = useProjectPanelStore((s) => s.dialog);
   const close = () => useProjectPanelStore.getState().openDialog(null);
   const project = useProjectStore((s) => s.project);
@@ -369,13 +371,13 @@ export const ProjectPanelDialogs: React.FC = () => {
       <Dialog open onOpenChange={(open) => !open && close()}>
         <DialogContent className="max-w-[400px] border-border bg-bg-1 text-fg">
           <DialogHeader>
-            <DialogTitle>Rename smart bin</DialogTitle>
+            <DialogTitle>{t("Rename smart bin")}</DialogTitle>
             <DialogDescription className="truncate">{bin.query}</DialogDescription>
           </DialogHeader>
-          <Input autoFocus aria-label="Smart bin name" value={text} onChange={(event) => setText(event.target.value)} onKeyDown={(event) => event.key === "Enter" && submit()} />
+          <Input autoFocus aria-label={t("Smart bin name")} value={text} onChange={(event) => setText(event.target.value)} onKeyDown={(event) => event.key === "Enter" && submit()} />
           <DialogFooter>
-            <Button variant="secondary" onClick={close}>Cancel</Button>
-            <Button onClick={submit}>Save</Button>
+            <Button variant="secondary" onClick={close}>{t("Cancel")}</Button>
+            <Button onClick={submit}>{t("Save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -389,17 +391,17 @@ export const ProjectPanelDialogs: React.FC = () => {
       <Dialog open onOpenChange={(open) => !open && close()}>
         <DialogContent className="max-w-[420px] border-border bg-bg-1 text-fg" data-testid="delete-bin-dialog">
           <DialogHeader>
-            <DialogTitle>Delete bin "{bin?.name}"?</DialogTitle>
+            <DialogTitle>{t("Delete bin \"")}{bin?.name}"?</DialogTitle>
             <DialogDescription>
               {impact && impact.mediaIds.length + impact.binIds.length > 1
                 ? `This also deletes ${impact.binIds.length - 1} nested bin${impact.binIds.length - 1 === 1 ? "" : "s"} and ${impact.mediaIds.length} media item${impact.mediaIds.length === 1 ? "" : "s"}${impact.clipCount ? `, including ${impact.clipCount} clip${impact.clipCount === 1 ? "" : "s"} used on the timeline` : ""}. You can undo this.`
                 : impact && impact.mediaIds.length
                   ? `This also deletes ${impact.mediaIds.length} media item${impact.mediaIds.length === 1 ? "" : "s"}${impact.clipCount ? `, including ${impact.clipCount} clip${impact.clipCount === 1 ? "" : "s"} used on the timeline` : ""}. You can undo this.`
-                  : "The bin is empty."}
+                  : t("The bin is empty.")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="secondary" onClick={close}>Cancel</Button>
+            <Button variant="secondary" onClick={close}>{t("Cancel")}</Button>
             <Button
               data-testid="confirm-delete-bin"
               variant="destructive"
@@ -409,7 +411,7 @@ export const ProjectPanelDialogs: React.FC = () => {
                 void runOrganize("Delete bin", deleteBinWithContents(id));
               }}
             >
-              Delete bin{impact && impact.mediaIds.length ? " and contents" : ""}
+              {t("Delete bin")}{impact && impact.mediaIds.length ? t(" and contents") : ""}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -434,7 +436,7 @@ export const ProjectPanelDialogs: React.FC = () => {
       <React.Suspense fallback={null}>
         <VrPropertiesDialog
           key={media.id}
-          title="VR Properties"
+          title={t("VR Properties")}
           subtitle={media.name}
           value={media.vrProperties ?? (media.metadata.vr?.source === "metadata" ? media.metadata.vr : undefined)}
           detected={media.metadata.vr}
@@ -475,8 +477,8 @@ export const ProjectPanelDialogs: React.FC = () => {
             onKeyDown={(event) => event.key === "Enter" && submit()}
           />
           <DialogFooter>
-            <Button variant="secondary" onClick={close}>Cancel</Button>
-            <Button onClick={submit}>Save</Button>
+            <Button variant="secondary" onClick={close}>{t("Cancel")}</Button>
+            <Button onClick={submit}>{t("Save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

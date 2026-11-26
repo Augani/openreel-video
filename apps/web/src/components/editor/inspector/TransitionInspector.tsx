@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { translateNow } from "@openreel/i18n/translate";
 import {
   Button,
   Input,
@@ -31,6 +32,7 @@ import type { TransitionType } from "@openreel/core";
 import { toast } from "../../../stores/notification-store";
 import { MorphCutControls } from "./MorphCutControls";
 import { encodeLumaBase64, isMaskTransition } from "@openreel/core/video/transition-masks";
+import { useT } from "@openreel/i18n/react";
 
 const LUMA_MAP_WIDTH = 64;
 const LUMA_MAP_HEIGHT = 36;
@@ -94,6 +96,7 @@ const DirectionSelector: React.FC<{
   onChange: (direction: string) => void;
   options?: string[];
 }> = ({ value, onChange, options = ["left", "right", "up", "down"] }) => {
+  const t = useT();
   const directionIcons: Record<string, React.ReactNode> = {
     left: <ArrowLeft size={14} />,
     right: <ArrowRight size={14} />,
@@ -106,7 +109,7 @@ const DirectionSelector: React.FC<{
   return (
     <div className="space-y-1">
       <span className="text-fg-2 font-normal text-[10px]">
-        Direction
+        {t("Direction")}
       </span>
       <div className="workspace-transition-directions" style={{ gridTemplateColumns: `repeat(${choices.length}, minmax(0, 1fr))` }}>
         {choices.map((dir) => (
@@ -129,10 +132,10 @@ const CORNERS = [
 /** Picks the corner a transition starts from (inset, page peel). */
 const CornerSelector: React.FC<{ value: string; onChange: (corner: string) => void }> = ({ value, onChange }) => (
   <div className="space-y-1">
-    <span className="text-fg-2 font-normal text-[10px]">Corner</span>
+    <span className="text-fg-2 font-normal text-[10px]">{translateNow("Corner")}</span>
     <div className="workspace-transition-directions" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
       {CORNERS.map((corner) => (
-        <Button variant="outline" size="icon-sm" key={corner.value} onClick={() => onChange(corner.value)} type="button" aria-pressed={value === corner.value} aria-label={corner.label} title={corner.label}>
+        <Button variant="outline" size="icon-sm" key={corner.value} onClick={() => onChange(corner.value)} type="button" aria-pressed={value === corner.value} aria-label={translateNow(corner.label)} title={translateNow(corner.label)}>
           {corner.glyph}
         </Button>
       ))}
@@ -183,6 +186,7 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
   onTransitionUpdate,
   onTransitionRemove,
 }) => {
+  const t = useT();
   const project = useProjectStore((state) => state.project);
   const actionExecutor = useProjectStore((state) => state.actionExecutor);
   const canEdit = useCallback(() => {
@@ -335,13 +339,13 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
       if (newTransition) {
         onTransitionCreate?.(newTransition);
         toast.success(
-          "Transition Applied",
+          translateNow("Transition Applied"),
           `${selectedType} transition added (${duration}s)`,
         );
       }
     } else {
       toast.error(
-        "Transition Failed",
+        translateNow("Transition Failed"),
         result.error || "Could not apply transition",
       );
     }
@@ -363,7 +367,7 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
     if (transition) {
       bridge.removeTransition(transition.id);
       onTransitionRemove?.(transition.id);
-      toast.success("Transition Removed");
+      toast.success(translateNow("Transition Removed"));
     }
   }, [canEdit, bridge, transition, onTransitionRemove]);
 
@@ -410,10 +414,10 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
           unit="px"
         />
         <label className="workspace-transition-toggle">
-          <span>Border colour</span>
+          <span>{t("Border colour")}</span>
           <input
             type="color"
-            aria-label="Border colour"
+            aria-label={t("Border colour")}
             value={typeof params.borderColor === "string" && /^#[0-9a-f]{6}$/i.test(params.borderColor) ? params.borderColor : "#ffffff"}
             onChange={(event) => handleParamChange("borderColor", event.target.value)}
           />
@@ -441,7 +445,7 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
           step={1}
         />
         <Button variant="secondary" type="button" onClick={() => handleParamChange("seed", Math.floor(Math.random() * 1000))}>
-          New pattern
+          {t("New pattern")}
         </Button>
       </div>
     );
@@ -865,22 +869,22 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
                 if (transition) onTransitionUpdate?.(transition.id, { params: next });
               }}
             >
-              <SelectTrigger aria-label="Gradient" icon={<span aria-hidden="true">▾</span>}>
+              <SelectTrigger aria-label={t("Gradient")} icon={<span aria-hidden="true">▾</span>}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {["linear", "radial", "diagonal", "checker", "noise", "spiral"].map((value) => (
                   <SelectItem key={value} value={value}>{value[0]!.toUpperCase() + value.slice(1)}</SelectItem>
                 ))}
-                {hasImage && <SelectItem value="custom">Custom image</SelectItem>}
+                {hasImage && <SelectItem value="custom">{t("Custom image")}</SelectItem>}
               </SelectContent>
             </Select>
             <label className="workspace-transition-toggle">
-              <span>{hasImage ? "Replace gradient image" : "Gradient image"}</span>
+              <span>{hasImage ? t("Replace gradient image") : t("Gradient image")}</span>
               <input
                 type="file"
                 accept="image/*"
-                aria-label="Gradient image"
+                aria-label={t("Gradient image")}
                 onChange={async (event) => {
                   const file = event.target.files?.[0];
                   event.target.value = "";
@@ -891,7 +895,7 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
                     handleParamChange("lumaWidth", luma.lumaWidth);
                     handleParamChange("lumaHeight", luma.lumaHeight);
                   } catch (error) {
-                    toast.error("Gradient image", error instanceof Error ? error.message : "Could not read that image");
+                    toast.error(translateNow("Gradient image"), error instanceof Error ? error.message : "Could not read that image");
                   }
                 }}
               />
@@ -1049,18 +1053,18 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
       const { getGlobalTransitionPresets } = await import("../../../services/global-transition-presets");
       const outcome = await getGlobalTransitionPresets().save(presetName, { type: selectedType, duration, params });
       if (outcome.ok) {
-        toast.success("Transition preset", outcome.message);
+        toast.success(translateNow("Transition preset"), outcome.message);
         setPresetNaming(false);
-      } else toast.error("Transition preset", outcome.error);
+      } else toast.error(translateNow("Transition preset"), outcome.error);
       return;
     }
     const { saveTransitionPreset } = await import("../../../services/transition-presets");
     const outcome = await saveTransitionPreset(presetName, { type: selectedType, duration, params });
     if (outcome.ok) {
-      toast.success("Transition preset", outcome.message);
+      toast.success(translateNow("Transition preset"), outcome.message);
       setPresetNaming(false);
     } else {
-      toast.error("Transition preset", outcome.error);
+      toast.error(translateNow("Transition preset"), outcome.error);
     }
   };
   const applyToAllCuts = async () => {
@@ -1112,7 +1116,7 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
       }
     } catch (error) {
       if (useProjectStore.getState().project.id === projectId)
-        toast.error("Could not apply all transitions", error instanceof Error ? error.message : "Try again, or undo the edits already applied.");
+        toast.error(translateNow("Could not apply all transitions"), error instanceof Error ? error.message : "Try again, or undo the edits already applied.");
       return;
     } finally {
       history.endGroup();
@@ -1121,11 +1125,11 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
     if (useProjectStore.getState().project.id !== projectId) return;
     if (count)
       toast.success(
-        `Transition applied to ${count} cut${count === 1 ? "" : "s"}`,
+        translateNow(count === 1 ? "Transition applied to {count} cut" : "Transition applied to {count} cuts", { count }),
       );
     else
       toast.warning(
-        "No adjacent video cuts",
+        translateNow("No adjacent video cuts"),
         "Place two video clips next to each other on an unlocked track.",
       );
   };
@@ -1151,8 +1155,8 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
           <div>
             <strong>{name}</strong>
             <p>
-              {track ? getTrackBadge(project.timeline.tracks, track.id) : "Video"} ·{" "}
-              {edge ? `${edge === "in" ? "intro" : "outro"} at` : "cut at"}{" "}
+              {track ? getTrackBadge(project.timeline.tracks, track.id) : t("Video")} ·{" "}
+              {edge ? `${edge === "in" ? "intro" : "outro"} at` : t("cut at")}{" "}
               {formatFrameTimecode(cutTime, frameRate)}
             </p>
           </div>
@@ -1161,16 +1165,16 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
             onValueChange={(value) => handleTypeChange(value as TransitionType)}
           >
             <SelectTrigger
-              aria-label="Replace transition"
+              aria-label={t("Replace transition")}
               className="workspace-transition-replace"
               icon={<span aria-hidden="true">▾</span>}
             >
-              <span>Replace</span>
+              <span>{t("Replace")}</span>
             </SelectTrigger>
             <SelectContent>
               {transitionTypes.map((info) => (
                 <SelectItem key={info.type} value={info.type}>
-                  {info.type === "crossfade" ? "Cross dissolve" : info.name}
+                  {info.type === "crossfade" ? t("Cross dissolve") : info.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -1187,9 +1191,9 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
         />
         {!edge && (
           <div className="workspace-transition-property">
-            <span>Alignment</span>
+            <span>{t("Alignment")}</span>
             <RadioGroup
-              aria-label="Transition alignment"
+              aria-label={t("Transition alignment")}
               className="workspace-transition-alignment"
               orientation="horizontal"
               value={alignment}
@@ -1223,21 +1227,21 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
           </div>
         )}
         <div className="workspace-transition-property is-easing">
-          <span>Easing</span>
+          <span>{t("Easing")}</span>
           <div className="workspace-transition-easing">
             <Select
               value={EASING_CURVES[curve] ? curve : "linear"}
               onValueChange={(value) => handleParamChange("curve", value)}
             >
-              <SelectTrigger aria-label="Transition easing" icon={<span className="workspace-transition-caret" aria-hidden="true">▾</span>}>
+              <SelectTrigger aria-label={t("Transition easing")} icon={<span className="workspace-transition-caret" aria-hidden="true">▾</span>}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="linear">Linear</SelectItem>
-                <SelectItem value="ease">Ease in-out</SelectItem>
-                <SelectItem value="ease-in">Ease in</SelectItem>
-                <SelectItem value="ease-out">Ease out</SelectItem>
-                <SelectItem value="ease-in-out">Quadratic in-out</SelectItem>
+                <SelectItem value="linear">{t("Linear")}</SelectItem>
+                <SelectItem value="ease">{t("Ease in-out")}</SelectItem>
+                <SelectItem value="ease-in">{t("Ease in")}</SelectItem>
+                <SelectItem value="ease-out">{t("Ease out")}</SelectItem>
+                <SelectItem value="ease-in-out">{t("Quadratic in-out")}</SelectItem>
               </SelectContent>
             </Select>
           <div
@@ -1268,7 +1272,7 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
           </div>
         </div>
         <div className="workspace-transition-property">
-          <span>Start / end</span>
+          <span>{t("Start / end")}</span>
           <div className="grid grid-cols-2 gap-2">
             <TransitionSlider
               label="Start"
@@ -1307,10 +1311,10 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
               unit="px"
             />
             <label className="workspace-transition-toggle">
-              <span>Border colour</span>
+              <span>{t("Border colour")}</span>
               <input
                 type="color"
-                aria-label="Border colour"
+                aria-label={t("Border colour")}
                 value={typeof params.borderColor === "string" && /^#[0-9a-f]{6}$/i.test(params.borderColor) ? params.borderColor : "#ffffff"}
                 onChange={(event) => handleParamChange("borderColor", event.target.value)}
               />
@@ -1348,38 +1352,38 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
           <>
             <Input
               autoFocus
-              aria-label="Preset name"
+              aria-label={t("Preset name")}
               value={presetName}
-              placeholder="Preset name"
+              placeholder={t("Preset name")}
               onChange={(event) => setPresetName(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter") void savePreset();
                 if (event.key === "Escape") setPresetNaming(false);
               }}
             />
-            <Button variant="secondary" onClick={() => void savePreset()} title="Keep the preset in this project">Save</Button>
-            <Button variant="secondary" onClick={() => void savePreset("library")} title="Keep the preset for every project in this app">Save to library</Button>
+            <Button variant="secondary" onClick={() => void savePreset()} title={t("Keep the preset in this project")}>{t("Save")}</Button>
+            <Button variant="secondary" onClick={() => void savePreset("library")} title={t("Keep the preset for every project in this app")}>{t("Save to library")}</Button>
           </>
         ) : (
           <>
-            <Button variant="secondary" onClick={() => { setPresetName(""); setPresetNaming(true); }}>Save as preset…</Button>
+            <Button variant="secondary" onClick={() => { setPresetName(""); setPresetNaming(true); }}>{t("Save as preset…")}</Button>
             <Button
               variant="secondary"
               onClick={async () => {
                 const { setDefaultTransition } = await import("../../../services/transition-presets");
                 const outcome = await setDefaultTransition({ type: selectedType, duration, params, label: name });
-                if (outcome.ok) toast.success("Default transition", outcome.message);
-                else toast.error("Default transition", outcome.error);
+                if (outcome.ok) toast.success(translateNow("Default transition"), outcome.message);
+                else toast.error(translateNow("Default transition"), outcome.error);
               }}
             >
-              Set as default
+              {t("Set as default")}
             </Button>
           </>
         )}
       </div>
       <div className="workspace-transition-actions">
         <Button variant="secondary" disabled={applyingAll} onClick={() => void applyToAllCuts()}>
-          {applyingAll ? "Applying…" : "Apply to all cuts"}
+          {applyingAll ? t("Applying…") : t("Apply to all cuts")}
         </Button>
         {transition ? (
           <Button
@@ -1387,11 +1391,11 @@ export const TransitionInspector: React.FC<TransitionInspectorProps> = ({
             className="text-red-400"
             onClick={handleRemove}
           >
-            Remove
+            {t("Remove")}
           </Button>
         ) : (
           <Button className="workspace-transition-create" disabled={!validation.valid} onClick={handleCreate}>
-            Apply transition
+            {t("Apply transition")}
           </Button>
         )}
       </div>

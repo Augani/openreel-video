@@ -20,6 +20,7 @@ import {
   SelectValue,
   Switch,
 } from "@openreel/ui";
+import { useT } from "@openreel/i18n/react";
 
 interface ExportCaptionOptionsProps {
   subtitles: readonly Subtitle[];
@@ -55,6 +56,7 @@ export function ExportCaptionOptions({
   isDesktop,
   frameRate,
 }: ExportCaptionOptionsProps) {
+  const t = useT();
   const tracks = useMemo(() => listCaptionTracks(subtitles as Subtitle[]), [subtitles]);
 
   const warnings = useMemo(
@@ -83,9 +85,9 @@ export function ExportCaptionOptions({
   if (!tracks.length) {
     return (
       <section className="rounded-[10px] border border-border bg-bg-1 p-4" data-testid="export-captions">
-        <h4 className="text-[12px] font-semibold text-fg">Captions</h4>
+        <h4 className="text-[12px] font-semibold text-fg">{t("Captions")}</h4>
         <p className="mt-1 text-[10px] text-fg-muted">
-          This project has no captions. Add or import captions to burn them in, write sidecar files or embed them.
+          {t("This project has no captions. Add or import captions to burn them in, write sidecar files or embed them.")}
         </p>
       </section>
     );
@@ -93,9 +95,9 @@ export function ExportCaptionOptions({
 
   return (
     <section className="rounded-[10px] border border-border bg-bg-1 p-4" data-testid="export-captions">
-      <h4 className="text-[12px] font-semibold text-fg">Captions</h4>
+      <h4 className="text-[12px] font-semibold text-fg">{t("Captions")}</h4>
       <p className="mt-1 text-[10px] text-fg-muted">
-        Per caption track: draw it into the picture, write a sidecar file next to the video, or embed a subtitle track.
+        {t("Per caption track: draw it into the picture, write a sidecar file next to the video, or embed a subtitle track.")}
       </p>
       <div className="mt-3 space-y-3">
         {tracks.map((track) => {
@@ -112,25 +114,25 @@ export function ExportCaptionOptions({
                   {trackName(track.id, track.language)}
                 </span>
                 <span className="shrink-0 text-[10px] text-fg-muted">
-                  {track.cueCount} caption{track.cueCount === 1 ? "" : "s"}
+                  {track.cueCount} {t("caption")}{track.cueCount === 1 ? "" : "s"}
                 </span>
               </div>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]">
                 <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-start sm:justify-start">
                   <Label htmlFor={`caption-burn-${key}`} className="text-[10px] text-fg-muted">
-                    {hiddenTracks.has(track.id) ? "Burn in (hidden)" : "Burn in"}
+                    {hiddenTracks.has(track.id) ? t("Burn in (hidden)") : t("Burn in")}
                   </Label>
                   <Switch
                     id={`caption-burn-${key}`}
                     aria-label={`Burn in ${trackName(track.id, track.language)}`}
-                    title={hiddenTracks.has(track.id) ? "This track is hidden in the picture. Choose it with Show in picture in the Transcript panel." : undefined}
+                    title={hiddenTracks.has(track.id) ? t("This track is hidden in the picture. Choose it with Show in picture in the Transcript panel.") : undefined}
                     disabled={hiddenTracks.has(track.id)}
                     checked={settings.burnIn && !hiddenTracks.has(track.id)}
                     onCheckedChange={(burnIn) => update(track.id, { burnIn })}
                   />
                 </div>
                 <div className="min-w-0 space-y-1">
-                  <Label className="text-[10px] text-fg-muted">Sidecar file</Label>
+                  <Label className="text-[10px] text-fg-muted">{t("Sidecar file")}</Label>
                   <Select
                     value={settings.sidecar}
                     onValueChange={(sidecar) =>
@@ -145,7 +147,7 @@ export function ExportCaptionOptions({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none" className="text-xs">
-                        None
+                        {t("None")}
                       </SelectItem>
                       {CAPTION_EXPORT_FORMATS.map((f) => (
                         <SelectItem key={f} value={f} className="text-xs">
@@ -156,7 +158,7 @@ export function ExportCaptionOptions({
                   </Select>
                 </div>
                 <div className="min-w-0 space-y-1">
-                  <Label className="text-[10px] text-fg-muted">Embedded</Label>
+                  <Label className="text-[10px] text-fg-muted">{t("Embedded")}</Label>
                   <Select
                     value={settings.embedded}
                     onValueChange={(embedded) =>
@@ -185,8 +187,7 @@ export function ExportCaptionOptions({
       </div>
       {embeddedInBrowser && warnings.length === 0 && (
         <p className="mt-2 text-[10px] text-fg-muted" data-testid="export-caption-browser-note">
-          Browser exports embed a WebVTT track in the MP4. Some tools (including ffmpeg) list it as a data track; use the
-          desktop app for a tx3g or CEA-608 track.
+          {t("Browser exports embed a WebVTT track in the MP4. Some tools (including ffmpeg) list it as a data track; use the desktop app for a tx3g or CEA-608 track.")}
         </p>
       )}
       {warnings.length > 0 && (

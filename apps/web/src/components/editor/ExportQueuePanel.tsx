@@ -17,6 +17,7 @@ import {
 import { exportQueueSummary, isStemsJob, planStemExport, type ExportJob, type ExportJobStatus } from "@openreel/core";
 import { initExportQueue, useExportQueueStore } from "../../stores/export-queue-store";
 import { useProjectStore } from "../../stores/project-store";
+import { useT } from "@openreel/i18n/react";
 
 const isDesktop = (): boolean => typeof window !== "undefined" && window.openreel?.platform === "desktop";
 
@@ -216,6 +217,7 @@ function JobRow({ job, queuedIndex, queuedCount }: { job: ExportJob; queuedIndex
 
 /** Picks buses and bit depth, then queues one stems job (a zip of WAVs). */
 const AddStemsButton: React.FC = () => {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const project = useProjectStore((s) => s.project);
   const plan = useMemo(() => (open ? planStemExport(project) : []), [open, project]);
@@ -225,19 +227,19 @@ const AddStemsButton: React.FC = () => {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" size="sm" variant="secondary" className="h-6 gap-1 px-2 text-[11px]" aria-label="Add stems to queue" data-testid="export-queue-add-stems">
-          <Layers size={12} aria-hidden /> Stems
+        <Button type="button" size="sm" variant="secondary" className="h-6 gap-1 px-2 text-[11px]" aria-label={t("Add stems to queue")} data-testid="export-queue-add-stems">
+          <Layers size={12} aria-hidden /> {t("Stems")}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="z-[70] w-64 p-3" data-testid="export-queue-stems-form">
         <div className="flex flex-col gap-2">
-          <span className="text-xs font-semibold text-fg-1">Export stems</span>
+          <span className="text-xs font-semibold text-fg-1">{t("Export stems")}</span>
           {plan.length === 0 ? (
             <p className="text-[11px] text-fg-muted">
-              No bus carries audio yet. Add a bus (the Dialogue / Music / FX preset in the Audio Mixer) and route tracks into it.
+              {t("No bus carries audio yet. Add a bus (the Dialogue / Music / FX preset in the Audio Mixer) and route tracks into it.")}
             </p>
           ) : (
-            <ul className="flex flex-col gap-1" aria-label="Buses to export">
+            <ul className="flex flex-col gap-1" aria-label={t("Buses to export")}>
               {plan.map((item) => (
                 <li key={item.busId}>
                   <label className="flex items-center gap-2 text-[11px] text-fg-2">
@@ -261,7 +263,7 @@ const AddStemsButton: React.FC = () => {
             </ul>
           )}
           <div className="flex items-center gap-2 text-[11px] text-fg-2">
-            <span>Bit depth</span>
+            <span>{t("Bit depth")}</span>
             {[16, 24].map((depth) => (
               <Button
                 key={depth}
@@ -272,7 +274,7 @@ const AddStemsButton: React.FC = () => {
                 aria-pressed={bitDepth === depth}
                 onClick={() => setBitDepth(depth as 16 | 24)}
               >
-                {depth}-bit
+                {depth}{t("-bit")}
               </Button>
             ))}
           </div>
@@ -287,7 +289,7 @@ const AddStemsButton: React.FC = () => {
               if (job) setOpen(false);
             }}
           >
-            Add {chosen.length} stem{chosen.length === 1 ? "" : "s"} to queue
+            {t("Add")} {chosen.length} {t("stem")}{chosen.length === 1 ? "" : "s"} {t("to queue")}
           </Button>
         </div>
       </PopoverContent>
@@ -306,6 +308,7 @@ export const ExportQueuePanel: React.FC = () => {
 };
 
 const ExportQueuePanelBody: React.FC = () => {
+  const t = useT();
   const queue = useExportQueueStore((s) => s.queue);
   const summary = exportQueueSummary(queue);
   const queuedIds = queue.jobs.filter((job) => job.status === "queued").map((job) => job.id);
@@ -316,17 +319,17 @@ const ExportQueuePanelBody: React.FC = () => {
   return createPortal(
     <section
       role="region"
-      aria-label="Export queue"
+      aria-label={t("Export queue")}
       data-testid="export-queue-panel"
       className="fixed bottom-3 right-3 z-[60] flex max-h-[60vh] w-[440px] max-w-[calc(100vw-24px)] flex-col overflow-hidden rounded-lg border border-border bg-bg-1 shadow-2xl"
     >
       <header className="flex items-center gap-2 border-b border-border px-3 py-2">
         <ListVideo size={14} className="shrink-0 text-fg-2" aria-hidden />
         <div className="min-w-0 flex-1">
-          <h2 className="text-xs font-semibold leading-tight text-fg-1">Export queue</h2>
+          <h2 className="text-xs font-semibold leading-tight text-fg-1">{t("Export queue")}</h2>
           <p className="truncate text-[11px] leading-tight text-fg-muted" data-testid="export-queue-summary">
             {summary.total === 0
-              ? "Empty"
+              ? t("Empty")
               : `${summary.running} running · ${summary.queued} queued · ${summary.completed} done${summary.failed ? ` · ${summary.failed} failed` : ""}`}
           </p>
         </div>
@@ -338,9 +341,9 @@ const ExportQueuePanelBody: React.FC = () => {
               className="h-6 gap-1 px-2 text-[11px]"
               disabled={!canStart}
               onClick={() => store.start()}
-              aria-label="Start queue"
+              aria-label={t("Start queue")}
             >
-              <Play size={12} aria-hidden /> Start queue
+              <Play size={12} aria-hidden /> {t("Start queue")}
             </Button>
           ) : (
             <Button
@@ -349,9 +352,9 @@ const ExportQueuePanelBody: React.FC = () => {
               variant="secondary"
               className="h-6 gap-1 px-2 text-[11px]"
               onClick={() => store.pause()}
-              aria-label="Pause queue"
+              aria-label={t("Pause queue")}
             >
-              <Pause size={12} aria-hidden /> Pause queue
+              <Pause size={12} aria-hidden /> {t("Pause queue")}
             </Button>
           )}
           <AddStemsButton />
@@ -365,10 +368,10 @@ const ExportQueuePanelBody: React.FC = () => {
       </header>
       {queue.jobs.length === 0 ? (
         <p className="px-3 py-6 text-center text-[11px] text-fg-muted">
-          Use Add to queue in the Export dialog. Each job renders the project as it was when you added it.
+          {t("Use Add to queue in the Export dialog. Each job renders the project as it was when you added it.")}
         </p>
       ) : (
-        <ul className="min-h-0 flex-1 overflow-y-auto" aria-label="Export jobs">
+        <ul className="min-h-0 flex-1 overflow-y-auto" aria-label={t("Export jobs")}>
           {queue.jobs.map((job) => (
             <JobRow
               key={job.id}
@@ -381,7 +384,7 @@ const ExportQueuePanelBody: React.FC = () => {
       )}
       {queue.paused && summary.queued > 0 && (
         <p className="border-t border-border px-3 py-1.5 text-[11px] text-fg-muted">
-          Queue is paused. A running export finishes before the queue stops.
+          {t("Queue is paused. A running export finishes before the queue stops.")}
         </p>
       )}
     </section>,
@@ -391,6 +394,7 @@ const ExportQueuePanelBody: React.FC = () => {
 
 /** Header button that opens the queue panel, with a live job count. */
 export const ExportQueueButton: React.FC<{ className?: string }> = ({ className }) => {
+  const t = useT();
   // Select the count, not the queue: progress ticks must not re-render the header.
   const active = useExportQueueStore(
     (s) => s.queue.jobs.filter((job) => job.status === "queued" || job.status === "running").length,
@@ -402,9 +406,9 @@ export const ExportQueueButton: React.FC<{ className?: string }> = ({ className 
       variant="ghost"
       size="icon"
       className={cn("relative", className)}
-      aria-label="Export queue"
+      aria-label={t("Export queue")}
       aria-pressed={open}
-      title="Export queue"
+      title={t("Export queue")}
       onClick={() => useExportQueueStore.getState().setPanelOpen(!open)}
     >
       <ListVideo size={15} aria-hidden />

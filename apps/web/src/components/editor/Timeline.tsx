@@ -1,4 +1,5 @@
 import { useEditorWorkspaceStore } from "../../stores/editor-workspace-store";
+import { translateNow } from "@openreel/i18n/translate";
 import { useT } from "@openreel/i18n/react";
 import { getPrimarySelectedTrackId } from "./timeline/primary-track";
 import { keyboardShortcuts } from "../../services/keyboard-shortcuts";
@@ -134,7 +135,7 @@ const TLTool = ({
 }) => (
   <ShadcnButton
     type="button" variant="ghost" size="icon-sm"
-    aria-label={title ?? "Timeline tool"}
+    aria-label={title ?? translateNow("Timeline tool")}
     aria-pressed={active}
     onClick={onClick}
     disabled={disabled}
@@ -954,7 +955,7 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
           moveLinkedCaptions(useProjectStore.getState(), sourceClip, newStartTime);
         }
       }).catch((error: unknown) => {
-        toast.error("Move failed", error instanceof Error ? error.message : "Please try again.");
+        toast.error(translateNow("Move failed"), error instanceof Error ? error.message : "Please try again.");
       });
       return moveQueue.current;
     },
@@ -1020,7 +1021,7 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
   const trimQueue = useRef(Promise.resolve());
   const handleTrimClip = useCallback((clipId: string, edge: "left" | "right", newTime: number) => {
     trimQueue.current = trimQueue.current.then(() => trimLinkedTimelineClips(clipId, edge, newTime))
-      .catch((error: unknown) => { toast.error("Trim failed", error instanceof Error ? error.message : "Please try again."); });
+      .catch((error: unknown) => { toast.error(translateNow("Trim failed"), error instanceof Error ? error.message : "Please try again."); });
     return trimQueue.current;
   }, []);
 
@@ -1075,39 +1076,39 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
 
   const timelineToolbar = (
       <div className="workspace-timeline-toolbar">
-        <TLTool title="Selection tool (V)" active={tool === "select"} onClick={() => useEditorWorkspaceStore.getState().setTimelineTool("select")}><MousePointer2 size={17} /></TLTool>
-        <TLTool title="Blade tool (B)" active={tool === "blade"} onClick={() => useEditorWorkspaceStore.getState().setTimelineTool("blade")}><Scissors size={16} /></TLTool>
-        <TLTool title="Ripple trim (R)" active={tool === "ripple"} onClick={() => useEditorWorkspaceStore.getState().setTimelineTool("ripple")}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 3v18M8 8l-4 4 4 4M16 8l4 4-4 4" /></svg></TLTool>
-        <TLTool title="Slip (Y)" active={tool === "slip"} onClick={() => useEditorWorkspaceStore.getState().setTimelineTool("slip")}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M7.5 6h9A1.5 1.5 0 0 1 18 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 16.5v-9A1.5 1.5 0 0 1 7.5 6zM2 12h3M19 12h3" /></svg></TLTool>
-        <TLTool title="Rolling edit (Shift+N)" active={tool === "roll"} onClick={() => useEditorWorkspaceStore.getState().setTimelineTool("roll")}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 4v16M8 9l-4 3 4 3M16 9l4 3-4 3M4 12h16" /></svg></TLTool>
-        <TLTool title="Slide (U)" active={tool === "slide"} onClick={() => useEditorWorkspaceStore.getState().setTimelineTool("slide")}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M9 7h6v10H9zM3 12h3M18 12h3M4.5 10.5 3 12l1.5 1.5M19.5 10.5 21 12l-1.5 1.5" /></svg></TLTool>
-        <TLTool title="Rate stretch (Shift+R)" active={tool === "stretch"} onClick={() => useEditorWorkspaceStore.getState().setTimelineTool("stretch")}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 5v14M20 5v14M7 12h10M10 9l-3 3 3 3M14 9l3 3-3 3" /></svg></TLTool>
+        <TLTool title={t("Selection tool (V)")} active={tool === "select"} onClick={() => useEditorWorkspaceStore.getState().setTimelineTool("select")}><MousePointer2 size={17} /></TLTool>
+        <TLTool title={t("Blade tool (B)")} active={tool === "blade"} onClick={() => useEditorWorkspaceStore.getState().setTimelineTool("blade")}><Scissors size={16} /></TLTool>
+        <TLTool title={t("Ripple trim (R)")} active={tool === "ripple"} onClick={() => useEditorWorkspaceStore.getState().setTimelineTool("ripple")}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 3v18M8 8l-4 4 4 4M16 8l4 4-4 4" /></svg></TLTool>
+        <TLTool title={t("Slip (Y)")} active={tool === "slip"} onClick={() => useEditorWorkspaceStore.getState().setTimelineTool("slip")}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M7.5 6h9A1.5 1.5 0 0 1 18 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 16.5v-9A1.5 1.5 0 0 1 7.5 6zM2 12h3M19 12h3" /></svg></TLTool>
+        <TLTool title={t("Rolling edit (Shift+N)")} active={tool === "roll"} onClick={() => useEditorWorkspaceStore.getState().setTimelineTool("roll")}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 4v16M8 9l-4 3 4 3M16 9l4 3-4 3M4 12h16" /></svg></TLTool>
+        <TLTool title={t("Slide (U)")} active={tool === "slide"} onClick={() => useEditorWorkspaceStore.getState().setTimelineTool("slide")}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M9 7h6v10H9zM3 12h3M18 12h3M4.5 10.5 3 12l1.5 1.5M19.5 10.5 21 12l-1.5 1.5" /></svg></TLTool>
+        <TLTool title={t("Rate stretch (Shift+R)")} active={tool === "stretch"} onClick={() => useEditorWorkspaceStore.getState().setTimelineTool("stretch")}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 5v14M20 5v14M7 12h10M10 9l-3 3 3 3M14 9l3 3-3 3" /></svg></TLTool>
         <span className="workspace-toolbar-divider" />
-        <TLTool title="Track select forward (A)" active={tool === "trackSelectForward"} onClick={() => useEditorWorkspaceStore.getState().setTimelineTool("trackSelectForward")}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 5v14M8 12h12M16 8l4 4-4 4" /></svg></TLTool>
-        <TLTool title="Track select backward (Shift+A)" active={tool === "trackSelectBackward"} onClick={() => useEditorWorkspaceStore.getState().setTimelineTool("trackSelectBackward")}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M20 5v14M16 12H4M8 8l-4 4 4 4" /></svg></TLTool>
-        <TLTool title="Hand tool (H)" active={tool === "hand"} onClick={() => useEditorWorkspaceStore.getState().setTimelineTool("hand")}><Hand size={16} /></TLTool>
-        <TLTool title="Zoom tool (Z)" active={tool === "zoom"} onClick={() => useEditorWorkspaceStore.getState().setTimelineTool("zoom")}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="11" cy="11" r="6.5" /><path d="M20.5 20.5 16 16M11 8.5v5M8.5 11h5" /></svg></TLTool>
+        <TLTool title={t("Track select forward (A)")} active={tool === "trackSelectForward"} onClick={() => useEditorWorkspaceStore.getState().setTimelineTool("trackSelectForward")}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 5v14M8 12h12M16 8l4 4-4 4" /></svg></TLTool>
+        <TLTool title={t("Track select backward (Shift+A)")} active={tool === "trackSelectBackward"} onClick={() => useEditorWorkspaceStore.getState().setTimelineTool("trackSelectBackward")}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M20 5v14M16 12H4M8 8l-4 4 4 4" /></svg></TLTool>
+        <TLTool title={t("Hand tool (H)")} active={tool === "hand"} onClick={() => useEditorWorkspaceStore.getState().setTimelineTool("hand")}><Hand size={16} /></TLTool>
+        <TLTool title={t("Zoom tool (Z)")} active={tool === "zoom"} onClick={() => useEditorWorkspaceStore.getState().setTimelineTool("zoom")}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="11" cy="11" r="6.5" /><path d="M20.5 20.5 16 16M11 8.5v5M8.5 11h5" /></svg></TLTool>
         <span className="workspace-toolbar-divider" />
-        <TLTool title={snapSettings.enabled ? "Snap on (N)" : "Snap off (N)"} active={snapSettings.enabled} onClick={toggleSnap}><Magnet size={16} /></TLTool>
-        <TLTool title={scrubAudio ? "Audio scrubbing on" : "Audio scrubbing off"} active={scrubAudio} onClick={toggleScrubAudio}>{scrubAudio ? <Volume2 size={16} /> : <VolumeX size={16} />}</TLTool>
-        <TLTool title="Linked selection" active={linkedSelection} onClick={() => useEditorWorkspaceStore.getState().setLinkedSelection(!linkedSelection)}><Link2 size={16} /></TLTool>
-        <TLTool title="Add marker (M)" onClick={() => { void addMarkerAtPlayhead(); }}><Bookmark size={16} /></TLTool>
-        <TLTool title="Split (S)" onClick={handleSplit} disabled={splittableSelectedClipIds.length === 0}><Columns2 size={16} /></TLTool>
-        <TLTool title="Delete (Del)" onClick={handleDelete} disabled={editableClipIds.length===0}><Trash2 size={16} /></TLTool>
+        <TLTool title={snapSettings.enabled ? t("Snap on (N)") : t("Snap off (N)")} active={snapSettings.enabled} onClick={toggleSnap}><Magnet size={16} /></TLTool>
+        <TLTool title={scrubAudio ? t("Audio scrubbing on") : t("Audio scrubbing off")} active={scrubAudio} onClick={toggleScrubAudio}>{scrubAudio ? <Volume2 size={16} /> : <VolumeX size={16} />}</TLTool>
+        <TLTool title={t("Linked selection")} active={linkedSelection} onClick={() => useEditorWorkspaceStore.getState().setLinkedSelection(!linkedSelection)}><Link2 size={16} /></TLTool>
+        <TLTool title={t("Add marker (M)")} onClick={() => { void addMarkerAtPlayhead(); }}><Bookmark size={16} /></TLTool>
+        <TLTool title={t("Split (S)")} onClick={handleSplit} disabled={splittableSelectedClipIds.length === 0}><Columns2 size={16} /></TLTool>
+        <TLTool title={t("Delete (Del)")} onClick={handleDelete} disabled={editableClipIds.length===0}><Trash2 size={16} /></TLTool>
         <EditPointTrimEntry />
         <span className="workspace-toolbar-divider" />
         <DropdownMenu>
-          <DropdownMenuTrigger asChild><ShadcnButton variant="ghost" size="sm" className="workspace-timeline-track-trigger"><Plus size={14} aria-hidden />Track</ShadcnButton></DropdownMenuTrigger>
+          <DropdownMenuTrigger asChild><ShadcnButton variant="ghost" size="sm" className="workspace-timeline-track-trigger"><Plus size={14} aria-hidden />{t("Track")}</ShadcnButton></DropdownMenuTrigger>
           <DropdownMenuContent side="top" align="start" className="w-48">{addTrackMenu}</DropdownMenuContent>
         </DropdownMenu>
         <ShadcnPopover>
-          <PopoverTrigger asChild><ShadcnButton variant="ghost" size="icon-sm" aria-label="More timeline tools"><MoreHorizontal size={16} /></ShadcnButton></PopoverTrigger>
-          <PopoverContent side="top" align="start" aria-label="More timeline tools" className={cn("w-[720px] max-w-[calc(100vw-24px)] p-0", phone && "mobile-timeline-advanced-popover")}>
+          <PopoverTrigger asChild><ShadcnButton variant="ghost" size="icon-sm" aria-label={t("More timeline tools")}><MoreHorizontal size={16} /></ShadcnButton></PopoverTrigger>
+          <PopoverContent side="top" align="start" aria-label={t("More timeline tools")} className={cn("w-[720px] max-w-[calc(100vw-24px)] p-0", phone && "mobile-timeline-advanced-popover")}>
           <div className="workspace-timeline-advanced">      <div className="flex items-center h-12 px-4 gap-4 bg-bg-1 border-b border-border shrink-0 relative z-50">
-        <TLTool onClick={undo} disabled={!canUndo()} title="Undo (⌘Z)">
+        <TLTool onClick={undo} disabled={!canUndo()} title={t("Undo (⌘Z)")}>
           <Undo2 size={16} aria-hidden />
         </TLTool>
-        <TLTool onClick={redo} disabled={!canRedo()} title="Redo (⇧⌘Z)">
+        <TLTool onClick={redo} disabled={!canRedo()} title={t("Redo (⇧⌘Z)")}>
           <Redo2 size={16} aria-hidden />
         </TLTool>
 
@@ -1116,42 +1117,42 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
         <TLTool
           onClick={handleSplit}
           disabled={splittableSelectedClipIds.length === 0}
-          title="Split (S)"
+          title={t("Split (S)")}
         >
           <Scissors size={16} aria-hidden />
         </TLTool>
         <TLTool
           onClick={() => handleTrimToPlayhead(true)}
           disabled={splittableSelectedClipIds.length === 0}
-          title="Trim start to playhead (Q)"
+          title={t("Trim start to playhead (Q)")}
         >
           <CornerDownLeft size={16} aria-hidden />
         </TLTool>
         <TLTool
           onClick={() => handleTrimToPlayhead(false)}
           disabled={splittableSelectedClipIds.length === 0}
-          title="Trim end to playhead (W)"
+          title={t("Trim end to playhead (W)")}
         >
           <CornerDownRight size={16} aria-hidden />
         </TLTool>
         <TLTool
           onClick={handleDelete}
           disabled={editableClipIds.length === 0}
-          title="Delete (Del)"
+          title={t("Delete (Del)")}
         >
           <Trash2 size={16} aria-hidden />
         </TLTool>
         <TLTool
           onClick={handleDuplicate}
           disabled={editableClipIds.length === 0}
-          title="Duplicate (⌘D)"
+          title={t("Duplicate (⌘D)")}
         >
           <Copy size={16} aria-hidden />
         </TLTool>
         <TLTool
           onClick={handleRippleDelete}
           disabled={!canRippleDelete}
-          title="Ripple delete (⇧Del)"
+          title={t("Ripple delete (⇧Del)")}
         >
           <Delete size={16} aria-hidden />
         </TLTool>
@@ -1159,7 +1160,7 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
         <div className="w-px h-[18px] bg-border" />
 
         <DropdownMenu>
-          <DropdownMenuTrigger asChild><ShadcnButton variant="ghost" size="sm"><Plus size={16} aria-hidden />Add track<ChevronDownIcon size={9} className="text-fg-muted" aria-hidden /></ShadcnButton></DropdownMenuTrigger>
+          <DropdownMenuTrigger asChild><ShadcnButton variant="ghost" size="sm"><Plus size={16} aria-hidden />{t("Add track")}<ChevronDownIcon size={9} className="text-fg-muted" aria-hidden /></ShadcnButton></DropdownMenuTrigger>
           <DropdownMenuContent side="top" align="start" className="w-48">{addTrackMenu}</DropdownMenuContent>
         </DropdownMenu>
 
@@ -1174,11 +1175,11 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
           }}
         >
           <PopoverTrigger asChild>
-            <ShadcnButton variant="ghost" size="icon-sm" data-tip-bottom="Track layers" aria-label="Manage track layers" title="Manage track layers" className={showLayersPanel ? "bg-bg-2 text-fg-2" : "text-fg-muted"}><Layers size={16} aria-hidden /></ShadcnButton>
+            <ShadcnButton variant="ghost" size="icon-sm" data-tip-bottom="Track layers" aria-label={t("Manage track layers")} title={t("Manage track layers")} className={showLayersPanel ? "bg-bg-2 text-fg-2" : "text-fg-muted"}><Layers size={16} aria-hidden /></ShadcnButton>
           </PopoverTrigger>
-          <PopoverContent side="top" align="start" aria-label="Track layers" className={cn("w-[340px] max-w-[calc(100vw-24px)] p-0", phone && "mobile-track-layers-popover")}>
+          <PopoverContent side="top" align="start" aria-label={t("Track layers")} className={cn("w-[340px] max-w-[calc(100vw-24px)] p-0", phone && "mobile-track-layers-popover")}>
               <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-bg-2">
-                <span className="text-xs font-semibold text-fg">Track Layers</span>
+                <span className="text-xs font-semibold text-fg">{t("Track Layers")}</span>
                 <span className="text-[10px] tabular-nums text-fg-3">
                   {filteredTrackEntries.length}/{tracks.length}
                 </span>
@@ -1190,10 +1191,10 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
                   className="border-b border-danger/30 bg-danger/10 px-3 py-2.5"
                 >
                   <p className="text-[11px] font-semibold text-danger">
-                    Delete “{pendingTrackDelete.name}”?
+                    {t("Delete “")}{pendingTrackDelete.name}”?
                   </p>
                   <p className="mt-0.5 text-[10px] leading-relaxed text-fg-3">
-                    Its clips will be removed. You can undo this action.
+                    {t("Its clips will be removed. You can undo this action.")}
                   </p>
                   <div className="mt-2 flex justify-end gap-1.5">
                     <ShadcnButton variant="ghost" size="sm"
@@ -1201,7 +1202,7 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
                       onClick={() => setPendingTrackDeleteId(null)}
                       className="h-7 rounded-md border border-border bg-bg-1 px-2.5 text-[10px] font-semibold text-fg-2 hover:bg-hover"
                     >
-                      Cancel
+                      {t("Cancel")}
                     </ShadcnButton>
                     <ShadcnButton variant="ghost" size="sm"
                       type="button"
@@ -1211,7 +1212,7 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
                       }}
                       className="h-7 rounded-md bg-danger px-2.5 text-[10px] font-semibold text-white hover:opacity-90"
                     >
-                      Delete track
+                      {t("Delete track")}
                     </ShadcnButton>
                   </div>
                 </div>
@@ -1221,14 +1222,14 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
                   type="search"
                   value={trackLayerQuery}
                   onChange={(event) => setTrackLayerQuery(event.currentTarget.value)}
-                  placeholder="Search tracks"
-                  aria-label="Search track layers"
+                  placeholder={t("Search tracks")}
+                  aria-label={t("Search track layers")}
                   className="h-8 w-full rounded-md border border-border bg-bg-1 px-2.5 text-[11px] text-fg outline-none placeholder:text-fg-muted focus:border-accent"
                 />
                 <div
                   className="flex gap-1 overflow-x-auto pb-0.5"
                   role="group"
-                  aria-label="Track layer types"
+                  aria-label={t("Track layer types")}
                 >
                   {TRACK_LAYER_FILTERS.map((filter) => {
                     const count =
@@ -1247,7 +1248,7 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
                             : "border-border bg-bg-2 text-fg-3 hover:border-accent/50 hover:text-fg"
                         }`}
                       >
-                        {filter.label} {count}
+                        {t(filter.label)} {count}
                       </ShadcnButton>
                     );
                   })}
@@ -1256,12 +1257,12 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
               <div className="p-2 max-h-60 overflow-y-auto">
                 {tracks.length === 0 ? (
                   <span className="font-normal text-xs text-fg-muted text-center py-6">
-                    No tracks yet
+                    {t("No tracks yet")}
                   </span>
                 ) : filteredTrackEntries.length === 0 ? (
                   <span className="font-normal block py-6 text-center text-xs text-fg-muted"
                   >
-                    No tracks match your filters
+                    {t("No tracks match your filters")}
                   </span>
                 ) : (
                   <div className="space-y-0.5">
@@ -1355,7 +1356,7 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
                                 <ShadcnButton variant="ghost" size="sm"
                                   type="button"
                                   aria-label={`Solo safe ${name}`}
-                                  title="Solo safe: stays audible when other tracks are soloed"
+                                  title={t("Solo safe: stays audible when other tracks are soloed")}
                                   aria-pressed={!!track.soloSafe}
                                   onClick={() => void setTrackSoloSafe(track.id, !track.soloSafe)}
                                   className={`flex h-7 min-w-7 items-center justify-center rounded-md px-1 text-[10px] font-black transition-colors ${
@@ -1401,11 +1402,11 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
         <div className="ml-auto flex items-center gap-3">
           {/* Zoom control (mock: minus / emerald slider track + knob / plus) */}
           <div className="flex items-center gap-2.5">
-            <TLTool onClick={zoomOut} title="Zoom out">
+            <TLTool onClick={zoomOut} title={t("Zoom out")}>
               <ZoomOut size={16} aria-hidden />
             </TLTool>
             <Slider
-              aria-label="Advanced timeline zoom"
+              aria-label={t("Advanced timeline zoom")}
               aria-valuetext={`${Math.round(pixelsPerSecond)} pixels per second`}
               min={ZOOM_PRESETS.MIN}
               max={ZOOM_PRESETS.MAX}
@@ -1414,7 +1415,7 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
               onValueChange={([value]) => setZoom(value)}
               className="workspace-timeline-advanced-zoom"
             />
-            <TLTool onClick={zoomIn} title="Zoom in">
+            <TLTool onClick={zoomIn} title={t("Zoom in")}>
               <ZoomIn size={16} aria-hidden />
             </TLTool>
           </div>
@@ -1425,14 +1426,14 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
             <TLTool
               onClick={toggleSnap}
               active={snapSettings.enabled}
-              title={snapSettings.enabled ? "Snap on (N)" : "Snap off (N)"}
+              title={snapSettings.enabled ? t("Snap on (N)") : t("Snap off (N)")}
             >
               <Magnet size={16} />
             </TLTool>
             <TLTool
               onClick={toggleScrubAudio}
               active={scrubAudio}
-              title={scrubAudio ? "Audio scrubbing on" : "Audio scrubbing off"}
+              title={scrubAudio ? t("Audio scrubbing on") : t("Audio scrubbing off")}
             >
               {scrubAudio ? <Volume2 size={16} /> : <VolumeX size={16} />}
             </TLTool>
@@ -1444,7 +1445,7 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
                 useTimelineStore.setState({ trackHeights: {} });
               }}
               active={phone ? phoneTrackScale > 1 : trackHeight >= 52}
-              title="Large tracks"
+              title={t("Large tracks")}
             >
               <Rows3 size={16} />
             </TLTool>
@@ -1455,7 +1456,7 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
                 useTimelineStore.setState({ trackHeights: {} });
               }}
               active={phone ? phoneTrackScale === 1 : trackHeight < 52}
-              title="Compact tracks"
+              title={t("Compact tracks")}
             >
               <Rows2 size={16} />
             </TLTool>
@@ -1465,8 +1466,8 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
               active={timelineMaximized}
               title={
                 timelineMaximized
-                  ? "Restore layout"
-                  : "Maximize timeline (more room)"
+                  ? t("Restore layout")
+                  : t("Maximize timeline (more room)")
               }
             >
               {timelineMaximized ? (
@@ -1481,8 +1482,8 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
           </PopoverContent>
         </ShadcnPopover>
         <RenderCacheControls />
-        <div className="workspace-timeline-summary">{tracks.length} tracks · {project.timeline.duration > 0 ? `${tracks.reduce((sum,track) => sum+track.clips.length,0)+(project.textClips?.length??0)+(project.shapeClips?.length??0)+(project.svgClips?.length??0)+(project.stickerClips?.length??0)} clips` : "empty"}</div>
-        <Slider aria-label="Timeline zoom" className="workspace-timeline-zoom" min={ZOOM_PRESETS.MIN} max={ZOOM_PRESETS.MAX} value={[pixelsPerSecond]} onValueChange={([value]) => setZoom(value)} />
+        <div className="workspace-timeline-summary">{tracks.length} {t("tracks ·")} {project.timeline.duration > 0 ? `${tracks.reduce((sum,track) => sum+track.clips.length,0)+(project.textClips?.length??0)+(project.shapeClips?.length??0)+(project.svgClips?.length??0)+(project.stickerClips?.length??0)} clips` : t("empty")}</div>
+        <Slider aria-label={t("Timeline zoom")} className="workspace-timeline-zoom" min={ZOOM_PRESETS.MIN} max={ZOOM_PRESETS.MAX} value={[pixelsPerSecond]} onValueChange={([value]) => setZoom(value)} />
       </div>
   );
 
@@ -1495,9 +1496,9 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
       {!phone && <SequenceTabs />}
       {/* ── Timeline toolbar (mock: 48px line-icon tools + emerald zoom slider) ── */}
       {phone ? <ShadcnPopover open={phoneOptionsOpen} onOpenChange={setPhoneOptionsOpen}>
-        <PopoverTrigger asChild><ShadcnButton type="button" variant="ghost" size="icon" className="mobile-timeline-add" aria-label="Add media or open timeline tools"><Plus size={20} aria-hidden /></ShadcnButton></PopoverTrigger>
+        <PopoverTrigger asChild><ShadcnButton type="button" variant="ghost" size="icon" className="mobile-timeline-add" aria-label={t("Add media or open timeline tools")}><Plus size={20} aria-hidden /></ShadcnButton></PopoverTrigger>
         <PopoverContent side="bottom" align="end" className="mobile-timeline-options">
-          {onOpenMedia && <ShadcnButton type="button" variant="secondary" className="mobile-timeline-import" onClick={() => { setPhoneOptionsOpen(false); useEditorWorkspaceStore.getState().setSection("media"); onOpenMedia(); }}><Plus size={16} aria-hidden />Add media</ShadcnButton>}
+          {onOpenMedia && <ShadcnButton type="button" variant="secondary" className="mobile-timeline-import" onClick={() => { setPhoneOptionsOpen(false); useEditorWorkspaceStore.getState().setSection("media"); onOpenMedia(); }}><Plus size={16} aria-hidden />{t("Add media")}</ShadcnButton>}
           <TimelineRangeActions duration={project.timeline.duration} frameRate={project.settings.frameRate} />
           {timelineToolbar}
         </PopoverContent>
@@ -1602,7 +1603,7 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
                   addTrack("video", undefined, { mode: "standard" })
                 }
                 className="mx-3 my-1 h-7 flex items-center justify-center gap-1.5 rounded-[7px] border border-dashed border-border-strong text-fg-muted hover:text-fg-2 hover:border-fg-3 transition-colors"
-                aria-label="Add track"
+                aria-label={t("Add track")}
               >
                 <Plus size={16} aria-hidden />
               </ShadcnButton>
@@ -1716,7 +1717,7 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
                             t.clips.some(c => c.mediaId === newItem.id)
                           );
                         if (track) {
-                          toast.success(`Added to ${track.name}`, file.name);
+                          toast.success(translateNow("Added to {name}", { name: track.name }), file.name);
                         }
                       }
                     }
@@ -1745,7 +1746,7 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
               }
             }}
           >
-            {project.timeline.duration === 0 && <div className="workspace-timeline-empty" aria-hidden="true"><MediaLibraryIcon name="stock-start" /><strong>Drag clips here to start your sequence</strong><span>Or use + on anything in the media bin · Press {keyboardShortcuts.formatShortcut("playback.markLoopStart") || keyboardShortcuts.formatShortcut("file.import")} to import</span></div>}
+            {project.timeline.duration === 0 && <div className="workspace-timeline-empty" aria-hidden="true"><MediaLibraryIcon name="stock-start" /><strong>{t("Drag clips here to start your sequence")}</strong><span>{t("Or use + on anything in the media bin · Press")} {keyboardShortcuts.formatShortcut("playback.markLoopStart") || keyboardShortcuts.formatShortcut("file.import")} {t("to import")}</span></div>}
             <div
               style={{ width: `${timelineDuration * pixelsPerSecond + timelineInset * 2}px`, paddingLeft: timelineInset, paddingRight: timelineInset }}
               className="workspace-timeline-lanes min-w-full min-h-full relative"
@@ -1871,7 +1872,7 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
           phoneHeight={Math.max(166, totalTracksHeight + 6)}
         />
       </div>
-      {phone && project.timeline.duration > 0 && selectedClipIds.length === 0 && <div className="mobile-timeline-hint" style={{ top: Math.max(200, totalTracksHeight + 40) }}>Tap a clip to edit it · Pinch to zoom</div>}
+      {phone && project.timeline.duration > 0 && selectedClipIds.length === 0 && <div className="mobile-timeline-hint" style={{ top: Math.max(200, totalTracksHeight + 40) }}>{t("Tap a clip to edit it · Pinch to zoom")}</div>}
       {!compact && <StereoOutputMeters />}
     </div>
   );

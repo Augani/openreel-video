@@ -3,6 +3,7 @@ import { Button } from "@openreel/ui";
 import { Check, X } from "lucide-react";
 import type { ExportRunnerState } from "../../services/export-runner";
 import { EditorHeaderIcon } from "./EditorHeaderIcon";
+import { useT } from "@openreel/i18n/react";
 
 export function EditorExportControl({ state, disabled, compact = false, style, onOpen, onCancel, onDismissError }: {
   state: ExportRunnerState;
@@ -13,6 +14,7 @@ export function EditorExportControl({ state, disabled, compact = false, style, o
   onCancel: () => void;
   onDismissError: () => void;
 }) {
+  const t = useT();
   const status = state.isExporting ? "exporting" : state.error ? "error" : state.complete ? "complete" : "idle";
   const retry = () => { onDismissError(); onOpen(); };
   const title = status === "error" ? state.error!
@@ -26,13 +28,13 @@ export function EditorExportControl({ state, disabled, compact = false, style, o
     data-export-state={status}
     style={style}
     title={title}
-    aria-label={status === "exporting" ? "Cancel export" : status === "error" ? compact ? "Retry export" : "Dismiss export error" : undefined}
+    aria-label={status === "exporting" ? t("Cancel export") : status === "error" ? compact ? t("Retry export") : t("Dismiss export error") : undefined}
     disabled={status === "complete" || (status === "idle" && disabled)}
     onClick={status === "exporting" ? onCancel : status === "error" ? compact ? retry : onDismissError : onOpen}
   >
-    {status === "idle" ? <>{!compact && <EditorHeaderIcon kind="export" />}Export</>
+    {status === "idle" ? <>{!compact && <EditorHeaderIcon kind="export" />}{t("Export")}</>
       : status === "exporting" ? <><span className="tabular-nums">{Math.round(state.progress)}%</span>{!compact && <X className="editor-export-state-icon" />}</>
-        : status === "error" ? <><span className="min-w-0 truncate">{compact ? "Retry" : state.error}</span>{!compact && <X className="editor-export-state-icon" />}</>
-          : <>{!compact && <Check className="editor-export-state-icon" />}{compact ? "Saved" : "Saved!"}</>}
+        : status === "error" ? <><span className="min-w-0 truncate">{compact ? t("Retry") : state.error}</span>{!compact && <X className="editor-export-state-icon" />}</>
+          : <>{!compact && <Check className="editor-export-state-icon" />}{compact ? t("Saved") : t("Saved!")}</>}
   </Button>;
 }

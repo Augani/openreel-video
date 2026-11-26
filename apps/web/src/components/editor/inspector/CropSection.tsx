@@ -6,12 +6,14 @@ import { Crop, RotateCcw } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
 import type { Clip } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 
 interface CropSectionProps {
   clip: Clip;
 }
 
 export const CropSection: React.FC<CropSectionProps> = ({ clip }) => {
+  const t = useT();
   const updateClipTransform = useProjectStore(
     (state) => state.updateClipTransform,
   );
@@ -33,7 +35,7 @@ export const CropSection: React.FC<CropSectionProps> = ({ clip }) => {
     <div className="space-y-3">
       <Button onClick={handleEnableCropMode} type="button" aria-label={(isCropped ? "Adjust Crop" : "Crop Video").trim() || undefined} className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90 w-full justify-center">
         <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Crop size={14} />}</span>
-        <span className="truncate">{isCropped ? "Adjust Crop" : "Crop Video"}</span>
+        <span className="truncate">{isCropped ? t("Adjust Crop") : t("Crop Video")}</span>
       </Button>
 
       {isCropped && (
@@ -41,7 +43,7 @@ export const CropSection: React.FC<CropSectionProps> = ({ clip }) => {
           <Card className="min-w-0 rounded-[7px] shadow-none bg-bg-2 text-fg p-2 space-y-0.5 border border-border">
             <div className="flex justify-between">
               <span className="text-fg-2 font-normal text-[9px]">
-                Crop Region:
+                {t("Crop Region:")}
               </span>
               <span className="text-fg-2 font-normal text-[9px]">
                 {Math.round(crop.width * 100)}% × {Math.round(crop.height * 100)}%
@@ -49,16 +51,16 @@ export const CropSection: React.FC<CropSectionProps> = ({ clip }) => {
             </div>
             <div className="flex justify-between">
               <span className="text-fg-2 font-normal text-[9px]">
-                Position:
+                {t("Position:")}
               </span>
               <span className="text-fg-2 font-normal text-[9px]">
                 ({Math.round(crop.x * 100)}%, {Math.round(crop.y * 100)}%)
               </span>
             </div>
           </Card>
-          <Button onClick={handleReset} type="button" aria-label="Reset Crop" className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg w-full justify-center">
+          <Button onClick={handleReset} type="button" aria-label={t("Reset Crop")} className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg w-full justify-center">
             <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<RotateCcw size={12} />}</span>
-            <span className="truncate">{"Reset Crop"}</span>
+            <span className="truncate">{t("Reset Crop")}</span>
           </Button>
         </>
       )}

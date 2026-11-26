@@ -8,6 +8,8 @@ import { useUIStore } from "../../stores/ui-store";
 import { toast } from "../../stores/notification-store";
 import { setMediaMetadata, type MediaMetadataEdit } from "../../services/media-metadata-commands";
 import { desktopBrowserBridge, rereadXmpForItem, writeSidecarForItem } from "../../services/media-browser";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const FIELD = "w-full rounded-md border border-border bg-bg-2 px-2 py-1 text-[12px] text-fg outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const SYNC_KEY = "openreel-xmp-sidecar-sync";
@@ -31,6 +33,7 @@ function shared<T>(items: readonly MediaItem[], read: (item: MediaItem) => T): T
 
 /** Metadata panel: Dublin Core and xmpDM logging fields of the selected project media, stored in the project. */
 export function MetadataPanel() {
+  const t = useT();
   const library = useProjectStore((s) => s.project.mediaLibrary.items);
   const selectedItems = useUIStore((s) => s.selectedItems);
   const items = useMemo(() => {
@@ -59,7 +62,7 @@ export function MetadataPanel() {
     if (!ids.length) return;
     const outcome = await setMediaMetadata(ids, edit);
     if (!outcome.success) {
-      toast.warning("Metadata", outcome.message ?? "The change failed.");
+      toast.warning(translateNow("Metadata"), outcome.message ?? "The change failed.");
       return;
     }
     if (sync && desktop) for (const id of ids) await writeSidecarForItem(id);
@@ -97,7 +100,7 @@ export function MetadataPanel() {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center text-[12px] text-fg-3" data-testid="metadata-empty">
         <Tag size={20} aria-hidden="true" />
-        <p>Select a clip in the Project panel to edit its description, keywords, scene, shot, take and reel.</p>
+        <p>{t("Select a clip in the Project panel to edit its description, keywords, scene, shot, take and reel.")}</p>
       </div>
     );
   }
@@ -109,7 +112,7 @@ export function MetadataPanel() {
         <textarea
           className={`${FIELD} min-h-[56px] resize-y`}
           data-testid={`metadata-${field}`}
-          placeholder={mixed(field) ? "Multiple values" : ""}
+          placeholder={mixed(field) ? t("Multiple values") : ""}
           value={drafts[field]}
           onChange={(event) => setDrafts({ ...drafts, [field]: event.target.value })}
           onBlur={() => commitText(field)}
@@ -118,7 +121,7 @@ export function MetadataPanel() {
         <Input
           className="h-7 text-[12px]"
           data-testid={`metadata-${field}`}
-          placeholder={mixed(field) ? "Multiple values" : ""}
+          placeholder={mixed(field) ? t("Multiple values") : ""}
           value={drafts[field]}
           onChange={(event) => setDrafts({ ...drafts, [field]: event.target.value })}
           onBlur={() => commitText(field)}
@@ -136,13 +139,13 @@ export function MetadataPanel() {
       <div className="mb-2 min-w-0">
         <p className="truncate text-[12px] font-medium text-fg" data-testid="metadata-title" title={first.name}>{items.length > 1 ? `${items.length} clips selected` : first.name}</p>
         {items.length === 1 && first.xmpSource && (
-          <p className="text-[10.5px] text-fg-3" data-testid="metadata-source">Read from {first.xmpSource === "sidecar" ? "a sidecar .xmp" : "XMP embedded in the file"}</p>
+          <p className="text-[10.5px] text-fg-3" data-testid="metadata-source">{t("Read from")} {first.xmpSource === "sidecar" ? t("a sidecar .xmp") : t("XMP embedded in the file")}</p>
         )}
       </div>
       <div className="flex flex-col gap-2.5">
         {text("description", "Description", true)}
         <div className="flex flex-col gap-1 text-[11px] text-fg-3">
-          Keywords
+          {t("Keywords")}
           <div className="flex flex-wrap items-center gap-1 rounded-md border border-border bg-bg-2 p-1" data-testid="metadata-keywords">
             {keywords.map((word) => (
               <span key={word} className="flex items-center gap-1 rounded bg-bg-3 px-1.5 py-0.5 text-[11px] text-fg-2" data-testid="metadata-keyword">
@@ -151,10 +154,10 @@ export function MetadataPanel() {
               </span>
             ))}
             <input
-              aria-label="Add keywords"
+              aria-label={t("Add keywords")}
               data-testid="metadata-keyword-input"
               className="h-6 min-w-[80px] flex-1 bg-transparent px-1 text-[12px] text-fg outline-none"
-              placeholder={keywords.length ? "" : items.length > 1 && keywordsShared === null ? "Add to all (comma separated)" : "Add keywords (comma separated)"}
+              placeholder={keywords.length ? "" : items.length > 1 && keywordsShared === null ? t("Add to all (comma separated)") : t("Add keywords (comma separated)")}
               value={keywordDraft}
               onChange={(event) => setKeywordDraft(event.target.value)}
               onKeyDown={(event) => {
@@ -182,18 +185,18 @@ export function MetadataPanel() {
             }}
             onChange={(event) => void commit({ goodTake: event.target.checked })}
           />
-          Good take
+          {t("Good take")}
         </label>
         {text("reel", "Reel")}
         {text("logComment", "Log comment", true)}
       </div>
 
       <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
-        <p className="text-[11px] text-fg-3">Edits are saved in the project. The media file is never rewritten.</p>
+        <p className="text-[11px] text-fg-3">{t("Edits are saved in the project. The media file is never rewritten.")}</p>
         {desktop ? (
           <>
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="secondary" size="sm" data-testid="metadata-read-xmp" disabled={items.length !== 1} onClick={() => void rereadXmpForItem(first.id)}>Read XMP from file</Button>
+              <Button type="button" variant="secondary" size="sm" data-testid="metadata-read-xmp" disabled={items.length !== 1} onClick={() => void rereadXmpForItem(first.id)}>{t("Read XMP from file")}</Button>
               <Button
                 type="button"
                 variant="secondary"
@@ -201,10 +204,10 @@ export function MetadataPanel() {
                 data-testid="metadata-write-sidecar"
                 disabled={items.length !== 1}
                 onClick={() =>
-                  void writeSidecarForItem(first.id).then((p) => p && toast.success("Sidecar written", p))
+                  void writeSidecarForItem(first.id).then((p) => p && toast.success(translateNow("Sidecar written"), p))
                 }
               >
-                Write sidecar .xmp
+                {t("Write sidecar .xmp")}
               </Button>
             </div>
             <label className="flex items-center gap-2 text-[11px] text-fg-3">
@@ -221,11 +224,11 @@ export function MetadataPanel() {
                   }
                 }}
               />
-              Keep a sidecar .xmp next to each edited clip
+              {t("Keep a sidecar .xmp next to each edited clip")}
             </label>
           </>
         ) : (
-          <p className="text-[11px] text-fg-3">Sidecar .xmp files are written by the desktop app.</p>
+          <p className="text-[11px] text-fg-3">{t("Sidecar .xmp files are written by the desktop app.")}</p>
         )}
       </div>
     </div>

@@ -11,6 +11,7 @@ import {
   writeRenderCachePrefs,
   type PreviewResolution,
 } from "../../../services/render-cache-prefs";
+import { useT } from "@openreel/i18n/react";
 
 const GB = 1024 * 1024 * 1024;
 const DESKTOP_CAPS = [5, 10, 20, 50, 100, 250, 500].map((gb) => gb * GB);
@@ -26,6 +27,7 @@ const capLabel = (bytes: number) => (bytes >= GB ? `${bytes / GB} GB` : `${bytes
 
 /** Settings > Render cache: where render files live, how big the cache may grow, and at what size frames are rendered. */
 export default function RenderCachePanel() {
+  const t = useT();
   const bridge = desktopBridge();
   const snapshot = useRenderCacheSnapshot();
   const [settings, setSettings] = useState<OpenReelRenderCacheSettings | null>(null);
@@ -76,27 +78,26 @@ export default function RenderCachePanel() {
   return (
     <div className="space-y-5 text-xs" data-testid="render-cache-panel">
       <div>
-        <h3 className="text-sm font-medium">Render cache</h3>
+        <h3 className="text-sm font-medium">{t("Render cache")}</h3>
         <p className="mt-1 leading-5 text-fg-2">
-          Render In to Out writes the frames of effects-heavy stretches to disk so they play back in real time. Render files are kept between sessions and
-          only the stretches you edit are discarded. The least recently played frames are removed first when the cache is full.
+          {t("Render In to Out writes the frames of effects-heavy stretches to disk so they play back in real time. Render files are kept between sessions and only the stretches you edit are discarded. The least recently played frames are removed first when the cache is full.")}
         </p>
       </div>
 
       {bridge ? (
         <section className="space-y-2" aria-labelledby="scratch-heading">
-          <h4 id="scratch-heading" className="text-xs font-medium">Scratch disk</h4>
-          <p className="leading-5 text-fg-2">Render files go to a folder named &ldquo;OpenReel Render Cache&rdquo; inside this location. Choose a fast drive with room to spare.</p>
+          <h4 id="scratch-heading" className="text-xs font-medium">{t("Scratch disk")}</h4>
+          <p className="leading-5 text-fg-2">{t("Render files go to a folder named &ldquo;OpenReel Render Cache&rdquo; inside this location. Choose a fast drive with room to spare.")}</p>
           <div className="flex flex-wrap items-center gap-2">
             <code data-testid="scratch-dir" className="min-w-0 max-w-full flex-1 truncate rounded-md border border-border bg-bg-2 px-2 py-1.5 text-[11px]" title={settings?.scratchDir}>
               {settings?.scratchDir ?? "…"}
             </code>
             <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => void pick()}>
-              <FolderOpen size={14} aria-hidden /> Choose folder
+              <FolderOpen size={14} aria-hidden /> {t("Choose folder")}
             </Button>
             {settings && !settings.isDefault && (
               <Button type="button" variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => void reset()}>
-                <RotateCcw size={14} aria-hidden /> Use default
+                <RotateCcw size={14} aria-hidden /> {t("Use default")}
               </Button>
             )}
           </div>
@@ -108,15 +109,14 @@ export default function RenderCachePanel() {
         </section>
       ) : (
         <p className="leading-5 text-fg-2">
-          In the browser, render files live in this site&rsquo;s private storage ({snapshot.codec ? "OPFS" : "browser storage"}), which the browser may clear when
-          space runs low. The desktop app can use a scratch disk folder you choose.
+          {t("In the browser, render files live in this site&rsquo;s private storage (")}{snapshot.codec ? "OPFS" : t("browser storage")}{t("), which the browser may clear when space runs low. The desktop app can use a scratch disk folder you choose.")}
         </p>
       )}
 
       <section className="space-y-2" aria-labelledby="cap-heading">
-        <h4 id="cap-heading" className="text-xs font-medium">{bridge ? "Size limit (all projects)" : "Size limit (this project)"}</h4>
+        <h4 id="cap-heading" className="text-xs font-medium">{bridge ? t("Size limit (all projects)") : t("Size limit (this project)")}</h4>
         <Select value={String(cap)} onValueChange={(value) => void setCap(Number(value))}>
-          <SelectTrigger aria-label="Render cache size limit" className="h-8 w-full rounded-md bg-bg-2 px-2 text-xs sm:w-[180px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger aria-label={t("Render cache size limit")} className="h-8 w-full rounded-md bg-bg-2 px-2 text-xs sm:w-[180px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             {capChoices.map((bytes) => <SelectItem key={bytes} value={String(bytes)}>{capLabel(bytes)}</SelectItem>)}
           </SelectContent>
@@ -126,10 +126,9 @@ export default function RenderCachePanel() {
       <section className="space-y-2" aria-labelledby="idle-heading">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h4 id="idle-heading" className="text-xs font-medium">Render in background when idle</h4>
+            <h4 id="idle-heading" className="text-xs font-medium">{t("Render in background when idle")}</h4>
             <p className="text-[11px] text-text-secondary">
-              After a few quiet seconds, renders the yellow and red parts of the render bar nearest the playhead. Any edit, playback or scrub stops it at once.
-              It also pauses under memory pressure and on a low battery.
+              {t("After a few quiet seconds, renders the yellow and red parts of the render bar nearest the playhead. Any edit, playback or scrub stops it at once. It also pauses under memory pressure and on a low battery.")}
             </p>
           </div>
           <Switch
@@ -141,29 +140,28 @@ export default function RenderCachePanel() {
       </section>
 
       <section className="space-y-2" aria-labelledby="res-heading">
-        <h4 id="res-heading" className="text-xs font-medium">Preview resolution</h4>
+        <h4 id="res-heading" className="text-xs font-medium">{t("Preview resolution")}</h4>
         <Select
           value={prefs.resolution}
           onValueChange={(value) => setPrefs(writeRenderCachePrefs({ resolution: value as PreviewResolution }))}
         >
-          <SelectTrigger aria-label="Render cache preview resolution" className="h-8 w-full rounded-md bg-bg-2 px-2 text-xs sm:w-[260px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger aria-label={t("Render cache preview resolution")} className="h-8 w-full rounded-md bg-bg-2 px-2 text-xs sm:w-[260px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="full">Full resolution (sequence size)</SelectItem>
-            <SelectItem value="1080p">Up to 1920 wide (smaller files)</SelectItem>
+            <SelectItem value="full">{t("Full resolution (sequence size)")}</SelectItem>
+            <SelectItem value="1080p">{t("Up to 1920 wide (smaller files)")}</SelectItem>
           </SelectContent>
         </Select>
         <p className="leading-5 text-fg-2">
-          Changing this discards the current render files. Exports can reuse render files only when they match the export size, so full resolution is what makes
-          &ldquo;Use previews&rdquo; apply to 4K exports.
+          {t("Changing this discards the current render files. Exports can reuse render files only when they match the export size, so full resolution is what makes &ldquo;Use previews&rdquo; apply to 4K exports.")}
         </p>
       </section>
 
       <section className="flex flex-wrap items-center gap-2">
         <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => void renderCacheService.deleteRenderFiles()}>
-          <Trash2 size={14} aria-hidden /> Delete this project&rsquo;s render files
+          <Trash2 size={14} aria-hidden /> {t("Delete this project&rsquo;s render files")}
         </Button>
         <Button type="button" variant="ghost" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => void renderCacheService.deleteRenderFiles({ allProjects: true }).then(refreshUsage)}>
-          Delete all render files
+          {t("Delete all render files")}
         </Button>
       </section>
     </div>

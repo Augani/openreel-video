@@ -6,6 +6,7 @@ import { useUIStore } from "../stores/ui-store";
 import { useEditorWorkspaceStore } from "../stores/editor-workspace-store";
 import { toast } from "../stores/notification-store";
 import { DEFAULT_MARKER_COLOR } from "./marker-commands";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * Clip markers (one timeline instance) and master-clip markers (the Source monitor's clip, shown
@@ -92,7 +93,7 @@ export async function removeClipMarker(target: ClipMarkerTarget, markerId: strin
 export async function addClipMarkerAtPlayhead(): Promise<void> {
   const clip = clipForMarker();
   if (!clip) {
-    toast.info("No clip at the playhead", "Select a clip or park the playhead over one to add a clip marker.");
+    toast.info(translateNow("No clip at the playhead"), "Select a clip or park the playhead over one to add a clip marker.");
     return;
   }
   const time = useTimelineStore.getState().playheadPosition;

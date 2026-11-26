@@ -9,6 +9,7 @@ import { AutoCaptionControlsPanel } from "./inspector/AutoCaptionPanel";
 import { workspaceTabPanel } from "./WorkspacePrimitives";
 import { CaptionEditorPanel } from "./inspector/CaptionEditorPanel";
 import { resolveCaptionSource } from "../../services/caption-source";
+import { useT } from "@openreel/i18n/react";
 
 const MobileCaptionSheet = React.lazy(() => import("./mobile/MobileCaptionSheet").then(module => ({ default: module.MobileCaptionSheet })));
 
@@ -17,6 +18,7 @@ export function CaptionWorkspace({ active, language, onLanguageChange, style, on
   active: boolean; language: string; onLanguageChange: (value: string) => void;
   style: string; onStyleChange: (value: string) => void;
 }) {
+  const t = useT();
   const phone = usePhoneEditor();
   const [mobileMounted, setMobileMounted] = useState(phone);
   useEffect(() => { if (phone) setMobileMounted(true); }, [phone]);
@@ -30,7 +32,7 @@ export function CaptionWorkspace({ active, language, onLanguageChange, style, on
     sourceLabel: source.sourceLabel, maxWordsPerLine: words,
     initialLanguage: language, initialStyle: style, initialHighlightWords: true, initialRemoveFillers: true, referenceStyles: true, onLanguageChange, onStyleChange });
   return <CaptionEditorPanel maxWordsPerLine={words} onMaxWordsPerLineChange={setWords} renderPanel={manual => <>
-    {phone && active && <Button variant="secondary" onClick={() => onOpenChange(true)} className="m-3">Open captions</Button>}
+    {phone && active && <Button variant="secondary" onClick={() => onOpenChange(true)} className="m-3">{t("Open captions")}</Button>}
     {!phone && <ScrollArea {...workspaceTabPanel("Text sections", "captions")} hidden={!active} className="min-h-0 flex-1"><div className="space-y-4 px-2.5 py-2.5"><AutoCaptionControlsPanel controls={controls}/>{manual}</div></ScrollArea>}
     {(phone || mobileMounted) && <React.Suspense fallback={null}><MobileCaptionSheet open={phone && open} onOpenChange={onOpenChange} controls={controls} manualEditor={manual} words={words} onWordsChange={setWords}/></React.Suspense>}
 

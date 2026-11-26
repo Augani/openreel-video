@@ -24,6 +24,8 @@ import { useProjectStore } from "../../stores/project-store";
 import { useAudioChannelsStore } from "../../stores/audio-channels-store";
 import { canSplitToMono, setClipChannelMap, splitClipToMono } from "../../services/audio-channels";
 import { toast } from "../../stores/notification-store";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const SOURCE_NAMES: Record<ClipChannelFormat, readonly string[]> = FORMAT_CHANNEL_NAMES;
 
@@ -53,6 +55,7 @@ function withFormat(map: ClipChannelMap, format: ClipChannelFormat, sourceChanne
  * mono clips turns a stereo interview into two mono clips. Nothing is applied until Apply (one undo step).
  */
 export function AudioChannelsDialog() {
+  const t = useT();
   const open = useAudioChannelsStore((state) => state.open);
   const clipIds = useAudioChannelsStore((state) => state.clipIds);
   const close = useAudioChannelsStore((state) => state.close);
@@ -105,7 +108,7 @@ export function AudioChannelsDialog() {
       const map = isIdentityChannelMap(draft, sourceChannels) && !overridesPreset ? null : draft;
       const result = await setClipChannelMap(targets.map(({ clip }) => clip.id), map);
       if (result.success) close();
-      else toast.error("Audio channels not changed", result.error?.message ?? "The clips could not be updated.");
+      else toast.error(translateNow("Audio channels not changed"), result.error?.message ?? "The clips could not be updated.");
     } finally {
       setBusy(false);
     }
@@ -116,7 +119,7 @@ export function AudioChannelsDialog() {
     try {
       const result = await splitClipToMono(first.clip.id);
       if (result.success) close();
-      else toast.error("Could not split to mono", result.error?.message ?? "The clip could not be split.");
+      else toast.error(translateNow("Could not split to mono"), result.error?.message ?? "The clip could not be split.");
     } finally {
       setBusy(false);
     }
@@ -133,44 +136,44 @@ export function AudioChannelsDialog() {
     <Dialog open={open} onOpenChange={(next) => { if (!next) close(); }}>
       <DialogContent className="w-[calc(100vw-32px)] max-w-lg gap-4" data-testid="audio-channels-dialog">
         <DialogHeader>
-          <DialogTitle>Modify clip: Audio channels</DialogTitle>
+          <DialogTitle>{t("Modify clip: Audio channels")}</DialogTitle>
           <DialogDescription className="truncate">{title}{targets.length === 1 ? ` · ${sourceChannels}-channel source` : ` · up to ${sourceChannels} source channels`}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-1.5">
-          <div className="text-xs font-medium text-fg-2" id="audio-channels-preset-label">Preset</div>
+          <div className="text-xs font-medium text-fg-2" id="audio-channels-preset-label">{t("Preset")}</div>
           <ToggleGroup type="single" value={preset ?? ""} onValueChange={(value) => { if (value) applyPreset(value as ChannelPreset); }} aria-labelledby="audio-channels-preset-label" className="justify-start">
             {CHANNEL_PRESETS.map((name) => (
               <ToggleGroupItem key={name} value={name} data-testid={`audio-channels-preset-${name}`} className="h-8 px-3 text-xs">{CHANNEL_PRESET_LABELS[name]}</ToggleGroupItem>
             ))}
           </ToggleGroup>
-          {preset === null && <p className="text-[11px] text-fg-muted" data-testid="audio-channels-custom">Custom mapping</p>}
+          {preset === null && <p className="text-[11px] text-fg-muted" data-testid="audio-channels-custom">{t("Custom mapping")}</p>}
         </div>
 
         <div className="space-y-1.5">
-          <div className="text-xs font-medium text-fg-2" id="audio-channels-format-label">Clip channel format</div>
+          <div className="text-xs font-medium text-fg-2" id="audio-channels-format-label">{t("Clip channel format")}</div>
           <ToggleGroup type="single" value={draft.format} onValueChange={(value) => { if (value) setDraft((map) => withFormat(map, value as ClipChannelFormat, sourceChannels)); }} aria-labelledby="audio-channels-format-label" className="justify-start">
             {CLIP_CHANNEL_FORMATS.map((format) => (
-              <ToggleGroupItem key={format} value={format} data-testid={`audio-channels-format-${format}`} className="h-8 px-3 text-xs">{format === "mono" ? "Mono" : format === "stereo" ? "Stereo" : "5.1"}</ToggleGroupItem>
+              <ToggleGroupItem key={format} value={format} data-testid={`audio-channels-format-${format}`} className="h-8 px-3 text-xs">{format === "mono" ? t("Mono") : format === "stereo" ? t("Stereo") : "5.1"}</ToggleGroupItem>
             ))}
           </ToggleGroup>
         </div>
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <div className="text-xs font-medium text-fg-2">Source channel for each clip channel</div>
+            <div className="text-xs font-medium text-fg-2">{t("Source channel for each clip channel")}</div>
             {sourceChannels >= 2 && draft.format !== "5.1" && (
               <div className="flex gap-1">
-                <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-[11px]" data-testid="audio-channels-left-only" onClick={() => setDraft({ format: "mono", sources: [0] })}>Left only</Button>
-                <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-[11px]" data-testid="audio-channels-right-only" onClick={() => setDraft({ format: "mono", sources: [1] })}>Right only</Button>
-                <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-[11px]" data-testid="audio-channels-swap" onClick={() => setDraft({ format: "stereo", sources: [1, 0] })}>Swap L/R</Button>
+                <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-[11px]" data-testid="audio-channels-left-only" onClick={() => setDraft({ format: "mono", sources: [0] })}>{t("Left only")}</Button>
+                <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-[11px]" data-testid="audio-channels-right-only" onClick={() => setDraft({ format: "mono", sources: [1] })}>{t("Right only")}</Button>
+                <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-[11px]" data-testid="audio-channels-swap" onClick={() => setDraft({ format: "stereo", sources: [1, 0] })}>{t("Swap L/R")}</Button>
               </div>
             )}
           </div>
-          <div role="grid" aria-label="Channel mapping" className="overflow-x-auto rounded-md border border-border bg-bg-2" data-testid="audio-channels-grid">
+          <div role="grid" aria-label={t("Channel mapping")} className="overflow-x-auto rounded-md border border-border bg-bg-2" data-testid="audio-channels-grid">
             <div role="row" className="grid items-center border-b border-border text-[10px] uppercase tracking-wide text-fg-muted" style={{ gridTemplateColumns: `minmax(64px,auto) repeat(${columns.length}, minmax(34px,1fr))` }}>
-              <div role="columnheader" className="px-2 py-1.5">Clip</div>
-              {columns.map((column) => <div key={column.key} role="columnheader" className="px-1 py-1.5 text-center">{column.label}</div>)}
+              <div role="columnheader" className="px-2 py-1.5">{t("Clip")}</div>
+              {columns.map((column) => <div key={column.key} role="columnheader" className="px-1 py-1.5 text-center">{t(column.label)}</div>)}
             </div>
             {draft.sources.map((entry, output) => (
               <div key={output} role="row" className="grid items-center border-b border-border last:border-b-0" style={{ gridTemplateColumns: `minmax(64px,auto) repeat(${columns.length}, minmax(34px,1fr))` }} data-testid={`audio-channels-row-${output}`}>
@@ -197,14 +200,14 @@ export function AudioChannelsDialog() {
           <p className="text-[11px] text-fg-muted" data-testid="audio-channels-summary">
             {matrix.map((row, index) => `${outputNames[index]}: ${row.every((gain) => gain === 0) ? "silent" : row.every((gain) => gain === row[0]) && row.length > 1 ? "mix of all channels" : row.map((gain, source) => (gain > 0 ? sourceChannelName(source, sourceChannels) : null)).filter(Boolean).join(" + ")}`).join("  ·  ")}
           </p>
-          {draft.format === "5.1" && sourceChannels < 6 && <p className="text-[11px] text-fg-muted">This source has {sourceChannels} channel{sourceChannels === 1 ? "" : "s"}; the other 5.1 channels stay silent.</p>}
+          {draft.format === "5.1" && sourceChannels < 6 && <p className="text-[11px] text-fg-muted">{t("This source has")} {sourceChannels} {t("channel")}{sourceChannels === 1 ? "" : "s"}{t("; the other 5.1 channels stay silent.")}</p>}
         </div>
 
         <DialogFooter className="flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          {canSplit ? <Button type="button" variant="outline" size="sm" disabled={busy} data-testid="audio-channels-split" onClick={() => { void split(); }}>Split to mono clips</Button> : <span />}
+          {canSplit ? <Button type="button" variant="outline" size="sm" disabled={busy} data-testid="audio-channels-split" onClick={() => { void split(); }}>{t("Split to mono clips")}</Button> : <span />}
           <div className="flex gap-2">
-            <Button type="button" variant="ghost" size="sm" onClick={close}>Cancel</Button>
-            <Button type="button" size="sm" disabled={busy || !changed || targets.length === 0} data-testid="audio-channels-apply" onClick={() => { void apply(); }}>Apply</Button>
+            <Button type="button" variant="ghost" size="sm" onClick={close}>{t("Cancel")}</Button>
+            <Button type="button" size="sm" disabled={busy || !changed || targets.length === 0} data-testid="audio-channels-apply" onClick={() => { void apply(); }}>{t("Apply")}</Button>
           </div>
         </DialogFooter>
       </DialogContent>

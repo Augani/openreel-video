@@ -3,6 +3,7 @@ import { SUBTITLE_STYLE_PRESETS, type TextStyle } from "@openreel/core";
 import { cn } from "@openreel/ui";
 import { TextPresetPreview, type PreviewLine } from "../TextPresetPreview";
 import { getReferenceCaptionStyle } from "./reference-caption-style";
+import { useT } from "@openreel/i18n/react";
 
 export const CAPTION_SAMPLE = "Words that stick";
 
@@ -76,8 +77,9 @@ const StyleCard = memo(function StyleCard({ id, selected, highlightOnHover, disa
 export function CaptionStyleCards({ presets, value, onChange, referenceStyles, disabled, highlightOnHover = true }: {
   presets: readonly string[]; value: string; onChange: (value: string) => void; referenceStyles: boolean; disabled?: boolean; highlightOnHover?: boolean;
 }) {
+  const t = useT();
   return (
-    <div role="radiogroup" aria-label="Caption style" className="grid grid-cols-2 gap-2">
+    <div role="radiogroup" aria-label={t("Caption style")} className="grid grid-cols-2 gap-2">
       {presets.map((id) => (
         <StyleCard key={id} id={id} selected={value === id} highlightOnHover={highlightOnHover} disabled={disabled} referenceStyles={referenceStyles} onSelect={() => onChange(id)} />
       ))}

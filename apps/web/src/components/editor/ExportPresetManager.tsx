@@ -5,6 +5,8 @@ import {
   isValidVideoExportSettings,
   type PlatformExportPreset,
 } from "../../services/export-presets";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 interface ExportPresetManagerProps {
   /** The settings currently in effect; saved when the user names a preset. */
@@ -39,6 +41,7 @@ export function ExportPresetManager({
   onDeleted,
   variant = "full",
 }: ExportPresetManagerProps) {
+  const t = useT();
   const full = variant === "full";
   const settingsValid = isValidVideoExportSettings(currentSettings);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -73,7 +76,7 @@ export function ExportPresetManager({
     if (exportPresetsManager.renameCustomPreset(selectedCustom.id, renameDraft)) {
       const updated = exportPresetsManager.getPreset(selectedCustom.id);
       if (updated) onSelect(updated);
-      setMessage("Preset renamed.");
+      setMessage(translateNow("Preset renamed."));
     }
     setRenaming(false);
   };
@@ -90,7 +93,7 @@ export function ExportPresetManager({
   const exportAll = () => {
     const custom = exportPresetsManager.getCustomPresets();
     if (custom.length === 0) {
-      setMessage("No saved presets to export.");
+      setMessage(translateNow("No saved presets to export."));
       return;
     }
     downloadJson(
@@ -105,7 +108,7 @@ export function ExportPresetManager({
   const onFile = async (file: File | undefined) => {
     if (!file) return;
     if (file.size > MAX_PRESET_FILE_BYTES) {
-      setMessage("That file is too large to be a preset file (limit 1 MB).");
+      setMessage(translateNow("That file is too large to be a preset file (limit 1 MB)."));
       if (fileInput.current) fileInput.current.value = "";
       return;
     }
@@ -128,17 +131,17 @@ export function ExportPresetManager({
 
   return (
     <section
-      aria-label={full ? "Manage export presets" : "Save as preset"}
+      aria-label={full ? t("Manage export presets") : t("Save as preset")}
       data-testid="export-preset-manager"
       className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-md border border-border bg-bg-2 p-2 text-[12px]"
     >
       <div className="flex min-w-[260px] flex-[4] flex-wrap items-center gap-2">
         <input
-          aria-label="New preset name"
+          aria-label={t("New preset name")}
           value={name}
           onChange={(event) => setName(event.target.value)}
           onKeyDown={(event) => event.key === "Enter" && save()}
-          placeholder="Preset name"
+          placeholder={t("Preset name")}
           maxLength={60}
           className="h-7 min-w-0 flex-1 rounded border border-border bg-bg-1 px-2 text-[12px] text-fg"
         />
@@ -149,12 +152,12 @@ export function ExportPresetManager({
           disabled={!name.trim() || !settingsValid}
           onClick={save}
         >
-          Save current settings
+          {t("Save current settings")}
         </Button>
       </div>
       {!settingsValid && (
         <p className="w-full text-[11px] text-fg-muted">
-          Complete the export settings (for example the bitrate) to save them.
+          {t("Complete the export settings (for example the bitrate) to save them.")}
         </p>
       )}
       {full && (
@@ -170,7 +173,7 @@ export function ExportPresetManager({
                 setRenaming(true);
               }}
             >
-              Rename
+              {t("Rename")}
             </Button>
             <Button
               size="sm"
@@ -178,16 +181,16 @@ export function ExportPresetManager({
               variant="ghost"
               onClick={() => setConfirmingDelete(true)}
             >
-              Delete
+              {t("Delete")}
             </Button>
           </>
         )}
         {selectedCustom && confirmingDelete && (
           <>
-            <span>Delete "{selectedCustom.name}"? This cannot be undone.</span>
+            <span>{t("Delete \"")}{selectedCustom.name}{t("\"? This cannot be undone.")}</span>
             <Button size="sm"
           className="h-7 px-2.5 text-[12px]" variant="secondary" onClick={remove}>
-              Confirm delete
+              {t("Confirm delete")}
             </Button>
             <Button
               size="sm"
@@ -195,14 +198,14 @@ export function ExportPresetManager({
               variant="ghost"
               onClick={() => setConfirmingDelete(false)}
             >
-              Keep preset
+              {t("Keep preset")}
             </Button>
           </>
         )}
         {selectedCustom && renaming && (
           <>
             <input
-              aria-label="Rename preset"
+              aria-label={t("Rename preset")}
               value={renameDraft}
               onChange={(event) => setRenameDraft(event.target.value)}
               onKeyDown={(event) => event.key === "Enter" && commitRename()}
@@ -216,7 +219,7 @@ export function ExportPresetManager({
               disabled={!renameDraft.trim()}
               onClick={commitRename}
             >
-              Apply name
+              {t("Apply name")}
             </Button>
             <Button
               size="sm"
@@ -224,7 +227,7 @@ export function ExportPresetManager({
               variant="ghost"
               onClick={() => setRenaming(false)}
             >
-              Cancel
+              {t("Cancel")}
             </Button>
           </>
         )}
@@ -235,17 +238,17 @@ export function ExportPresetManager({
           variant="ghost"
           onClick={() => fileInput.current?.click()}
         >
-          Import presets
+          {t("Import presets")}
         </Button>
         <Button size="sm"
           className="h-7 px-2.5 text-[12px]" variant="ghost" onClick={exportAll}>
-          Export presets
+          {t("Export presets")}
         </Button>
         <input
           ref={fileInput}
           type="file"
           accept="application/json,.json"
-          aria-label="Import presets file"
+          aria-label={t("Import presets file")}
           className="sr-only"
           onChange={(event) => void onFile(event.target.files?.[0])}
         />

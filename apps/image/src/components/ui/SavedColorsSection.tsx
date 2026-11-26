@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@openreel/ui';
 import { ChevronDown, Plus, Trash2, X, Bookmark, History, FolderPlus, Pencil, Check } from 'lucide-react';
 import { useColorStore, type CustomPalette } from '../../stores/color-store';
+import { useT } from "@openreel/i18n/react";
 
 interface SavedColorsSectionProps {
   onColorSelect: (color: string) => void;
@@ -10,6 +11,7 @@ interface SavedColorsSectionProps {
 }
 
 export function SavedColorsSection({ onColorSelect, selectedColor, currentColor }: SavedColorsSectionProps) {
+  const t = useT();
   const {
     recentColors,
     savedColors,
@@ -69,7 +71,7 @@ export function SavedColorsSection({ onColorSelect, selectedColor, currentColor 
         <button className="w-full flex items-center justify-between p-2 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors">
           <div className="flex items-center gap-2">
             <Bookmark size={14} className="text-muted-foreground" />
-            <span className="text-xs font-medium">Saved Colors</span>
+            <span className="text-xs font-medium">{t("Saved Colors")}</span>
           </div>
           <ChevronDown size={14} className={`text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </button>
@@ -80,7 +82,7 @@ export function SavedColorsSection({ onColorSelect, selectedColor, currentColor 
             <div className="space-y-1.5">
               <div className="flex items-center gap-1.5">
                 <History size={12} className="text-muted-foreground" />
-                <span className="text-[10px] text-muted-foreground">Recent</span>
+                <span className="text-[10px] text-muted-foreground">{t("Recent")}</span>
               </div>
               <div className="grid grid-cols-6 gap-1">
                 {recentColors.map((color, i) => (
@@ -104,7 +106,7 @@ export function SavedColorsSection({ onColorSelect, selectedColor, currentColor 
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <Bookmark size={12} className="text-muted-foreground" />
-                <span className="text-[10px] text-muted-foreground">Saved</span>
+                <span className="text-[10px] text-muted-foreground">{t("Saved")}</span>
                 <span className="text-[9px] text-muted-foreground/60">({savedColors.length})</span>
               </div>
               <div className="flex items-center gap-1">
@@ -112,7 +114,7 @@ export function SavedColorsSection({ onColorSelect, selectedColor, currentColor 
                   <button
                     onClick={handleSaveCurrentColor}
                     className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                    title="Save current color"
+                    title={t("Save current color")}
                   >
                     <Plus size={12} />
                   </button>
@@ -121,7 +123,7 @@ export function SavedColorsSection({ onColorSelect, selectedColor, currentColor 
                   <button
                     onClick={clearSavedColors}
                     className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
-                    title="Clear all saved colors"
+                    title={t("Clear all saved colors")}
                   >
                     <Trash2 size={12} />
                   </button>
@@ -145,7 +147,7 @@ export function SavedColorsSection({ onColorSelect, selectedColor, currentColor 
                     <button
                       onClick={() => removeSavedColor(color)}
                       className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-destructive text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                      title="Remove color"
+                      title={t("Remove color")}
                     >
                       <X size={8} />
                     </button>
@@ -154,18 +156,18 @@ export function SavedColorsSection({ onColorSelect, selectedColor, currentColor 
               </div>
             ) : (
               <p className="text-[10px] text-muted-foreground/60 text-center py-2">
-                No saved colors yet
+                {t("No saved colors yet")}
               </p>
             )}
           </div>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] text-muted-foreground">Custom Palettes</span>
+              <span className="text-[10px] text-muted-foreground">{t("Custom Palettes")}</span>
               <button
                 onClick={() => setShowNewPaletteInput(true)}
                 className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                title="Create new palette"
+                title={t("Create new palette")}
               >
                 <FolderPlus size={12} />
               </button>
@@ -181,7 +183,7 @@ export function SavedColorsSection({ onColorSelect, selectedColor, currentColor 
                     if (e.key === 'Enter') handleCreatePalette();
                     if (e.key === 'Escape') setShowNewPaletteInput(false);
                   }}
-                  placeholder="Palette name..."
+                  placeholder={t("Palette name...")}
                   className="flex-1 px-2 py-1 text-[10px] bg-background border border-input rounded focus:outline-none focus:ring-1 focus:ring-primary"
                   autoFocus
                 />
@@ -231,7 +233,7 @@ export function SavedColorsSection({ onColorSelect, selectedColor, currentColor 
                       <button
                         onClick={() => handleAddCurrentToPalette(palette.id)}
                         className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                        title="Add current color"
+                        title={t("Add current color")}
                       >
                         <Plus size={10} />
                       </button>
@@ -239,14 +241,14 @@ export function SavedColorsSection({ onColorSelect, selectedColor, currentColor 
                     <button
                       onClick={() => handleStartEditPalette(palette)}
                       className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                      title="Rename palette"
+                      title={t("Rename palette")}
                     >
                       <Pencil size={10} />
                     </button>
                     <button
                       onClick={() => deletePalette(palette.id)}
                       className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
-                      title="Delete palette"
+                      title={t("Delete palette")}
                     >
                       <Trash2 size={10} />
                     </button>
@@ -277,7 +279,7 @@ export function SavedColorsSection({ onColorSelect, selectedColor, currentColor 
                   </div>
                 ) : (
                   <p className="text-[9px] text-muted-foreground/60 text-center py-1">
-                    Empty palette
+                    {t("Empty palette")}
                   </p>
                 )}
               </div>
@@ -285,7 +287,7 @@ export function SavedColorsSection({ onColorSelect, selectedColor, currentColor 
 
             {customPalettes.length === 0 && !showNewPaletteInput && (
               <p className="text-[10px] text-muted-foreground/60 text-center py-2">
-                No custom palettes yet
+                {t("No custom palettes yet")}
               </p>
             )}
           </div>

@@ -25,6 +25,7 @@ import { useMulticamStore } from "../stores/multicam-monitor-store";
 import { toast } from "../stores/notification-store";
 import { loadAudioBuffer } from "../utils/load-audio-buffer";
 import { commitSequenceEdit } from "./sequence-commands";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * Multicam commands. Each is a pure function from @openreel/core
@@ -176,7 +177,7 @@ export async function switchAngleAtPlayhead(angleId: string): Promise<MulticamEd
   const under = multicamClipAtTime(project, useTimelineStore.getState().playheadPosition);
   if (!under) {
     const message = "Park the playhead on a multicam clip to switch its angle.";
-    toast.warning("Multi-camera", message);
+    toast.warning(translateNow("Multi-camera"), message);
     return { ok: false, message };
   }
   if (under.angle.id === angleId) return { ok: true, project };
@@ -204,13 +205,13 @@ export function startRecording(): boolean {
   if (monitor.recording || monitor.committing) return false;
   const timeline = useTimelineStore.getState();
   if (timeline.playbackLockedReason) {
-    toast.warning("Multi-camera", timeline.playbackLockedReason);
+    toast.warning(translateNow("Multi-camera"), timeline.playbackLockedReason);
     return false;
   }
   const project = fullProject();
   const clips = listMulticamClips(project, currentMulticamSource(project)?.id);
   if (clips.length === 0) {
-    toast.warning("Multi-camera", "Place a multicam clip on the timeline before recording.");
+    toast.warning(translateNow("Multi-camera"), "Place a multicam clip on the timeline before recording.");
     return false;
   }
   const first = clips[0].clip;

@@ -26,8 +26,10 @@ import {
   resolveTemplateMedia,
   templateEditorOwner,
 } from "../../../services/project-templates";
+import { useT } from "@openreel/i18n/react";
 
 export function TemplatesTab() {
+  const t = useT();
   const getTemplateEngine = useEngineStore((state) => state.getTemplateEngine);
   const [templates, setTemplates] = useState<TemplateSummary[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -139,8 +141,8 @@ export function TemplatesTab() {
           className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-3"
         />
         <Input
-          aria-label="Search templates"
-          placeholder="Search templates..."
+          aria-label={t("Search templates")}
+          placeholder={t("Search templates...")}
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
           className="h-9 w-full rounded-lg border-border bg-bg-2 pl-8 pr-3 text-xs text-fg"
@@ -148,7 +150,7 @@ export function TemplatesTab() {
       </div>
       <ToggleGroup
         type="single"
-        aria-label="Template category"
+        aria-label={t("Template category")}
         value={selectedCategory}
         onValueChange={(value) => {
           if (value) setSelectedCategory(value as typeof selectedCategory);
@@ -175,10 +177,10 @@ export function TemplatesTab() {
       )}
       {loading ? (
         <p role="status" className="py-12 text-center text-xs text-fg-3">
-          Loading templates...
+          {t("Loading templates...")}
         </p>
       ) : !filteredTemplates.length ? (
-        <p className="py-8 text-center text-xs text-fg-3">No templates found</p>
+        <p className="py-8 text-center text-xs text-fg-3">{t("No templates found")}</p>
       ) : (
         <div className="grid grid-cols-2 gap-2">
           {filteredTemplates.map((template) => (
@@ -239,8 +241,7 @@ export function TemplatesTab() {
           <DialogHeader>
             <DialogTitle>{selected?.name}</DialogTitle>
             <DialogDescription>
-              Your current project will be saved in Recents before this template
-              opens as a new project.
+              {t("Your current project will be saved in Recents before this template opens as a new project.")}
             </DialogDescription>
           </DialogHeader>
           {error && (
@@ -264,7 +265,7 @@ export function TemplatesTab() {
               setError(null);
             }}
           >
-            Cancel
+            {t("Cancel")}
           </Button>
           {applying && (
             <span
@@ -272,7 +273,7 @@ export function TemplatesTab() {
               className="flex items-center gap-2 text-xs text-fg-3"
             >
               <Loader2 size={12} aria-hidden className="animate-spin" />
-              Saving and opening template...
+              {t("Saving and opening template...")}
             </span>
           )}
         </DialogContent>

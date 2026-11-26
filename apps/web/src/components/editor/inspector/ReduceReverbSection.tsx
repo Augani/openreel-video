@@ -12,6 +12,7 @@ import {
   useReduceReverbStatus,
 } from "../../../services/reduce-reverb";
 import { PropertySlider } from "./shell/PropertySlider";
+import { useT } from "@openreel/i18n/react";
 
 interface ReduceReverbSectionProps {
   clipId: string;
@@ -24,6 +25,7 @@ interface ReduceReverbSectionProps {
  * worker (progress and Cancel below); the preview and the export both play that same cached result.
  */
 const ReduceReverbSection: React.FC<ReduceReverbSectionProps> = ({ clipId }) => {
+  const t = useT();
   const clip = useProjectStore((state) =>
     state.project.timeline.tracks.flatMap((track) => track.clips).find((candidate) => candidate.id === clipId),
   );
@@ -75,31 +77,31 @@ const ReduceReverbSection: React.FC<ReduceReverbSectionProps> = ({ clipId }) => 
   return (
     <div className="space-y-2.5" data-testid="reduce-reverb-section">
       <p className="text-[11px] leading-relaxed text-fg-3">
-        Removes the late reverb tail of a roomy recording. Runs on this device. It cannot remove early reflections; strong settings can thin a voice.
+        {t("Removes the late reverb tail of a roomy recording. Runs on this device. It cannot remove early reflections; strong settings can thin a voice.")}
       </p>
       {!hasEffect ? (
         <Button size="sm" className="w-full text-[11px]" data-testid="reduce-reverb-apply" disabled={locked} onClick={() => void guard(() => applyReduceReverb([clipId]))}>
-          Reduce Reverb
+          {t("Reduce Reverb")}
         </Button>
       ) : (
         <>
           {running && (
             <div className="space-y-1.5 rounded-[7px] border border-border bg-bg-1 p-2.5" data-testid="reduce-reverb-progress" role="status" aria-live="polite">
               <div className="flex items-center justify-between text-[11px]">
-                <span>Reducing reverb… {percent}%</span>
+                <span>{t("Reducing reverb…")} {percent}%</span>
                 <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" data-testid="reduce-reverb-cancel" onClick={() => void guard(() => cancelReduceReverb(clipId))}>
-                  Cancel
+                  {t("Cancel")}
                 </Button>
               </div>
               <Progress value={percent} className="h-1.5" />
-              <p className="text-[10px] text-fg-3">You can keep editing and playing; the dry voice is swapped in when it is ready.</p>
+              <p className="text-[10px] text-fg-3">{t("You can keep editing and playing; the dry voice is swapped in when it is ready.")}</p>
             </div>
           )}
           {status.state === "failed" && (
             <div className="space-y-1.5 rounded-[7px] border border-destructive/40 bg-bg-1 p-2.5 text-[11px]" role="alert" data-testid="reduce-reverb-failed">
-              <p>Reduce Reverb could not run{status.error ? `: ${status.error}` : "."}</p>
+              <p>{t("Reduce Reverb could not run")}{status.error ? `: ${status.error}` : "."}</p>
               <Button size="sm" variant="outline" className="h-6 text-[11px]" onClick={() => void startReverbJob(clipId)}>
-                Try again
+                {t("Try again")}
               </Button>
             </div>
           )}
@@ -135,11 +137,11 @@ const ReduceReverbSection: React.FC<ReduceReverbSectionProps> = ({ clipId }) => 
             <p className="text-[10px] text-fg-3" data-testid="reduce-reverb-estimate">
               {(status.confidence ?? 0) > 0
                 ? `Estimated room decay (RT60): ${status.rt60.toFixed(2)} s.`
-                : "Not enough speech pauses to measure the room; a typical room decay was assumed."}
+                : t("Not enough speech pauses to measure the room; a typical room decay was assumed.")}
             </p>
           )}
           <Button size="sm" variant="outline" className="w-full text-[11px]" data-testid="reduce-reverb-remove" disabled={locked} onClick={() => void guard(() => removeReduceReverb(clipId))}>
-            Remove Reduce Reverb
+            {t("Remove Reduce Reverb")}
           </Button>
         </>
       )}

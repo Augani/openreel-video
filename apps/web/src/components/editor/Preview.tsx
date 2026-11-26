@@ -8750,7 +8750,7 @@ export const Preview: React.FC = () => {
       {/* ── Panel bar header (mockup: 'Player') ───────────────── */}
       {!isMaximized && !isFullscreen && (
         <div className="workspace-preview-header">
-          <MonitorTabs active="program" /><span>Timeline 1</span>
+          <MonitorTabs active="program" /><span>{t("Timeline 1")}</span>
           <div className="workspace-preview-options">
             <MaskPenButton />
             <ObjectMaskButton />
@@ -8760,7 +8760,7 @@ export const Preview: React.FC = () => {
                 data-testid="aces-badge"
                 role="status"
                 className="workspace-preview-choice text-xs"
-                title="ACES color management: input transform, ACEScct grading, RRT and output transform. The monitor and scopes show the output transform."
+                title={t("ACES color management: input transform, ACEScct grading, RRT and output transform. The monitor and scopes show the output transform.")}
               >
                 {`ACES · ${(settings.acesOutput ?? "srgb") === "rec709" ? "Rec.709" : "sRGB"}`}
               </span>
@@ -8770,7 +8770,7 @@ export const Preview: React.FC = () => {
                 data-testid="ocio-badge"
                 role="status"
                 className="workspace-preview-choice text-xs"
-                title="OpenColorIO: footage enters through its OCIO colour space, compositing runs in the working space, and the monitor shows the config's display and view."
+                title={t("OpenColorIO: footage enters through its OCIO colour space, compositing runs in the working space, and the monitor shows the config's display and view.")}
               >
                 {`OCIO · ${settings.ocio.display} / ${settings.ocio.view}`}
               </span>
@@ -8780,14 +8780,14 @@ export const Preview: React.FC = () => {
                 data-testid="memory-pressure-badge"
                 role="status"
                 className="workspace-preview-choice text-xs text-amber-500"
-                title="Memory is running low. The preview runs at a lower resolution and keeps fewer decoded frames; exports are not affected. Close other apps or use proxies (Shift+P) to recover."
+                title={t("Memory is running low. The preview runs at a lower resolution and keeps fewer decoded frames; exports are not affected. Close other apps or use proxies (Shift+P) to recover.")}
               >
-                {memoryPolicy.pressure === "critical" ? "Low memory: reduced preview" : "Memory high: preview ×0.75"}
+                {memoryPolicy.pressure === "critical" ? t("Low memory: reduced preview") : t("Memory high: preview ×0.75")}
               </span>
             )}
-            <DropdownMenu><DropdownMenuTrigger asChild><ShadcnButton variant="secondary" aria-label="Preview Zoom" className="workspace-preview-choice"><span>{zoomLevel === 1 ? "Fit" : `${Math.round(zoomLevel*100)}%`} <span aria-hidden="true">▾</span></span></ShadcnButton></DropdownMenuTrigger><DropdownMenuContent>{ZOOM_OPTIONS.map((opt) => <DropdownMenuItem key={opt.value} onSelect={() => setZoomLevel(opt.value)}>{opt.value === 1 ? t("Fit") : t(opt.label)}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>
-            <DropdownMenu><DropdownMenuTrigger asChild><ShadcnButton variant="secondary" aria-label="Playback quality" className="workspace-preview-choice"><span>{playbackQuality === "full" ? "Full res" : PREVIEW_QUALITY_OPTIONS.find((o) => o.value === playbackQuality)?.label ?? "Auto"} <span aria-hidden="true">▾</span></span></ShadcnButton></DropdownMenuTrigger><DropdownMenuContent>{PREVIEW_QUALITY_OPTIONS.map((opt) => <DropdownMenuItem key={opt.value} onSelect={() => setPlaybackQuality(opt.value)}>{t(opt.label)}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>
-            <DropdownMenu><DropdownMenuTrigger asChild><ShadcnButton variant="ghost" aria-label="Preview options" className="workspace-preview-guides text-accent bg-accent-soft"><PreviewTransportIcon name="guides" size={16} strokeWidth={1.8} /></ShadcnButton></DropdownMenuTrigger><DropdownMenuContent align="end">
+            <DropdownMenu><DropdownMenuTrigger asChild><ShadcnButton variant="secondary" aria-label={t("Preview Zoom")} className="workspace-preview-choice"><span>{zoomLevel === 1 ? t("Fit") : `${Math.round(zoomLevel*100)}%`} <span aria-hidden="true">▾</span></span></ShadcnButton></DropdownMenuTrigger><DropdownMenuContent>{ZOOM_OPTIONS.map((opt) => <DropdownMenuItem key={opt.value} onSelect={() => setZoomLevel(opt.value)}>{opt.value === 1 ? t("Fit") : t(opt.label)}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>
+            <DropdownMenu><DropdownMenuTrigger asChild><ShadcnButton variant="secondary" aria-label={t("Playback quality")} className="workspace-preview-choice"><span>{playbackQuality === "full" ? t("Full res") : PREVIEW_QUALITY_OPTIONS.find((o) => o.value === playbackQuality)?.label ?? t("Auto")} <span aria-hidden="true">▾</span></span></ShadcnButton></DropdownMenuTrigger><DropdownMenuContent>{PREVIEW_QUALITY_OPTIONS.map((opt) => <DropdownMenuItem key={opt.value} onSelect={() => setPlaybackQuality(opt.value)}>{t(opt.label)}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>
+            <DropdownMenu><DropdownMenuTrigger asChild><ShadcnButton variant="ghost" aria-label={t("Preview options")} className="workspace-preview-guides text-accent bg-accent-soft"><PreviewTransportIcon name="guides" size={16} strokeWidth={1.8} /></ShadcnButton></DropdownMenuTrigger><DropdownMenuContent align="end">
               <DropdownMenuLabel>{t("Preview")}</DropdownMenuLabel>
               <DropdownMenuItem disabled={Boolean(playbackLockedReason) || exportState.isExporting || actualEndTime <= 0} onSelect={handleSkipBack}>{t("Skip back 5s")}</DropdownMenuItem>
               <DropdownMenuItem disabled={Boolean(playbackLockedReason) || exportState.isExporting || actualEndTime <= 0} onSelect={handleSkipForward}>{t("Skip forward 5s")}</DropdownMenuItem>
@@ -8862,10 +8862,10 @@ export const Preview: React.FC = () => {
         <PreviewTransportControls duration={actualEndTime} frameRate={settings.frameRate} playing={isPlaying}
           lockedReason={playbackLockedReason} exporting={exportState.isExporting} onTogglePlayback={togglePlayback} />
         <div data-preview-tools className="flex gap-1.5 items-center">
-          <ShadcnButton variant="ghost" size="icon-sm" title={`Loop ${formatFrameTimecode(previewLoopRange?.start ?? 0, settings.frameRate)} to ${formatFrameTimecode(previewLoopRange?.end ?? 0, settings.frameRate)} • I: mark start • O: mark end • Shift+L: toggle`} aria-pressed={loopEnabled} onClick={handleToggleLoop} type="button" aria-label={loopEnabled ? "Disable preview loop" : "Enable preview loop"} disabled={(actualEndTime <= 0 || exportState.isExporting)} className={cn("inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", "bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg", `w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${loopEnabled ? "bg-accent/15 text-accent" : "bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"}`)}>
+          <ShadcnButton variant="ghost" size="icon-sm" title={`Loop ${formatFrameTimecode(previewLoopRange?.start ?? 0, settings.frameRate)} to ${formatFrameTimecode(previewLoopRange?.end ?? 0, settings.frameRate)} • I: mark start • O: mark end • Shift+L: toggle`} aria-pressed={loopEnabled} onClick={handleToggleLoop} type="button" aria-label={loopEnabled ? t("Disable preview loop") : t("Enable preview loop")} disabled={(actualEndTime <= 0 || exportState.isExporting)} className={cn("inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", "bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg", `w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${loopEnabled ? "bg-accent/15 text-accent" : "bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"}`)}>
             {<PreviewTransportIcon name="loop" size={16} strokeWidth={1.8} />}
           </ShadcnButton>
-          <ShadcnButton variant="ghost" size="icon-sm" onClick={() => setIsMuted(!userMuted)} type="button" aria-label={isMuted ? "Unmute" : "Mute"} title={isMuted ? "Unmute" : "Mute"} className={cn("inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", "bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg", `w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${
+          <ShadcnButton variant="ghost" size="icon-sm" onClick={() => setIsMuted(!userMuted)} type="button" aria-label={isMuted ? t("Unmute") : t("Mute")} title={isMuted ? t("Unmute") : t("Mute")} className={cn("inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", "bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg", `w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${
               isMuted
                 ? "bg-bg-2 text-status-error"
                 : "bg-bg-2 text-fg-2 hover:text-fg hover:bg-bg-3"
@@ -8873,7 +8873,7 @@ export const Preview: React.FC = () => {
             {isMuted ? <VolumeX size={16} /> : <PreviewTransportIcon name="volume" size={16} strokeWidth={1.8} />}
           </ShadcnButton>
 
-          <ShadcnButton variant="ghost" size="icon-sm" data-preview-fullscreen aria-pressed={isFullscreen} onClick={handleFullscreen} type="button" aria-label={isFullscreen ? "Exit Full Screen" : "Full Screen"} title={isFullscreen ? "Exit Full Screen" : "Full Screen"} className={cn("inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", "bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg", `w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${
+          <ShadcnButton variant="ghost" size="icon-sm" data-preview-fullscreen aria-pressed={isFullscreen} onClick={handleFullscreen} type="button" aria-label={isFullscreen ? t("Exit Full Screen") : t("Full Screen")} title={isFullscreen ? t("Exit Full Screen") : t("Full Screen")} className={cn("inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", "bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg", `w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${
               isFullscreen
                 ? "bg-accent-soft text-accent"
                 : "bg-bg-2 text-fg-2 hover:text-fg hover:bg-bg-3"
@@ -8891,7 +8891,7 @@ export const Preview: React.FC = () => {
       ref={containerRef}
       data-tour="preview"
       tabIndex={0}
-      aria-label="Preview canvas"
+      aria-label={t("Preview canvas")}
       onKeyDown={handlePreviewKeyDown}
       onPointerDownCapture={(event) => {
         const target = event.target as HTMLElement;
@@ -8966,7 +8966,7 @@ export const Preview: React.FC = () => {
             ref={canvasRef}
             role="img"
             aria-busy={previewFramePending}
-            aria-label={isPlaying ? "Program preview (playing)" : presentedFrameTime === null ? "Program preview" : `${presentedFrameIsFallback ? "Program preview unavailable at" : "Program frame"} ${formatFrameTimecode(presentedFrameTime, settings.frameRate)}`}
+            aria-label={isPlaying ? t("Program preview (playing)") : presentedFrameTime === null ? t("Program preview") : `${presentedFrameIsFallback ? "Program preview unavailable at" : "Program frame"} ${formatFrameTimecode(presentedFrameTime, settings.frameRate)}`}
             width={previewRes.width}
             height={previewRes.height}
             className="w-full h-full object-contain bg-[var(--screen-bg)] rounded-[10px]"
@@ -8984,7 +8984,7 @@ export const Preview: React.FC = () => {
           {vrDialogOpen ? (
             <React.Suspense fallback={null}>
               <VrPropertiesDialog
-                title="Sequence VR Properties"
+                title={t("Sequence VR Properties")}
                 subtitle="Projection, frame layout and captured view of this sequence"
                 value={settings.vr}
                 onClose={() => setVrDialogOpen(false)}
@@ -9012,7 +9012,7 @@ export const Preview: React.FC = () => {
 
           {showCompositionGrid && !cropMode ? (
             <div
-              aria-label="Composition grid"
+              aria-label={t("Composition grid")}
               className="pointer-events-none absolute inset-0 z-20"
             >
               {[1, 2].map((line) => (
@@ -9032,13 +9032,13 @@ export const Preview: React.FC = () => {
 
           {showSafeMargins && !cropMode ? (
             <div
-              aria-label="Title and action safe margins"
+              aria-label={t("Title and action safe margins")}
               className="pointer-events-none absolute inset-0 z-20"
             >
               <span className="absolute inset-[5%] border border-dashed border-white/60 shadow-[0_0_1px_rgba(0,0,0,0.9)]" />
               <span className="absolute inset-[10%] border border-white/75 shadow-[0_0_1px_rgba(0,0,0,0.9)]" />
               <span className="absolute left-[10%] top-[10%] rounded-br bg-black/55 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white/80">
-                Title safe
+                {t("Title safe")}
               </span>
             </div>
           ) : null}
@@ -9171,7 +9171,7 @@ export const Preview: React.FC = () => {
               {/* Selection border - yellow/orange for subtitles */}
               <div className="absolute inset-0 border-2 border-yellow-500 rounded-lg pointer-events-none" />
               <div className="absolute -top-6 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-yellow-500 rounded text-[10px] font-medium text-black whitespace-nowrap">
-                Subtitle Selected - Edit in Inspector
+                {t("Subtitle Selected - Edit in Inspector")}
               </div>
             </div>
           )}
@@ -9200,7 +9200,7 @@ export const Preview: React.FC = () => {
                     aria-hidden="true"
                     className="absolute -top-6 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-black/70 rounded text-[10px] text-white whitespace-nowrap"
                   >
-                    Click to select
+                    {t("Click to select")}
                   </div>
                 </div>
               );

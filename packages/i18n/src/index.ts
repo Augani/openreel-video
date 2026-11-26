@@ -77,6 +77,10 @@ export const languageStore = {
       listeners.delete(listener);
     };
   },
+  /** Re-render subscribers (e.g. after the full dictionary finishes loading). */
+  refresh(): void {
+    emit();
+  },
 };
 
 export interface InitLanguageOptions {

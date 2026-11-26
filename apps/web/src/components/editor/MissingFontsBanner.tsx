@@ -7,12 +7,14 @@ import {
   findMissingProjectFonts,
   type MissingFont,
 } from "../../services/project-fonts";
+import { useT } from "@openreel/i18n/react";
 
 /**
  * Reports fonts the opened project (or template) uses that are not built in,
  * loaded or installed, with where they are used and the substitute font.
  */
 export function MissingFontsBanner() {
+  const t = useT();
   const project = useProjectStore((s) => s.project);
   const [missing, setMissing] = useState<MissingFont[]>([]);
   const [dismissedFor, setDismissedFor] = useState<string | null>(null);
@@ -45,15 +47,15 @@ export function MissingFontsBanner() {
   return (
     <div role="alert" data-testid="missing-fonts-banner" className="border-b border-border bg-status-warning/10 px-3 py-1.5 text-xs text-fg">
       <div className="flex items-center gap-2">
-        <span className="font-semibold">Missing fonts ({missing.length}).</span>
-        <span className="min-w-0 flex-1 text-fg-2">These fonts are not available on this device and will be substituted.</span>
-        <Button type="button" size="sm" variant="secondary" onClick={() => setDismissedFor(project.id)}>Dismiss</Button>
+        <span className="font-semibold">{t("Missing fonts (")}{missing.length}).</span>
+        <span className="min-w-0 flex-1 text-fg-2">{t("These fonts are not available on this device and will be substituted.")}</span>
+        <Button type="button" size="sm" variant="secondary" onClick={() => setDismissedFor(project.id)}>{t("Dismiss")}</Button>
       </div>
       <ul className="mt-1 list-disc pl-5 text-fg-2">
         {missing.map((font) => (
           <li key={font.family}>
-            <span className="font-medium text-fg">{font.family}</span> in {font.usages.slice(0, 3).join(", ")}
-            {font.usages.length > 3 ? ` and ${font.usages.length - 3} more` : ""}; falls back to {font.fallback}.
+            <span className="font-medium text-fg">{font.family}</span> {t("in")} {font.usages.slice(0, 3).join(", ")}
+            {font.usages.length > 3 ? ` and ${font.usages.length - 3} more` : ""}{t("; falls back to")} {font.fallback}.
           </li>
         ))}
       </ul>

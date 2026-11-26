@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button, Spinner } from "@openreel/ui";
+import { useT } from "@openreel/i18n/react";
 
 export function PreviewFrameStatus({
   busy,
@@ -13,6 +14,7 @@ export function PreviewFrameStatus({
   reason?: string | null;
   onRetry: () => void;
 }) {
+  const t = useT();
   const [showBusy, setShowBusy] = useState(false);
   useEffect(() => {
     if (!busy) {
@@ -31,20 +33,20 @@ export function PreviewFrameStatus({
     >
       {failed ? (
         <>
-          <span data-testid="preview-failure-reason">{reason ?? "Preview unavailable"}</span>
+          <span data-testid="preview-failure-reason">{reason ?? t("Preview unavailable")}</span>
           <Button
             variant="ghost"
-            aria-label="Retry preview"
+            aria-label={t("Retry preview")}
             onClick={onRetry}
             className="h-6 px-1.5 text-[11px]"
           >
-            Retry
+            {t("Retry")}
           </Button>
         </>
       ) : (
         <>
           <Spinner aria-hidden className="size-3 text-fg-muted" />
-          <span>Updating preview…</span>
+          <span>{t("Updating preview…")}</span>
         </>
       )}
     </div>

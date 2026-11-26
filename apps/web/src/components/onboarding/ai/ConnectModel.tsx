@@ -15,6 +15,7 @@ import { detectOllama } from "../../../services/ollama-detect";
 import { testAIConnection, type AIConnectionTestResult } from "../../../services/ai-connection-test";
 import { validateAIEndpoint } from "../../../services/agent/direct-llm-transport";
 import type { OpenReelOllamaProbeResult } from "../../../types/global";
+import { useT } from "@openreel/i18n/react";
 
 export const KEY_EXPLAINER =
   "An API key is like a password that lets OpenReel use an AI service. You create one on your provider's website and pay them directly for usage. Check their pricing page. OpenReel never sees your key.";
@@ -47,6 +48,7 @@ export interface ConnectModelProps {
 }
 
 export default function ConnectModel({ onContinue, onLearn, onLater }: ConnectModelProps): JSX.Element {
+  const t = useT();
   const uid = useId();
   const initial = useAIConnectionStore.getState();
   const [choiceId, setChoiceId] = useState<AIProviderChoiceId>(inferChoice);
@@ -164,7 +166,7 @@ export default function ConnectModel({ onContinue, onLearn, onLater }: ConnectMo
     <div className="flex flex-col gap-5">
       <div
         role="radiogroup"
-        aria-label="AI provider"
+        aria-label={t("AI provider")}
         className="grid grid-cols-2 gap-2.5 sm:grid-cols-3"
       >
         {AI_PROVIDER_CHOICES.map((c) => {
@@ -192,7 +194,7 @@ export default function ConnectModel({ onContinue, onLearn, onLater }: ConnectMo
                   ? ollama.status === "found"
                     ? `Detected · ${ollama.models.length} ${ollama.models.length === 1 ? "model" : "models"}`
                     : ollama.status === "checking"
-                      ? "Looking for Ollama…"
+                      ? t("Looking for Ollama…")
                       : c.subtitle
                   : c.subtitle}
               </span>
@@ -204,10 +206,10 @@ export default function ConnectModel({ onContinue, onLearn, onLater }: ConnectMo
       <div className="flex flex-col gap-3">
         {choice.editableBaseUrl && (
           <label className="flex flex-col gap-1.5 text-xs font-medium text-fg-2">
-            Endpoint URL
+            {t("Endpoint URL")}
             <input
               className={fieldClass}
-              aria-label="Endpoint URL"
+              aria-label={t("Endpoint URL")}
               value={baseUrl}
               spellCheck={false}
               onChange={(e) => {
@@ -221,7 +223,7 @@ export default function ConnectModel({ onContinue, onLearn, onLater }: ConnectMo
         {choice.id === "ollama" ? (
           <div className="flex flex-col gap-1.5">
             <span id={modelLabelId} className="text-xs font-medium text-fg-2">
-              Model
+              {t("Model")}
             </span>
             {localModels.length > 0 ? (
               <select
@@ -245,7 +247,7 @@ export default function ConnectModel({ onContinue, onLearn, onLater }: ConnectMo
                   aria-labelledby={modelLabelId}
                   className={fieldClass}
                   value={model}
-                  placeholder="Model name, for example one you pulled with ollama"
+                  placeholder={t("Model name, for example one you pulled with ollama")}
                   spellCheck={false}
                   onChange={(e) => {
                     edit();
@@ -254,18 +256,18 @@ export default function ConnectModel({ onContinue, onLearn, onLater }: ConnectMo
                 />
                 <p className="text-xs text-fg-3" role="status">
                   {ollama.status === "checking"
-                    ? "Looking for Ollama on this computer…"
-                    : "Ollama was not found. Start it, then "}
+                    ? t("Looking for Ollama on this computer…")
+                    : t("Ollama was not found. Start it, then ")}
                   {ollama.status === "missing" && (
                     <button
                       type="button"
                       className="rounded text-accent underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                       onClick={probeLocal}
                     >
-                      check again
+                      {t("check again")}
                     </button>
                   )}
-                  {ollama.status === "missing" && ", or pick another provider."}
+                  {ollama.status === "missing" && t(", or pick another provider.")}
                 </p>
               </>
             )}
@@ -273,7 +275,7 @@ export default function ConnectModel({ onContinue, onLearn, onLater }: ConnectMo
         ) : choice.models.length > 0 ? (
           <div className="flex flex-col gap-1.5">
             <span id={modelLabelId} className="text-xs font-medium text-fg-2">
-              Model
+              {t("Model")}
             </span>
             <select
               aria-labelledby={modelLabelId}
@@ -287,19 +289,19 @@ export default function ConnectModel({ onContinue, onLearn, onLater }: ConnectMo
               {choice.models.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.label}
-                  {m.recommended ? " (recommended)" : ""}
+                  {m.recommended ? t(" (recommended)") : ""}
                 </option>
               ))}
             </select>
           </div>
         ) : (
           <label className="flex flex-col gap-1.5 text-xs font-medium text-fg-2">
-            Model ID
+            {t("Model ID")}
             <input
               className={fieldClass}
-              aria-label="Model ID"
+              aria-label={t("Model ID")}
               value={model}
-              placeholder="A model that supports tool use"
+              placeholder={t("A model that supports tool use")}
               spellCheck={false}
               onChange={(e) => {
                 edit();
@@ -313,7 +315,7 @@ export default function ConnectModel({ onContinue, onLearn, onLater }: ConnectMo
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
               <label id={keyLabelId} htmlFor={`${uid}-key-input`} className="text-xs font-medium text-fg-2">
-                API key{choice.keyRequired ? "" : " (optional)"}
+                {t("API key")}{choice.keyRequired ? "" : t(" (optional)")}
               </label>
               {choice.keyUrl && (
                 <button
@@ -324,7 +326,7 @@ export default function ConnectModel({ onContinue, onLearn, onLater }: ConnectMo
                   onClick={() => window.open(choice.keyUrl, "_blank", "noopener,noreferrer")}
                 >
                   <KeyRound size={12} aria-hidden="true" />
-                  Get a key
+                  {t("Get a key")}
                 </button>
               )}
             </div>
@@ -336,7 +338,7 @@ export default function ConnectModel({ onContinue, onLearn, onLater }: ConnectMo
                 autoComplete="off"
                 spellCheck={false}
                 value={apiKey}
-                placeholder="Paste your API key"
+                placeholder={t("Paste your API key")}
                 onChange={(e) => {
                   edit();
                   setApiKey(e.target.value);
@@ -344,7 +346,7 @@ export default function ConnectModel({ onContinue, onLearn, onLater }: ConnectMo
               />
               <button
                 type="button"
-                aria-label={reveal ? "Hide API key" : "Show API key"}
+                aria-label={reveal ? t("Hide API key") : t("Show API key")}
                 className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded text-fg-3 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                 onClick={() => setReveal(!reveal)}
               >
@@ -363,7 +365,7 @@ export default function ConnectModel({ onContinue, onLearn, onLater }: ConnectMo
             className="rounded text-xs text-fg-2 underline-offset-2 hover:text-fg hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             onClick={() => setExplainer(!explainer)}
           >
-            How do I get a key?
+            {t("How do I get a key?")}
           </button>
           {explainer && (
             <p id={`${uid}-explainer`} className="mt-1.5 rounded-lg border border-border bg-bg-2 p-3 text-xs leading-relaxed text-fg-2">
@@ -382,9 +384,9 @@ export default function ConnectModel({ onContinue, onLearn, onLater }: ConnectMo
               onChange={(e) => setRemember(e.target.checked)}
             />
             <span>
-              <span className="font-medium text-fg">Remember on this device</span>
+              <span className="font-medium text-fg">{t("Remember on this device")}</span>
               <span className="block text-fg-3">
-                Stores the key in your system keychain so you do not re-enter it each launch.
+                {t("Stores the key in your system keychain so you do not re-enter it each launch.")}
               </span>
             </span>
           </label>
@@ -400,7 +402,7 @@ export default function ConnectModel({ onContinue, onLearn, onLater }: ConnectMo
             onClick={() => void runTest()}
           >
             {testing && <Loader2 size={13} className="motion-safe:animate-spin" aria-hidden="true" />}
-            Test connection
+            {t("Test connection")}
           </button>
           <div
             role="status"
@@ -411,13 +413,13 @@ export default function ConnectModel({ onContinue, onLearn, onLater }: ConnectMo
               result.ok ? (
                 <span className="inline-flex items-center gap-1">
                   <Check size={13} aria-hidden="true" />
-                  Connected · {result.latencyMs} ms · editing tools work
+                  {t("Connected ·")} {result.latencyMs} {t("ms · editing tools work")}
                 </span>
               ) : (
                 result.message
               )
             ) : testing ? (
-              "Testing…"
+              t("Testing…")
             ) : null}
           </div>
         </div>
@@ -430,14 +432,14 @@ export default function ConnectModel({ onContinue, onLearn, onLater }: ConnectMo
             className="rounded text-fg-2 underline-offset-2 hover:text-fg hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             onClick={onLearn}
           >
-            No key yet? Learn to edit first
+            {t("No key yet? Learn to edit first")}
           </button>
           <button
             type="button"
             className="rounded text-fg-2 underline-offset-2 hover:text-fg hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             onClick={onLater}
           >
-            I&apos;ll connect later
+            {t("I'll connect later")}
           </button>
         </div>
         <button
@@ -445,7 +447,7 @@ export default function ConnectModel({ onContinue, onLearn, onLater }: ConnectMo
           className="inline-flex h-9 items-center rounded-lg bg-accent px-4 text-sm font-semibold text-accent-fg shadow-glow hover:bg-accent-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           onClick={save}
         >
-          Continue
+          {t("Continue")}
         </button>
       </div>
     </div>

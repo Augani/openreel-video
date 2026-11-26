@@ -6,6 +6,7 @@ import { Button, buttonVariants, cn } from "@openreel/ui";
 import { Star, StarOff, ChevronDown } from "@/icons/lucide-compat";
 import { useSettingsStore } from "../../../stores/settings-store";
 import type { ElevenLabsModel } from "./tts-types";
+import { useT } from "@openreel/i18n/react";
 
 interface ModelSelectorProps {
   allModels: ElevenLabsModel[];
@@ -16,6 +17,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   allModels,
   isLoadingModels,
 }) => {
+  const t = useT();
   const {
     elevenLabsModel,
     setElevenLabsModel,
@@ -56,15 +58,14 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   return (
     <div className="space-y-2">
       <span className="text-fg-2 text-[10px] font-medium">
-        Model
+        {t("Model")}
       </span>
 
       {favoriteModels.length > 0 && (
         <div className="space-y-1.5">
           <span className="text-fg-2 font-normal flex items-center gap-1 text-[9px]"
           >
-            <Star size={9} className="text-amber-400 fill-amber-400" /> Favorite
-            Models
+            <Star size={9} className="text-amber-400 fill-amber-400" /> {t("Favorite Models")}
           </span>
           <div className="flex flex-wrap gap-1.5">
             {favoriteModels.map((fav) => (
@@ -84,9 +85,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       )}
 
       <div className="flex items-center gap-2">
-        <Button variant="ghost" onClick={() => setShowAllModels(!showAllModels)} type="button" aria-label="Toggle model list" className="group/card min-w-0 whitespace-normal text-left duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 hover:bg-bg-2 p-3 flex-1 h-8 px-2 rounded-lg border border-border bg-bg-2 text-[10px] text-fg flex items-center justify-between cursor-pointer hover:border-primary/50 transition-colors">
+        <Button variant="ghost" onClick={() => setShowAllModels(!showAllModels)} type="button" aria-label={t("Toggle model list")} className="group/card min-w-0 whitespace-normal text-left duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 hover:bg-bg-2 p-3 flex-1 h-8 px-2 rounded-lg border border-border bg-bg-2 text-[10px] text-fg flex items-center justify-between cursor-pointer hover:border-primary/50 transition-colors">
           <span className="text-fg font-normal truncate text-[10px]">
-            {isLoadingModels ? "Loading models..." : getSelectedModelName()}
+            {isLoadingModels ? t("Loading models...") : getSelectedModelName()}
           </span>
           <ChevronDown
             size={12}
@@ -102,7 +103,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           <div className="max-h-48 overflow-y-auto">
             {allModels.length === 0 ? (
               <span className="text-fg-2 font-normal block p-3 text-center text-[10px]">
-                {isLoadingModels ? "Loading models..." : "No models available"}
+                {isLoadingModels ? t("Loading models...") : t("No models available")}
               </span>
             ) : (
               allModels.map((model) => {
@@ -127,7 +128,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                         {model.description
                           ? model.description.length > 80
                             ? model.description.slice(0, 80) + "..."
-                            : model.description
+                            : t(model.description)
                           : ""}
                         {langCount > 0 && ` · ${langCount} languages`}
                       </span>
@@ -136,7 +137,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                     <Button variant="ghost" size="icon-sm" onClick={(e) => {
                         e.stopPropagation();
                         toggleFavoriteModel(model);
-                      }} type="button" aria-label={isFav ? "Remove from favorites" : "Add to favorites"} title={isFav ? "Remove from favorites" : "Add to favorites"} className={cn("relative z-10 inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", "bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg", `p-1 rounded hover:bg-bg-elev transition-colors shrink-0 ${
+                      }} type="button" aria-label={isFav ? t("Remove from favorites") : t("Add to favorites")} title={isFav ? t("Remove from favorites") : t("Add to favorites")} className={cn("relative z-10 inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", "bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg", `p-1 rounded hover:bg-bg-elev transition-colors shrink-0 ${
                         isFav
                           ? "text-amber-400"
                           : "text-fg-3 hover:text-amber-400"
@@ -155,7 +156,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 
           <span className="text-fg-2 font-normal block border-t border-border bg-bg-1 px-2 py-1 text-center text-[8px]"
           >
-            {allModels.length} models available
+            {allModels.length} {t("models available")}
           </span>
         </Card>
       )}

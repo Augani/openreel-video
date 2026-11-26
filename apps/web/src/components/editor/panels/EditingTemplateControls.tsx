@@ -17,6 +17,7 @@ import React from "react";
 
 
 import type { EditingTemplate, EditingTemplatePrimitive } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 
 export const getEditingTemplateDefaultControlValues = (
   template: EditingTemplate,
@@ -64,6 +65,7 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
   disabled = false,
   className,
 }) => {
+  const t = useT();
   if (!template.controls || template.controls.length === 0) {
     return null;
   }
@@ -78,7 +80,7 @@ export const EditingTemplateControls: React.FC<EditingTemplateControlsProps> = (
             <div key={control.id} className="space-y-2">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-fg-2 font-bold block text-[11px]">
-                  {control.label}
+                  {t(control.label)}
                 </span>
                 <span className="rounded-full bg-background-tertiary px-2 py-0.5 text-[10px] text-text-secondary">
                   {value}
@@ -101,10 +103,10 @@ className="w-full disabled:cursor-not-allowed disabled:opacity-60" />
           return (
             <div key={control.id} className="flex items-center justify-between gap-3">
               <span className="text-fg-2 font-bold block text-[11px]">
-                {control.label}
+                {t(control.label)}
               </span>
               <ShadcnSwitch
-                aria-label={control.label}
+                aria-label={t(control.label)}
                 checked={Boolean(value)}
                 disabled={disabled}
                 onCheckedChange={(nextValue) => onChange(control.id, nextValue)}
@@ -124,7 +126,7 @@ className="w-full disabled:cursor-not-allowed disabled:opacity-60" />
           return (
             <div key={control.id} className="space-y-2">
               <span className="text-fg-2 font-bold block text-[11px]">
-                {control.label}
+                {t(control.label)}
               </span>
               <ShadcnSelect
                 value={`${selectedIndex}` || "__openreel_empty_option__"}
@@ -139,7 +141,7 @@ className="w-full disabled:cursor-not-allowed disabled:opacity-60" />
                 }}
               >
                 <ShadcnSelectTrigger
-                  aria-label={control.label}
+                  aria-label={t(control.label)}
                   className={uiCn(
                     "flex h-8 w-full min-w-0 rounded-[7px] border border-border bg-bg-1 px-2.5 py-1.5 text-[13px] font-medium text-fg-2 outline-none transition-colors focus:border-accent disabled:cursor-not-allowed disabled:opacity-50",
                     "h-10 w-full rounded-xl border border-border bg-background-tertiary px-3 text-xs text-text-primary focus:border-primary/50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60",
@@ -160,7 +162,7 @@ className="w-full disabled:cursor-not-allowed disabled:opacity-60" />
                         value={option.value || "__openreel_empty_option__"}
                         disabled={"disabled" in option && option.disabled === true}
                       >
-                        {option.label}
+                        {t(option.label)}
                       </ShadcnSelectItem>
                     ))}
                 </ShadcnSelectContent>
@@ -173,7 +175,7 @@ className="w-full disabled:cursor-not-allowed disabled:opacity-60" />
           return (
             <div key={control.id} className="space-y-2">
               <span className="text-fg-2 font-bold block text-[11px]">
-                {control.label}
+                {t(control.label)}
               </span>
               <div className="flex items-center gap-3">
                 <span
@@ -183,7 +185,7 @@ className="w-full disabled:cursor-not-allowed disabled:opacity-60" />
                 />
                 <ShadcnInput
                   value={String(value)}
-                  aria-label={control.label}
+                  aria-label={t(control.label)}
                   onChange={(event) => {
                     const nextValue = event.currentTarget.value;
                     return onChange(control.id, nextValue);
@@ -202,11 +204,11 @@ className="w-full disabled:cursor-not-allowed disabled:opacity-60" />
         return (
           <div key={control.id} className="space-y-2">
             <span className="text-fg-2 font-bold block text-[11px]">
-              {control.label}
+              {t(control.label)}
             </span>
             <ShadcnInput
               value={String(value)}
-              aria-label={control.label}
+              aria-label={t(control.label)}
               onChange={(event) => {
                 const nextValue = event.currentTarget.value;
                 return onChange(control.id, nextValue);

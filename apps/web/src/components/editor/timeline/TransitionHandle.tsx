@@ -21,9 +21,11 @@ import { toast } from "../../../stores/notification-store";
 import { selectEditPoint } from "../../../services/edit-point-commands";
 import { openTrimMonitor } from "../../../services/trim-monitor";
 import { useMorphCutState } from "../inspector/MorphCutControls";
+import { translateNow } from "@openreel/i18n/translate";
 
 /** "Analysing in background" pill on a Morph Cut cut while its analysis runs; Cancel stops it (the cut stays a dissolve). */
 const MorphCutAnalysingBadge: React.FC<{ transitionId: string }> = ({ transitionId }) => {
+  const t = useT();
   const state = useMorphCutState(transitionId);
   if (state.status !== "analysing") return null;
   return (
@@ -32,18 +34,18 @@ const MorphCutAnalysingBadge: React.FC<{ transitionId: string }> = ({ transition
       data-testid="morph-cut-badge"
       role="status"
     >
-      <span>Analysing in background {Math.round(state.progress * 100)}%</span>
+      <span>{t("Analysing in background")} {Math.round(state.progress * 100)}%</span>
       <button
         type="button"
         className="underline"
-        aria-label="Cancel Morph Cut analysis"
+        aria-label={t("Cancel Morph Cut analysis")}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation();
           void import("@openreel/core/video/morph-cut/analyse-job").then((m) => m.cancelMorphCutAnalysis(transitionId));
         }}
       >
-        Cancel
+        {t("Cancel")}
       </button>
     </div>
   );
@@ -157,11 +159,11 @@ export const TransitionHandle: React.FC<TransitionHandleProps> = React.memo(func
       setOpen(false);
       if (transition) {
         await updateClipTransition(transition.id, { type });
-        toast.success("Transition updated", type);
+        toast.success(translateNow("Transition updated"), type);
         return;
       }
       if (!bridge.isInitialized()) {
-        toast.error("Transition engine not ready", "Try again in a moment.");
+        toast.error(translateNow("Transition engine not ready"), "Try again in a moment.");
         return;
       }
       const params = bridge.getDefaultParams(type);
@@ -180,19 +182,19 @@ export const TransitionHandle: React.FC<TransitionHandleProps> = React.memo(func
         if (created) {
           const saved = await addClipTransition(created);
           if (!saved) {
-            toast.error("Transition failed", "The edit could not be saved.");
+            toast.error(translateNow("Transition failed"), "The edit could not be saved.");
             return;
           }
           onSelect(saved.id, trackId);
           toast.success(
-            "Transition added",
+            translateNow("Transition added"),
             `${type} · ${saved.duration.toFixed(1)}s`,
           );
           return;
         }
       }
       toast.error(
-        "Transition failed",
+        translateNow("Transition failed"),
         result.error || "Could not create transition",
       );
     },
@@ -213,7 +215,7 @@ export const TransitionHandle: React.FC<TransitionHandleProps> = React.memo(func
     setOpen(false);
     if (!transition) return;
     await removeClipTransition(transition.id);
-    toast.success("Transition removed", "Hard cut restored");
+    toast.success(translateNow("Transition removed"), "Hard cut restored");
   }, [transition, removeClipTransition]);
 
   const label = transition

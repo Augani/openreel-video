@@ -7,6 +7,7 @@ import { BehaviorPaletteSheet } from "./BehaviorPaletteSheet";
 import { getBehavior } from "./behaviors/registry";
 import { nanoid } from "nanoid";
 import type { Behavior, Scene, SubjectKind } from "./scene";
+import { useT } from "@openreel/i18n/react";
 
 export interface EffectEditorSeed {
   subjectKind: SubjectKind;
@@ -64,6 +65,7 @@ function buildInitialState({
 }
 
 function EffectEditorBody() {
+  const t = useT();
   const { state, dispatch } = useScene();
   const [paletteFor, setPaletteFor] = useState<{ subjectId: string; kind: SubjectKind } | null>(null);
 
@@ -120,7 +122,7 @@ function EffectEditorBody() {
             onClick={openPalette}
             className="absolute bottom-3 left-3 right-3 rounded border border-blue-700 bg-blue-900/30 py-1.5 text-xs text-blue-200 hover:bg-blue-900/50"
           >
-            + Add behavior to {selectedSubject.name}
+            {t("+ Add behavior to")} {selectedSubject.name}
           </button>
         )}
       </div>

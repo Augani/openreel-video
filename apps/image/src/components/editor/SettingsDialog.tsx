@@ -72,7 +72,7 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
                 }`}
               >
                 {tab.icon}
-                {tab.label}
+                {t(tab.label)}
               </button>
             ))}
           </div>
@@ -80,7 +80,7 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
           <div className="flex-1 p-6 min-h-[300px]">
             {activeTab === 'canvas' && (
               <div className="space-y-6">
-                <h3 className="text-sm font-medium text-foreground mb-4">Canvas Options</h3>
+                <h3 className="text-sm font-medium text-foreground mb-4">{t("Canvas Options")}</h3>
 
                 <div className="space-y-4">
                   <ToggleOption
@@ -106,7 +106,7 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
 
                   <div className="pt-2">
                     <div className="flex items-center justify-between mb-2">
-                      <label className="text-sm text-foreground">Grid Size</label>
+                      <label className="text-sm text-foreground">{t("Grid Size")}</label>
                       <span className="text-sm text-muted-foreground">{gridSize}px</span>
                     </div>
                     <Slider
@@ -123,7 +123,7 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
 
             {activeTab === 'snapping' && (
               <div className="space-y-6">
-                <h3 className="text-sm font-medium text-foreground mb-4">Snap Options</h3>
+                <h3 className="text-sm font-medium text-foreground mb-4">{t("Snap Options")}</h3>
 
                 <div className="space-y-4">
                   <ToggleOption
@@ -175,19 +175,19 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
 
             {activeTab === 'appearance' && (
               <div className="space-y-6">
-                <h3 className="text-sm font-medium text-foreground mb-4">Appearance</h3>
+                <h3 className="text-sm font-medium text-foreground mb-4">{t("Appearance")}</h3>
 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
                     <div className="flex items-center gap-3">
                       <Monitor size={18} className="text-muted-foreground" />
                       <div>
-                        <p className="text-sm font-medium">Theme</p>
-                        <p className="text-xs text-muted-foreground">Interface appearance</p>
+                        <p className="text-sm font-medium">{t("Theme")}</p>
+                        <p className="text-xs text-muted-foreground">{t("Interface appearance")}</p>
                       </div>
                     </div>
                     <div className="px-3 py-1.5 text-xs bg-primary/20 text-primary rounded-md">
-                      Dark (System)
+                      {t("Dark (System)")}
                     </div>
                   </div>
 
@@ -195,12 +195,12 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
                     <div className="flex items-center gap-3 mb-3">
                       <Save size={18} className="text-muted-foreground" />
                       <div>
-                        <p className="text-sm font-medium">Auto Save</p>
-                        <p className="text-xs text-muted-foreground">Automatically save projects</p>
+                        <p className="text-sm font-medium">{t("Auto Save")}</p>
+                        <p className="text-xs text-muted-foreground">{t("Automatically save projects")}</p>
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Projects are automatically saved to browser storage every 30 seconds.
+                      {t("Projects are automatically saved to browser storage every 30 seconds.")}
                     </p>
                   </div>
                 </div>

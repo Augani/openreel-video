@@ -6,12 +6,14 @@ import { GeneralPanel } from "./GeneralPanel";
 import { ApiKeysPanel } from "./ApiKeysPanel";
 import { McpPanel } from "./McpPanel";
 import { AISettingsPanel } from "./AISettingsPanel";
+import { useT } from "@openreel/i18n/react";
 
 // Desktop only and rarely opened: its own chunk, off the editor bundle.
 const WatchFoldersPanel = lazy(() => import("./WatchFoldersPanel"));
 const RenderCachePanel = lazy(() => import("./RenderCachePanel"));
 
 export function SettingsDialog() {
+  const t = useT();
   const open = useSettingsStore(state => state.settingsOpen);
   const selected = useSettingsStore(state => state.settingsTab);
   const close = useSettingsStore(state => state.closeSettings);
@@ -31,11 +33,11 @@ export function SettingsDialog() {
       onOpenAutoFocus={() => { opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; }}
       onCloseAutoFocus={event => { event.preventDefault(); if (opener.current?.isConnected) opener.current.focus({ preventScroll: true }); }}>
       <DialogHeader className="shrink-0 border-b border-border px-5 py-4 pr-12 text-left">
-        <DialogTitle className="flex items-center gap-2 text-sm"><Settings size={18} className="text-primary" aria-hidden />Settings</DialogTitle>
-        <DialogDescription className="text-xs leading-5 text-fg-2">Configure preferences and manage API keys for external services.</DialogDescription>
+        <DialogTitle className="flex items-center gap-2 text-sm"><Settings size={18} className="text-primary" aria-hidden />{t("Settings")}</DialogTitle>
+        <DialogDescription className="text-xs leading-5 text-fg-2">{t("Configure preferences and manage API keys for external services.")}</DialogDescription>
       </DialogHeader>
       <Tabs value={value} onValueChange={next => openSettings(next as SettingsTab)} className="flex min-h-0 flex-1 flex-col">
-        <TabsList aria-label="Settings" layoutId="settings-tabs" className="mx-5 mt-4 grid h-auto shrink-0 gap-0.5 rounded-md border border-border bg-bg-1 p-0.5" style={{ gridTemplateColumns: `repeat(${tabs.length},minmax(0,1fr))` }}>
+        <TabsList aria-label={t("Settings")} layoutId="settings-tabs" className="mx-5 mt-4 grid h-auto shrink-0 gap-0.5 rounded-md border border-border bg-bg-1 p-0.5" style={{ gridTemplateColumns: `repeat(${tabs.length},minmax(0,1fr))` }}>
           {tabs.map(({ id, label, icon: Icon }) => <TabsTrigger key={id} value={id} className="h-8 min-w-0 gap-1.5 rounded px-2 text-xs"><Icon size={14} className="shrink-0" aria-hidden /><span className="truncate">{label}</span></TabsTrigger>)}
         </TabsList>
         <ScrollArea className="min-h-0 flex-1">
@@ -44,8 +46,8 @@ export function SettingsDialog() {
             <TabsContent value="ai-editor" className="mt-0"><AISettingsPanel /></TabsContent>
             <TabsContent value="api-keys" className="mt-0"><ApiKeysPanel /></TabsContent>
             {tabs.some(tab => tab.id === "mcp") && <TabsContent value="mcp" className="mt-0"><McpPanel /></TabsContent>}
-            {value === "render-cache" && <TabsContent value="render-cache" className="mt-0"><Suspense fallback={<p className="text-xs text-fg-2">Loading…</p>}><RenderCachePanel /></Suspense></TabsContent>}
-            {value === "watch-folders" && <TabsContent value="watch-folders" className="mt-0"><Suspense fallback={<p className="text-xs text-fg-2">Loading…</p>}><WatchFoldersPanel /></Suspense></TabsContent>}
+            {value === "render-cache" && <TabsContent value="render-cache" className="mt-0"><Suspense fallback={<p className="text-xs text-fg-2">{t("Loading…")}</p>}><RenderCachePanel /></Suspense></TabsContent>}
+            {value === "watch-folders" && <TabsContent value="watch-folders" className="mt-0"><Suspense fallback={<p className="text-xs text-fg-2">{t("Loading…")}</p>}><WatchFoldersPanel /></Suspense></TabsContent>}
           </div>
         </ScrollArea>
       </Tabs>

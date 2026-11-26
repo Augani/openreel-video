@@ -27,8 +27,10 @@ import { VoiceBrowser } from "./VoiceBrowser";
 import { ModelSelector } from "./ModelSelector";
 import { EnhancedTextPreview } from "./EnhancedTextPreview";
 import { AudioResult } from "./AudioResult";
+import { useT } from "@openreel/i18n/react";
 
 export const TextToSpeechPanel: React.FC = () => {
+  const t = useT();
   const {
     defaultLlmProvider,
     llmBaseUrl,
@@ -115,14 +117,14 @@ export const TextToSpeechPanel: React.FC = () => {
           <Mic size={16} className="text-primary" aria-hidden />
           <div className="flex flex-col gap-0.5 min-w-0">
             <span className="text-fg font-bold block text-[11px]">
-              Text to Speech
+              {t("Text to Speech")}
             </span>
             <span className="text-fg-2 font-normal block text-[9px]">
-              User-keyed ElevenLabs voice generation
+              {t("User-keyed ElevenLabs voice generation")}
             </span>
           </div>
         </div>
-        <Button variant="ghost" size="icon-sm" onClick={() => openSettings("api-keys")} type="button" aria-label="API Key Settings" title="API Key Settings" className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent hover:bg-bg-2 text-fg-3 hover:text-fg">
+        <Button variant="ghost" size="icon-sm" onClick={() => openSettings("api-keys")} type="button" aria-label={t("API Key Settings")} title={t("API Key Settings")} className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent hover:bg-bg-2 text-fg-3 hover:text-fg">
           {<Settings size={14} aria-hidden />}
         </Button>
       </Card>
@@ -130,7 +132,7 @@ export const TextToSpeechPanel: React.FC = () => {
       {!hasElevenLabsKey && (
         <Card className="min-w-0 rounded-[7px] shadow-none bg-status-warning/10 text-fg p-2 border border-amber-500/30">
           <span className="font-normal text-[10px] text-amber-400">
-            Add your ElevenLabs API key to enable speech generation. OpenReel no longer hosts a speech server.
+            {t("Add your ElevenLabs API key to enable speech generation. OpenReel no longer hosts a speech server.")}
           </span>
         </Card>
       )}
@@ -142,14 +144,14 @@ export const TextToSpeechPanel: React.FC = () => {
       <div className="space-y-2">
         <ShadcnLabel className="block min-w-0 space-y-1.5">
           <span className="block truncate text-[11px] font-medium text-text-secondary">
-            {"Text"}
+            {t("Text")}
           </span>
           <ShadcnTextarea
             value={text}
-            placeholder="Enter the text you want to convert to speech..."
+            placeholder={t("Enter the text you want to convert to speech...")}
             maxLength={maxChars}
             rows={4}
-            aria-label={"Text"}
+            aria-label={t("Text")}
             onChange={(event) => {
               const value = event.currentTarget.value;
               setText(value);
@@ -172,7 +174,7 @@ export const TextToSpeechPanel: React.FC = () => {
             <span onClick={() => setEnhanceText(!enhanceText)} className="text-fg-2 font-normal flex items-center gap-1 text-[9px] cursor-pointer"
             >
               <Sparkles size={10} className={enhanceText ? "text-amber-400" : ""} aria-hidden />
-              Enhance for TTS
+              {t("Enhance for TTS")}
             </span>
           </div>
           <span className={cn("text-[12px] leading-5", "text-fg-2", "font-normal", `text-[9px] ${charCount > maxChars * 0.9 ? "text-red-400" : "text-fg-3"}`)}
@@ -204,8 +206,8 @@ export const TextToSpeechPanel: React.FC = () => {
             {error}
           </span>
           {(error.includes("API key") || error.includes("Session locked") || error.includes("Unlock")) && (
-            <Button onClick={() => openSettings("api-keys")} type="button" aria-label="Open Settings" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg shrink-0 text-[9px]">
-              <span className="truncate">{"Open Settings"}</span>
+            <Button onClick={() => openSettings("api-keys")} type="button" aria-label={t("Open Settings")} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg shrink-0 text-[9px]">
+              <span className="truncate">{t("Open Settings")}</span>
             </Button>
           )}
         </Card>
@@ -226,7 +228,7 @@ export const TextToSpeechPanel: React.FC = () => {
             ) : (
               <Sparkles size={14} aria-hidden />
             )}</span>}
-          <span className="truncate">{isEnhancing ? "Enhancing..." : "Enhance Text"}</span>
+          <span className="truncate">{isEnhancing ? t("Enhancing...") : t("Enhance Text")}</span>
         </Button>
       )}
 
@@ -236,7 +238,7 @@ export const TextToSpeechPanel: React.FC = () => {
           ) : (
             <Volume2 size={14} aria-hidden />
           )}</span>}
-        <span className="truncate">{isGenerating ? "Generating..." : "Generate Speech"}</span>
+        <span className="truncate">{isGenerating ? t("Generating...") : t("Generate Speech")}</span>
       </Button>
 
       {hasUnsavedAudio && (
@@ -244,7 +246,7 @@ export const TextToSpeechPanel: React.FC = () => {
         >
           <AlertTriangle size={12} className="text-amber-400 shrink-0" aria-hidden />
           <span className="font-normal text-[9px] text-amber-400">
-            Unsaved audio — save to media, add to timeline, or download to keep it.
+            {t("Unsaved audio — save to media, add to timeline, or download to keep it.")}
           </span>
         </Card>
       )}
@@ -263,7 +265,7 @@ export const TextToSpeechPanel: React.FC = () => {
       )}
 
       <span className="text-fg-2 font-normal block text-[9px] text-center">
-        Powered by ElevenLabs · {getSelectedModelName()}
+        {t("Powered by ElevenLabs ·")} {getSelectedModelName()}
       </span>
     </div>
   );

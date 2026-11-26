@@ -10,6 +10,7 @@ import {
 import { PracticeClipStrip } from "./PracticeClipStrip";
 import { startLessons } from "./lesson-mount";
 import type { LessonId } from "./lessons";
+import { useT } from "@openreel/i18n/react";
 
 interface PickFootageProps {
   /** Called after the project exists and the Lesson Bar is up. */
@@ -22,6 +23,7 @@ type Choice = "practice" | "own";
 
 /** L1 "Pick your practice footage" (spec 2.5). Two clicks from the Learn tile to the first lesson. */
 export function PickFootage({ onStarted, fromLesson }: PickFootageProps): JSX.Element {
+  const t = useT();
   const [practiceReady, setPracticeReady] = useState<boolean | null>(null);
   const [busy, setBusy] = useState<Choice | null>(null);
   const [progress, setProgress] = useState<PracticeProgress | null>(null);
@@ -77,14 +79,14 @@ export function PickFootage({ onStarted, fromLesson }: PickFootageProps): JSX.El
           <GraduationCap size={22} aria-hidden="true" />
         </div>
         <h1 id="learn-sheet-title" className="text-xl font-semibold tracking-tight text-fg">
-          Pick your practice footage
+          {t("Pick your practice footage")}
         </h1>
         <p className="mt-1.5 text-sm leading-relaxed text-fg-2">
-          Six short, hands-on lessons on a real project. About 10 minutes, and you can leave any time.
+          {t("Six short, hands-on lessons on a real project. About 10 minutes, and you can leave any time.")}
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2" role="group" aria-label="Footage choices">
+      <div className="grid gap-3 sm:grid-cols-2" role="group" aria-label={t("Footage choices")}>
         {practiceReady !== false && (
           <button
             type="button"
@@ -102,12 +104,12 @@ export function PickFootage({ onStarted, fromLesson }: PickFootageProps): JSX.El
                 )}
               </span>
               <span className="rounded-full bg-accent-soft px-2 py-0.5 text-2xs font-medium text-accent">
-                Recommended
+                {t("Recommended")}
               </span>
             </span>
-            <span className="block text-sm font-semibold text-fg">Use the practice clips</span>
+            <span className="block text-sm font-semibold text-fg">{t("Use the practice clips")}</span>
             <span className="mt-1 block text-xs leading-relaxed text-fg-2">
-              Three short clips and a music track made for learning. Nothing to download.
+              {t("Three short clips and a music track made for learning. Nothing to download.")}
             </span>
             <PracticeClipStrip />
           </button>
@@ -129,9 +131,9 @@ export function PickFootage({ onStarted, fromLesson }: PickFootageProps): JSX.El
               )}
             </span>
           </span>
-          <span className="block text-sm font-semibold text-fg">Use my own clip</span>
+          <span className="block text-sm font-semibold text-fg">{t("Use my own clip")}</span>
           <span className="mt-1 block text-xs leading-relaxed text-fg-2">
-            Pick a video from your computer. The lessons work with any footage.
+            {t("Pick a video from your computer. The lessons work with any footage.")}
           </span>
         </button>
       </div>
@@ -160,7 +162,7 @@ export function PickFootage({ onStarted, fromLesson }: PickFootageProps): JSX.El
             </div>
             <div
               role="progressbar"
-              aria-label="Setting up your project"
+              aria-label={t("Setting up your project")}
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={pct}

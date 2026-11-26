@@ -7,6 +7,7 @@ import { toast } from "../../stores/notification-store";
 import { setExternalReadOnly } from "../project-lock";
 import { createProjectStoreHost, type ProjectStoreHost } from "./collab-host";
 import { buildInviteLink, useCollabStore, type CollabInvite } from "./collab-store";
+import { translateNow } from "@openreel/i18n/translate";
 
 const PRESENCE_INTERVAL_MS = 100;
 const PING_INTERVAL_MS = 25_000;
@@ -273,7 +274,7 @@ export async function startCollab(options: { name: string; server?: string }): P
 export function joinCollab(invite: CollabInvite, name: string): void {
   const server = normalizeServer(invite.server);
   if (!server) {
-    useCollabStore.getState().setError("That invite points at an invalid server.");
+    useCollabStore.getState().setError(translateNow("That invite points at an invalid server."));
     return;
   }
   begin({ ...invite, server }, name, false, null);

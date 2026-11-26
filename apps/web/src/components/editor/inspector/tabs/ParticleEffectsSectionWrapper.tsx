@@ -8,6 +8,7 @@ import { useTimelineStore } from "../../../../stores/timeline-store";
 import { editClipParticles } from "../../../../services/clip-particles";
 import { trackEditorDraftWrite } from "../../../../services/editor-field-drafts";
 import { toast } from "../../../../stores/notification-store";
+import { translateNow } from "@openreel/i18n/translate";
 export const ParticleEffectsSectionWrapper: React.FC<{
   clipId: string;
   clipDuration: number;
@@ -63,7 +64,7 @@ export const ParticleEffectsSectionWrapper: React.FC<{
     );
     void operation.catch((error) =>
       toast.error(
-        "Particle edit failed",
+        translateNow("Particle edit failed"),
         error instanceof Error ? error.message : "Try the change again.",
       ),
     );

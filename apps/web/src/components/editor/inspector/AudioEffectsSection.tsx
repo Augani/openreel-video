@@ -16,6 +16,7 @@ import {
   DEFAULT_EQ_BANDS,
 } from "../../../bridges/audio-bridge-effects";
 import { useProjectStore } from "../../../stores/project-store";
+import { useT } from "@openreel/i18n/react";
 
 const SubSection: React.FC<{
   title: string;
@@ -120,6 +121,7 @@ interface AudioEffectsSectionProps {
 export const AudioEffectsSection: React.FC<AudioEffectsSectionProps> = ({
   clipId,
 }) => {
+  const t = useT();
   // Get store methods
   const toggleAudioEffect = useProjectStore((state) => state.toggleAudioEffect);
   const getAudioEffects = useProjectStore((state) => state.getAudioEffects);
@@ -398,7 +400,7 @@ export const AudioEffectsSection: React.FC<AudioEffectsSectionProps> = ({
   return (
     <div className="space-y-3">
       <SubSection
-        title="Equalizer"
+        title={t("Equalizer")}
         enabled={eqEnabled}
         onToggle={handleEqToggle}
         defaultOpen
@@ -416,7 +418,7 @@ export const AudioEffectsSection: React.FC<AudioEffectsSectionProps> = ({
       </SubSection>
 
       <SubSection
-        title="Compressor"
+        title={t("Compressor")}
         enabled={compressorEnabled}
         onToggle={handleCompressorToggle}
       >
@@ -459,7 +461,7 @@ export const AudioEffectsSection: React.FC<AudioEffectsSectionProps> = ({
       </SubSection>
 
       <SubSection
-        title="Reverb"
+        title={t("Reverb")}
         enabled={reverbEnabled}
         onToggle={handleReverbToggle}
       >
@@ -492,7 +494,7 @@ export const AudioEffectsSection: React.FC<AudioEffectsSectionProps> = ({
       </SubSection>
 
       <SubSection
-        title="Delay"
+        title={t("Delay")}
         enabled={delayEnabled}
         onToggle={handleDelayToggle}
       >

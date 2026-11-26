@@ -19,6 +19,7 @@ import { applyFalseColor, FALSE_COLOR_BANDS } from "@openreel/core/video/scopes-
 import { refreshProgramFrame } from "./program-frame-control";
 import { DroppedFrameIndicator } from "./DroppedFrameIndicator";
 import { WhiteBalanceEyedropperLayer } from "./WhiteBalanceEyedropperLayer";
+import { useT } from "@openreel/i18n/react";
 
 /**
  * Program monitor overlays: the comparison view (side by side / wipe) and the
@@ -75,6 +76,7 @@ function useKeyPickerSync(): void {
 }
 
 const KeyPickerLayer: React.FC = () => {
+  const t = useT();
   const picker = useColorMonitorStore((state) => state.keyPicker);
   const setKeyPicker = useColorMonitorStore((state) => state.setKeyPicker);
 
@@ -117,7 +119,7 @@ const KeyPickerLayer: React.FC = () => {
   return (
     <div
       data-testid="ultra-key-picker-layer"
-      aria-label="Key colour picker. Click the Program monitor to sample the key colour, Escape cancels."
+      aria-label={t("Key colour picker. Click the Program monitor to sample the key colour, Escape cancels.")}
       className="absolute inset-0 z-40 cursor-crosshair rounded-[10px] ring-2 ring-accent"
       onPointerDown={(event) => {
         event.preventDefault();
@@ -145,6 +147,7 @@ const ComparisonOverlayGate: React.FC = () => {
 };
 
 const ComparisonOverlay: React.FC = () => {
+  const t = useT();
   const comparison = useColorMonitorStore((state) => state.comparison);
   const setComparison = useColorMonitorStore((state) => state.setComparison);
   const busy = useColorMonitorStore((state) => state.captureBusy);
@@ -244,20 +247,20 @@ const ComparisonOverlay: React.FC = () => {
     >
       <canvas
         ref={canvasRef}
-        aria-label="Comparison view"
+        aria-label={t("Comparison view")}
         className="h-full w-full object-contain"
       />
       <span className="absolute left-2 top-2 rounded bg-black/65 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white/85">
         {referenceLabel}
       </span>
       <span className="absolute right-2 top-2 rounded bg-black/65 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white/85">
-        Current
+        {t("Current")}
       </span>
       {showDivider ? (
         <div
           data-testid="comparison-divider"
           role="slider"
-          aria-label="Comparison wipe"
+          aria-label={t("Comparison wipe")}
           aria-orientation={vertical ? "horizontal" : "vertical"}
           aria-valuemin={0}
           aria-valuemax={100}
@@ -303,6 +306,7 @@ const FALSE_COLOR_WIDTH = 640;
  * scopes keep reading the real frame.
  */
 const FalseColorOverlay: React.FC = () => {
+  const t = useT();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const scratch = document.createElement("canvas");
@@ -367,7 +371,7 @@ const FalseColorOverlay: React.FC = () => {
     >
       <canvas
         ref={canvasRef}
-        aria-label="False colour"
+        aria-label={t("False colour")}
         className="h-full w-full object-contain"
       />
       <div className="absolute bottom-2 left-2 flex flex-wrap gap-1">
@@ -380,7 +384,7 @@ const FalseColorOverlay: React.FC = () => {
               className="mr-1 inline-block h-2 w-2 rounded-sm align-middle"
               style={{ background: `rgb(${band.rgb.join(",")})` }}
             />
-            {band.label}
+            {t(band.label)}
           </span>
         ))}
       </div>
@@ -389,6 +393,7 @@ const FalseColorOverlay: React.FC = () => {
 };
 
 const FalseColorToggle: React.FC = () => {
+  const t = useT();
   const on = useColorMonitorStore((state) => state.falseColor);
   const set = useColorMonitorStore((state) => state.setFalseColor);
   return (
@@ -396,9 +401,9 @@ const FalseColorToggle: React.FC = () => {
       {on ? <FalseColorOverlay /> : null}
       <button
         type="button"
-        aria-label="Toggle false colour"
+        aria-label={t("Toggle false colour")}
         aria-pressed={on}
-        title="False colour (IRE bands)"
+        title={t("False colour (IRE bands)")}
         onClick={() => set(!on)}
         className={`absolute right-2 top-2 z-[12] rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${
           on ? "bg-accent text-white" : "bg-black/55 text-white/70 hover:text-white"

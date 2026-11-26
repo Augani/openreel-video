@@ -29,6 +29,7 @@ import { commitSequenceEdit } from "./sequence-commands";
 import { selectGraphic } from "./graphic-selection";
 import { duplicateLinkedInstance } from "@openreel/core";
 import { editLinkedCompositionCommand } from "./linked-comp-commands";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * Essential Graphics commands. Each one computes the next project with the pure
@@ -157,9 +158,9 @@ export function saveGraphicAsTemplate(instanceId: string, name: string): Graphic
   const template = graphicInstanceToTemplate(instance, { name: name || `${instance.name} (custom)` });
   useGraphicTemplatesStore.getState().save(template);
   if (useGraphicTemplatesStore.getState().persistenceFailed) {
-    toast.warning("Template saved for this session only", "Browser storage is full or unavailable. Export it to a .openreel-template file to keep it.");
+    toast.warning(translateNow("Template saved for this session only"), "Browser storage is full or unavailable. Export it to a .openreel-template file to keep it.");
   } else {
-    toast.success("Template saved", `"${template.name}" is in Graphics > Templates > My templates.`);
+    toast.success(translateNow("Template saved"), `"${template.name}" is in Graphics > Templates > My templates.`);
   }
   return template;
 }
@@ -223,7 +224,7 @@ export async function editGraphicSelection(
     else if (operation === "trim-start" || operation === "trim-end") {
       ok = (await trimGraphicToPlayhead(instance.id, operation === "trim-start", time)) && ok;
     } else {
-      toast.info("Graphics cannot be split", "A graphic is one template. Trim it, or ungroup it to edit its layers separately.");
+      toast.info(translateNow("Graphics cannot be split"), "A graphic is one template. Trim it, or ungroup it to edit its layers separately.");
       ok = false;
     }
   }

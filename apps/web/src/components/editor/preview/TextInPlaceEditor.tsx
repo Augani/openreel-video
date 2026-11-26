@@ -7,6 +7,7 @@ import {
   normalizeEditedText,
   shouldCommitEdit,
 } from "./text-inplace-edit";
+import { useT } from "@openreel/i18n/react";
 
 /**
  * contenteditable overlay for editing a text clip's text directly on the
@@ -31,6 +32,7 @@ export function TextInPlaceEditor({
   onCommit: (text: string) => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   const doneRef = useRef(false);
 
@@ -82,7 +84,7 @@ export function TextInPlaceEditor({
       ref={ref}
       data-text-inplace-editor
       role="textbox"
-      aria-label="Edit title text"
+      aria-label={t("Edit title text")}
       aria-multiline="true"
       contentEditable="plaintext-only"
       suppressContentEditableWarning

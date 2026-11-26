@@ -4,6 +4,7 @@ import { Layers } from "@/icons/lucide-compat";
 import { Button } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { addDialogStemsToQueue } from "../../stores/export-queue-store";
+import { useT } from "@openreel/i18n/react";
 
 const MODES: readonly StemMode[] = ["track", "audioType", "bus"];
 
@@ -25,6 +26,7 @@ const SOURCE_BLURB: Record<StemMode, string> = {
  * rendered through the same offline mixdown as the master export.
  */
 export const ExportStemsSection: React.FC<{ onQueued?: () => void }> = ({ onQueued }) => {
+  const t = useT();
   const project = useProjectStore((state) => state.project);
   const [mode, setMode] = useState<StemMode>("track");
   const [excluded, setExcluded] = useState<ReadonlySet<string>>(new Set());
@@ -38,11 +40,11 @@ export const ExportStemsSection: React.FC<{ onQueued?: () => void }> = ({ onQueu
           <Layers size={14} aria-hidden />
         </span>
         <div className="min-w-0">
-          <h4 className="text-[12px] font-semibold text-fg">Audio stems</h4>
+          <h4 className="text-[12px] font-semibold text-fg">{t("Audio stems")}</h4>
           <p className="text-[10px] text-fg-muted">{SOURCE_BLURB[mode]}</p>
         </div>
       </div>
-      <div className="mt-3 flex items-center gap-1" role="group" aria-label="Split stems by">
+      <div className="mt-3 flex items-center gap-1" role="group" aria-label={t("Split stems by")}>
         {MODES.map((entry) => (
           <Button
             key={entry}
@@ -66,7 +68,7 @@ export const ExportStemsSection: React.FC<{ onQueued?: () => void }> = ({ onQueu
           {EMPTY_HINT[mode]}
         </p>
       ) : (
-        <ul className="mt-3 flex flex-col gap-1" aria-label="Stems to export" data-testid="export-stems-list">
+        <ul className="mt-3 flex flex-col gap-1" aria-label={t("Stems to export")} data-testid="export-stems-list">
           {plan.map((item) => (
             <li key={item.busId}>
               <label className="flex items-center gap-2 text-[11px] text-fg-2">
@@ -92,7 +94,7 @@ export const ExportStemsSection: React.FC<{ onQueued?: () => void }> = ({ onQueu
       )}
       <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-fg-2">
         <div className="flex items-center gap-2">
-          <span>Bit depth</span>
+          <span>{t("Bit depth")}</span>
           {[16, 24].map((depth) => (
             <Button
               key={depth}
@@ -103,7 +105,7 @@ export const ExportStemsSection: React.FC<{ onQueued?: () => void }> = ({ onQueu
               aria-pressed={bitDepth === depth}
               onClick={() => setBitDepth(depth as 16 | 24)}
             >
-              {depth}-bit
+              {depth}{t("-bit")}
             </Button>
           ))}
         </div>
@@ -119,7 +121,7 @@ export const ExportStemsSection: React.FC<{ onQueued?: () => void }> = ({ onQueu
             if (job) onQueued?.();
           }}
         >
-          Add {chosen.length} stem{chosen.length === 1 ? "" : "s"} to queue
+          {t("Add")} {chosen.length} {t("stem")}{chosen.length === 1 ? "" : "s"} {t("to queue")}
         </Button>
       </div>
     </section>

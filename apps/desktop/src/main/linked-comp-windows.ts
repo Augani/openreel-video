@@ -4,6 +4,7 @@ import { CHANNELS, linkedCompOpenArgsSchema } from "../shared/ipc-contract";
 import { APP_INDEX } from "./protocol";
 import { installNavigationGuard } from "./nav-guard";
 import { LinkedCompHub, type HubPeer } from "./linked-comp-hub";
+import { nativeT } from "./language-state";
 
 /**
  * Linked composition windows. The editor window (which owns the project) opens one
@@ -29,7 +30,7 @@ function createCompositionWindow(compositionId: string): BrowserWindow {
     height: 780,
     minWidth: 720,
     minHeight: 520,
-    title: "Linked composition",
+    title: nativeT("Linked composition"),
     backgroundColor: "#1b1b20",
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
@@ -47,7 +48,7 @@ function createCompositionWindow(compositionId: string): BrowserWindow {
 
 /** Open the window for a composition, or focus it when it is already open. */
 export function openCompositionWindow(opener: WebContents, compositionId: string): { ok: boolean; message?: string } {
-  if (hub.isEditor(opener.id)) return { ok: false, message: "Open compositions from the editor window." };
+  if (hub.isEditor(opener.id)) return { ok: false, message: nativeT("Open compositions from the editor window.") };
   const existing = windows.get(compositionId);
   if (existing && !existing.isDestroyed()) {
     // Only reuse a window that edits for THIS editor window. A second project window holding a
@@ -92,7 +93,7 @@ export function openCompositionWindow(opener: WebContents, compositionId: string
 export function registerLinkedCompIpc(): void {
   ipcMain.handle(CHANNELS.linkedCompOpen, (event: IpcMainInvokeEvent, raw: unknown) => {
     const parsed = linkedCompOpenArgsSchema.safeParse(raw);
-    if (!parsed.success) return { ok: false, message: "That is not a composition." };
+    if (!parsed.success) return { ok: false, message: nativeT("That is not a composition.") };
     return openCompositionWindow(event.sender, parsed.data.compositionId);
   });
   ipcMain.on(CHANNELS.linkedCompPost, (event: IpcMainEvent, raw: unknown) => {

@@ -3,6 +3,7 @@ import { useProjectStore } from '../../../stores/project-store';
 import { useUIStore, CropAspectRatio } from '../../../stores/ui-store';
 import type { ImageLayer } from '../../../types/project';
 import { Crop, Check, X, RotateCcw, Lock, Unlock } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 const imageCache = new Map<string, HTMLImageElement>();
 function getCachedImage(src: string): HTMLImageElement | null {
@@ -31,6 +32,7 @@ const ASPECT_RATIOS: { value: CropAspectRatio; label: string; ratio?: number }[]
 ];
 
 export function CropSection({ layer }: Props) {
+  const t = useT();
   const { updateLayer, project } = useProjectStore();
   const { crop, startCrop, cancelCrop, applyCrop, setCropAspectRatio, updateCropRect, setCropLockAspect } = useUIStore();
 
@@ -164,13 +166,13 @@ export function CropSection({ layer }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Crop</h4>
+        <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t("Crop")}</h4>
         {hasCrop && !isCropping && (
           <button
             onClick={handleResetCrop}
             className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
           >
-            Reset
+            {t("Reset")}
           </button>
         )}
       </div>
@@ -181,13 +183,13 @@ export function CropSection({ layer }: Props) {
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg font-medium text-sm hover:bg-primary/90 transition-colors"
         >
           <Crop size={16} />
-          {hasCrop ? 'Adjust Crop' : 'Crop Image'}
+          {hasCrop ? t("Adjust Crop") : t("Crop Image")}
         </button>
       ) : (
         <div className="space-y-3 p-3 bg-secondary/30 rounded-lg border border-border/50">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-[11px] font-medium text-foreground">Aspect Ratio</label>
+              <label className="text-[11px] font-medium text-foreground">{t("Aspect Ratio")}</label>
               <button
                 onClick={() => setLockAspect(!lockAspect)}
                 className={`p-1 rounded transition-colors ${
@@ -208,7 +210,7 @@ export function CropSection({ layer }: Props) {
                       : 'bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80'
                   }`}
                 >
-                  {ar.label}
+                  {t(ar.label)}
                 </button>
               ))}
             </div>
@@ -216,7 +218,7 @@ export function CropSection({ layer }: Props) {
 
           {crop.cropRect && (
             <div className="space-y-2">
-              <label className="text-[11px] font-medium text-foreground">Crop Area</label>
+              <label className="text-[11px] font-medium text-foreground">{t("Crop Area")}</label>
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <label className="text-[9px] text-muted-foreground">X</label>
@@ -247,7 +249,7 @@ export function CropSection({ layer }: Props) {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[9px] text-muted-foreground">Width</label>
+                  <label className="text-[9px] text-muted-foreground">{t("Width")}</label>
                   <input
                     type="number"
                     value={Math.round(crop.cropRect.width)}
@@ -261,7 +263,7 @@ export function CropSection({ layer }: Props) {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[9px] text-muted-foreground">Height</label>
+                  <label className="text-[9px] text-muted-foreground">{t("Height")}</label>
                   <input
                     type="number"
                     value={Math.round(crop.cropRect.height)}
@@ -284,21 +286,21 @@ export function CropSection({ layer }: Props) {
               className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-secondary text-foreground rounded-lg font-medium text-[11px] hover:bg-secondary/80 transition-colors"
             >
               <RotateCcw size={12} />
-              Reset
+              {t("Reset")}
             </button>
             <button
               onClick={cancelCrop}
               className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-secondary text-foreground rounded-lg font-medium text-[11px] hover:bg-secondary/80 transition-colors"
             >
               <X size={12} />
-              Cancel
+              {t("Cancel")}
             </button>
             <button
               onClick={handleApplyCrop}
               className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-primary text-primary-foreground rounded-lg font-medium text-[11px] hover:bg-primary/90 transition-colors"
             >
               <Check size={12} />
-              Apply
+              {t("Apply")}
             </button>
           </div>
         </div>

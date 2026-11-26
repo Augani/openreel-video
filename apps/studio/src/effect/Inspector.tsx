@@ -2,17 +2,19 @@ import type { z } from "zod";
 import { useScene } from "./store";
 import { getBehavior } from "./behaviors/registry";
 import { ParamField, fieldsFromObjectSchema } from "./param-renderers";
+import { useT } from "@openreel/i18n/react";
 
 export function Inspector() {
+  const t = useT();
   const { state, dispatch } = useScene();
   const selection = state.selection;
 
   if (!selection) {
     return (
       <aside className="flex h-full w-80 flex-col border-l border-zinc-800 bg-zinc-950 p-4">
-        <div className="mb-2 text-[10px] uppercase tracking-wider text-zinc-500">Tips</div>
+        <div className="mb-2 text-[10px] uppercase tracking-wider text-zinc-500">{t("Tips")}</div>
         <p className="text-xs text-zinc-500">
-          Add a subject from the left, then add behaviors to it. Select any item to edit its properties here.
+          {t("Add a subject from the left, then add behaviors to it. Select any item to edit its properties here.")}
         </p>
       </aside>
     );
@@ -23,7 +25,7 @@ export function Inspector() {
     if (!subject) return null;
     return (
       <aside className="flex h-full w-80 flex-col border-l border-zinc-800 bg-zinc-950 p-4">
-        <div className="text-[10px] uppercase tracking-wider text-zinc-500">Selected · Subject</div>
+        <div className="text-[10px] uppercase tracking-wider text-zinc-500">{t("Selected · Subject")}</div>
         <input
           type="text"
           value={subject.name}
@@ -33,14 +35,14 @@ export function Inspector() {
           className="mt-1 bg-transparent text-sm text-white outline-none"
         />
         <p className="mt-3 text-xs text-zinc-500">
-          {subject.behaviors.length} behavior{subject.behaviors.length === 1 ? "" : "s"} attached.
+          {subject.behaviors.length} {t("behavior")}{subject.behaviors.length === 1 ? "" : "s"} attached.
         </p>
         <button
           type="button"
           onClick={() => dispatch({ type: "removeSubject", subjectId: subject.id })}
           className="mt-auto rounded border border-red-900/40 px-2 py-1 text-xs text-red-400 hover:border-red-700"
         >
-          Remove subject
+          {t("Remove subject")}
         </button>
       </aside>
     );
@@ -62,7 +64,7 @@ export function Inspector() {
 
   return (
     <aside className="flex h-full w-80 flex-col border-l border-zinc-800 bg-zinc-950 p-4">
-      <div className="text-[10px] uppercase tracking-wider text-zinc-500">Selected · Behavior</div>
+      <div className="text-[10px] uppercase tracking-wider text-zinc-500">{t("Selected · Behavior")}</div>
       <input
         type="text"
         value={behavior.name}
@@ -76,7 +78,7 @@ export function Inspector() {
         }
         className="mt-1 bg-transparent text-sm text-white outline-none"
       />
-      <div className="mt-1 text-[10px] text-zinc-600">on {subject?.name}</div>
+      <div className="mt-1 text-[10px] text-zinc-600">{t("on")} {subject?.name}</div>
 
       <div className="mt-4 flex flex-col gap-3">
         {fields.map((field) => (
@@ -101,7 +103,7 @@ export function Inspector() {
 
       <div className="mt-auto flex justify-between border-t border-zinc-900 pt-3">
         <button type="button" className="text-[11px] text-zinc-500 hover:text-zinc-300">
-          Duplicate
+          {t("Duplicate")}
         </button>
         <button
           type="button"
@@ -114,7 +116,7 @@ export function Inspector() {
           }
           className="text-[11px] text-red-400 hover:text-red-300"
         >
-          Remove
+          {t("Remove")}
         </button>
       </div>
     </aside>

@@ -35,7 +35,7 @@ export function LanguageSection() {
           onValueChange={(value) => setPreference(value as LanguagePreference)}
         >
           <SelectTrigger
-            aria-label="Language"
+            aria-label={t("Language")}
             className="h-8 w-full rounded-md bg-bg-2 px-2 text-xs sm:w-[180px]"
           >
             <SelectValue />
@@ -43,7 +43,7 @@ export function LanguageSection() {
           <SelectContent>
             {CHOICES.map((choice) => (
               <SelectItem key={choice.value} value={choice.value}>
-                {choice.value === "system" ? t(choice.label) : choice.label}
+                {choice.value === "system" ? t(choice.label) : t(choice.label)}
               </SelectItem>
             ))}
           </SelectContent>

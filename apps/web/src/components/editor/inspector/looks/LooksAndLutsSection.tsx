@@ -32,6 +32,8 @@ import type { ColorGradingSettings } from "../../../../bridges/effects-bridge";
 import { LookCard, lookIconButton } from "./LookCard";
 import { CompareToggle, useLookCompare } from "./compare-context";
 import CameraInputPicker from "./CameraInputPicker";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 /** Clips an apply action targets: the timeline selection, or the inspected clip. */
 function targetClipIds(clipId: string): string[] {
@@ -85,6 +87,7 @@ interface Props {
 
 /** One place for built-in looks, imported LUTs and saved looks, each shown graded on the footage. */
 const LooksAndLuts: React.FC<Props> = ({ clipId }) => {
+  const t = useT();
   const updateColorGrading = useProjectStore((s) => s.updateColorGrading);
   const luts = useColorLibraryStore((s) => s.luts);
   const looks = useColorLibraryStore((s) => s.looks);
@@ -119,7 +122,7 @@ const LooksAndLuts: React.FC<Props> = ({ clipId }) => {
         void updateColorGrading(clipId, { lut });
       } else {
         void removeClipLut(clipId).then((removed) => {
-          if (!removed) toast.error("LUT could not be removed", "Unlock the clip's track and try again.");
+          if (!removed) toast.error(translateNow("LUT could not be removed"), "Unlock the clip's track and try again.");
         });
       }
     },
@@ -145,7 +148,7 @@ const LooksAndLuts: React.FC<Props> = ({ clipId }) => {
           if (!lut) throw new Error("Use .cube or .3dl files.");
           await keepImported(file.name.replace(/\.[^.]+$/, ""), lut);
         } catch (error) {
-          toast.error(`${file.name} was not imported`, error instanceof Error ? error.message : "Invalid LUT file");
+          toast.error(translateNow("{name} was not imported", { name: file.name }), error instanceof Error ? error.message : translateNow("Invalid LUT file"));
         }
       }
     },
@@ -165,7 +168,7 @@ const LooksAndLuts: React.FC<Props> = ({ clipId }) => {
     async (entry: LutLibraryEntry, slot: LutSlot) => {
       // Strength is the creative LUT's blend; the input transform always runs at full strength.
       const changed = await applyLutEntryToClips(entry, targetClipIds(clipId), slot, slot === "creative" ? lutIntensity : undefined);
-      toast.success(`${slot === "input" ? "Input" : "Creative"} LUT applied`, `${entry.name} on ${changed.length} clip(s)`);
+      toast.success(translateNow("{kind} LUT applied", { kind: translateNow(slot === "input" ? "Input" : "Creative") }), translateNow("{name} on {count} clips", { name: entry.name, count: changed.length }));
     },
     [clipId, lutIntensity],
   );
@@ -175,16 +178,16 @@ const LooksAndLuts: React.FC<Props> = ({ clipId }) => {
       const look = await saveLookFromClip(clipId, lookName);
       await useColorLibraryStore.getState().refresh();
       setLookName("");
-      toast.success("Look saved", look.name);
+      toast.success(translateNow("Look saved"), look.name);
     } catch (error) {
-      toast.error("Look not saved", error instanceof Error ? error.message : "Unknown error");
+      toast.error(translateNow("Look not saved"), error instanceof Error ? error.message : "Unknown error");
     }
   }, [clipId, lookName]);
 
   const applyLook = useCallback(
     async (look: SavedLook) => {
       const changed = await applyLookToClips(look, targetClipIds(clipId));
-      toast.success("Look applied", `${look.name} on ${changed.length} clip(s)`);
+      toast.success(translateNow("Look applied"), `${look.name} on ${changed.length} clip(s)`);
     },
     [clipId],
   );
@@ -193,7 +196,7 @@ const LooksAndLuts: React.FC<Props> = ({ clipId }) => {
     <div className="space-y-4" data-testid="looks-and-luts">
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <div className={sectionTitle}>Looks</div>
+          <div className={sectionTitle}>{t("Looks")}</div>
           <CompareToggle testId="looks-compare" />
         </div>
         <FilterLooksPanel clipId={clipId} embedded compare={compare} />
@@ -201,25 +204,25 @@ const LooksAndLuts: React.FC<Props> = ({ clipId }) => {
 
       <div className="space-y-2" data-testid="lut-library">
         <div className="flex items-center justify-between gap-2">
-          <div className={sectionTitle}>LUTs</div>
+          <div className={sectionTitle}>{t("LUTs")}</div>
           <div className="flex shrink-0 items-center gap-1">
             <CompareToggle testId="lut-compare" />
-            <button type="button" className={`${lookIconButton} !bg-bg-1 border border-border !text-fg-2 hover:!text-fg`} title="Import LUTs (.cube, .3dl)" aria-label="Import LUTs to library" onClick={() => importRef.current?.click()}>
+            <button type="button" className={`${lookIconButton} !bg-bg-1 border border-border !text-fg-2 hover:!text-fg`} title={t("Import LUTs (.cube, .3dl)")} aria-label={t("Import LUTs to library")} onClick={() => importRef.current?.click()}>
               <Upload size={12} aria-hidden />
             </button>
-            <button type="button" className={`${lookIconButton} !bg-bg-1 border border-border !text-fg-2 hover:!text-fg disabled:opacity-40`} title="Export the clip's LUT as .cube" aria-label="Export creative LUT as .cube" disabled={!grading.lut} onClick={() => exportSlot("creative")}>
+            <button type="button" className={`${lookIconButton} !bg-bg-1 border border-border !text-fg-2 hover:!text-fg disabled:opacity-40`} title={t("Export the clip's LUT as .cube")} aria-label={t("Export creative LUT as .cube")} disabled={!grading.lut} onClick={() => exportSlot("creative")}>
               <Download size={12} aria-hidden />
             </button>
-            <button type="button" className={`${lookIconButton} !bg-bg-1 border border-border !text-fg-2 hover:!text-fg disabled:opacity-40`} title="Export the clip's input LUT as .cube" aria-label="Export input LUT as .cube" disabled={!grading.inputLut} onClick={() => exportSlot("input")}>
+            <button type="button" className={`${lookIconButton} !bg-bg-1 border border-border !text-fg-2 hover:!text-fg disabled:opacity-40`} title={t("Export the clip's input LUT as .cube")} aria-label={t("Export input LUT as .cube")} disabled={!grading.inputLut} onClick={() => exportSlot("input")}>
               <Download size={12} aria-hidden />
-              <span className="ml-0.5">In</span>
+              <span className="ml-0.5">{t("In")}</span>
             </button>
           </div>
         </div>
-        <input ref={importRef} type="file" multiple accept=".cube,.3dl" className="hidden" aria-label="Import LUT files" onChange={(e) => void handleImport(e)} />
+        <input ref={importRef} type="file" multiple accept=".cube,.3dl" className="hidden" aria-label={t("Import LUT files")} onChange={(e) => void handleImport(e)} />
         {luts.length > 0 && (Object.keys(grading).length > 0 || scene.effects.length > 0) ? (
           <div className="text-[9px] leading-snug text-fg-3" data-testid="lut-preview-note">
-            Previews show each LUT on top of this clip's current effects and grade.
+            {t("Previews show each LUT on top of this clip's current effects and grade.")}
           </div>
         ) : null}
         {luts.length > 0 ? (
@@ -237,7 +240,7 @@ const LooksAndLuts: React.FC<Props> = ({ clipId }) => {
         ) : null}
         {luts.length === 0 ? (
           <div className="rounded-[7px] border border-dashed border-border px-3 py-3 text-center text-[10px] leading-snug text-fg-3">
-            No LUTs yet. Import a .cube or .3dl file and it is kept here for every project, previewed on your footage.
+            {t("No LUTs yet. Import a .cube or .3dl file and it is kept here for every project, previewed on your footage.")}
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2">
@@ -254,7 +257,7 @@ const LooksAndLuts: React.FC<Props> = ({ clipId }) => {
                 actions={
                   <>
                     <button type="button" className={lookIconButton} title={`Use ${l.name} as the Input LUT (camera log to working space)`} aria-label={`Apply ${l.name} as input LUT`} onClick={() => void applyLut(l, "input")}>
-                      Input
+                      {t("Input")}
                     </button>
                     <button type="button" className={lookIconButton} title={`Delete ${l.name} from the library`} aria-label={`Delete ${l.name} from library`} onClick={() => void useColorLibraryStore.getState().removeLut(l.id)}>
                       <Trash2 size={11} aria-hidden />
@@ -272,7 +275,7 @@ const LooksAndLuts: React.FC<Props> = ({ clipId }) => {
 
       <div className="space-y-2" data-testid="saved-looks">
         <div className="flex items-center justify-between gap-2">
-          <div className={sectionTitle}>Saved looks</div>
+          <div className={sectionTitle}>{t("Saved looks")}</div>
           <CompareToggle testId="saved-compare" />
         </div>
         <div className="flex gap-1">
@@ -282,18 +285,18 @@ const LooksAndLuts: React.FC<Props> = ({ clipId }) => {
             onKeyDown={(e) => {
               if (e.key === "Enter") void saveLook();
             }}
-            placeholder="Name this clip's grade"
-            aria-label="Look name"
+            placeholder={t("Name this clip's grade")}
+            aria-label={t("Look name")}
             className="h-7 min-w-0 flex-1 rounded-[6px] border border-border bg-bg-1 px-2 text-[11px] text-fg"
           />
-          <button type="button" className={`${lookIconButton} !h-7 !px-2 !bg-bg-1 border border-border !text-fg-2 hover:!text-fg disabled:opacity-40`} title="Save this clip's whole grade as a look" aria-label="Save grade as look" disabled={!lookName.trim()} onClick={() => void saveLook()}>
+          <button type="button" className={`${lookIconButton} !h-7 !px-2 !bg-bg-1 border border-border !text-fg-2 hover:!text-fg disabled:opacity-40`} title={t("Save this clip's whole grade as a look")} aria-label={t("Save grade as look")} disabled={!lookName.trim()} onClick={() => void saveLook()}>
             <Bookmark size={12} aria-hidden />
-            <span className="ml-1">Save</span>
+            <span className="ml-1">{t("Save")}</span>
           </button>
         </div>
         {looks.length === 0 ? (
           <div className="rounded-[7px] border border-dashed border-border px-3 py-3 text-center text-[10px] leading-snug text-fg-3">
-            Grade a clip, name the grade and save it. Saved looks appear here on your footage and apply to the selected clips.
+            {t("Grade a clip, name the grade and save it. Saved looks appear here on your footage and apply to the selected clips.")}
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2">
@@ -320,9 +323,9 @@ const LooksAndLuts: React.FC<Props> = ({ clipId }) => {
       <CameraInputPicker clipId={clipId} />
 
       <div className="space-y-2">
-        <div className={sectionTitle}>Input LUT</div>
+        <div className={sectionTitle}>{t("Input LUT")}</div>
         <div className="text-[9px] leading-snug text-fg-3">
-          Applied to the source before the whole grade (camera log to working space). The creative LUT stays separate.
+          {t("Applied to the source before the whole grade (camera log to working space). The creative LUT stays separate.")}
         </div>
         <LUTLoader slotName="Input" lutData={(grading.inputLut as LUTData | undefined) ?? null} onChange={handleInputLut} onImported={(name, lut) => void keepImported(name, lut)} />
       </div>

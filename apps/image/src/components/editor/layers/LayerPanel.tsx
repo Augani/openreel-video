@@ -139,7 +139,7 @@ export function LayerPanel() {
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-        <h3 className="text-xs font-medium text-foreground">Layers</h3>
+        <h3 className="text-xs font-medium text-foreground">{t("Layers")}</h3>
         <span className="text-[10px] text-muted-foreground">
           {layers.length}/{allLayers.length}
         </span>
@@ -150,7 +150,7 @@ export function LayerPanel() {
           <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Search layers..."
+            placeholder={t("Search layers...")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-7 pr-7 py-1.5 text-[11px] bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
@@ -172,7 +172,7 @@ export function LayerPanel() {
               filterType === 'all' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-accent'
             }`}
           >
-            All
+            {t("All")}
           </button>
           {(['image', 'text', 'shape', 'group', 'smart-object'] as LayerType[]).map((type) => (
             <button
@@ -194,9 +194,9 @@ export function LayerPanel() {
       <div className="flex-1 overflow-y-auto">
         {layers.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center p-4">
-            <p className="text-xs text-muted-foreground">No layers yet</p>
+            <p className="text-xs text-muted-foreground">{t("No layers yet")}</p>
             <p className="text-[10px] text-muted-foreground mt-1">
-              Add text, shapes, or images
+              {t("Add text, shapes, or images")}
             </p>
           </div>
         ) : (
@@ -243,7 +243,7 @@ export function LayerPanel() {
                           className={`flex-1 text-xs truncate ${
                             layer.visible ? 'text-foreground' : 'text-muted-foreground'
                           } ${layer.locked ? 'italic' : ''}`}
-                          title="Double-click to rename"
+                          title={t("Double-click to rename")}
                         >
                           {layer.name}
                         </span>
@@ -253,7 +253,7 @@ export function LayerPanel() {
                         <button
                           onClick={(e) => handleToggleVisibility(layer, e)}
                           className="p-1 rounded hover:bg-background text-muted-foreground hover:text-foreground"
-                          title={layer.visible ? 'Hide' : 'Show'}
+                          title={layer.visible ? t("Hide") : t("Show")}
                         >
                           {layer.visible ? <Eye size={12} /> : <EyeOff size={12} />}
                         </button>
@@ -261,7 +261,7 @@ export function LayerPanel() {
                         <button
                           onClick={(e) => handleToggleLock(layer, e)}
                           className="p-1 rounded hover:bg-background text-muted-foreground hover:text-foreground"
-                          title={layer.locked ? 'Unlock' : 'Lock'}
+                          title={layer.locked ? t("Unlock") : t("Lock")}
                         >
                           {layer.locked ? <Lock size={12} /> : <Unlock size={12} />}
                         </button>
@@ -269,7 +269,7 @@ export function LayerPanel() {
                         <button
                           onClick={(e) => handleDuplicate(layer.id, e)}
                           className="p-1 rounded hover:bg-background text-muted-foreground hover:text-foreground"
-                          title="Duplicate"
+                          title={t("Duplicate")}
                         >
                           <Copy size={12} />
                         </button>
@@ -277,7 +277,7 @@ export function LayerPanel() {
                         <button
                           onClick={(e) => handleDelete(layer.id, e)}
                           className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive"
-                          title="Delete"
+                          title={t("Delete")}
                         >
                           <Trash2 size={12} />
                         </button>
@@ -389,7 +389,7 @@ export function LayerPanel() {
             className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
           >
             <FolderPlus size={14} />
-            Group {selectedLayerIds.length} Layers
+            {t("Group")} {selectedLayerIds.length} {t("Layers")}
           </button>
         </div>
       )}
@@ -402,11 +402,11 @@ export function LayerPanel() {
               className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground text-xs font-medium hover:bg-secondary/80 transition-colors mb-2"
             >
               <FolderOpen size={14} />
-              Ungroup
+              {t("Ungroup")}
             </button>
           )}
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground w-12">Opacity</span>
+            <span className="text-[10px] text-muted-foreground w-12">{t("Opacity")}</span>
             <Slider
               value={[project?.layers[selectedLayerIds[0]]?.transform.opacity ?? 1]}
               onValueChange={([opacity]) => updateLayerTransform(selectedLayerIds[0], { opacity })}
@@ -423,14 +423,14 @@ export function LayerPanel() {
             <button
               onClick={() => moveLayerUp(selectedLayerIds[0])}
               className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
-              title="Move up (Cmd+])"
+              title={t("Move up (Cmd+])")}
             >
               <ChevronUp size={14} />
             </button>
             <button
               onClick={() => moveLayerDown(selectedLayerIds[0])}
               className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
-              title="Move down (Cmd+[)"
+              title={t("Move down (Cmd+[)")}
             >
               <ChevronDown size={14} />
             </button>

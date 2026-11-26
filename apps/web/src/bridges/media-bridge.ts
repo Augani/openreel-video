@@ -10,6 +10,7 @@ import { useProjectStore } from "../stores/project-store";
 import { loadEngineModules } from "../services/lazy-engines";
 import { toast } from "../stores/notification-store";
 import { thumbnailSizeFor } from "@openreel/core/media/interpretation";
+import { translateNow } from "@openreel/i18n/translate";
 // Matches core's CODEC_UNSUPPORTED_WARNING (a value import would pull the core bundle into the initial chunk).
 const CODEC_UNSUPPORTED_PREFIX = "This browser cannot decode this video's codec";
 // Matches core's PRO_MEDIA_PROXY_PREFIX (pro media converted to a browser proxy).
@@ -280,9 +281,9 @@ export class MediaBridge {
 
       // No silent failure: say why this clip will not preview here instead of leaving a blank monitor.
       const codecWarning = result.warnings?.find((warning) => warning.startsWith(CODEC_UNSUPPORTED_PREFIX));
-      if (codecWarning) toast.warning("This video can't be previewed here", `${file.name}: ${codecWarning}`);
+      if (codecWarning) toast.warning(translateNow("This video can't be previewed here"), `${file.name}: ${codecWarning}`);
       const proxyNotice = result.warnings?.find((warning) => warning.startsWith(PRO_MEDIA_PROXY_PREFIX));
-      if (proxyNotice) toast.info("Editing a browser proxy", `${file.name}: ${proxyNotice.slice(PRO_MEDIA_PROXY_PREFIX.length).trim()}`);
+      if (proxyNotice) toast.info(translateNow("Editing a browser proxy"), `${file.name}: ${proxyNotice.slice(PRO_MEDIA_PROXY_PREFIX.length).trim()}`);
 
       return {
         success: true,

@@ -93,6 +93,7 @@ import {
   makeSplitEdit,
   nudgeSelectedEditSide,
 } from "../services/split-edit-commands";
+import { translateNow } from "@openreel/i18n/translate";
 
 /** Deleting at least this many media clips at once uses the batched store action. */
 const BATCH_DELETE_MIN = 16;
@@ -112,7 +113,7 @@ export function useKeyboardShortcuts() {
       let project = state.project;
       let pending: Promise<void> | undefined;
       try { pending = flushEditorFieldDrafts(scope); project = useProjectStore.getState().getFullProject(); }
-      catch (error) { saveInFlight = false; toast.error("Could not save project", error instanceof Error ? error.message : "Finish the current edit and try again."); return; }
+      catch (error) { saveInFlight = false; toast.error(translateNow("Could not save project"), error instanceof Error ? error.message : "Finish the current edit and try again."); return; }
       // Reserve the picker/stream in this key event; resolve queued edits before writing.
       const resolveProject = pending ? async () => {
         await pending;
@@ -124,7 +125,7 @@ export function useKeyboardShortcuts() {
       void saving.then((saved) => {
         if (saved) toast.success(asNew ? "Project saved as a new file" : "Project saved", project.name);
       }).catch((error: unknown) => {
-        toast.error("Could not save project", error instanceof Error ? error.message : "Please try again.");
+        toast.error(translateNow("Could not save project"), error instanceof Error ? error.message : "Please try again.");
       }).finally(() => { saveInFlight = false; });
     };
     const timelineEnd = () => useProjectStore.getState().getTimelineDuration();
@@ -241,7 +242,7 @@ export function useKeyboardShortcuts() {
           if (selected.includes(clip.id)) origins.set(clip.id, { trackId: track.id, startTime: clip.startTime });
       // A selection that is not under the playhead must not fall back to every targeted track.
       if (hasSelection && !selected.length) {
-        toast.warning("Ripple trim blocked", "Nothing under the playhead to trim.");
+        toast.warning(translateNow("Ripple trim blocked"), "Nothing under the playhead to trim.");
         return;
       }
       const outcome = commit(
@@ -254,7 +255,7 @@ export function useKeyboardShortcuts() {
         ),
         "Nothing under the playhead to trim.",
       );
-      if (!outcome.success && outcome.message) toast.warning("Ripple trim blocked", outcome.message);
+      if (!outcome.success && outcome.message) toast.warning(translateNow("Ripple trim blocked"), outcome.message);
       if (outcome.success && origins.size) keepTrimmedClipsSelected(origins);
     };
     // The splitter replaces the surviving piece (Q), so reselect whatever now
@@ -439,7 +440,7 @@ export function useKeyboardShortcuts() {
           // One plan, one undo step; sync-locked tracks follow or block it.
           const result = await useProjectStore.getState().rippleDeleteClips(ids);
           if (!result.success) {
-            toast.warning("Ripple delete blocked", result.error?.message);
+            toast.warning(translateNow("Ripple delete blocked"), result.error?.message);
             return;
           }
           const removed = new Set(ids);
@@ -486,12 +487,12 @@ export function useKeyboardShortcuts() {
         // Lazy: the transition engine and preset service stay out of the entry chunk.
         const { applyDefaultTransition } = await import("../services/transition-presets");
         const outcome = await applyDefaultTransition();
-        if (outcome.ok) toast.success("Transition applied", outcome.message);
-        else toast.warning("Apply default transition", outcome.error);
+        if (outcome.ok) toast.success(translateNow("Transition applied"), outcome.message);
+        else toast.warning(translateNow("Apply default transition"), outcome.error);
       })],
       ["tracks.toggleTarget", () => runWithToast("Track target", toggleTargetOnSelectedTrack)],
       ["tracks.toggleSyncLock", () => void toggleSyncLockOnSelectedTrack().then((outcome) => {
-        if (!outcome.success) toast.warning("Sync Lock", outcome.message);
+        if (!outcome.success) toast.warning(translateNow("Sync Lock"), outcome.message);
       })],
       ["editing.matchFrame", () => runWithToast("Match frame", matchFrame)],
       ["editing.reverseMatchFrame", () => runWithToast("Reverse match frame", reverseMatchFrame)],

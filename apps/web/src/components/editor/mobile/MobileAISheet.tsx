@@ -6,11 +6,13 @@ import { useVoiceEdit } from "../../../hooks/useVoiceEdit";
 import { MobileEditorIcon } from "./MobileEditorIcon";
 import "./mobile-tools.css";
 import "./mobile-ai.css";
+import { useT } from "@openreel/i18n/react";
 
 export function MobileAISheet({ open, onOpenChange, provider, auxiliary, children, draft, onDraftChange, activity, error, pendingConfirm }: {
   open: boolean; onOpenChange: (open: boolean) => void; provider: ReactNode; auxiliary: ReactNode; children: ReactNode;
   draft: string; onDraftChange: Dispatch<SetStateAction<string>>; activity: unknown; error: unknown; pendingConfirm: unknown;
 }) {
+  const t = useT();
   const contentRef = useRef<HTMLDivElement>(null), scrollRef = useRef<HTMLDivElement>(null);
   const [sheetTop, setSheetTop] = useState(() => 58 + Math.round(window.innerWidth * 9 / 16));
   useEffect(() => {
@@ -28,9 +30,9 @@ export function MobileAISheet({ open, onOpenChange, provider, auxiliary, childre
       style={{ "--mobile-sheet-top": `min(${sheetTop}px, calc(100dvh - 320px))` } as CSSProperties}
       onOpenAutoFocus={event => { event.preventDefault(); contentRef.current?.focus({ preventScroll: true }); }}>
       <div className="mobile-sheet-grabber" aria-hidden><span/></div>
-      <div className="mobile-sheet-heading"><DialogTitle>AI assist</DialogTitle><Button variant="ghost" aria-label="Close AI assist" onClick={() => onOpenChange(false)}>{android ? <MobileEditorIcon name="close" size={20}/> : "Done"}</Button></div>
+      <div className="mobile-sheet-heading"><DialogTitle>{t("AI assist")}</DialogTitle><Button variant="ghost" aria-label={t("Close AI assist")} onClick={() => onOpenChange(false)}>{android ? <MobileEditorIcon name="close" size={20}/> : t("Done")}</Button></div>
       <ScrollArea ref={scrollRef} className="mobile-sheet-scroll"><div className="mobile-ai-content">
-        {provider}{auxiliary}<div role="log" aria-label="AI conversation and edit results" aria-live="polite" className="mobile-ai-conversation">{children}</div>
+        {provider}{auxiliary}<div role="log" aria-label={t("AI conversation and edit results")} aria-live="polite" className="mobile-ai-conversation">{children}</div>
         <MobileAIComposer draft={draft} onDraftChange={onDraftChange} open={open}/>
       </div></ScrollArea>
     </DialogContent>
@@ -38,6 +40,7 @@ export function MobileAISheet({ open, onOpenChange, provider, auxiliary, childre
 }
 
 function MobileAIComposer({ draft, onDraftChange, open }: { draft: string; onDraftChange: Dispatch<SetStateAction<string>>; open: boolean }) {
+  const t = useT();
   const status = useChatStore(s => s.status), send = useChatStore(s => s.send), stop = useChatStore(s => s.stop);
   const busy = status === "running" || status === "awaiting_confirm";
   const voice = useVoiceEdit(open && !busy, text => onDraftChange(current => `${current.trimEnd()} ${text}`.trimStart()));
@@ -52,13 +55,13 @@ function MobileAIComposer({ draft, onDraftChange, open }: { draft: string; onDra
   return <div className="mobile-ai-composer">
     <div className="mobile-ai-suggestions">{["Add music", "Make it vertical", "Fix the audio", "Add B-roll"].map(text => <Button key={text} variant="secondary" disabled={busy} onClick={() => onDraftChange(text)}>{text}</Button>)}</div>
     <div className="mobile-ai-input">
-      <Textarea aria-label="Describe an edit" placeholder="Describe an edit…" value={draft} rows={1} onChange={event => onDraftChange(event.currentTarget.value)}
+      <Textarea aria-label={t("Describe an edit")} placeholder={t("Describe an edit…")} value={draft} rows={1} onChange={event => onDraftChange(event.currentTarget.value)}
         onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); } }}/>
-      <Button variant="ghost" className="mobile-ai-mic" aria-label={voice.listening ? "Stop speaking" : "Speak your edit"} aria-pressed={voice.listening}
+      <Button variant="ghost" className="mobile-ai-mic" aria-label={voice.listening ? t("Stop speaking") : t("Speak your edit")} aria-pressed={voice.listening}
         aria-describedby={voiceHint} disabled={busy || !voice.supported} onClick={voice.toggle}><MobileEditorIcon name="mic" size={17}/></Button>
-      <Button className="mobile-ai-send" aria-label={busy ? "Stop AI edit" : "Send"} disabled={!busy && !draft.trim()} onClick={busy ? stop : submit}>{busy ? <Square size={14} className="fill-current"/> : <ArrowUp size={17} strokeWidth={2.2}/>}</Button>
+      <Button className="mobile-ai-send" aria-label={busy ? t("Stop AI edit") : t("Send")} disabled={!busy && !draft.trim()} onClick={busy ? stop : submit}>{busy ? <Square size={14} className="fill-current"/> : <ArrowUp size={17} strokeWidth={2.2}/>}</Button>
     </div>
-    <span id={voiceHint} className="sr-only">{voice.supported ? "Uses your browser’s speech recognition. Review the text before sending." : "Speech input is unavailable in this browser. Type your edit instead."}</span>
-    {(voice.listening || voice.error) && <p role={voice.error ? "alert" : "status"} className="mobile-ai-voice-status">{voice.error || "Listening…"}</p>}
+    <span id={voiceHint} className="sr-only">{voice.supported ? t("Uses your browser’s speech recognition. Review the text before sending.") : t("Speech input is unavailable in this browser. Type your edit instead.")}</span>
+    {(voice.listening || voice.error) && <p role={voice.error ? "alert" : "status"} className="mobile-ai-voice-status">{voice.error || t("Listening…")}</p>}
   </div>;
 }

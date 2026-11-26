@@ -6,6 +6,7 @@ import { useProjectStore } from "../../stores/project-store";
 import { useUIStore } from "../../stores/ui-store";
 import { formatFrameTimecode } from "../../utils/frame-timecode";
 import { removeClipMarker, seekToClipMarker, updateClipMarker } from "../../services/clip-marker-commands";
+import { useT } from "@openreel/i18n/react";
 
 /**
  * Clip and master-clip markers of the timeline's clips. A master-clip marker (set in the Source
@@ -13,6 +14,7 @@ import { removeClipMarker, seekToClipMarker, updateClipMarker } from "../../serv
  * shared marker. Rows of selected clips are highlighted.
  */
 export function ClipMarkersList() {
+  const t = useT();
   const tracks = useProjectStore((s) => s.project.timeline.tracks);
   const items = useProjectStore((s) => s.project.mediaLibrary.items);
   const fps = useProjectStore((s) => s.project.settings.frameRate) || 30;
@@ -49,13 +51,13 @@ export function ClipMarkersList() {
   if (rows.length === 0) {
     return (
       <p className="px-4 py-8 text-center text-[12px] text-fg-muted" data-testid="clip-markers-empty">
-        No clip markers yet. Press M in the Source monitor to mark the source clip, or Alt+Shift+M on the timeline to mark a clip.
+        {t("No clip markers yet. Press M in the Source monitor to mark the source clip, or Alt+Shift+M on the timeline to mark a clip.")}
       </p>
     );
   }
 
   return (
-    <ul className="divide-y divide-border/60 text-[12px]" aria-label="Clip marker list" data-testid="clip-marker-list">
+    <ul className="divide-y divide-border/60 text-[12px]" aria-label={t("Clip marker list")} data-testid="clip-marker-list">
       {rows.map((row) => {
         const key = `${row.clipId}:${row.scope}:${row.marker.id}`;
         const editing = editingKey === key;
@@ -78,7 +80,7 @@ export function ClipMarkersList() {
               {editing ? (
                 <Input
                   autoFocus
-                  aria-label="Marker name"
+                  aria-label={t("Marker name")}
                   value={name}
                   onClick={(event) => event.stopPropagation()}
                   onChange={(event) => setName(event.target.value)}
@@ -92,11 +94,11 @@ export function ClipMarkersList() {
                 />
               ) : (
                 <div className="truncate font-medium" data-testid="clip-marker-name">
-                  {row.marker.label || <span className="text-fg-muted">Untitled</span>}
+                  {row.marker.label || <span className="text-fg-muted">{t("Untitled")}</span>}
                 </div>
               )}
               <div className="truncate text-[11px] text-fg-muted">
-                {row.clipName} <span className="uppercase tracking-wide">· {row.scope === "master" ? "Master" : "Clip"}</span>
+                {row.clipName} <span className="uppercase tracking-wide">· {row.scope === "master" ? t("Master") : t("Clip")}</span>
               </div>
             </div>
             <span className="font-mono text-[11px] text-fg-2" data-testid="clip-marker-time">

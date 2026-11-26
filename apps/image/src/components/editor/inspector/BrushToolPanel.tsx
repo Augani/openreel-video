@@ -1,7 +1,9 @@
 import { useUIStore } from '../../../stores/ui-store';
 import { Paintbrush, RotateCcw } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 export function BrushToolPanel() {
+  const t = useT();
   const { brushSettings, setBrushSettings } = useUIStore();
 
   const resetSettings = () => {
@@ -20,12 +22,12 @@ export function BrushToolPanel() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Paintbrush size={16} className="text-muted-foreground" />
-          <h3 className="text-sm font-medium">Brush</h3>
+          <h3 className="text-sm font-medium">{t("Brush")}</h3>
         </div>
         <button
           onClick={resetSettings}
           className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-secondary transition-colors"
-          title="Reset"
+          title={t("Reset")}
         >
           <RotateCcw size={14} />
         </button>
@@ -34,7 +36,7 @@ export function BrushToolPanel() {
       <div className="space-y-3">
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Color</span>
+            <span className="text-xs text-muted-foreground">{t("Color")}</span>
           </div>
           <div className="flex gap-2">
             <input
@@ -54,7 +56,7 @@ export function BrushToolPanel() {
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Size</span>
+            <span className="text-xs text-muted-foreground">{t("Size")}</span>
             <span className="text-xs font-mono text-muted-foreground">{brushSettings.size}px</span>
           </div>
           <input
@@ -74,7 +76,7 @@ export function BrushToolPanel() {
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Hardness</span>
+            <span className="text-xs text-muted-foreground">{t("Hardness")}</span>
             <span className="text-xs font-mono text-muted-foreground">{brushSettings.hardness}%</span>
           </div>
           <input
@@ -94,7 +96,7 @@ export function BrushToolPanel() {
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Opacity</span>
+            <span className="text-xs text-muted-foreground">{t("Opacity")}</span>
             <span className="text-xs font-mono text-muted-foreground">{Math.round(brushSettings.opacity * 100)}%</span>
           </div>
           <input
@@ -114,7 +116,7 @@ export function BrushToolPanel() {
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Flow</span>
+            <span className="text-xs text-muted-foreground">{t("Flow")}</span>
             <span className="text-xs font-mono text-muted-foreground">{Math.round(brushSettings.flow * 100)}%</span>
           </div>
           <input
@@ -133,7 +135,7 @@ export function BrushToolPanel() {
         </div>
 
         <div>
-          <span className="text-xs text-muted-foreground mb-1.5 block">Blend Mode</span>
+          <span className="text-xs text-muted-foreground mb-1.5 block">{t("Blend Mode")}</span>
           <div className="grid grid-cols-2 gap-1">
             {(['normal', 'multiply', 'screen', 'overlay'] as const).map((mode) => (
               <button

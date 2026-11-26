@@ -2,6 +2,7 @@ import { Button } from "@openreel/ui";
 import { Circle, Film, Mic, Plus } from "lucide-react";
 import { isVoiceOverMediaName } from "../../services/voiceover/voiceover-logic";
 import type { MediaItem } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 
 /** Projects recorded before takes carried provenance have only the Screen_/Webcam_<timestamp>.webm name. */
 const TAKE_NAME = /^(Screen|Webcam)_\d{8}T\d{6}\.webm$/;
@@ -42,20 +43,21 @@ export function RecordingsPanel({
   onAddToTimeline: (item: MediaItem) => void;
   onOpenInSource: (item: MediaItem) => void;
 }) {
+  const t = useT();
   const takes = items.filter(isRecordingTake).reverse();
   return (
     <div className="workspace-recordings" data-testid="recordings-panel">
       <div className="grid gap-1.5 p-2.5">
         <Button variant="secondary" className="h-[30px] w-full gap-1.5 text-[13px]" onClick={onVoiceOver}>
-          <Mic size={14} aria-hidden /> Record voice-over
+          <Mic size={14} aria-hidden /> {t("Record voice-over")}
         </Button>
         <Button variant="secondary" className="h-[30px] w-full gap-1.5 text-[13px]" onClick={onRecord}>
           <Circle size={12} className="fill-red-500 text-red-500" aria-hidden />
-          Record screen or camera
+          {t("Record screen or camera")}
         </Button>
       </div>
       {takes.length ? (
-        <div className="workspace-recordings-list" aria-label="Recorded takes">
+        <div className="workspace-recordings-list" aria-label={t("Recorded takes")}>
           {takes.map((item) => (
             <div key={item.id} className="workspace-recording-row" onDoubleClick={() => onOpenInSource(item)}>
               <div className="thumb">
@@ -76,7 +78,7 @@ export function RecordingsPanel({
                 variant="secondary"
                 size="icon-sm"
                 aria-label={`Add ${takeLabel(item.name)} to timeline`}
-                title="Add to timeline"
+                title={t("Add to timeline")}
                 onClick={() => onAddToTimeline(item)}
               >
                 <Plus size={14} />
@@ -87,8 +89,8 @@ export function RecordingsPanel({
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-6 pb-8 text-center text-[12px] text-fg-muted">
           <Film size={20} aria-hidden />
-          <strong className="text-fg-2">No recordings yet</strong>
-          <span>Voice-over, screen and camera takes appear here.</span>
+          <strong className="text-fg-2">{t("No recordings yet")}</strong>
+          <span>{t("Voice-over, screen and camera takes appear here.")}</span>
         </div>
       )}
     </div>

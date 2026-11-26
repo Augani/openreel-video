@@ -16,6 +16,7 @@ import { FolderScanner, DEFAULT_SCANNER_OPTIONS, nodeScannerFs, type ScanFile, t
 import { fingerprintFile, type Ledger } from "./ledger";
 import { canonicalPath, samePath } from "./paths";
 import { classifyFile, extensionOf, uniquePath } from "./render";
+import { nativeT } from "../language-state";
 
 /**
  * Owns the configured watch folders: one scanner each, a job lane per kind (one ingest at a time, one
@@ -370,7 +371,7 @@ export class WatchFolderManager {
   }
 
   private newItem(folder: WatchFolderConfig, file: ScanFile): WatchItem {
-    const item: WatchItem = { id: randomUUID(), folderId: folder.id, name: file.name, path: file.path, state: "detecting", progress: null, createdAt: this.now(), detail: "Waiting for the file to finish copying" };
+    const item: WatchItem = { id: randomUUID(), folderId: folder.id, name: file.name, path: file.path, state: "detecting", progress: null, createdAt: this.now(), detail: nativeT("Waiting for the file to finish copying") };
     this.items = [item, ...this.items].slice(0, this.options.maxItems);
     return item;
   }
@@ -509,7 +510,7 @@ export class WatchFolderManager {
       if (job.controller.signal.aborted) return this.finish(job.item, "cancelled", {});
       const message = error instanceof Error ? error.message : String(error);
       await this.moveAside(folder, job.file.path, FAILED_DIR, message);
-      this.finish(job.item, "failed", { error: message, detail: "Moved to failed" });
+      this.finish(job.item, "failed", { error: message, detail: nativeT("Moved to failed") });
     }
   }
 

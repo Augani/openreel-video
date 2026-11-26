@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type JSX } from "react";
 import { createPortal } from "react-dom";
 import { useChatStore } from "../../../stores/chat-store";
 import { useCoachStore, type CoachStep } from "./coach-store";
+import { useT } from "@openreel/i18n/react";
 
 interface MarkCopy {
   readonly title: string;
@@ -81,6 +82,7 @@ export function placeCoachCard(
  * long as the docked chat does. No scrim and no focus capture: the user keeps editing.
  */
 export default function CoachMarks(): JSX.Element | null {
+  const t = useT();
   const active = useCoachStore((s) => s.active);
   const status = useChatStore((s) => s.status);
   const lastEdited = useChatStore((s) => {
@@ -142,7 +144,7 @@ export default function CoachMarks(): JSX.Element | null {
     <div
       ref={cardRef}
       role="note"
-      aria-label={copy.title}
+      aria-label={t(copy.title)}
       data-coach-mark={active}
       className="fixed z-[90] rounded-xl border border-accent/40 bg-bg-1 p-3.5 text-left shadow-glow-lg motion-safe:transition-opacity motion-safe:duration-200"
       style={{ left: placement.left, top: placement.top, width: WIDTH }}
@@ -157,7 +159,7 @@ export default function CoachMarks(): JSX.Element | null {
             : { top: -6, borderLeft: "1px solid", borderTop: "1px solid" }),
         }}
       />
-      <div className="text-[13px] font-semibold leading-snug text-fg">{copy.title}</div>
+      <div className="text-[13px] font-semibold leading-snug text-fg">{t(copy.title)}</div>
       <p className="mt-1 text-xs leading-relaxed text-fg-2">{copy.body}</p>
       <div className="mt-3 flex items-center justify-between">
         <button
@@ -165,7 +167,7 @@ export default function CoachMarks(): JSX.Element | null {
           className="rounded text-xs text-fg-3 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           onClick={() => useCoachStore.getState().finish()}
         >
-          Skip tips
+          {t("Skip tips")}
         </button>
         <button
           type="button"

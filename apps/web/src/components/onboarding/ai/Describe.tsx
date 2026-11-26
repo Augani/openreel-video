@@ -2,6 +2,7 @@ import { useId, useState, type JSX } from "react";
 import { Switch } from "@openreel/ui";
 import { useSettingsStore } from "../../../stores/settings-store";
 import { ONBOARDING_STARTER_PROMPTS } from "./starter-prompts";
+import { useT } from "@openreel/i18n/react";
 
 export const DESCRIBE_PLACEHOLDER = "e.g. A 30-second highlight with a title and smooth transitions";
 
@@ -12,6 +13,7 @@ export interface DescribeProps {
 }
 
 export default function Describe({ connected, onSubmit }: DescribeProps): JSX.Element {
+  const t = useT();
   const uid = useId();
   const [prompt, setPrompt] = useState("");
   const dryRun = useSettingsStore((s) => s.agentDryRun);
@@ -24,7 +26,7 @@ export default function Describe({ connected, onSubmit }: DescribeProps): JSX.El
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
         <label htmlFor={`${uid}-prompt`} className="text-xs font-medium text-fg-2">
-          What should the video be?
+          {t("What should the video be?")}
         </label>
         <textarea
           id={`${uid}-prompt`}
@@ -37,7 +39,7 @@ export default function Describe({ connected, onSubmit }: DescribeProps): JSX.El
           }}
           className="w-full resize-none rounded-xl border border-border bg-bg-2 p-3 text-sm leading-relaxed text-fg placeholder:text-fg-3 focus-visible:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
         />
-        <div role="group" aria-label="Starter prompts" className="flex flex-wrap gap-2">
+        <div role="group" aria-label={t("Starter prompts")} className="flex flex-wrap gap-2">
           {ONBOARDING_STARTER_PROMPTS.map((starter) => (
             <button
               key={starter.id}
@@ -54,28 +56,27 @@ export default function Describe({ connected, onSubmit }: DescribeProps): JSX.El
       <div className="flex flex-col gap-2.5 rounded-xl border border-border bg-bg-1 p-3.5">
         <label className="flex items-center justify-between gap-3 text-xs text-fg">
           <span>
-            Preview edits before applying
-            <span className="block text-fg-3">The AI shows what it would do and changes nothing yet.</span>
+            {t("Preview edits before applying")}
+            <span className="block text-fg-3">{t("The AI shows what it would do and changes nothing yet.")}</span>
           </span>
-          <Switch checked={dryRun} onCheckedChange={setDryRun} aria-label="Preview edits before applying" />
+          <Switch checked={dryRun} onCheckedChange={setDryRun} aria-label={t("Preview edits before applying")} />
         </label>
         <label className="flex items-center justify-between gap-3 text-xs text-fg">
           <span>
-            Ask before deleting anything
-            <span className="block text-fg-3">Removals wait for your OK.</span>
+            {t("Ask before deleting anything")}
+            <span className="block text-fg-3">{t("Removals wait for your OK.")}</span>
           </span>
           <Switch
             checked={!autoConfirm}
             onCheckedChange={(on) => setAutoConfirm(!on)}
-            aria-label="Ask before deleting anything"
+            aria-label={t("Ask before deleting anything")}
           />
         </label>
       </div>
 
       {!connected && (
         <p className="text-xs text-fg-3" role="note">
-          No model is connected yet. We will open the editor with the assistant docked so you can connect one there.
-          Your description will be waiting in the chat box.
+          {t("No model is connected yet. We will open the editor with the assistant docked so you can connect one there. Your description will be waiting in the chat box.")}
         </p>
       )}
 
@@ -86,7 +87,7 @@ export default function Describe({ connected, onSubmit }: DescribeProps): JSX.El
           onClick={() => onSubmit(prompt)}
           className="inline-flex h-9 items-center rounded-lg bg-accent px-4 text-sm font-semibold text-accent-fg shadow-glow hover:bg-accent-strong disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
-          {connected ? "Make my video" : "Open the editor"}
+          {connected ? t("Make my video") : t("Open the editor")}
         </button>
       </div>
     </div>

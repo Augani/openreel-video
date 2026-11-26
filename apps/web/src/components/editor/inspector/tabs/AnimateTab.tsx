@@ -10,6 +10,7 @@ import { InspectorSection } from "../shell/InspectorSection";
 import { TextScrollSection } from "../TextScrollSection";
 import { SavedStylesSection } from "../SavedStylesSection";
 import { lazyWithRetry } from "../lazy-retry";
+import { useT } from "@openreel/i18n/react";
 
 // gsap (~280 KB) is only needed once a clip's Motion Path section is shown.
 const MotionPathSection = lazyWithRetry(() => import("../MotionPathSection").then((module) => ({ default: module.MotionPathSection })));
@@ -25,9 +26,10 @@ export const AnimateTab: React.FC<AnimateTabProps> = ({
   clipType,
   showTextSection,
 }) => {
+  const t = useT();
   return (
     <>
-      <InspectorSection title="Keyframes" sectionId="keyframes">
+      <InspectorSection title={t("Keyframes")} sectionId="keyframes">
         <KeyframesSection clipId={clipId} />
       </InspectorSection>
       {(clipType === "video" ||
@@ -37,7 +39,7 @@ export const AnimateTab: React.FC<AnimateTabProps> = ({
         clipType === "svg" ||
         clipType === "sticker") && (
         <InspectorSection
-          title="Transitions"
+          title={t("Transitions")}
           sectionId="transitions"
           defaultOpen={false}
         >
@@ -50,7 +52,7 @@ export const AnimateTab: React.FC<AnimateTabProps> = ({
         clipType === "svg" ||
         clipType === "sticker") && (
         <InspectorSection
-          title="Motion Presets"
+          title={t("Motion Presets")}
           sectionId="motion-presets"
           defaultOpen={false}
         >
@@ -64,7 +66,7 @@ export const AnimateTab: React.FC<AnimateTabProps> = ({
         clipType === "svg" ||
         clipType === "sticker") && (
         <InspectorSection
-          title="Motion Path"
+          title={t("Motion Path")}
           sectionId="motion-path"
           defaultOpen={false}
         >
@@ -80,7 +82,7 @@ export const AnimateTab: React.FC<AnimateTabProps> = ({
         clipType === "svg" ||
         clipType === "sticker") && (
         <InspectorSection
-          title="Emphasis Animation"
+          title={t("Emphasis Animation")}
           sectionId="emphasis-animation"
           defaultOpen={false}
         >
@@ -89,7 +91,7 @@ export const AnimateTab: React.FC<AnimateTabProps> = ({
       )}
       {showTextSection && (
         <InspectorSection
-          title="Text Animation"
+          title={t("Text Animation")}
           sectionId="text-animation"
           defaultOpen={false}
         >
@@ -97,12 +99,12 @@ export const AnimateTab: React.FC<AnimateTabProps> = ({
         </InspectorSection>
       )}
       {showTextSection && (
-        <InspectorSection title="Roll / Crawl" sectionId="text-scroll" defaultOpen={false}>
+        <InspectorSection title={t("Roll / Crawl")} sectionId="text-scroll" defaultOpen={false}>
           <TextScrollSection clipId={clipId} />
         </InspectorSection>
       )}
       {showTextSection && (
-        <InspectorSection title="Saved Styles" sectionId="text-saved-styles" defaultOpen={false}>
+        <InspectorSection title={t("Saved Styles")} sectionId="text-saved-styles" defaultOpen={false}>
           <SavedStylesSection kind="text" targetId={clipId} />
         </InspectorSection>
       )}

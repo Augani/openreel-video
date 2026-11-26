@@ -1,4 +1,5 @@
 import React from "react";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * `React.lazy` with a retry. A rejected dynamic import is cached forever by `React.lazy` (and by a memoised
@@ -42,7 +43,7 @@ class LoadBoundary extends React.Component<BoundaryProps, BoundaryState> {
     if (!this.state.failed) return this.props.children;
     return (
       <div role="alert" className="flex items-center gap-2 p-3 text-[12px] text-text-secondary">
-        <span>{this.props.label} could not load.</span>
+        <span>{translateNow("{name} could not load.", { name: this.props.label })}</span>
         <button
           type="button"
           className="rounded border border-border px-2 py-0.5 text-text-primary hover:bg-background-tertiary"
@@ -51,7 +52,7 @@ class LoadBoundary extends React.Component<BoundaryProps, BoundaryState> {
             this.props.onRetry();
           }}
         >
-          Retry
+          {translateNow("Retry")}
         </button>
       </div>
     );

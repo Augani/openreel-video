@@ -35,6 +35,7 @@ import {
   getAnimatableEffectParams,
   parseEffectInstanceKeyframeProperty,
 } from "@openreel/core/video/effect-instance-keyframes";
+import { useT } from "@openreel/i18n/react";
 
 const keyframeEngine = new KeyframeEngine();
 const EMPTY_KEYFRAMES: Keyframe[] = [];
@@ -225,6 +226,7 @@ const PropertySelector: React.FC<{
   properties?: AnimatableProperty[];
   showEffectHint?: boolean;
 }> = ({ selectedProperty, onSelect, existingProperties, properties = ANIMATABLE_PROPERTIES, showEffectHint = false }) => {
+  const t = useT();
   const [isOpen, setIsOpen] = useState(false);
 
   const categories = [...new Set(properties.map((p) => p.category))];
@@ -246,7 +248,7 @@ const PropertySelector: React.FC<{
           />}</span>
       </Button>
       </PopoverTrigger>
-      <PopoverContent side="bottom" align="start" aria-label="Animate property" className="w-[min(260px,calc(100vw-32px))] p-0">
+      <PopoverContent side="bottom" align="start" aria-label={t("Animate property")} className="w-[min(260px,calc(100vw-32px))] p-0">
         <div className="max-h-64 overflow-y-auto p-1.5">
           {categories.map((category) => (
             <div key={category} className="space-y-1">
@@ -266,7 +268,7 @@ const PropertySelector: React.FC<{
                     }} type="button" aria-pressed={selectedProperty === prop.id} aria-label={`Select ${prop.label}`} className={cn("group/card block h-auto min-w-0 whitespace-normal rounded-[7px] border text-left transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50", (selectedProperty === prop.id ? "" : "border-transparent bg-transparent hover:bg-bg-2"), "p-2", "w-full")}>
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[12px] leading-5 text-fg font-normal">
-                        {prop.label}
+                        {t(prop.label)}
                       </span>
                       {hasKeyframes && (
                         <Diamond
@@ -287,7 +289,7 @@ const PropertySelector: React.FC<{
               data-testid="keyframes-effect-hint"
               className="px-2 py-1.5 text-[11px] leading-4 text-fg-3"
             >
-              Effect parameters only appear for effects on this clip. Add the effect first, then animate it here.
+              {t("Effect parameters only appear for effects on this clip. Add the effect first, then animate it here.")}
             </p>
           )}
         </div>
@@ -342,6 +344,7 @@ const EasingSelector: React.FC<{
   value: EasingType;
   onChange: (easing: EasingName) => void;
 }> = ({ value, onChange }) => {
+  const t = useT();
   const [isOpen, setIsOpen] = useState(false);
 
   const currentLabel = formatEasingLabel(value);
@@ -355,7 +358,7 @@ const EasingSelector: React.FC<{
         <span className="flex shrink-0 items-center justify-center">{<ChevronDown size={10} aria-hidden />}</span>
       </Button>
       </PopoverTrigger>
-      <PopoverContent side="bottom" align="end" aria-label="Easing choices" className="w-52 p-0">
+      <PopoverContent side="bottom" align="end" aria-label={t("Easing choices")} className="w-52 p-0">
         <div className="max-h-64 overflow-y-auto p-1.5">
           {EASING_CATEGORIES.map((category) => (
             <div key={category.name} className="space-y-1">
@@ -388,8 +391,9 @@ const EasingSelector: React.FC<{
 function KeyframeNumberInput({ value, onChange, min, max, step }: {
   value: number; onChange: (value: number) => void; min?: number; max?: number; step: number;
 }) {
+  const t = useT();
   const draft = useNumericDraft({ value, onChange, min, max, step });
-  return <Input {...draft} type="text" inputMode="decimal" role="spinbutton" aria-label="Keyframe value"
+  return <Input {...draft} type="text" inputMode="decimal" role="spinbutton" aria-label={t("Keyframe value")}
     aria-valuenow={value} aria-valuemin={min} aria-valuemax={max} className="h-7 w-[72px] px-2 text-xs" />;
 }
 
@@ -400,6 +404,7 @@ const KeyframeItem: React.FC<{
   onEasingChange: (easing: EasingName) => void;
   property: AnimatableProperty | undefined;
 }> = ({ keyframe, onUpdate, onDelete, onEasingChange, property }) => {
+  const t = useT();
   return (
     <Card className="min-w-0 rounded-[7px] shadow-none bg-bg-2 text-fg p-2 flex items-center gap-2 border border-border"
     >
@@ -426,7 +431,7 @@ const KeyframeItem: React.FC<{
         </div>
       </div>
       <EasingSelector value={keyframe.easing} onChange={onEasingChange} />
-      <Button variant="ghost" size="icon-sm" onClick={onDelete} type="button" aria-label="Delete keyframe" title="Delete keyframe" className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg">
+      <Button variant="ghost" size="icon-sm" onClick={onDelete} type="button" aria-label={t("Delete keyframe")} title={t("Delete keyframe")} className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg">
         {<Trash2 size={12} aria-hidden />}
       </Button>
     </Card>
@@ -446,6 +451,7 @@ interface KeyframesSectionProps {
 export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
   clipId,
 }) => {
+  const t = useT();
   const { updateClipKeyframes, project } = useProjectStore();
   const playheadPosition = useTimelineStore((state) => state.playheadPosition);
   const getGraphicsEngine = useEngineStore((state) => state.getGraphicsEngine);
@@ -620,7 +626,7 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
   if (!clip) {
     return (
       <span className="text-[12px] leading-5 text-fg-2 font-normal block text-center py-4">
-        No clip selected
+        {t("No clip selected")}
       </span>
     );
   }
@@ -629,7 +635,7 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
     <div className="space-y-4">
       <div className="space-y-2">
         <span className="text-[12px] leading-5 text-fg-2 font-bold block">
-          Animate Property
+          {t("Animate Property")}
         </span>
         <PropertySelector
           selectedProperty={selectedProperty}
@@ -644,7 +650,7 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
         <Card className="min-w-0 rounded-[7px] shadow-none bg-bg-2 text-fg p-2 flex items-center justify-between gap-3 border border-border"
         >
           <span className="text-[12px] leading-5 text-fg-2 font-normal">
-            Clip time {localTime.toFixed(2)}s
+            {t("Clip time")} {localTime.toFixed(2)}s
           </span>
           <span className="text-[12px] leading-5 text-fg font-normal font-mono">
             {typeof currentValue === "number"
@@ -673,7 +679,7 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-[12px] leading-5 text-fg-2 font-bold">
-              Keyframes ({propertyKeyframes.length})
+              {t("Keyframes (")}{propertyKeyframes.length})
             </span>
           </div>
           <div className="space-y-1.5 max-h-48 overflow-y-auto">
@@ -695,14 +701,14 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
         <div className="text-center py-4">
           <Key size={24} className="mx-auto text-fg-3 mb-2" aria-hidden />
           <span className="text-[12px] leading-5 text-fg-2 font-normal">
-            Select a property to animate
+            {t("Select a property to animate")}
           </span>
         </div>
       )}
 
       {selectedProperty && propertyKeyframes.length === 0 && (
         <span className="text-[12px] leading-5 text-fg-2 font-normal block text-center py-2">
-          No keyframes for this property. Add one to start animating.
+          {t("No keyframes for this property. Add one to start animating.")}
         </span>
       )}
     </div>

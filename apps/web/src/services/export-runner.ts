@@ -12,6 +12,7 @@ import {
   type ExportResult,
   type Project,
 } from "@openreel/core";
+import { translateNow } from "@openreel/i18n/translate";
 
 export interface ExportRunnerState {
   isExporting: boolean;
@@ -581,7 +582,7 @@ export function useExportRunner(options: ExportRunnerOptions): UseExportRunner {
           const lightLevel = finalResult.stats?.hdrLightLevel;
           const lightNote = lightLevel ? `Measured from the rendered frames: MaxCLL ${lightLevel.maxCll} nits, MaxFALL ${lightLevel.maxFall} nits.` : "";
           const note = [smartRender?.summary, sourceMedia ? describeExportSource(sourceMedia, window.openreel?.platform === "desktop") : "", lightNote].filter(Boolean).join(" ");
-          if (note) toast.info("Export finished", note);
+          if (note) toast.info(translateNow("Export finished"), note);
           reportExportLoudness(finalResult.stats?.loudness);
           activeWritable.current = null;
           setState((prev) => ({ ...prev, isExporting: false, progress: 100, complete: true, phase: "Saved!" }));

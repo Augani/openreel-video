@@ -4,12 +4,14 @@ import { BlendModeSelectItems } from "./BlendModeSelectItems";
 import { InlineSlider } from "./shell/InspectorControls";
 import { useProjectStore } from "../../../stores/project-store";
 import type { BlendMode } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 
 interface BlendingSectionProps {
   clipId: string;
 }
 
 export const BlendingSection: React.FC<BlendingSectionProps> = ({ clipId }) => {
+  const t = useT();
   const {
     getClip,
     getTextClip,
@@ -65,7 +67,7 @@ export const BlendingSection: React.FC<BlendingSectionProps> = ({ clipId }) => {
     return (
       <span className="text-fg-2 font-normal py-8 text-center text-xs"
       >
-        No clip selected
+        {t("No clip selected")}
       </span>
     );
   }
@@ -74,7 +76,7 @@ export const BlendingSection: React.FC<BlendingSectionProps> = ({ clipId }) => {
     <div className="space-y-3">
       <div className="flex items-center">
         <span className="w-[90px] flex-none text-[14px] font-semibold text-fg">
-          Blending
+          {t("Blending")}
         </span>
         <div className="relative flex-1">
           <Select
@@ -83,7 +85,7 @@ export const BlendingSection: React.FC<BlendingSectionProps> = ({ clipId }) => {
               handleBlendModeChange(value as BlendMode)
             }
           >
-            <SelectTrigger aria-label="Blend mode" className="h-auto w-full rounded-[7px] border border-border bg-transparent px-[10px] py-[8px] text-[13px] font-medium text-fg-2 outline-none focus:border-accent [&>svg]:size-[11px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-label={t("Blend mode")} className="h-auto w-full rounded-[7px] border border-border bg-transparent px-[10px] py-[8px] text-[13px] font-medium text-fg-2 outline-none focus:border-accent [&>svg]:size-[11px]"><SelectValue /></SelectTrigger>
             <SelectContent><BlendModeSelectItems /></SelectContent>
           </Select>
         </div>
@@ -92,7 +94,7 @@ export const BlendingSection: React.FC<BlendingSectionProps> = ({ clipId }) => {
       {blendMode !== "normal" && (
         <div className="flex items-center">
           <span className="w-[90px] flex-none text-[13px] font-medium text-fg-3">
-            Blend Opacity
+            {t("Blend Opacity")}
           </span>
           <InlineSlider
             ariaLabel="Blend opacity"

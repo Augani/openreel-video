@@ -26,7 +26,7 @@ const ATTRIBUTES = new Set([
   "alt",
   "aria-valuetext",
 ]);
-const CALL_FNS = new Set(["t", "translate", "translateNow"]);
+const CALL_FNS = new Set(["t", "translate", "translateNow", "nativeT"]);
 const PROPERTY_NAMES = new Set([
   "label",
   "title",
@@ -178,6 +178,8 @@ const SKIP_DIRS = new Set([
   "test-results",
   "build",
   "coverage",
+  "test",
+  "__tests__",
 ]);
 
 function isSource(file) {

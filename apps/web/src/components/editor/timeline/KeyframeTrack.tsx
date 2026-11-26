@@ -3,6 +3,7 @@ import type { Keyframe, Clip } from "@openreel/core";
 import { describeEffectInstanceKeyframeProperty } from "@openreel/core/video/effect-instance-keyframes";
 import { KeyframeMarker } from "./KeyframeMarker";
 import { EasingCurve } from "./EasingCurve";
+import { useT } from "@openreel/i18n/react";
 
 const PROPERTY_COLORS: Record<string, string> = {
   "position.x": "#22d3ee",
@@ -49,6 +50,7 @@ export const KeyframeTrack: React.FC<KeyframeTrackProps> = ({
   onKeyframeDelete,
   selectedKeyframeIds,
 }) => {
+  const t = useT();
 
   const propertyGroups = useMemo((): PropertyGroup[] => {
     const groups = new Map<string, Keyframe[]>();
@@ -66,8 +68,8 @@ export const KeyframeTrack: React.FC<KeyframeTrackProps> = ({
         color: PROPERTY_COLORS[property] || PROPERTY_COLORS.default,
         label: PROPERTY_LABELS[property] || describeEffectInstanceKeyframeProperty(clip.effects ?? [], property) || property,
       }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [clip.keyframes, clip.effects]);
+      .sort((a, b) => t(a.label).localeCompare(t(b.label)));
+  }, [clip.keyframes, clip.effects, t]);
 
   const handleKeyframeMove = useCallback(
     (keyframeId: string, deltaPixels: number) => {
@@ -84,7 +86,7 @@ export const KeyframeTrack: React.FC<KeyframeTrackProps> = ({
   if (propertyGroups.length === 0) {
     return (
       <div className="h-8 flex items-center justify-center text-[9px] text-text-muted">
-        No keyframes
+        {t("No keyframes")}
       </div>
     );
   }
@@ -105,7 +107,7 @@ export const KeyframeTrack: React.FC<KeyframeTrackProps> = ({
               style={{ backgroundColor: group.color }}
             />
             <span className="text-[9px] text-text-muted truncate">
-              {group.label}
+              {t(group.label)}
             </span>
           </div>
 

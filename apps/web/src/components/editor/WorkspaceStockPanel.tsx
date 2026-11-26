@@ -6,6 +6,7 @@ import { useTimelineStore } from "../../stores/timeline-store";
 import type { BackgroundPreset } from "../../services/background-generator";
 import { StockFootagePanel } from "./StockFootagePanel";
 import { WorkspaceTabs, workspaceTabPanel } from "./WorkspacePrimitives";
+import { useT } from "@openreel/i18n/react";
 const BACKGROUND_GROUPS: { category: BackgroundPreset["category"]; title: string }[] = [
   { category: "solid", title: "Solid colours" },
   { category: "gradient", title: "Gradients" },
@@ -22,6 +23,7 @@ export function WorkspaceStockPanel({
   onImportBackground: (preset: BackgroundPreset) => void;
   generatingBackground: string | null;
 }) {
+  const t = useT();
   const [tab, setTab] = useState("footage");
   const [query, setQuery] = useState("");
   const exporting = useUIStore((state) => state.exportState.isExporting);
@@ -48,8 +50,8 @@ export function WorkspaceStockPanel({
             <div className="workspace-search mb-3">
               <Search />
               <Input
-                aria-label="Search stock backgrounds"
-                placeholder="Search backgrounds"
+                aria-label={t("Search stock backgrounds")}
+                placeholder={t("Search backgrounds")}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
@@ -79,7 +81,7 @@ export function WorkspaceStockPanel({
                         }
                         title={
                           exporting
-                            ? "Wait for export to finish"
+                            ? t("Wait for export to finish")
                             : lockedReason || undefined
                         }
                         onClick={() => onImportBackground(p)}
@@ -93,8 +95,7 @@ export function WorkspaceStockPanel({
               );
             })}
             <p className="text-[10px] text-fg-muted mt-3">
-              Generated backgrounds. Add one to your project with a click.
-              Music and sound effects are in the Audio panel.
+              {t("Generated backgrounds. Add one to your project with a click. Music and sound effects are in the Audio panel.")}
             </p>
           </div>
         ) : null}

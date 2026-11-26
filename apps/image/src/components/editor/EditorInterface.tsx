@@ -10,12 +10,14 @@ import { PagesBar } from './pages/PagesBar';
 import { useUIStore } from '../../stores/ui-store';
 import { useProjectStore } from '../../stores/project-store';
 import { Layers, History, Ruler } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 const ExportDialog = lazy(() => import('./ExportDialog').then(m => ({ default: m.ExportDialog })));
 
 type BottomTab = 'layers' | 'history' | 'guides';
 
 export function EditorInterface() {
+  const t = useT();
   const { isPanelCollapsed, isInspectorCollapsed, isExportDialogOpen, closeExportDialog } = useUIStore();
   const { project } = useProjectStore();
   const [bottomTab, setBottomTab] = useState<BottomTab>('layers');
@@ -23,7 +25,7 @@ export function EditorInterface() {
   if (!project) {
     return (
       <div className="h-full w-full flex items-center justify-center bg-background">
-        <p className="text-muted-foreground">No project loaded</p>
+        <p className="text-muted-foreground">{t("No project loaded")}</p>
       </div>
     );
   }
@@ -62,7 +64,7 @@ export function EditorInterface() {
                   }`}
                 >
                   <Layers size={14} />
-                  Layers
+                  {t("Layers")}
                 </button>
                 <button
                   onClick={() => setBottomTab('guides')}
@@ -73,7 +75,7 @@ export function EditorInterface() {
                   }`}
                 >
                   <Ruler size={14} />
-                  Guides
+                  {t("Guides")}
                 </button>
                 <button
                   onClick={() => setBottomTab('history')}
@@ -84,7 +86,7 @@ export function EditorInterface() {
                   }`}
                 >
                   <History size={14} />
-                  History
+                  {t("History")}
                 </button>
               </div>
               <div className="flex-1 overflow-hidden">

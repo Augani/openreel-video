@@ -98,7 +98,7 @@ export function MobileProjectHome({ initialTab }: { initialTab?: "templates" | "
       useProjectStore.getState().createNewProject("New Project", { width: format.width, height: format.height, frameRate: 30 });
       useEditorWorkspaceStore.getState().setSection("media");
       navigate("editor");
-    } catch { toast.error("Project could not be saved", "Your current project is still open. Try saving it again."); }
+    } catch { toast.error(translateNow("Project could not be saved"), "Your current project is still open. Try saving it again."); }
     finally { operation.current = false; setOpening(null); }
   };
   const openEditor = async (mode: "record" | "ai" | "tour") => {
@@ -123,7 +123,7 @@ export function MobileProjectHome({ initialTab }: { initialTab?: "templates" | "
         const result = await useProjectStore.getState().importMedia(file);
         if (!result.success) toast.error(translateNow("Could not import {name}", { name: file.name }), result.error?.message);
       }
-    } catch { toast.error("Could not start the project", "Your current project is still available. Try again."); }
+    } catch { toast.error(translateNow("Could not start the project"), "Your current project is still available. Try again."); }
     finally { operation.current = false; setOpening(null); }
   };
   const openDraft = async (save: AutoSaveMetadata) => {
@@ -136,8 +136,8 @@ export function MobileProjectHome({ initialTab }: { initialTab?: "templates" | "
     try {
       await preserveCurrent();
       if (await useProjectStore.getState().recoverFromAutoSave(save.id)) navigate("editor");
-      else toast.error("Could not open this draft", "The saved project is still available. Try again.");
-    } catch { toast.error("Could not open this draft", "Try opening it again."); }
+      else toast.error(translateNow("Could not open this draft"), "The saved project is still available. Try again.");
+    } catch { toast.error(translateNow("Could not open this draft"), "Try opening it again."); }
     finally { operation.current = false; setOpening(null); }
   };
   const matching = saves.filter(save => save.projectName.toLowerCase().includes(query.trim().toLowerCase()));

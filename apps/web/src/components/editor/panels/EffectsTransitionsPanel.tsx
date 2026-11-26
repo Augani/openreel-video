@@ -27,6 +27,8 @@ import {
 } from "../../../services/editor-effect-application";
 import { CREATIVE_PRESET_PREVIEWS, PRO_EFFECT_PREVIEWS, REPAIR_PRESET_PREVIEWS } from "./proEffectPreviews";
 import { BURN_IN_PREVIEWS } from "./burnInPreviews";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 // ─── Effect & Transition catalogs ──────────────────────────────────
 // Each item ships with a small CSS recipe used to animate the live
@@ -1051,6 +1053,7 @@ const EffectCard: React.FC<{
   def: EditorEffectPreviewDef;
   onApply: () => void;
 }> = ({ def, onApply }) => {
+  const t = useT();
   const [isHover, setIsHover] = useState(false);
   const [isFocus, setIsFocus] = useState(false);
 
@@ -1087,11 +1090,11 @@ const EffectCard: React.FC<{
       <div className="px-2 py-1.5 border-t border-border">
         <span className="font-bold block overflow-hidden text-[10.5px] text-fg leading-tight" style={{ WebkitBoxOrient: "vertical", WebkitLineClamp: 1, display: "-webkit-box" }}
         >
-          {def.label}
+          {t(def.label)}
         </span>
         <span className="font-normal block overflow-hidden workspace-catalog-description text-[9.5px] text-fg-muted leading-tight mt-0.5" style={{ WebkitBoxOrient: "vertical", WebkitLineClamp: 1, display: "-webkit-box" }}
         >
-          {def.description}
+          {t(def.description)}
         </span>
       </div>
     </Button>
@@ -1105,6 +1108,7 @@ const TransitionCard: React.FC<{
   onSelect: () => void;
   onApply: () => void;
 }> = ({ def, selected, used, onSelect, onApply }) => {
+  const t = useT();
   const [isHover, setIsHover] = useState(false);
   const [isFocus, setIsFocus] = useState(false);
   // Real footage under the playhead, blended by the TransitionEngine (see effect-previews/).
@@ -1137,16 +1141,16 @@ const TransitionCard: React.FC<{
       }} onMouseEnter={() => setIsHover(true)} onMouseLeave={() => setIsHover(false)} onFocus={(e) => setIsFocus(isKeyboardFocus(e.currentTarget))} onBlur={() => setIsFocus(false)} type="button" aria-label={`${def.label}. Drag onto a clip edge, or double-click to apply to the selected cut.`} className="group/card h-auto min-w-0 whitespace-normal rounded-[7px] border transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 border-border bg-bg-1 hover:bg-bg-2 p-0 workspace-catalog-card group relative flex flex-col items-stretch text-left cursor-grab active:cursor-grabbing">
       <div className="workspace-transition-tile relative aspect-video overflow-hidden">
         <EffectLivePreview def={previewDef} active={isHover || isFocus} />
-        {used && <span className="workspace-transition-used" aria-label="Used in timeline" />}
+        {used && <span className="workspace-transition-used" aria-label={t("Used in timeline")} />}
       </div>
       <div className="px-2 py-1.5 border-t border-border">
         <span className="font-bold block overflow-hidden text-[10.5px] text-fg leading-tight" style={{ WebkitBoxOrient: "vertical", WebkitLineClamp: 1, display: "-webkit-box" }}
         >
-          {def.label}
+          {t(def.label)}
         </span>
         <span className="font-normal block overflow-hidden workspace-catalog-description text-[9.5px] text-fg-muted leading-tight mt-0.5" style={{ WebkitBoxOrient: "vertical", WebkitLineClamp: 1, display: "-webkit-box" }}
         >
-          {def.description}
+          {t(def.description)}
         </span>
       </div>
     </Button>
@@ -1156,6 +1160,7 @@ const TransitionCard: React.FC<{
 // ─── Main panel ───────────────────────────────────────────────────
 
 export const EffectsPanel: React.FC = () => {
+  const t = useT();
   const getSelectedClipIds = useUIStore((s) => s.getSelectedClipIds);
   const project = useProjectStore((s) => s.project);
   const selectedItems = useUIStore((state) => state.selectedItems);
@@ -1189,8 +1194,11 @@ export const EffectsPanel: React.FC = () => {
         matchesEffectCategory(effect, categoryFilter) &&
         (!q ||
           effect.label.toLowerCase().includes(q) ||
+          t(effect.label).toLowerCase().includes(q) ||
           effect.description.toLowerCase().includes(q) ||
-          effect.category.toLowerCase().includes(q)),
+          t(effect.description).toLowerCase().includes(q) ||
+          effect.category.toLowerCase().includes(q) ||
+          t(effect.category).toLowerCase().includes(q)),
     ).sort((a, b) =>
       (referenceEffectOrder.get(a.id ?? a.type) ?? 99) -
       (referenceEffectOrder.get(b.id ?? b.type) ?? 99));
@@ -1208,7 +1216,7 @@ export const EffectsPanel: React.FC = () => {
       const selectedIds = getSelectedClipIds();
       if (selectedIds.length === 0) {
         toast.warning(
-          "No clip selected",
+          translateNow("No clip selected"),
           "Drag the effect onto a clip in the timeline, or select a clip and double-click.",
         );
         return;
@@ -1219,7 +1227,7 @@ export const EffectsPanel: React.FC = () => {
           !track.locked && track.clips.some(clip => clip.id === id &&
             project.mediaLibrary.items.some(media => media.id === clip.mediaId && media.type === "video"))));
         if (!target || !(await applyEditorEffectToClip(target, { effectType: "stabilize" }))) {
-          toast.warning("Select a video clip", "Choose an unlocked video clip to adjust stabilization.");
+          toast.warning(translateNow("Select a video clip"), "Choose an unlocked video clip to adjust stabilization.");
         }
         return;
       }
@@ -1235,18 +1243,18 @@ export const EffectsPanel: React.FC = () => {
       }
       if (appliedCount === 0) {
         toast.error(
-          "Effect could not be applied",
+          translateNow("Effect could not be applied"),
           "The selected layers did not accept this effect.",
         );
         return;
       }
       toast.success(
-        "Effect applied",
+        translateNow("Effect applied"),
         `${def.label} added to ${appliedCount} clip${appliedCount > 1 ? "s" : ""}`,
       );
       if (appliedCount < selectedIds.length) {
         toast.warning(
-          "Some layers were skipped",
+          translateNow("Some layers were skipped"),
           `${selectedIds.length - appliedCount} selected layer${selectedIds.length - appliedCount > 1 ? "s" : ""} could not accept the effect.`,
         );
       }
@@ -1258,13 +1266,13 @@ export const EffectsPanel: React.FC = () => {
     <EffectPreviewProvider>
     <div className="workspace-effect-library flex flex-col h-full min-h-0">
       <div className="workspace-panel-heading">
-        Effects<small>Drag onto a clip</small>
+        {t("Effects")}<small>{t("Drag onto a clip")}</small>
       </div>
       <div className="workspace-effects-filter shrink-0">
         <label className="workspace-effects-search">
           <Search size={14} aria-hidden />
           <Input
-          aria-label="Search effects"
+          aria-label={t("Search effects")}
           value={query}
           onChange={event => setQuery(event.target.value)}
           disabled={categoryFilter === "Audio"}
@@ -1274,7 +1282,7 @@ export const EffectsPanel: React.FC = () => {
         <div
           className="workspace-chips mt-2"
           role="group"
-          aria-label="Effect categories"
+          aria-label={t("Effect categories")}
         >
           {workspaceEffectCategories.map((category) => {
             return (
@@ -1300,17 +1308,17 @@ export const EffectsPanel: React.FC = () => {
         <div className="workspace-effects-content">
           {categoryFilter === "Plugins" && !query.trim() && (
             <div className="workspace-recipes-note">
-              <strong>Effect plugins</strong>
+              <strong>{t("Effect plugins")}</strong>
               <p>
                 {installedPlugins.length === 0
-                  ? "No plugins installed. Install a .orplugin file to add effects built with the OpenReel plugin SDK."
-                  : "Plugins you installed. Drag one onto a clip or double-click it to apply."}
+                  ? t("No plugins installed. Install a .orplugin file to add effects built with the OpenReel plugin SDK.")
+                  : t("Plugins you installed. Drag one onto a clip or double-click it to apply.")}
               </p>
               <Button
                 variant="secondary"
                 onClick={() => usePluginManagerStore.getState().setOpen(true)}
               >
-                Manage plugins
+                {t("Manage plugins")}
               </Button>
             </div>
           )}
@@ -1322,8 +1330,7 @@ export const EffectsPanel: React.FC = () => {
               />
             ) : (
               <p className="py-6 text-xs text-center text-fg-muted">
-                Select a clip to adjust its equalizer, compression, reverb and
-                delay.
+                {t("Select a clip to adjust its equalizer, compression, reverb and delay.")}
               </p>
             ))}
           {selectedClip &&
@@ -1332,18 +1339,18 @@ export const EffectsPanel: React.FC = () => {
               <div className="workspace-applied-effects">
                 <div>
                   <strong>
-                    On{" "}
+                    {t("On")}{" "}
                     {project.mediaLibrary.items.find(
                       (m) => m.id === selectedClip.mediaId,
-                    )?.name ?? "selected clip"}
+                    )?.name ?? t("selected clip")}
                   </strong>
-                  <small>{applied.length + (appliedLut ? 1 : 0)} applied</small>
+                  <small>{applied.length + (appliedLut ? 1 : 0)} {t("applied")}</small>
                 </div>
                 {appliedLut && (
                   <label>
                     <Button
                       variant="ghost"
-                      aria-label="Edit LUT"
+                      aria-label={t("Edit LUT")}
                       className="h-6 flex-1 justify-start p-0 text-xs font-normal"
                       onClick={() =>
                         useInspectorNavigationStore
@@ -1355,14 +1362,14 @@ export const EffectsPanel: React.FC = () => {
                     </Button>
                     <small>{Math.round(appliedLut.intensity * 100)}%</small>
                     <Switch
-                      aria-label="Enable LUT"
+                      aria-label={t("Enable LUT")}
                       checked={appliedLut.intensity > 0}
                       onCheckedChange={async (enabled) => {
                         if (
                           !(await setClipLutEnabled(selectedClip.id, enabled))
                         )
                           toast.error(
-                            "LUT could not be changed",
+                            translateNow("LUT could not be changed"),
                             "Unlock the clip's track and try again.",
                           );
                       }}
@@ -1405,7 +1412,7 @@ export const EffectsPanel: React.FC = () => {
           </div>
           {categoryFilter === "Keying" && !query.trim() && (
             <div className="workspace-recipes-note">
-              <p>Remove a sampled background color from the selected video or image clip.</p>
+              <p>{t("Remove a sampled background color from the selected video or image clip.")}</p>
               <Button
                 variant="secondary"
                 disabled={!keyingClip}
@@ -1416,9 +1423,9 @@ export const EffectsPanel: React.FC = () => {
                       .requestSection("chroma-key", keyingClip.id);
                 }}
               >
-                Configure chroma key
+                {t("Configure chroma key")}
               </Button>
-              {!keyingClip && <p>Select a video or image clip first.</p>}
+              {!keyingClip && <p>{t("Select a video or image clip first.")}</p>}
             </div>
           )}
           {filtered.length === 0 &&
@@ -1426,7 +1433,7 @@ export const EffectsPanel: React.FC = () => {
             query.trim() !== "" && (
               <span className="text-fg-2 font-normal block text-center text-[10.5px] py-6"
               >
-                No effects match "{query.trim()}".
+                {t("No effects match \"")}{query.trim()}".
               </span>
             )}
         </div>
@@ -1479,6 +1486,7 @@ function createTransitionLibrarySelector() {
 
 /** Export / Import for the app-wide transition preset library, as a small JSON file. */
 const PresetLibraryFile: React.FC<{ hasPresets: boolean }> = ({ hasPresets }) => {
+  const t = useT();
   const inputRef = React.useRef<HTMLInputElement>(null);
   return (
     <>
@@ -1486,7 +1494,7 @@ const PresetLibraryFile: React.FC<{ hasPresets: boolean }> = ({ hasPresets }) =>
         variant="ghost"
         size="sm"
         disabled={!hasPresets}
-        aria-label="Export preset library"
+        aria-label={t("Export preset library")}
         onClick={async () => {
           const text = await getGlobalTransitionPresets().exportJson();
           const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
@@ -1497,25 +1505,25 @@ const PresetLibraryFile: React.FC<{ hasPresets: boolean }> = ({ hasPresets }) =>
           setTimeout(() => URL.revokeObjectURL(url), 1000);
         }}
       >
-        Export presets
+        {t("Export presets")}
       </Button>
-      <Button variant="ghost" size="sm" aria-label="Import preset library" onClick={() => inputRef.current?.click()}>
-        Import presets
+      <Button variant="ghost" size="sm" aria-label={t("Import preset library")} onClick={() => inputRef.current?.click()}>
+        {t("Import presets")}
       </Button>
       <input
         ref={inputRef}
         type="file"
         accept="application/json,.json"
         hidden
-        aria-label="Preset library file"
+        aria-label={t("Preset library file")}
         data-testid="transition-preset-import"
         onChange={async (event) => {
           const file = event.target.files?.[0];
           event.target.value = "";
           if (!file) return;
           const outcome = await getGlobalTransitionPresets().importJson(await file.text());
-          if (outcome.ok) toast.success("Preset library", outcome.message);
-          else toast.error("Preset library", outcome.error);
+          if (outcome.ok) toast.success(translateNow("Preset library"), outcome.message);
+          else toast.error(translateNow("Preset library"), outcome.error);
         }}
       />
     </>
@@ -1523,6 +1531,7 @@ const PresetLibraryFile: React.FC<{ hasPresets: boolean }> = ({ hasPresets }) =>
 };
 
 export const TransitionsPanel: React.FC = () => {
+  const t = useT();
   const selectLibrary = useMemo(createTransitionLibrarySelector, []);
   const { frameRate, eligibleCutCount, usedTransitions } = useProjectStore(selectLibrary);
   const exporting = useUIStore(state => state.exportState.isExporting);
@@ -1585,8 +1594,11 @@ export const TransitionsPanel: React.FC = () => {
       return (
         !q ||
         transition.label.toLowerCase().includes(q) ||
+        t(transition.label).toLowerCase().includes(q) ||
         transition.description.toLowerCase().includes(q) ||
-        category.toLowerCase().includes(q)
+        t(transition.description).toLowerCase().includes(q) ||
+        category.toLowerCase().includes(q) ||
+        t(category).toLowerCase().includes(q)
       );
     });
   }, [allDefs, categoryFilter, query]);
@@ -1599,7 +1611,7 @@ export const TransitionsPanel: React.FC = () => {
       const selectedCount = selectedIds.size;
       if (selectedCount === 0) {
         toast.warning(
-          "No clip selected",
+          translateNow("No clip selected"),
           "Select a clip or two adjacent clips, then double-click the transition.",
         );
         return;
@@ -1647,7 +1659,7 @@ export const TransitionsPanel: React.FC = () => {
 
       if (!clipA) {
         toast.warning(
-          "No compatible cut",
+          translateNow("No compatible cut"),
           "The selected clips must be adjacent on the same timeline track.",
         );
         return;
@@ -1673,7 +1685,7 @@ export const TransitionsPanel: React.FC = () => {
           );
       if (!result.success || !result.transitionId) {
         toast.error(
-          "Transition failed",
+          translateNow("Transition failed"),
           result.error ??
             "Could not create this transition at the selected cut.",
         );
@@ -1681,11 +1693,11 @@ export const TransitionsPanel: React.FC = () => {
       }
       const transition = bridge.getTransition(result.transitionId);
       if (!transition || !(await addClipTransition(transition))) {
-        toast.error("Transition failed", "Could not save the transition.");
+        toast.error(translateNow("Transition failed"), "Could not save the transition.");
         return;
       }
       toast.success(
-        "Transition applied",
+        translateNow("Transition applied"),
         `${def.label} added to the selected cut.`,
       );
     },
@@ -1700,17 +1712,17 @@ export const TransitionsPanel: React.FC = () => {
           ref={searchTriggerRef}
           variant="ghost"
           className="workspace-transition-search-trigger"
-          aria-label="Search transitions"
-          title="Search all transitions"
+          aria-label={t("Search transitions")}
+          title={t("Search all transitions")}
           aria-expanded={searchOpen}
           onClick={() => {
             if (searchOpen) setQuery("");
             setSearchOpen(!searchOpen);
           }}
         >
-          Transitions
+          {t("Transitions")}
         </Button>
-        <small>Drop on a cut</small>
+        <small>{t("Drop on a cut")}</small>
       </div>
       <div className="workspace-transition-filters">
         {searchOpen && (
@@ -1718,10 +1730,10 @@ export const TransitionsPanel: React.FC = () => {
             <Search size={13} aria-hidden="true" />
             <Input
               autoFocus
-              aria-label="Search transitions"
+              aria-label={t("Search transitions")}
               value={query}
               onChange={event => setQuery(event.target.value)}
-              placeholder="Search transitions"
+              placeholder={t("Search transitions")}
               onKeyDown={event => {
                 if (event.key !== "Escape") return;
                 event.stopPropagation();
@@ -1735,7 +1747,7 @@ export const TransitionsPanel: React.FC = () => {
         <div
           className="workspace-chips"
           role="group"
-          aria-label="Transition categories"
+          aria-label={t("Transition categories")}
         >
           {(["All", ...(presetDefs.length ? (["Presets"] as const) : []), ...TRANSITION_CATEGORIES] as const).map((category) => {
             return (
@@ -1813,16 +1825,16 @@ export const TransitionsPanel: React.FC = () => {
           {filtered.length === 0 && (
             <span className="text-fg-2 font-normal block text-center text-[10.5px] py-6"
             >
-              No transitions match "{query}".
+              {t("No transitions match \"")}{query}".
             </span>
           )}
         </div>
       </ScrollArea>{" "}
       <div className="workspace-transition-footer">
         <div className="workspace-transition-default" data-testid="transition-default-row">
-          <small title={defaultLink.missing ? "The preset this default came from is not in this project or the preset library here. The default keeps the settings it was saved with." : undefined}>
-            Default: {defaultTransition?.label ?? defaultTransition?.type ?? "Cross dissolve"}
-            {defaultLink.missing ? " (preset not found, using saved settings)" : ""}
+          <small title={defaultLink.missing ? t("The preset this default came from is not in this project or the preset library here. The default keeps the settings it was saved with.") : undefined}>
+            {t("Default:")} {defaultTransition?.label ?? defaultTransition?.type ?? t("Cross dissolve")}
+            {defaultLink.missing ? t(" (preset not found, using saved settings)") : ""}
           </small>
           <Button
             variant="ghost"
@@ -1836,11 +1848,11 @@ export const TransitionsPanel: React.FC = () => {
                   : { type: selectedTransition.type, duration: selectedTransition.duration ?? duration, params: selectedTransition.params ?? {}, label: selectedTransition.label },
                 selectedTransition.scope ?? "project",
               );
-              if (outcome.ok) toast.success("Default transition", outcome.message);
-              else toast.error("Default transition", outcome.error);
+              if (outcome.ok) toast.success(translateNow("Default transition"), outcome.message);
+              else toast.error(translateNow("Default transition"), outcome.error);
             }}
           >
-            Set as default
+            {t("Set as default")}
           </Button>
           {selectedTransition.presetId && (
             <Button
@@ -1855,11 +1867,11 @@ export const TransitionsPanel: React.FC = () => {
                     : await deleteTransitionPreset(selectedTransition.presetId!);
                 if (outcome.ok) {
                   setSelectedTransition(TRANSITIONS[0]);
-                  toast.success("Preset deleted", outcome.message);
-                } else toast.error("Preset", outcome.error);
+                  toast.success(translateNow("Preset deleted"), outcome.message);
+                } else toast.error(translateNow("Preset"), outcome.error);
               }}
             >
-              Delete preset
+              {t("Delete preset")}
             </Button>
           )}
           <PresetLibraryFile hasPresets={globalPresets.length > 0} />
@@ -1918,17 +1930,17 @@ export const TransitionsPanel: React.FC = () => {
               if (!isCurrent()) return;
               if (count)
                 toast.success(
-                  "Transitions applied",
+                  translateNow("Transitions applied"),
                   `${selectedTransition.label} added to ${count} cuts.`,
                 );
               else
                 toast.info(
-                  "No compatible cuts",
+                  translateNow("No compatible cuts"),
                   "Place adjacent video or image clips on an unlocked track.",
                 );
             } catch (e) {
               toast.error(
-                "Could not apply transitions",
+                translateNow("Could not apply transitions"),
                 e instanceof Error ? e.message : "Try again.",
               );
             } finally {

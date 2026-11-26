@@ -53,6 +53,8 @@ import {
   updateDesktopIngestConfig,
   useDesktopIngestStore,
 } from "../../services/desktop-ingest";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const QUALITY_LABELS: Record<PreviewProxyPreset, string> = {
   low: "Up to 540p · Fastest",
@@ -136,6 +138,7 @@ function pickFiles(multiple: boolean): Promise<File[]> {
 const smallButton = "h-7 min-w-0 rounded border border-border px-2 text-[11px] text-fg-2";
 
 export const ProxyIngestPanel: React.FC = () => {
+  const t = useT();
   const rows = useProxyRows();
   const [open, setOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -188,7 +191,7 @@ export const ProxyIngestPanel: React.FC = () => {
 
   const create = (batchProfile?: DesktopProxyProfile | null) => {
     const result = queueProxies(createTargets.map((row) => row.item.id), quality, true, batchProfile);
-    if (!result.queued.length) toast.info("No proxies to create", result.skipped[0]?.reason ?? "Every video already has a proxy.");
+    if (!result.queued.length) toast.info(translateNow("No proxies to create"), result.skipped[0]?.reason ?? "Every video already has a proxy.");
   };
 
   const retryFailed = async () => {
@@ -197,7 +200,7 @@ export const ProxyIngestPanel: React.FC = () => {
       // Rows that failed before a restart have no job left; rebuild them from their media.
       const rest = rows.filter((row) => row.state === "failed" && !useDesktopIngestStore.getState().jobs[row.item.id]).map((row) => row.item.id);
       if (rest.length) queueProxies(rest, quality, true);
-      if (!count && !rest.length) toast.info("Nothing to retry", "No proxy has failed.");
+      if (!count && !rest.length) toast.info(translateNow("Nothing to retry"), "No proxy has failed.");
     } else {
       queueProxies(rows.filter((row) => row.state === "failed").map((row) => row.item.id), quality, true);
     }
@@ -213,7 +216,7 @@ export const ProxyIngestPanel: React.FC = () => {
     if (!file) return;
     if (kind === "full") {
       const result = await replaceMediaAsset(id, file);
-      if (!result.success) toast.error("Could not relink", result.error?.message ?? "Check that the file can be decoded.");
+      if (!result.success) toast.error(translateNow("Could not relink"), result.error?.message ?? "Check that the file can be decoded.");
     } else {
       await attachProxyBlobs([{ mediaId: id, blob: file, name: file.name }]);
     }
@@ -225,29 +228,29 @@ export const ProxyIngestPanel: React.FC = () => {
   };
 
   return (
-    <section aria-label="Proxies and ingest" data-testid="proxy-panel" className={`min-w-0 text-[11px] ${quiet ? "mx-2 mb-0.5" : "mx-3 mb-2 rounded-md border border-border bg-bg-2"}`}>
+    <section aria-label={t("Proxies and ingest")} data-testid="proxy-panel" className={`min-w-0 text-[11px] ${quiet ? "mx-2 mb-0.5" : "mx-3 mb-2 rounded-md border border-border bg-bg-2"}`}>
       <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
       <button
         type="button"
         aria-expanded={open}
         aria-haspopup="dialog"
-        title="Proxy and ingest settings"
+        title={t("Proxy and ingest settings")}
         className={`flex w-full min-w-0 items-center gap-1.5 px-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${quiet ? "h-5 text-fg-muted hover:text-fg-2" : "h-7 text-fg-2"}`}
         data-quiet={quiet || undefined}
       >
         <ChevronRight size={12} aria-hidden />
-        <span className="font-semibold">Proxies</span>
+        <span className="font-semibold">{t("Proxies")}</span>
         <span className="min-w-0 flex-1 truncate text-fg-muted" data-testid="proxy-summary">{summary}</span>
-        {attention.length > 0 && <span className="shrink-0 rounded bg-yellow-500/20 px-1 text-[10px] text-yellow-500" data-testid="proxy-attention">{attention.length} need attention</span>}
-        {offlineCount > 0 && <span className="shrink-0 rounded bg-yellow-500/20 px-1 text-[10px] text-yellow-500" data-testid="offline-count">{offlineCount} offline</span>}
-        {mode === "proxies" && <span className="shrink-0 rounded bg-accent-soft px-1 text-[10px] text-accent">Ingest on</span>}
-        {(mode === "copy" || mode === "copy-proxies") && desktop && <span className="shrink-0 rounded bg-accent-soft px-1 text-[10px] text-accent">{mode === "copy" ? "Copy on" : "Copy + proxies"}</span>}
+        {attention.length > 0 && <span className="shrink-0 rounded bg-yellow-500/20 px-1 text-[10px] text-yellow-500" data-testid="proxy-attention">{attention.length} {t("need attention")}</span>}
+        {offlineCount > 0 && <span className="shrink-0 rounded bg-yellow-500/20 px-1 text-[10px] text-yellow-500" data-testid="offline-count">{offlineCount} {t("offline")}</span>}
+        {mode === "proxies" && <span className="shrink-0 rounded bg-accent-soft px-1 text-[10px] text-accent">{t("Ingest on")}</span>}
+        {(mode === "copy" || mode === "copy-proxies") && desktop && <span className="shrink-0 rounded bg-accent-soft px-1 text-[10px] text-accent">{mode === "copy" ? t("Copy on") : t("Copy + proxies")}</span>}
       </button>
       </PopoverTrigger>
-      <PopoverContent side="right" align="start" collisionPadding={8} className="w-[22rem] max-w-[calc(100vw-1rem)] border-border bg-bg-2 p-0 text-[11px]" aria-label="Proxies and ingest settings">
+      <PopoverContent side="right" align="start" collisionPadding={8} className="w-[22rem] max-w-[calc(100vw-1rem)] border-border bg-bg-2 p-0 text-[11px]" aria-label={t("Proxies and ingest settings")}>
         <div className="max-h-[min(36rem,var(--radix-popover-content-available-height,36rem))] space-y-2 overflow-y-auto p-2" data-testid="proxy-panel-body">
-          <dl className="grid grid-cols-4 gap-1 text-center" data-testid="proxy-counts" aria-label="Proxy state counts">
+          <dl className="grid grid-cols-4 gap-1 text-center" data-testid="proxy-counts" aria-label={t("Proxy state counts")}>
             {([["Ready", counts.ready, "ready"], ["Building", counts.building, "building"], ["Missing", counts.missing, "missing"], ["Failed", counts.failed, "failed"]] as const).map(([label, value, key]) => (
               <div key={key} className="min-w-0 rounded border border-border bg-bg-1 px-1 py-1" data-testid={`proxy-count-${key}`}>
                 <dd className={`text-[13px] font-semibold ${key === "failed" && value ? "text-status-warning" : key === "missing" && value ? "text-status-warning" : "text-fg-2"}`}>{value}</dd>
@@ -257,20 +260,20 @@ export const ProxyIngestPanel: React.FC = () => {
           </dl>
           <div className="grid grid-cols-2 gap-2">
             <label className="min-w-0 text-fg-muted">
-              Ingest preset
+              {t("Ingest preset")}
               <Select value={!desktop && (mode === "copy" || mode === "copy-proxies") ? "none" : mode} onValueChange={(value) => void setProjectIngestMode(value as IngestMode)}>
-                <SelectTrigger aria-label="Ingest preset" className="mt-1 h-8 min-w-0 text-[11px]"><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label={t("Ingest preset")} className="mt-1 h-8 min-w-0 text-[11px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {presetEntries(desktop).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </label>
             <label className="min-w-0 text-fg-muted">
-              This import
+              {t("This import")}
               <Select value={override ?? "default"} onValueChange={(value) => setImportOverride(value === "default" ? null : (value as IngestMode))}>
-                <SelectTrigger aria-label="Ingest for this import" className="mt-1 h-8 min-w-0 text-[11px]"><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label={t("Ingest for this import")} className="mt-1 h-8 min-w-0 text-[11px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="default">Project default</SelectItem>
+                  <SelectItem value="default">{t("Project default")}</SelectItem>
                   {presetEntries(desktop).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -279,7 +282,7 @@ export const ProxyIngestPanel: React.FC = () => {
           {desktop ? (
             <div className="space-y-2" data-testid="desktop-ingest-settings">
               <label className="block min-w-0 text-fg-muted">
-                Proxy preset
+                {t("Proxy preset")}
                 <Select
                   value={matched?.id ?? "custom"}
                   onValueChange={(value) => {
@@ -287,22 +290,22 @@ export const ProxyIngestPanel: React.FC = () => {
                     if (chosen) void setDesktopProxyProfile(chosen.profile, chosen.id);
                   }}
                 >
-                  <SelectTrigger aria-label="Proxy preset" className="mt-1 h-8 min-w-0 text-[11px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label={t("Proxy preset")} className="mt-1 h-8 min-w-0 text-[11px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {allIngestPresets(userPresets).map((entry) => <SelectItem key={entry.id} value={entry.id}>{entry.name}</SelectItem>)}
-                    {!matched && <SelectItem value="custom" disabled>Custom</SelectItem>}
+                    {!matched && <SelectItem value="custom" disabled>{t("Custom")}</SelectItem>}
                   </SelectContent>
                 </Select>
               </label>
               <div className="flex min-w-0 items-center gap-1.5">
                 <span className="min-w-0 flex-1 truncate text-fg-muted" data-testid="proxy-profile-summary" title={describeDesktopProxyProfile(profile)}>{describeDesktopProxyProfile(profile)}</span>
-                <Button type="button" variant="secondary" className={smallButton} onClick={() => setManagerOpen(true)} aria-label="Manage proxy presets">Manage presets…</Button>
+                <Button type="button" variant="secondary" className={smallButton} onClick={() => setManagerOpen(true)} aria-label={t("Manage proxy presets")}>{t("Manage presets…")}</Button>
               </div>
               <label className="block min-w-0 text-fg-muted">
-                Copy checksum
+                {t("Copy checksum")}
                 <Select value={checksum} onValueChange={(value) => void updateDesktopIngestConfig({ checksum: value as IngestChecksumAlgorithm }, "Set copy checksum")}>
-                  <SelectTrigger aria-label="Copy checksum" className="mt-1 h-8 min-w-0 text-[11px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>{INGEST_CHECKSUMS.map((entry) => <SelectItem key={entry.id} value={entry.id}>{entry.label}</SelectItem>)}</SelectContent>
+                  <SelectTrigger aria-label={t("Copy checksum")} className="mt-1 h-8 min-w-0 text-[11px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>{INGEST_CHECKSUMS.map((entry) => <SelectItem key={entry.id} value={entry.id}>{t(entry.label)}</SelectItem>)}</SelectContent>
                 </Select>
               </label>
               <button
@@ -313,15 +316,15 @@ export const ProxyIngestPanel: React.FC = () => {
                 data-testid="proxy-more-settings"
               >
                 {moreOpen ? <ChevronDown size={11} aria-hidden /> : <ChevronRight size={11} aria-hidden />}
-                <span>Jobs and folders</span>
-                <span className="min-w-0 flex-1 truncate text-right text-[10px]">{concurrency} at once</span>
+                <span>{t("Jobs and folders")}</span>
+                <span className="min-w-0 flex-1 truncate text-right text-[10px]">{concurrency} {t("at once")}</span>
               </button>
               {moreOpen && (<>
               <div className="grid grid-cols-1 gap-2">
                 <label className="min-w-0 text-fg-muted">
-                  Build at once
+                  {t("Build at once")}
                   <Select value={String(concurrency)} onValueChange={(value) => void updateDesktopIngestConfig({ concurrency: Number(value) === 2 ? 2 : 1 }, "Set proxy jobs at once")}>
-                    <SelectTrigger aria-label="Proxy jobs at once" className="mt-1 h-8 min-w-0 text-[11px]"><SelectValue /></SelectTrigger>
+                    <SelectTrigger aria-label={t("Proxy jobs at once")} className="mt-1 h-8 min-w-0 text-[11px]"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="1">1 job</SelectItem>
                       <SelectItem value="2">2 jobs</SelectItem>
@@ -333,24 +336,24 @@ export const ProxyIngestPanel: React.FC = () => {
                 const dir = kind === "proxy" ? folders?.proxyDir : folders?.mediaDir;
                 return (
                   <div key={kind} className="min-w-0" data-testid={`${kind}-folder`}>
-                    <div className="text-fg-muted">{kind === "proxy" ? "Proxies folder" : "Media folder (copy to project)"}</div>
+                    <div className="text-fg-muted">{kind === "proxy" ? t("Proxies folder") : t("Media folder (copy to project)")}</div>
                     <div className="mt-1 flex min-w-0 items-center gap-1">
-                      <span className="min-w-0 flex-1 truncate rounded border border-border bg-bg-1 px-1.5 py-1 text-fg-2" title={dir ?? ""}>{dir ?? "Next to the project"}</span>
-                      <Button type="button" variant="secondary" className={smallButton} onClick={() => void chooseIngestFolder(kind)} aria-label={kind === "proxy" ? "Choose proxies folder" : "Choose media folder"}>Choose…</Button>
-                      <Button type="button" variant="secondary" className={smallButton} onClick={() => revealIngestFolder(kind)} aria-label={kind === "proxy" ? "Reveal proxies folder" : "Reveal media folder"}>Reveal</Button>
+                      <span className="min-w-0 flex-1 truncate rounded border border-border bg-bg-1 px-1.5 py-1 text-fg-2" title={dir ?? ""}>{dir ?? t("Next to the project")}</span>
+                      <Button type="button" variant="secondary" className={smallButton} onClick={() => void chooseIngestFolder(kind)} aria-label={kind === "proxy" ? t("Choose proxies folder") : t("Choose media folder")}>{t("Choose…")}</Button>
+                      <Button type="button" variant="secondary" className={smallButton} onClick={() => revealIngestFolder(kind)} aria-label={kind === "proxy" ? t("Reveal proxies folder") : t("Reveal media folder")}>{t("Reveal")}</Button>
                     </div>
                   </div>
                 );
               })}
-              {folders && !folders.projectSaved && <p className="leading-snug text-fg-muted">Save the project to keep these folders beside it. Until then they live in the app's data folder, and Copy to project waits.</p>}
+              {folders && !folders.projectSaved && <p className="leading-snug text-fg-muted">{t("Save the project to keep these folders beside it. Until then they live in the app's data folder, and Copy to project waits.")}</p>}
               </>)}
-              {copyingCount > 0 && <p className="text-fg-2" data-testid="copy-progress">Copying {copyingCount} file{copyingCount === 1 ? "" : "s"} to the project… {Math.round((Object.values(copying)[0] ?? 0) * 100)}%</p>}
+              {copyingCount > 0 && <p className="text-fg-2" data-testid="copy-progress">{t("Copying")} {copyingCount} {t("file")}{copyingCount === 1 ? "" : "s"} {t("to the project…")} {Math.round((Object.values(copying)[0] ?? 0) * 100)}%</p>}
             </div>
           ) : (
             <label className="block text-fg-muted">
-              Proxy size
+              {t("Proxy size")}
               <Select value={quality} onValueChange={(value) => setProxyQuality(value as PreviewProxyPreset)}>
-                <SelectTrigger aria-label="Proxy size" className="mt-1 h-8 min-w-0 text-[11px]"><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label={t("Proxy size")} className="mt-1 h-8 min-w-0 text-[11px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(QUALITY_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
                 </SelectContent>
@@ -358,34 +361,34 @@ export const ProxyIngestPanel: React.FC = () => {
             </label>
           )}
           <div className="flex flex-wrap gap-1.5">
-            <Button type="button" variant="secondary" className={smallButton} onClick={() => create()} disabled={!createTargets.length} aria-label="Create proxies">
-              {targets.length ? "Create for selected" : "Create proxies"}
+            <Button type="button" variant="secondary" className={smallButton} onClick={() => create()} disabled={!createTargets.length} aria-label={t("Create proxies")}>
+              {targets.length ? t("Create for selected") : t("Create proxies")}
             </Button>
             {desktop && (
-              <Button type="button" variant="secondary" className={smallButton} onClick={() => setDialogOpen(true)} disabled={!createTargets.length} aria-label="Create proxies with a preset">
-                Preset…
+              <Button type="button" variant="secondary" className={smallButton} onClick={() => setDialogOpen(true)} disabled={!createTargets.length} aria-label={t("Create proxies with a preset")}>
+                {t("Preset…")}
               </Button>
             )}
-            <Button type="button" variant="secondary" className={smallButton} onClick={() => void retryFailed()} disabled={!counts.failed} aria-label="Retry failed proxies">
-              Retry failed{counts.failed ? ` (${counts.failed})` : ""}
+            <Button type="button" variant="secondary" className={smallButton} onClick={() => void retryFailed()} disabled={!counts.failed} aria-label={t("Retry failed proxies")}>
+              {t("Retry failed")}{counts.failed ? ` (${counts.failed})` : ""}
             </Button>
-            <Button type="button" variant="secondary" className={smallButton} onClick={() => void onAttach()} aria-label="Attach proxies">
-              Attach proxies…
+            <Button type="button" variant="secondary" className={smallButton} onClick={() => void onAttach()} aria-label={t("Attach proxies")}>
+              {t("Attach proxies…")}
             </Button>
             {desktop && (
-              <Button type="button" variant="secondary" className={smallButton} onClick={attachRelink} aria-label="Search a folder for proxies">
-                Find proxies…
+              <Button type="button" variant="secondary" className={smallButton} onClick={attachRelink} aria-label={t("Search a folder for proxies")}>
+                {t("Find proxies…")}
               </Button>
             )}
-            <Button type="button" variant="secondary" aria-pressed={proxiesOn} className={`${smallButton} ${proxiesOn ? "border-accent text-accent" : ""}`} onClick={() => setProxiesOn(!proxiesOn)} aria-label="Use proxies in preview">
-              Proxies {proxiesOn ? "on" : "off"}
+            <Button type="button" variant="secondary" aria-pressed={proxiesOn} className={`${smallButton} ${proxiesOn ? "border-accent text-accent" : ""}`} onClick={() => setProxiesOn(!proxiesOn)} aria-label={t("Use proxies in preview")}>
+              {t("Proxies")} {proxiesOn ? t("on") : t("off")}
             </Button>
           </div>
           {desktop && (
             <label className="block min-w-0 text-fg-muted">
-              Existing proxies are named
+              {t("Existing proxies are named")}
               <input
-                aria-label="Proxy name pattern"
+                aria-label={t("Proxy name pattern")}
                 data-testid="proxy-pattern"
                 className="mt-1 h-8 w-full min-w-0 rounded border border-border bg-bg-1 px-2 text-[11px] text-fg-2"
                 placeholder="{name}_proxy  (blank: _proxy, -prx, _lowres)"
@@ -393,36 +396,36 @@ export const ProxyIngestPanel: React.FC = () => {
                 onChange={(event) => setPattern(event.target.value)}
                 maxLength={120}
               />
-              <span className="mt-0.5 block text-[10px] leading-snug">Find proxies matches name, duration and frame rate, and reports what does not fit.</span>
+              <span className="mt-0.5 block text-[10px] leading-snug">{t("Find proxies matches name, duration and frame rate, and reports what does not fit.")}</span>
             </label>
           )}
           {desktop && lastRelink?.kind === "proxy" && (
             <div className="min-w-0 space-y-1 rounded border border-border bg-bg-1 p-1.5" data-testid="attach-report">
               <div className="text-fg-2">
-                {lastRelink.linked.length} attached{lastRelink.mismatched.length ? ` · ${lastRelink.mismatched.length} mismatched` : ""}{lastRelink.ambiguous.length ? ` · ${lastRelink.ambiguous.length} ambiguous` : ""}{lastRelink.notFound.length ? ` · ${lastRelink.notFound.length} not found` : ""}
+                {lastRelink.linked.length} {t("attached")}{lastRelink.mismatched.length ? ` · ${lastRelink.mismatched.length} mismatched` : ""}{lastRelink.ambiguous.length ? ` · ${lastRelink.ambiguous.length} ambiguous` : ""}{lastRelink.notFound.length ? ` · ${lastRelink.notFound.length} not found` : ""}
               </div>
               {lastRelink.mismatched.map((entry) => (
                 <p key={`${entry.name}:${entry.file}`} className="break-words text-status-warning" data-testid="attach-mismatch"><strong>{entry.name}</strong> / {entry.file}: {entry.reasons.join(" ")}</p>
               ))}
-              {lastRelink.ambiguous.map((entry) => <p key={entry.name} className="break-words text-status-warning">{entry.name}: {entry.candidates.length} files fit equally well. Nothing was attached.</p>)}
-              {lastRelink.notFound.length > 0 && <p className="break-words text-fg-muted">Not found: {lastRelink.notFound.slice(0, 6).join(", ")}{lastRelink.notFound.length > 6 ? ", ..." : ""}</p>}
+              {lastRelink.ambiguous.map((entry) => <p key={entry.name} className="break-words text-status-warning">{entry.name}: {entry.candidates.length} {t("files fit equally well. Nothing was attached.")}</p>)}
+              {lastRelink.notFound.length > 0 && <p className="break-words text-fg-muted">{t("Not found:")} {lastRelink.notFound.slice(0, 6).join(", ")}{lastRelink.notFound.length > 6 ? ", ..." : ""}</p>}
             </div>
           )}
           {desktop && copyJobList.length > 0 && (
-            <ul className="space-y-1.5" aria-label="Copy jobs" data-testid="copy-jobs">
+            <ul className="space-y-1.5" aria-label={t("Copy jobs")} data-testid="copy-jobs">
               {copyJobList.map((job) => {
                 const name = mediaItems.find((candidate) => candidate.id === job.mediaId)?.name ?? job.name ?? job.mediaId;
                 return (
                   <li key={job.id} data-testid="copy-row" data-state={job.status} className="min-w-0 rounded border border-border bg-bg-1 p-1.5">
                     <div className="flex min-w-0 items-center gap-1.5">
-                      <span className="min-w-0 flex-1 truncate text-fg-2" title={name}>Copy: {name}</span>
-                      <span className="shrink-0 text-fg-muted">{job.status === "running" ? `${Math.round(job.progress * 100)}%` : job.status === "failed" ? "Failed" : "Waiting"}</span>
+                      <span className="min-w-0 flex-1 truncate text-fg-2" title={name}>{t("Copy:")} {name}</span>
+                      <span className="shrink-0 text-fg-muted">{job.status === "running" ? `${Math.round(job.progress * 100)}%` : job.status === "failed" ? t("Failed") : t("Waiting")}</span>
                     </div>
                     {job.status === "running" && <Progress aria-label={`Copy progress for ${name}`} value={job.progress * 100} className="mt-1 h-1.5" />}
                     {job.error && <p className="mt-1 break-words text-status-warning">{job.error}</p>}
                     <div className="mt-1 flex gap-1">
-                      {job.status === "failed" && <Button type="button" variant="secondary" className={smallButton} onClick={() => void retryFailedDesktopProxies()}>Retry</Button>}
-                      <Button type="button" variant="secondary" className={smallButton} onClick={() => cancelDesktopCopy(job.mediaId)} aria-label={`Cancel copy of ${name}`}>Cancel</Button>
+                      {job.status === "failed" && <Button type="button" variant="secondary" className={smallButton} onClick={() => void retryFailedDesktopProxies()}>{t("Retry")}</Button>}
+                      <Button type="button" variant="secondary" className={smallButton} onClick={() => cancelDesktopCopy(job.mediaId)} aria-label={`Cancel copy of ${name}`}>{t("Cancel")}</Button>
                     </div>
                   </li>
                 );
@@ -431,22 +434,22 @@ export const ProxyIngestPanel: React.FC = () => {
           )}
           {desktop && lastCopy && (lastCopy.copied.length > 0 || lastCopy.skipped.length > 0) && copyJobList.length === 0 && (
             <div className="min-w-0 space-y-1 rounded border border-border bg-bg-1 p-1.5" data-testid="copy-report">
-              <div className="text-fg-2">{lastCopy.copied.length} copied{lastCopy.copied[0] ? ` and verified (${describeChecksum(lastCopy.copied[0].algorithm)})` : ""}{lastCopy.skipped.length ? ` · ${lastCopy.skipped.length} not copied` : ""}</div>
+              <div className="text-fg-2">{lastCopy.copied.length} {t("copied")}{lastCopy.copied[0] ? ` and verified (${describeChecksum(lastCopy.copied[0].algorithm)})` : ""}{lastCopy.skipped.length ? ` · ${lastCopy.skipped.length} not copied` : ""}</div>
               {lastCopy.copied.slice(0, 8).map((entry) => <p key={entry.mediaId} className="break-all font-mono text-[10px] text-fg-muted" title={entry.path}>{entry.name} {entry.checksum.slice(0, 16)}</p>)}
               {lastCopy.skipped.map((entry) => <p key={entry.name} className="break-words text-status-warning">{entry.name}: {entry.reason}</p>)}
             </div>
           )}
           {desktop && offlineCount > 0 && (
             <div className="flex min-w-0 items-center gap-1.5 rounded border border-yellow-500/40 bg-yellow-500/5 p-1.5" data-testid="offline-media-row">
-              <span className="min-w-0 flex-1 text-yellow-500">{offlineCount} media file{offlineCount === 1 ? " is" : "s are"} offline</span>
-              <Button type="button" variant="secondary" className={smallButton} onClick={() => void relinkFromFolder("full")} aria-label="Reconnect full resolution from a folder">Reconnect full resolution…</Button>
+              <span className="min-w-0 flex-1 text-yellow-500">{offlineCount} {t("media file")}{offlineCount === 1 ? t(" is") : t("s are")} {t("offline")}</span>
+              <Button type="button" variant="secondary" className={smallButton} onClick={() => void relinkFromFolder("full")} aria-label={t("Reconnect full resolution from a folder")}>{t("Reconnect full resolution…")}</Button>
             </div>
           )}
           <p className="leading-snug text-fg-muted">
-            Proxies are for editing only. Exports and interchange always read the full-resolution media{desktop ? " (the desktop export report says so)" : ""}.
+            {t("Proxies are for editing only. Exports and interchange always read the full-resolution media")}{desktop ? t(" (the desktop export report says so)") : ""}.
           </p>
           {attention.length > 0 && (
-            <ul className="space-y-1.5" aria-label="Proxy jobs and problems">
+            <ul className="space-y-1.5" aria-label={t("Proxy jobs and problems")}>
               {attention.map(({ item, state, progress, error, external }) => (
                 <li key={item.id} data-testid="proxy-row" data-state={state} data-external={external ? "true" : undefined} className="min-w-0 rounded border border-border bg-bg-1 p-1.5">
                   <div className="flex min-w-0 items-center gap-1.5">
@@ -456,21 +459,21 @@ export const ProxyIngestPanel: React.FC = () => {
                   {state === "building" && (
                     <div className="mt-1 flex items-center gap-1.5">
                       <Progress aria-label={`Proxy progress for ${item.name}`} value={progress * 100} className="h-1.5 min-w-0 flex-1" />
-                      <Button type="button" variant="secondary" className={smallButton} onClick={() => cancelJob(item.id)} aria-label={`Cancel proxy for ${item.name}`}>Cancel</Button>
+                      <Button type="button" variant="secondary" className={smallButton} onClick={() => cancelJob(item.id)} aria-label={`Cancel proxy for ${item.name}`}>{t("Cancel")}</Button>
                     </div>
                   )}
-                  {external && state === "ready" && <p className="mt-1 break-words text-fg-muted">The proxy file is on disk for other editing tools. This player cannot decode ProRes, so preview uses the original.</p>}
+                  {external && state === "ready" && <p className="mt-1 break-words text-fg-muted">{t("The proxy file is on disk for other editing tools. This player cannot decode ProRes, so preview uses the original.")}</p>}
                   {error && state !== "building" && <p className="mt-1 break-words text-status-warning">{error}</p>}
                   {(state === "failed" || state === "missing-proxy") && (
                     <div className="mt-1 flex flex-wrap gap-1">
-                      <Button type="button" variant="secondary" className={smallButton} onClick={() => queueProxies([item.id], quality, true)}>Rebuild</Button>
-                      <Button type="button" variant="secondary" className={smallButton} onClick={() => void pickRelink(item.id, "proxy")}>Relink proxy…</Button>
-                      {item.proxy && <Button type="button" variant="secondary" className={smallButton} onClick={() => void detachProxies([item.id])}>Remove link</Button>}
+                      <Button type="button" variant="secondary" className={smallButton} onClick={() => queueProxies([item.id], quality, true)}>{t("Rebuild")}</Button>
+                      <Button type="button" variant="secondary" className={smallButton} onClick={() => void pickRelink(item.id, "proxy")}>{t("Relink proxy…")}</Button>
+                      {item.proxy && <Button type="button" variant="secondary" className={smallButton} onClick={() => void detachProxies([item.id])}>{t("Remove link")}</Button>}
                     </div>
                   )}
                   {state === "missing-full" && (
                     <div className="mt-1 flex flex-wrap gap-1">
-                      <Button type="button" variant="secondary" className={smallButton} onClick={() => void pickRelink(item.id, "full")}>Reconnect full resolution…</Button>
+                      <Button type="button" variant="secondary" className={smallButton} onClick={() => void pickRelink(item.id, "full")}>{t("Reconnect full resolution…")}</Button>
                     </div>
                   )}
                 </li>

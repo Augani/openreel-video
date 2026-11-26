@@ -4,6 +4,7 @@ import type { Layer } from '../../../types/project';
 import type { LevelsChannel } from '../../../types/adjustments';
 import { DEFAULT_LEVELS } from '../../../types/adjustments';
 import { Activity, RotateCcw } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   layer: Layer;
@@ -53,6 +54,7 @@ function LevelsSlider({ label, value, min, max, step = 1, onChange }: LevelsSlid
 }
 
 export function LevelsSection({ layer }: Props) {
+  const t = useT();
   const { updateLayer } = useProjectStore();
   const [activeChannel, setActiveChannel] = useState<ChannelType>('master');
   const [isExpanded, setIsExpanded] = useState(true);
@@ -102,7 +104,7 @@ export function LevelsSection({ layer }: Props) {
       >
         <div className="flex items-center gap-2">
           <Activity size={14} className="text-muted-foreground" />
-          <span className="text-xs font-medium">Levels</span>
+          <span className="text-xs font-medium">{t("Levels")}</span>
           {levels.enabled && (
             <span className="w-1.5 h-1.5 rounded-full bg-primary" />
           )}
@@ -142,7 +144,7 @@ export function LevelsSection({ layer }: Props) {
             <button
               onClick={resetLevels}
               className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-secondary transition-colors"
-              title="Reset Levels"
+              title={t("Reset Levels")}
             >
               <RotateCcw size={12} />
             </button>
@@ -150,7 +152,7 @@ export function LevelsSection({ layer }: Props) {
 
           <div className="space-y-2.5 pt-1">
             <div className="space-y-1.5">
-              <span className="text-[10px] text-muted-foreground font-medium">Input Levels</span>
+              <span className="text-[10px] text-muted-foreground font-medium">{t("Input Levels")}</span>
               <div className="flex gap-2">
                 <div className="flex-1">
                   <LevelsSlider
@@ -183,7 +185,7 @@ export function LevelsSection({ layer }: Props) {
             />
 
             <div className="space-y-1.5">
-              <span className="text-[10px] text-muted-foreground font-medium">Output Levels</span>
+              <span className="text-[10px] text-muted-foreground font-medium">{t("Output Levels")}</span>
               <div className="flex gap-2">
                 <div className="flex-1">
                   <LevelsSlider

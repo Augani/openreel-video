@@ -18,6 +18,8 @@ import {
   type HighlightResult,
   type HighlightPreferences,
 } from "../../../services/highlight-service";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 interface HighlightExtractorPanelProps {
   clipId: string;
@@ -26,6 +28,7 @@ interface HighlightExtractorPanelProps {
 export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = ({
   clipId,
 }) => {
+  const t = useT();
   const [highlights, setHighlights] = useState<HighlightResult[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [phase, setPhase] = useState("");
@@ -54,7 +57,7 @@ export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = (
 
     const mediaItem = getMediaItem(clip.mediaId);
     if (!mediaItem?.blob) {
-      setError("Media not found or not loaded");
+      setError(translateNow("Media not found or not loaded"));
       return;
     }
 
@@ -124,12 +127,12 @@ export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = (
     <div className="space-y-3">
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <span className="font-normal text-[10px] text-text-secondary">Clips</span>
+          <span className="font-normal text-[10px] text-text-secondary">{t("Clips")}</span>
           <ShadcnNumericInput
             {...numericField0}
             type="number"
             inputMode="decimal"
-            aria-label={"Clips"}
+            aria-label={t("Clips")}
             min={1}
             max={20}
             step={1}
@@ -141,12 +144,12 @@ export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = (
               "w-12 px-1 py-0.5 text-[10px] bg-background-secondary border border-border rounded text-text-primary md:text-[10px]",
             )}
           />
-          <span className="font-normal text-[10px] text-text-secondary">Max</span>
+          <span className="font-normal text-[10px] text-text-secondary">{t("Max")}</span>
           <ShadcnNumericInput
             {...numericField1}
             type="number"
             inputMode="decimal"
-            aria-label={"Max duration"}
+            aria-label={t("Max duration")}
             min={1}
             max={300}
             step={1}
@@ -167,7 +170,7 @@ export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = (
             ) : (
               <Sparkles size={14} aria-hidden />
             )}</span>
-          <span className="truncate">{isProcessing ? `${phase} (${progress}%)` : "Find Highlights"}</span>
+          <span className="truncate">{isProcessing ? `${phase} (${progress}%)` : t("Find Highlights")}</span>
         </Button>
 
         {error && (
@@ -201,14 +204,14 @@ export const HighlightExtractorPanel: React.FC<HighlightExtractorPanelProps> = (
                     {highlight.score}
                   </div>
                   <span className="text-[10px] text-text-primary font-medium truncate max-w-[140px]">
-                    {highlight.title}
+                    {t(highlight.title)}
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Button variant="ghost" size="icon-sm" onClick={(e) => {
                       e.stopPropagation();
                       handlePreview(highlight);
-                    }} type="button" aria-label="Preview highlight" title="Preview highlight" className="inline-flex shrink-0 items-center justify-center outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:text-fg p-1 hover:bg-background-secondary rounded">
+                    }} type="button" aria-label={t("Preview highlight")} title={t("Preview highlight")} className="inline-flex shrink-0 items-center justify-center outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:text-fg p-1 hover:bg-background-secondary rounded">
                     {<Play size={10} className="text-text-muted" aria-hidden />}
                   </Button>
                   {selected.has(index) && (

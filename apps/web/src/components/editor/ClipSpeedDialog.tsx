@@ -6,6 +6,8 @@ import { useProjectStore } from "../../stores/project-store";
 import { toast } from "../../stores/notification-store";
 import { applyClipSpeedEdit, selectedSpeedClips } from "../../services/clip-speed-multi";
 import { formatFrameTimecode, parseFrameTimecode } from "../../utils/frame-timecode";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const EPS = 1e-6;
 const rateOf = (clip: { speed?: number }) => clip.speed ?? 1;
@@ -17,6 +19,7 @@ const rateOf = (clip: { speed?: number }) => clip.speed ?? 1;
  * Trailing Clips" honours sync lock; linked audio always follows.
  */
 export function ClipSpeedDialog() {
+  const t = useT();
   const open = useClipSpeedDialogStore((s) => s.open);
   const setOpen = useClipSpeedDialogStore((s) => s.setOpen);
   const frameRate = useProjectStore((s) => s.project.settings.frameRate) || 30;
@@ -93,7 +96,7 @@ export function ClipSpeedDialog() {
     if (pitchTouched) edit.maintainPitch = pitch;
     const outcome = applyClipSpeedEdit(edit, ripple);
     if (!outcome.success) {
-      toast.warning("Speed/Duration blocked", outcome.message ?? "The edit could not be applied.");
+      toast.warning(translateNow("Speed/Duration blocked"), outcome.message ?? "The edit could not be applied.");
       return;
     }
     setOpen(false);
@@ -103,11 +106,11 @@ export function ClipSpeedDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Clip speed / duration</DialogTitle>
+          <DialogTitle>{t("Clip speed / duration")}</DialogTitle>
           <DialogDescription>
             {clips.length > 1
               ? `Applies to ${clips.length} selected clips, including linked audio, as one undo step.`
-              : "Change how fast the clip plays. Linked audio follows."}
+              : t("Change how fast the clip plays. Linked audio follows.")}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -118,20 +121,20 @@ export function ClipSpeedDialog() {
           className="space-y-3"
         >
           <label className="grid grid-cols-[110px_1fr] items-center gap-2 text-xs text-fg-2">
-            Speed (%)
+            {t("Speed (%)")}
             <Input
               autoFocus
               inputMode="decimal"
-              aria-label="Speed percent"
-              placeholder={uniform ? "" : "Mixed"}
+              aria-label={t("Speed percent")}
+              placeholder={uniform ? "" : t("Mixed")}
               value={speed}
               onChange={(event) => onSpeed(event.target.value)}
             />
           </label>
           <label className="grid grid-cols-[110px_1fr] items-center gap-2 text-xs text-fg-2">
-            {clips.length > 1 ? "Total duration" : "Duration"}
+            {clips.length > 1 ? t("Total duration") : t("Duration")}
             <Input
-              aria-label="Duration"
+              aria-label={t("Duration")}
               value={duration}
               onChange={(event) => onDuration(event.target.value)}
             />
@@ -140,19 +143,19 @@ export function ClipSpeedDialog() {
           <div className="space-y-1.5 text-xs text-fg-2">
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={reverse} onChange={(event) => { setReverse(event.target.checked); setReverseTouched(true); }} />
-              Reverse speed
+              {t("Reverse speed")}
             </label>
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={pitch} onChange={(event) => { setPitch(event.target.checked); setPitchTouched(true); }} />
-              Maintain audio pitch
+              {t("Maintain audio pitch")}
             </label>
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={ripple} onChange={(event) => setRipple(event.target.checked)} />
-              Ripple edit, shifting trailing clips
+              {t("Ripple edit, shifting trailing clips")}
             </label>
           </div>
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>{t("Cancel")}</Button>
             <Button type="submit" disabled={!valid}>OK</Button>
           </DialogFooter>
         </form>

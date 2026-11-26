@@ -9,6 +9,7 @@ import { useProjectStore } from "../stores/project-store";
 import { useUIStore } from "../stores/ui-store";
 import { useTimelineStore } from "../stores/timeline-store";
 import { toast } from "../stores/notification-store";
+import { translateNow } from "@openreel/i18n/translate";
 
 /** The clip's volume lane exactly as stored (empty when it has none). */
 export const clipGainPoints = (clip: Clip): AutomationPoint[] =>
@@ -43,7 +44,7 @@ export async function commitClipGainPoints(
     },
   });
   if (!result.success) {
-    toast.warning("Gain edit blocked", result.error?.message ?? "The clip gain could not be changed.");
+    toast.warning(translateNow("Gain edit blocked"), result.error?.message ?? "The clip gain could not be changed.");
   }
   return result.success;
 }
@@ -63,7 +64,7 @@ export async function toggleGainKeyframeAtPlayhead(): Promise<boolean> {
         playhead <= clip.startTime + clip.duration,
     );
   if (!target) {
-    toast.warning("No gain keyframe added", "Select an audio clip under the playhead.");
+    toast.warning(translateNow("No gain keyframe added"), "Select an audio clip under the playhead.");
     return false;
   }
   const localTime = playhead - target.startTime;

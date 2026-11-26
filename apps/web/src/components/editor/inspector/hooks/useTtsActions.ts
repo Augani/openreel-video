@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useProjectStore } from "../../../../stores/project-store";
 import { useTtsAudioStore } from "../../../../stores/tts-store";
 import type { ElevenLabsVoice } from "../tts-types";
+import { translateNow } from "@openreel/i18n/translate";
 
 interface UseTtsActionsOptions {
   selectedVoice: string;
@@ -121,7 +122,7 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
 
   const handleEnhance = useCallback(async () => {
     if (!text.trim()) {
-      setError("Please enter some text");
+      setError(translateNow("Please enter some text"));
       return;
     }
 
@@ -145,7 +146,7 @@ export function useTtsActions(options: UseTtsActionsOptions): UseTtsActionsRetur
 
   const generateSpeech = useCallback(async () => {
     if (!text.trim() && !enhancedPreview) {
-      setError("Please enter some text");
+      setError(translateNow("Please enter some text"));
       return;
     }
 

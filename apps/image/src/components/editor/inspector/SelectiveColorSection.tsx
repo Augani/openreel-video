@@ -4,6 +4,7 @@ import type { Layer } from '../../../types/project';
 import type { SelectiveColorValues, SelectiveColorAdjustment } from '../../../types/adjustments';
 import { DEFAULT_SELECTIVE_COLOR } from '../../../types/adjustments';
 import { Palette, RotateCcw } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   layer: Layer;
@@ -55,6 +56,7 @@ function ColorSlider({ label, value, onChange }: { label: string; value: number;
 }
 
 export function SelectiveColorSection({ layer }: Props) {
+  const t = useT();
   const { updateLayer } = useProjectStore();
   const [activeRange, setActiveRange] = useState<ColorRange>('reds');
   const [isExpanded, setIsExpanded] = useState(false);
@@ -106,7 +108,7 @@ export function SelectiveColorSection({ layer }: Props) {
       >
         <div className="flex items-center gap-2">
           <Palette size={14} className="text-muted-foreground" />
-          <span className="text-xs font-medium">Selective Color</span>
+          <span className="text-xs font-medium">{t("Selective Color")}</span>
           {selectiveColor.enabled && (
             <span className="w-1.5 h-1.5 rounded-full bg-primary" />
           )}
@@ -133,14 +135,14 @@ export function SelectiveColorSection({ layer }: Props) {
                   className={`w-5 h-5 rounded transition-all ${range.color} ${
                     activeRange === range.id ? 'ring-2 ring-primary ring-offset-1 ring-offset-background' : ''
                   }`}
-                  title={range.label}
+                  title={t(range.label)}
                 />
               ))}
             </div>
             <button
               onClick={resetSelectiveColor}
               className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-secondary transition-colors"
-              title="Reset"
+              title={t("Reset")}
             >
               <RotateCcw size={12} />
             </button>

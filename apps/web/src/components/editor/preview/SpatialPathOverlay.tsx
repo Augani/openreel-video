@@ -96,7 +96,7 @@ export const SpatialPathOverlay: React.FC<{ clipId: string | null; bounds: Bound
   const here = evaluateKeyframesAt(keys, localTime);
   const marker = here.has("position.x") && here.has("position.y") ? toScreen({ x: here.get("position.x") as number, y: here.get("position.y") as number }) : null;
   return (
-    <svg ref={svg} data-testid="spatial-path-overlay" className="pointer-events-none absolute inset-0 z-30 h-full w-full overflow-visible" aria-label="Position motion path">
+    <svg ref={svg} data-testid="spatial-path-overlay" className="pointer-events-none absolute inset-0 z-30 h-full w-full overflow-visible" aria-label={t("Position motion path")}>
       <polyline
         data-testid="spatial-path-route"
         points={route.map((p) => { const s = toScreen(p); return `${s.x},${s.y}`; }).join(" ")}
@@ -140,7 +140,7 @@ export const SpatialPathOverlay: React.FC<{ clipId: string | null; bounds: Bound
                   onPointerMove={move} onPointerUp={end} onPointerCancel={() => { drag.current = null; setLive(null); }}
                 />
               </ContextMenuTrigger>
-              <ContextMenuContent aria-label="Spatial interpolation">
+              <ContextMenuContent aria-label={t("Spatial interpolation")}>
                 <ContextMenuLabel>{t("Spatial Interpolation")}</ContextMenuLabel>
                 {SPATIAL_INTERPOLATION_OPS.map((op) => (
                   <ContextMenuCheckboxItem key={op} checked={vertex.mode === op} onSelect={() => clipId && applySpatialInterpolationToClip(clipId, [vertex.xKeyId], op)}>

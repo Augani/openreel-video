@@ -21,6 +21,7 @@ import {
   usePreviewProxyStore,
 } from "../../stores/preview-proxy-store";
 import { WorkspaceTabs, workspaceTabPanel } from "./WorkspacePrimitives";
+import { useT } from "@openreel/i18n/react";
 
 function SettingSelect({
   label,
@@ -57,6 +58,7 @@ function SettingSelect({
   );
 }
 export function WorkspaceSettingsPanel() {
+  const t = useT();
   const [tab, setTab] = useState("project");
   const projectSettings = useProjectStore((s) => s.project.settings);
   const backgroundColor = useProjectStore((s) => s.project.timeline.layoutBackgroundColor);
@@ -196,7 +198,7 @@ export function WorkspaceSettingsPanel() {
               />
               <h3 className="workspace-settings-editor-heading">EDITOR</h3>
               <div className="workspace-setting-row workspace-theme-row">
-                <span>Theme</span>
+                <span>{t("Theme")}</span>
                 <div className="workspace-theme-options">
                   {(
                     [
@@ -217,7 +219,7 @@ export function WorkspaceSettingsPanel() {
                 </div>
               </div>
               <label className="workspace-switch-row">
-                <span>Auto-save every {autoSaveInterval === 1 ? "minute" : `${autoSaveInterval} minutes`}</span>
+                <span>{t("Auto-save every")} {autoSaveInterval === 1 ? t("minute") : `${autoSaveInterval} minutes`}</span>
                 <Switch
                   checked={autoSave}
                   onCheckedChange={(v) => {
@@ -226,20 +228,20 @@ export function WorkspaceSettingsPanel() {
                 />
               </label>
               <label className="workspace-switch-row">
-                <span>Use proxy media for 4K</span>
+                <span>{t("Use proxy media for 4K")}</span>
                 <Switch
-                  aria-label="Use proxy media for 4K"
+                  aria-label={t("Use proxy media for 4K")}
                   checked={autoProxy4k}
                   onCheckedChange={useUIStore.getState().setAutoProxy4k}
                 />
               </label>
               <label
                 className="workspace-switch-row"
-                title="Use GPU rendering for the preview when available."
+                title={t("Use GPU rendering for the preview when available.")}
               >
-                <span>Hardware acceleration</span>
+                <span>{t("Hardware acceleration")}</span>
                 <Switch
-                  aria-label="Hardware acceleration"
+                  aria-label={t("Hardware acceleration")}
                   checked={hardwareAcceleration}
                   onCheckedChange={(enabled) => {
                     useTimelineStore.getState().pause();
@@ -248,7 +250,7 @@ export function WorkspaceSettingsPanel() {
                 />
               </label>
               <label className="workspace-switch-row">
-                <span>Show waveforms on video clips</span>
+                <span>{t("Show waveforms on video clips")}</span>
                 <Switch
                   checked={waveforms}
                   onCheckedChange={useUIStore.getState().setShowWaveforms}
@@ -256,11 +258,11 @@ export function WorkspaceSettingsPanel() {
               </label>
               <div className="workspace-storage-card">
                 <div className="flex justify-between">
-                  <span>Local storage</span>
+                  <span>{t("Local storage")}</span>
                   <span className="font-mono">
                     {storage.quota
                       ? `${((storage.usage ?? 0) / 1e9).toFixed(1)} / ${(storage.quota / 1e9).toFixed(0)} GB`
-                      : "Unavailable"}
+                      : t("Unavailable")}
                   </span>
                 </div>
                 <Progress
@@ -271,10 +273,10 @@ export function WorkspaceSettingsPanel() {
                   }
                 />
                 <p>
-                  Preview proxies · {(proxyBytes / 1e6).toFixed(1)} MB ·{" "}
+                  {t("Preview proxies ·")} {(proxyBytes / 1e6).toFixed(1)} MB ·{" "}
                   <Button
                     variant="link"
-                    aria-label="Clear preview cache"
+                    aria-label={t("Clear preview cache")}
                     className="workspace-clear-preview-cache"
                     disabled={!Object.keys(proxies).length}
                     onClick={() =>
@@ -283,7 +285,7 @@ export function WorkspaceSettingsPanel() {
                       )
                     }
                   >
-                    Clear cache
+                    {t("Clear cache")}
                   </Button>
                 </p>
               </div>
@@ -293,12 +295,12 @@ export function WorkspaceSettingsPanel() {
               <h3>
                 {tab === "shortcuts"
                   ? "KEYBOARD SHORTCUTS"
-                  : "ACCOUNT & CONNECTIONS"}
+                  : t("ACCOUNT & CONNECTIONS")}
               </h3>
               <p className="text-fg-3 text-xs mb-4">
                 {tab === "shortcuts"
-                  ? "Customize the shortcuts for your editing workflow."
-                  : "Manage your AI providers, models and API keys."}
+                  ? t("Customize the shortcuts for your editing workflow.")
+                  : t("Manage your AI providers, models and API keys.")}
               </p>
               <Button
                 variant="secondary"
@@ -308,7 +310,7 @@ export function WorkspaceSettingsPanel() {
                     : useSettingsStore.getState().openSettings("ai-editor")
                 }
               >
-                Open {tab === "shortcuts" ? "shortcut settings" : "AI settings"}
+                {t("Open")} {tab === "shortcuts" ? t("shortcut settings") : t("AI settings")}
               </Button>
               {tab === "account" && (
                 <Button
@@ -316,7 +318,7 @@ export function WorkspaceSettingsPanel() {
                   className="mt-2 text-xs"
                   onClick={() => useSettingsStore.getState().openSettings()}
                 >
-                  Editor preferences & API keys…
+                  {t("Editor preferences & API keys…")}
                 </Button>
               )}
             </>

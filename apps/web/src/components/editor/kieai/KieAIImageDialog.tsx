@@ -35,6 +35,8 @@ import { NanoBanana2Form } from "./forms/NanoBanana2Form";
 import { Flux2Form } from "./forms/Flux2Form";
 import { GrokForm } from "./forms/GrokForm";
 import { QwenForm } from "./forms/QwenForm";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const defaultSeedream = (): SeedreamInput => ({
   prompt: "",
@@ -80,6 +82,7 @@ export const KieAIImageDialog = memo(function KieAIImageDialog(props: Props) {
   ) : null;
 });
 function ImageDialogSession({ onClose, sourceFile, previewUrl }: Props) {
+  const t = useT();
   const [owner] = useState(() => {
     const state = useProjectStore.getState();
     return { projectId: state.project.id, executor: state.actionExecutor };
@@ -232,7 +235,7 @@ function ImageDialogSession({ onClose, sourceFile, previewUrl }: Props) {
         setStep("error");
       } else if (requestWasSent) {
         toast.error(
-          "Image submission failed",
+          translateNow("Image submission failed"),
           err instanceof Error ? err.message : undefined,
         );
       }
@@ -271,7 +274,7 @@ function ImageDialogSession({ onClose, sourceFile, previewUrl }: Props) {
               type="button"
               variant="ghost"
               size="icon"
-              aria-label="Close dialog"
+              aria-label={t("Close dialog")}
               onClick={close}
               className="h-7 w-7 text-fg-2"
             >
@@ -279,8 +282,7 @@ function ImageDialogSession({ onClose, sourceFile, previewUrl }: Props) {
             </Button>
           </div>
           <DialogDescription className="sr-only">
-            Create an image with your chosen model, using the source as a
-            reference when supported.
+            {t("Create an image with your chosen model, using the source as a reference when supported.")}
           </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 space-y-4 overflow-y-auto p-5">
@@ -288,7 +290,7 @@ function ImageDialogSession({ onClose, sourceFile, previewUrl }: Props) {
             {previewUrl ? (
               <img
                 src={previewUrl}
-                alt="Source image"
+                alt={t("Source image")}
                 className="h-10 w-10 shrink-0 rounded object-cover"
               />
             ) : (
@@ -300,7 +302,7 @@ function ImageDialogSession({ onClose, sourceFile, previewUrl }: Props) {
               <p className="truncate text-[12px] font-semibold">
                 {sourceFile.name}
               </p>
-              <p className="text-[11px] text-fg-3">Source image</p>
+              <p className="text-[11px] text-fg-3">{t("Source image")}</p>
             </div>
           </Card>
           {step === "pick" && (
@@ -380,12 +382,12 @@ function ImageDialogSession({ onClose, sourceFile, previewUrl }: Props) {
               />
               <p role="status" className="text-[13px] text-fg-2">
                 {phase === "upload"
-                  ? "Uploading source image…"
-                  : "Submitting generation…"}
+                  ? t("Uploading source image…")
+                  : t("Submitting generation…")}
               </p>
               {phase === "request" && (
                 <p className="text-[12px] leading-5 text-fg-3">
-                  Accepted generations continue in the media library.
+                  {t("Accepted generations continue in the media library.")}
                 </p>
               )}
             </div>
@@ -413,18 +415,18 @@ function ImageDialogSession({ onClose, sourceFile, previewUrl }: Props) {
                   setSelectedModel(null);
                 }}
               >
-                Back to model selection
+                {t("Back to model selection")}
               </Button>
             )}
             {step === "submitting" && (
               <Button type="button" variant="outline" size="sm" onClick={close}>
-                {phase === "upload" ? "Cancel" : "Close"}
+                {phase === "upload" ? t("Cancel") : t("Close")}
               </Button>
             )}
             {step === "error" && (
               <>
                 <Button type="button" variant="ghost" size="sm" onClick={close}>
-                  Close
+                  {t("Close")}
                 </Button>
                 <Button
                   type="button"
@@ -432,7 +434,7 @@ function ImageDialogSession({ onClose, sourceFile, previewUrl }: Props) {
                   onClick={() => setStep("form")}
                   className="bg-accent text-accent-fg hover:bg-accent/90"
                 >
-                  Try Again
+                  {t("Try Again")}
                 </Button>
               </>
             )}

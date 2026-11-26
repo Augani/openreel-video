@@ -41,6 +41,8 @@ import {
 import { ErrorBoundary } from "../ErrorBoundary";
 import { toast } from "../../stores/notification-store";
 import { saveCurrentProjectForReplacement } from "../../services/project-replacement";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 const ProjectPackageDialog = lazy(() => import("./ProjectPackageDialog").then((module) => ({ default: module.ProjectPackageDialog })));
 
 function formatTimeAgo(timestamp: number): string {
@@ -59,6 +61,7 @@ function formatTimeAgo(timestamp: number): string {
 }
 
 export const ProjectSwitcher: React.FC<{ trigger?: React.ReactNode; menuContent?: React.ReactNode }> = ({ trigger, menuContent }) => {
+  const t = useT();
   const { project, createNewProject, recoverFromAutoSave, renameProject } = useProjectStore();
   const [isOpen, setIsOpen] = useState(false);
   const [savedProjects, setSavedProjects] = useState<AutoSaveMetadata[]>([]);
@@ -131,7 +134,7 @@ export const ProjectSwitcher: React.FC<{ trigger?: React.ReactNode; menuContent?
       await saveCurrentProjectForReplacement(current.project.id);
       createNewProject();
       setIsOpen(false);
-    } catch { toast.error("Project could not be saved", "Your current project is still open. Try saving it again."); }
+    } catch { toast.error(translateNow("Project could not be saved"), "Your current project is still open. Try saving it again."); }
     finally { replacing.current = false; setIsLoading(false); }
   }, [createNewProject]);
 
@@ -144,10 +147,10 @@ export const ProjectSwitcher: React.FC<{ trigger?: React.ReactNode; menuContent?
         const current = useProjectStore.getState();
         await saveCurrentProjectForReplacement(current.project.id);
         if (await recoverFromAutoSave(saveId)) setIsOpen(false);
-        else toast.error("Could not open this project", "Your current project is still available.");
+        else toast.error(translateNow("Could not open this project"), "Your current project is still available.");
       } catch (err) {
         console.error("[ProjectSwitcher] Failed to switch project:", err);
-        toast.error("Could not switch projects", "Your current project is still open. Try saving it again.");
+        toast.error(translateNow("Could not switch projects"), "Your current project is still open. Try saving it again.");
       } finally {
         replacing.current = false;
         setIsLoading(false);
@@ -198,7 +201,7 @@ export const ProjectSwitcher: React.FC<{ trigger?: React.ReactNode; menuContent?
         </ShadcnPopoverTrigger>
         <ShadcnPopoverContent
           align={"start"}
-          aria-label={"Project menu"}
+          aria-label={t("Project menu")}
           side="bottom"
           className={uiCn(
             "!w-auto !p-0 overflow-hidden",
@@ -209,7 +212,7 @@ export const ProjectSwitcher: React.FC<{ trigger?: React.ReactNode; menuContent?
             <Card className="min-w-0 shadow-none border-border text-fg p-0 max-h-[var(--radix-popover-content-available-height)] overflow-y-auto rounded-none border-0 bg-bg-1">
               <div className="p-3 border-b border-border">
                 <span className="text-fg-2 mb-2 text-xs font-medium uppercase tracking-wider">
-                  Current Project
+                  {t("Current Project")}
                 </span>
                 {isEditing ? (
                   <div className="flex items-center gap-2">
@@ -218,7 +221,7 @@ export const ProjectSwitcher: React.FC<{ trigger?: React.ReactNode; menuContent?
                       value={editName}
                       onBlur={handleSaveName}
                       onKeyDown={handleKeyDown}
-                      aria-label={"Project name"}
+                      aria-label={t("Project name")}
                       onChange={(event) => setEditName(event.currentTarget.value)}
                       style={{ width: "100%" }}
                       className={uiCn(
@@ -232,8 +235,8 @@ export const ProjectSwitcher: React.FC<{ trigger?: React.ReactNode; menuContent?
                       size="icon-sm"
                       onClick={handleSaveName}
                       type="button"
-                      aria-label="Save project name"
-                      title="Save project name"
+                      aria-label={t("Save project name")}
+                      title={t("Save project name")}
                       className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 border border-border hover:text-fg bg-primary text-white hover:bg-primary-hover"
                     >
                       {<Check className="h-4 w-4" aria-hidden />}
@@ -250,8 +253,8 @@ export const ProjectSwitcher: React.FC<{ trigger?: React.ReactNode; menuContent?
                       size="icon-sm"
                       onClick={() => setIsEditing(true)}
                       type="button"
-                      aria-label="Rename project"
-                      title="Rename project"
+                      aria-label={t("Rename project")}
+                      title={t("Rename project")}
                       className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-text-muted opacity-0 hover:bg-background-tertiary hover:text-text-primary group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
                     >
                       {<Pencil className="h-3.5 w-3.5" aria-hidden />}
@@ -268,7 +271,7 @@ export const ProjectSwitcher: React.FC<{ trigger?: React.ReactNode; menuContent?
                     setFilesOpen(true);
                   }}
                   type="button"
-                  aria-label="Project backups"
+                  aria-label={t("Project backups")}
                   className="group/card h-auto min-w-0 whitespace-normal rounded-[7px] border transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 border-transparent bg-transparent p-3 flex w-full items-start gap-3 text-left hover:bg-background-secondary"
                 >
                   <FolderOpen
@@ -277,10 +280,10 @@ export const ProjectSwitcher: React.FC<{ trigger?: React.ReactNode; menuContent?
                   />
                   <div className="min-w-0 flex-1 space-y-0.5">
                     <span className="text-fg-2 block text-sm font-medium leading-5">
-                      Project backups
+                      {t("Project backups")}
                     </span>
                     <span className="text-fg-2 font-normal block text-xs leading-4">
-                      Download or open a project with media
+                      {t("Download or open a project with media")}
                     </span>
                   </div>
                 </Button>
@@ -288,7 +291,7 @@ export const ProjectSwitcher: React.FC<{ trigger?: React.ReactNode; menuContent?
                   variant="ghost"
                   onClick={handleNewProject}
                   type="button"
-                  aria-label="New Project"
+                  aria-label={t("New Project")}
                   disabled={isLoading}
                   className="group/card h-auto min-w-0 whitespace-normal rounded-[7px] border transition-[background-color,border-color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 border-transparent bg-transparent p-3 group flex w-full items-center gap-3 text-left hover:bg-background-secondary"
                 >
@@ -297,10 +300,10 @@ export const ProjectSwitcher: React.FC<{ trigger?: React.ReactNode; menuContent?
                   </div>
                   <div className="min-w-0 flex-1 space-y-0.5">
                     <span className="text-fg block text-sm font-medium leading-5">
-                      New Project
+                      {t("New Project")}
                     </span>
                     <span className="text-fg-2 font-normal block text-xs leading-4">
-                      Start fresh with a new canvas
+                      {t("Start fresh with a new canvas")}
                     </span>
                   </div>
                 </Button>
@@ -312,7 +315,7 @@ export const ProjectSwitcher: React.FC<{ trigger?: React.ReactNode; menuContent?
                     <div className="flex items-center gap-2">
                       <Clock className="w-3 h-3" />
                       <span className="text-fg-2 text-xs font-medium uppercase tracking-wider">
-                        Recent Projects
+                        {t("Recent Projects")}
                       </span>
                     </div>
                   </div>
@@ -352,13 +355,13 @@ export const ProjectSwitcher: React.FC<{ trigger?: React.ReactNode; menuContent?
       </ShadcnPopover>
       {filesOpen && <ErrorBoundary fallback={createPortal(
         <div role="alert" className="fixed right-3 top-[72px] z-[10000] max-w-sm rounded-lg border border-border bg-bg-1 p-4 text-sm text-fg shadow-lg">
-          <p>Project backups couldn’t open. You can keep editing, or save your project and reload the editor to try again.</p>
-          <Button onClick={() => setFilesOpen(false)} type="button" aria-label="Dismiss" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg mt-2">
-            <span className="truncate">{"Dismiss"}</span>
+          <p>{t("Project backups couldn’t open. You can keep editing, or save your project and reload the editor to try again.")}</p>
+          <Button onClick={() => setFilesOpen(false)} type="button" aria-label={t("Dismiss")} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg mt-2">
+            <span className="truncate">{t("Dismiss")}</span>
           </Button>
         </div>, document.body,
       )}>
-        <Suspense fallback={createPortal(<div role="status" className="fixed right-3 top-[72px] z-[10000] rounded-lg border border-border bg-bg-1 p-4 text-sm text-fg shadow-lg">Opening project backups…</div>, document.body)}>
+        <Suspense fallback={createPortal(<div role="status" className="fixed right-3 top-[72px] z-[10000] rounded-lg border border-border bg-bg-1 p-4 text-sm text-fg shadow-lg">{t("Opening project backups…")}</div>, document.body)}>
           <ProjectPackageDialog onClose={() => setFilesOpen(false)} />
         </Suspense>
       </ErrorBoundary>}

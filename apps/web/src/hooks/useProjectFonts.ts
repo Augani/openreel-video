@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Project } from "@openreel/core";
 import { collectProjectFonts, ensureFontFamily } from "../services/project-fonts";
 import { toast } from "../stores/notification-store";
+import { translateNow } from "@openreel/i18n/translate";
 
 /** Repaint paused canvases when a newly requested font becomes available. */
 export function useProjectFonts(project: Pick<Project, "textClips" | "timeline" | "motionCompositions">): number {
@@ -15,7 +16,7 @@ export function useProjectFonts(project: Pick<Project, "textClips" | "timeline" 
     Promise.all(requests.map((font) => ensureFontFamily(font.family, font.weight, font.sample))).then(() => {
       if (active) setRevision((value) => value + 1);
     }).catch((error: unknown) => {
-      if (active) toast.warning("Font unavailable", error instanceof Error ? error.message : "Choose another font or check your connection.");
+      if (active) toast.warning(translateNow("Font unavailable"), error instanceof Error ? error.message : "Choose another font or check your connection.");
     });
     return () => { active = false; };
   }, [fonts]);

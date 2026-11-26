@@ -12,6 +12,7 @@ import { ChevronRight, Sliders, Palette, Wand2, Sparkles, Image as ImageIcon, La
 import { ScrollArea } from '@openreel/ui';
 import type { Layer, ImageLayer, TextLayer, ShapeLayer } from '../../../types/project';
 import type { Tool } from '../../../stores/ui-store';
+import { useT } from "@openreel/i18n/react";
 
 const TOOL_FOCUSED_TOOLS = new Set<Tool>([
   'pen', 'brush', 'eraser', 'gradient', 'paint-bucket',
@@ -250,6 +251,7 @@ function renderToolPanel(tool: Tool, imageLayer?: ImageLayer): JSX.Element | nul
 }
 
 function InspectorContent() {
+  const t = useT();
   const { project, selectedLayerIds, selectedArtboardId } = useProjectStore();
   const { activeTool } = useUIStore();
 
@@ -283,9 +285,9 @@ function InspectorContent() {
             </div>
             <div>
               <h3 className="text-sm font-semibold text-foreground">
-                {selectedLayers.length} layers
+                {selectedLayers.length} {t("layers")}
               </h3>
-              <p className="text-xs text-muted-foreground">Multiple selection</p>
+              <p className="text-xs text-muted-foreground">{t("Multiple selection")}</p>
             </div>
           </div>
           <AlignmentSection layers={selectedLayers} />
@@ -300,7 +302,7 @@ function InspectorContent() {
       return (
         <ScrollArea className="h-full">
           <div className="p-4">
-            <h3 className="text-sm font-semibold text-foreground mb-4">Artboard</h3>
+            <h3 className="text-sm font-semibold text-foreground mb-4">{t("Artboard")}</h3>
             <ArtboardSection artboard={artboard} />
           </div>
         </ScrollArea>
@@ -314,7 +316,7 @@ function InspectorContent() {
             <Layers size={20} className="text-muted-foreground" />
           </div>
           <p className="text-sm text-muted-foreground">
-            Select a layer to view<br />and edit its properties
+            {t("Select a layer to view")}<br />{t("and edit its properties")}
           </p>
         </div>
       </div>
@@ -344,13 +346,13 @@ function InspectorContent() {
               <h3 className="text-sm font-semibold text-foreground truncate">
                 {singleLayer.name}
               </h3>
-              <p className="text-xs text-muted-foreground capitalize">{singleLayer.type} layer</p>
+              <p className="text-xs text-muted-foreground capitalize">{singleLayer.type} {t("layer")}</p>
             </div>
           </div>
         </div>
 
         <Accordion defaultOpen={['transform', 'appearance', 'quick-filters', 'basic-adjustments']}>
-          <AccordionItem id="transform" icon={Sliders} title="Transform & Position">
+          <AccordionItem id="transform" icon={Sliders} title={t("Transform & Position")}>
             <div className="px-4 space-y-4">
               <TransformSection layer={singleLayer} />
               <div className="pt-2">
@@ -359,19 +361,19 @@ function InspectorContent() {
             </div>
           </AccordionItem>
 
-          <AccordionItem id="appearance" icon={Palette} title="Appearance">
+          <AccordionItem id="appearance" icon={Palette} title={t("Appearance")}>
             <div className="px-4">
               <AppearanceSection layer={singleLayer} />
             </div>
           </AccordionItem>
 
-          <AccordionItem id="effects" icon={Sparkles} title="Effects">
+          <AccordionItem id="effects" icon={Sparkles} title={t("Effects")}>
             <EffectsSection layer={singleLayer} />
           </AccordionItem>
 
           {singleLayer.type === 'image' && (
             <Suspense fallback={<SectionLoader />}>
-              <AccordionItem id="image-controls" icon={ImageIcon} title="Image Controls">
+              <AccordionItem id="image-controls" icon={ImageIcon} title={t("Image Controls")}>
                 <div className="px-4 space-y-4">
                   <ImageControlsSection layer={singleLayer as ImageLayer} />
                   <CropSection layer={singleLayer as ImageLayer} />
@@ -379,15 +381,15 @@ function InspectorContent() {
                 </div>
               </AccordionItem>
 
-              <AccordionItem id="quick-filters" icon={Wand2} title="Quick Filters">
+              <AccordionItem id="quick-filters" icon={Wand2} title={t("Quick Filters")}>
                 <FilterPresetsSection layer={singleLayer as ImageLayer} />
               </AccordionItem>
 
-              <AccordionItem id="basic-adjustments" icon={Sliders} title="Basic Adjustments">
+              <AccordionItem id="basic-adjustments" icon={Sliders} title={t("Basic Adjustments")}>
                 <ImageAdjustmentsSection layer={singleLayer as ImageLayer} />
               </AccordionItem>
 
-              <AccordionItem id="tonal" icon={Sliders} title="Tonal Adjustments">
+              <AccordionItem id="tonal" icon={Sliders} title={t("Tonal Adjustments")}>
                 <div className="space-y-0">
                   <LevelsSection layer={singleLayer} />
                   <CurvesSection layer={singleLayer} />
@@ -396,7 +398,7 @@ function InspectorContent() {
                 </div>
               </AccordionItem>
 
-              <AccordionItem id="color" icon={Palette} title="Color Adjustments">
+              <AccordionItem id="color" icon={Palette} title={t("Color Adjustments")}>
                 <div className="space-y-0">
                   <ColorBalanceSection layer={singleLayer} />
                   <SelectiveColorSection layer={singleLayer} />
@@ -407,7 +409,7 @@ function InspectorContent() {
                 </div>
               </AccordionItem>
 
-              <AccordionItem id="mask" icon={Layers} title="Mask">
+              <AccordionItem id="mask" icon={Layers} title={t("Mask")}>
                 <MaskSection layer={singleLayer} />
               </AccordionItem>
             </Suspense>
@@ -415,12 +417,12 @@ function InspectorContent() {
 
           {singleLayer.type === 'text' && (
             <Suspense fallback={<SectionLoader />}>
-              <AccordionItem id="text-settings" title="Text Settings">
+              <AccordionItem id="text-settings" title={t("Text Settings")}>
                 <div className="px-4">
                   <TextSection layer={singleLayer as TextLayer} />
                 </div>
               </AccordionItem>
-              <AccordionItem id="color-harmony" icon={Palette} title="Color Harmony">
+              <AccordionItem id="color-harmony" icon={Palette} title={t("Color Harmony")}>
                 <div className="px-4">
                   <ColorHarmonySection
                     baseColor={(singleLayer as TextLayer).style.color}
@@ -437,13 +439,13 @@ function InspectorContent() {
 
           {singleLayer.type === 'shape' && (
             <Suspense fallback={<SectionLoader />}>
-              <AccordionItem id="shape-settings" title="Shape Settings">
+              <AccordionItem id="shape-settings" title={t("Shape Settings")}>
                 <div className="px-4">
                   <ShapeSection layer={singleLayer as ShapeLayer} />
                 </div>
               </AccordionItem>
               {(singleLayer as ShapeLayer).shapeStyle.fill && (
-                <AccordionItem id="color-harmony" icon={Palette} title="Color Harmony">
+                <AccordionItem id="color-harmony" icon={Palette} title={t("Color Harmony")}>
                   <div className="px-4">
                     <ColorHarmonySection
                       baseColor={(singleLayer as ShapeLayer).shapeStyle.fill!}

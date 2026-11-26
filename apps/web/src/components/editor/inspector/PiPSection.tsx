@@ -14,6 +14,7 @@ import {
 } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
 import type { Transform } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 
 interface PiPSectionProps {
   clipId: string;
@@ -190,6 +191,7 @@ const PresetButton: React.FC<{
 );
 
 export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
+  const t = useT();
   const project = useProjectStore((state) => state.project);
   const updateClipTransform = useProjectStore(
     (state) => state.updateClipTransform,
@@ -327,17 +329,17 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
         <PictureInPicture2 size={16} className="text-primary" />
         <div className="flex-1 flex flex-col gap-0.5">
           <span className="text-fg text-[11px] font-medium">
-            Picture-in-Picture
+            {t("Picture-in-Picture")}
           </span>
           <span className="text-fg-2 font-normal text-[9px]">
-            Position and scale video overlay
+            {t("Position and scale video overlay")}
           </span>
         </div>
       </Card>
 
       <div className="space-y-2">
         <span className="text-fg-2 text-[10px] font-medium">
-          Corner Positions
+          {t("Corner Positions")}
         </span>
         <div className="grid grid-cols-4 gap-1">
           {cornerPresets.map((preset) => (
@@ -353,7 +355,7 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
 
       <div className="space-y-2">
         <span className="text-fg-2 text-[10px] font-medium">
-          Split Screen
+          {t("Split Screen")}
         </span>
         <div className="grid grid-cols-4 gap-1">
           {splitPresets.map((preset) => (
@@ -369,7 +371,7 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
 
       <div className="space-y-2">
         <span className="text-fg-2 text-[10px] font-medium">
-          Center & Full
+          {t("Center & Full")}
         </span>
         <div className="grid grid-cols-3 gap-1">
           {centerPresets.map((preset) => (
@@ -391,7 +393,7 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
         <div className="space-y-3 pt-2 border-t border-border">
           <div className="space-y-2">
             <span className="text-fg-2 text-[10px] font-medium">
-              Position
+              {t("Position")}
             </span>
             <ControlSlider
               label="X Position"
@@ -411,7 +413,7 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
 
           <div className="space-y-2">
             <span className="text-fg-2 text-[10px] font-medium">
-              Scale
+              {t("Scale")}
             </span>
             <ControlSlider
               label="Uniform Scale"
@@ -438,7 +440,7 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
 
           <div className="space-y-2">
             <span className="text-fg-2 text-[10px] font-medium">
-              Appearance
+              {t("Appearance")}
             </span>
             <ControlSlider
               label="Border Radius"
@@ -459,13 +461,13 @@ export const PiPSection: React.FC<PiPSectionProps> = ({ clipId }) => {
         </div>
       )}
 
-      <Button onClick={handleReset} type="button" aria-label="Reset to Default" className="min-w-0 font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 border border-border hover:bg-bg-3 w-full flex items-center justify-center gap-1.5 py-2 text-[10px] text-fg-2 hover:text-fg bg-bg-2 rounded-lg transition-colors">
+      <Button onClick={handleReset} type="button" aria-label={t("Reset to Default")} className="min-w-0 font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 border border-border hover:bg-bg-3 w-full flex items-center justify-center gap-1.5 py-2 text-[10px] text-fg-2 hover:text-fg bg-bg-2 rounded-lg transition-colors">
         <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<RotateCcw size={12} />}</span>
-        <span className="truncate">{"Reset to Default"}</span>
+        <span className="truncate">{t("Reset to Default")}</span>
       </Button>
 
       <span className="text-fg-2 font-normal text-center text-[9px]">
-        Drag clip in preview to fine-tune position
+        {t("Drag clip in preview to fine-tune position")}
       </span>
     </div>
   );

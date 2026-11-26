@@ -106,18 +106,18 @@ export const SequencesSection: React.FC<{ data: ProjectPanelData; trailing?: Rea
         <button
           type="button"
           aria-expanded={!collapsed}
-          aria-label={collapsed ? "Expand sequences" : "Collapse sequences"}
+          aria-label={collapsed ? t("Expand sequences") : t("Collapse sequences")}
           onClick={() => setUserCollapsed(!collapsed)}
           className="flex items-center gap-1 hover:text-fg"
         >
           <ChevronRight size={11} aria-hidden className={collapsed ? "" : "rotate-90"} />
-          Sequences
+          {t("Sequences")}
           <span className="font-normal normal-case text-fg-3">{rows.length}</span>
         </button>
         {trailing && <div className="ml-auto min-w-0">{trailing}</div>}
         <button
           type="button"
-          aria-label="New sequence"
+          aria-label={t("New sequence")}
           data-testid="sequence-panel-new"
           onClick={() => void newSequence()}
           className={`${trailing ? "" : "ml-auto "}flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] hover:bg-bg-2 hover:text-fg`}
@@ -126,7 +126,7 @@ export const SequencesSection: React.FC<{ data: ProjectPanelData; trailing?: Rea
         </button>
       </div>
       {!collapsed && (
-        <ul className="mt-0.5 flex flex-col gap-px" aria-label="Sequences">
+        <ul className="mt-0.5 flex flex-col gap-px" aria-label={t("Sequences")}>
           {rows.map((sequence) => {
             const active = sequence.id === project.activeSequenceId;
             const instances = countSequenceInstances(project, sequence.id);

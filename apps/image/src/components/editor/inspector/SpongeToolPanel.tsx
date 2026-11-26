@@ -1,7 +1,9 @@
 import { useUIStore } from '../../../stores/ui-store';
 import { Droplet, RotateCcw } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 export function SpongeToolPanel() {
+  const t = useT();
   const { spongeSettings, setSpongeSettings } = useUIStore();
 
   const resetSettings = () => {
@@ -17,24 +19,24 @@ export function SpongeToolPanel() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Droplet size={16} className="text-muted-foreground" />
-          <h3 className="text-sm font-medium">Sponge Tool</h3>
+          <h3 className="text-sm font-medium">{t("Sponge Tool")}</h3>
         </div>
         <button
           onClick={resetSettings}
           className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-secondary transition-colors"
-          title="Reset"
+          title={t("Reset")}
         >
           <RotateCcw size={14} />
         </button>
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Paint to saturate or desaturate color in specific areas.
+        {t("Paint to saturate or desaturate color in specific areas.")}
       </p>
 
       <div className="space-y-3">
         <div>
-          <span className="text-xs text-muted-foreground mb-1.5 block">Mode</span>
+          <span className="text-xs text-muted-foreground mb-1.5 block">{t("Mode")}</span>
           <div className="grid grid-cols-2 gap-1">
             <button
               onClick={() => setSpongeSettings({ mode: 'desaturate' })}
@@ -44,7 +46,7 @@ export function SpongeToolPanel() {
                   : 'bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary'
               }`}
             >
-              Desaturate
+              {t("Desaturate")}
             </button>
             <button
               onClick={() => setSpongeSettings({ mode: 'saturate' })}
@@ -54,14 +56,14 @@ export function SpongeToolPanel() {
                   : 'bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary'
               }`}
             >
-              Saturate
+              {t("Saturate")}
             </button>
           </div>
         </div>
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Size</span>
+            <span className="text-xs text-muted-foreground">{t("Size")}</span>
             <span className="text-xs font-mono text-muted-foreground">{spongeSettings.size}px</span>
           </div>
           <input
@@ -81,7 +83,7 @@ export function SpongeToolPanel() {
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Flow</span>
+            <span className="text-xs text-muted-foreground">{t("Flow")}</span>
             <span className="text-xs font-mono text-muted-foreground">{spongeSettings.flow}%</span>
           </div>
           <input

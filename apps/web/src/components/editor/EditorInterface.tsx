@@ -45,6 +45,7 @@ import { startAudioRackSync } from "../../services/audio-rack-sync";
 import { startAudioOutputService } from "../../services/audio-output-service";
 import { startLinkedCompHost } from "../../services/linked-comp-host";
 import "./editor-responsive.css";
+import { useT } from "@openreel/i18n/react";
 
 // Spotlight tours: loaded on the web build (first-run auto-start) or when a tour is requested; never on the desktop first-paint path.
 const TourHost = React.lazy(() => import("./tour/TourHost"));
@@ -167,6 +168,7 @@ const useAutoSave = () => {
 registerSmoothKeyframeRefresh(refreshSmoothKeyframesAfterEdit);
 
 export const EditorInterface: React.FC = () => {
+  const t = useT();
   const compact = useCompactEditor();
   const phone = usePhoneEditor();
   const tourRequested = useTourHostRequested();
@@ -514,16 +516,16 @@ export const EditorInterface: React.FC = () => {
         <div className="text-center">
           {initError ? (
             <div role="alert" className="max-w-md space-y-4 px-6">
-              <span className="text-[13px] leading-5 text-fg-2 font-bold">The editor couldn't start</span>
+              <span className="text-[13px] leading-5 text-fg-2 font-bold">{t("The editor couldn't start")}</span>
               <span className="font-normal text-status-error text-xs">{initError}</span>
-              <Button onClick={retry} type="button" aria-label="Try again" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-accent text-accent-fg hover:bg-accent/90">
-                <span className="truncate">{"Try again"}</span>
+              <Button onClick={retry} type="button" aria-label={t("Try again")} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-accent text-accent-fg hover:bg-accent/90">
+                <span className="truncate">{t("Try again")}</span>
               </Button>
             </div>
           ) : (
             <div role="status">
               <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-              <span className="font-normal text-fg-2 text-sm">Initializing editor…</span>
+              <span className="font-normal text-fg-2 text-sm">{t("Initializing editor…")}</span>
               <span className="font-normal text-fg-muted text-xs mt-2">{initStatus}</span>
             </div>
           )}
@@ -567,8 +569,8 @@ export const EditorInterface: React.FC = () => {
       <MissingFontsBanner />
 
       {phone && compactPanel !== "timeline" && <div className="mobile-panel-heading">
-        <ShadcnButton variant="ghost" onClick={() => openCompactPanel("timeline")}>Back to timeline</ShadcnButton>
-        <span>{compactPanel === "media" ? "Library" : compactPanel === "chat" ? "AI assist" : "Clip controls"}</span>
+        <ShadcnButton variant="ghost" onClick={() => openCompactPanel("timeline")}>{t("Back to timeline")}</ShadcnButton>
+        <span>{compactPanel === "media" ? t("Library") : compactPanel === "chat" ? t("AI assist") : t("Clip controls")}</span>
       </div>}
 
       <div className="editor-body flex-1 min-h-0 flex">
@@ -595,7 +597,7 @@ export const EditorInterface: React.FC = () => {
           style={{ gridArea: "mh" }}
           onMouseDown={beginResize(chatVisible ? "chat" : "media")}
           role="separator"
-          aria-label="Resize media panel"
+          aria-label={t("Resize media panel")}
           aria-orientation="vertical"
           aria-valuenow={chatVisible ? chatWidth : mediaWidth}
           tabIndex={0}
@@ -647,7 +649,7 @@ export const EditorInterface: React.FC = () => {
               style={{ gridArea: "ch" }}
               onMouseDown={beginResize("chat")}
               role="separator"
-              aria-label="Resize chat panel"
+              aria-label={t("Resize chat panel")}
               aria-orientation="vertical"
               aria-valuenow={chatWidth}
               tabIndex={0}
@@ -666,7 +668,7 @@ export const EditorInterface: React.FC = () => {
                 <React.Suspense
                   fallback={
                     <div className="grid h-full place-items-center text-xs text-fg-muted">
-                      Loading AI Editor…
+                      {t("Loading AI Editor…")}
                     </div>
                   }
                 >
@@ -696,7 +698,7 @@ export const EditorInterface: React.FC = () => {
         >
           {compact && !phone && hasSelection && (
             <ShadcnButton variant="ghost" size="sm" type="button" onClick={() => openCompactPanel("inspector")} className="h-auto shrink-0 whitespace-normal rounded-none p-0 text-xs font-normal leading-[1.4] text-accent bg-accent/10">
-              Edit selected clip · trim, captions, audio & effects
+              {t("Edit selected clip · trim, captions, audio & effects")}
             </ShadcnButton>
           )}
           <div className="flex-1 min-h-0 flex">
@@ -709,7 +711,7 @@ export const EditorInterface: React.FC = () => {
             {keyframeEditorOpen && (
               <div className={compact ? "w-full shrink-0 min-w-0" : "w-[min(640px,100%)] shrink-0 min-w-0"}>
                 <PanelErrorBoundary name="Keyframe Editor">
-                  <React.Suspense fallback={<div className="grid h-full place-items-center text-xs text-fg-muted" role="status">Loading keyframes…</div>}>
+                  <React.Suspense fallback={<div className="grid h-full place-items-center text-xs text-fg-muted" role="status">{t("Loading keyframes…")}</div>}>
                   <KeyframeEditorPanel
                     clip={selectedClip}
                     playheadTime={keyframePlayheadTime}
@@ -742,9 +744,9 @@ export const EditorInterface: React.FC = () => {
         </footer>
       )}
 
-      {phone && <React.Suspense fallback={<div style={{ height: 66, flexShrink: 0 }} role="status" aria-label="Loading mobile tools"/>}><MobileEditorTools onPanel={openCompactPanel}/></React.Suspense>}
+      {phone && <React.Suspense fallback={<div style={{ height: 66, flexShrink: 0 }} role="status" aria-label={t("Loading mobile tools")}/>}><MobileEditorTools onPanel={openCompactPanel}/></React.Suspense>}
       {compact && !phone && (
-        <nav aria-label="Editor workspace" className="editor-workspace-tabs">
+        <nav aria-label={t("Editor workspace")} className="editor-workspace-tabs">
           {([
             ["timeline", "Timeline"], ["media", "Media"], ["inspector", "Edit"], ["chat", "AI"],
           ] as const).map(([panel, label]) => (
@@ -793,10 +795,10 @@ export const EditorInterface: React.FC = () => {
       <InterchangeExportDialog />
       <Dialog open={panels.audioMixer?.visible ?? false} onOpenChange={(open) => setPanelVisible("audioMixer", open)}>
         <DialogContent hideCloseButton aria-describedby={undefined} className="w-[calc(100vw-32px)] max-w-3xl gap-0 overflow-hidden border-border bg-bg-1 p-0 text-fg">
-          <DialogTitle className="sr-only">Audio Mixer</DialogTitle>
+          <DialogTitle className="sr-only">{t("Audio Mixer")}</DialogTitle>
           <ScrollArea className="h-[min(760px,calc(100dvh-32px))]">
             <PanelErrorBoundary name="Audio Mixer">
-              <React.Suspense fallback={<div className="grid h-40 place-items-center text-xs text-fg-muted" role="status">Loading mixer…</div>}>
+              <React.Suspense fallback={<div className="grid h-40 place-items-center text-xs text-fg-muted" role="status">{t("Loading mixer…")}</div>}>
                 <AudioMixer visible onClose={() => setPanelVisible("audioMixer", false)} />
               </React.Suspense>
             </PanelErrorBoundary>

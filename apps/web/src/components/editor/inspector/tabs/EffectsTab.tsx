@@ -31,6 +31,8 @@ import {
 } from "../../panels/EditingTemplateControls";
 import { toast } from "../../../../stores/notification-store";
 import { ParticleEffectsSectionWrapper } from "./ParticleEffectsSectionWrapper";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 interface EffectsTabClip {
   duration: number;
@@ -118,6 +120,7 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
   handleKeyColorChange,
   handleToleranceChange,
 }) => {
+  const t = useT();
   return (
     <>
       {showVideoControls && selectedTimelineClip && (appliedEditingTemplates.length > 0 || (selectedTimelineClip.effects && selectedTimelineClip.effects.length > 0)) && (
@@ -152,7 +155,7 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
                       </span>
                       <span className="text-fg-2 font-normal shrink-0 text-[9px] capitalize"
                       >
-                        {application.category?.replace(/-/g, " ") || "recipe"}
+                        {application.category?.replace(/-/g, " ") || t("recipe")}
                       </span>
                     </div>
                     <div className="flex shrink-0 gap-1">
@@ -163,8 +166,8 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
                               application.templateId,
                               application.controlValues,
                             )
-                          } type="button" aria-label="Edit" className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 px-2.5 text-[12px]", (isExpanded ? "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg" : "bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg"), isExpanded ? "bg-primary/15 text-primary" : "text-fg-3")}>
-                          <span className="truncate">{"Edit"}</span>
+                          } type="button" aria-label={t("Edit")} className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 px-2.5 text-[12px]", (isExpanded ? "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg" : "bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg"), isExpanded ? "bg-primary/15 text-primary" : "text-fg-3")}>
+                          <span className="truncate">{t("Edit")}</span>
                         </Button>
                       )}
                       <Button variant="ghost" size="icon-sm" onClick={() => {
@@ -173,7 +176,7 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
                             application.applicationId,
                           );
                           if (!removed) {
-                            toast.error("Could not remove recipe", "The recipe could not be removed from this clip.");
+                            toast.error(translateNow("Could not remove recipe"), "The recipe could not be removed from this clip.");
                             return;
                           }
                           setRecipeControlValues((current) => {
@@ -184,7 +187,7 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
                           if (expandedRecipeApplicationId === application.applicationId) {
                             setExpandedRecipeApplicationId(null);
                           }
-                        }} type="button" aria-label="Remove recipe" title="Remove recipe" className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent hover:bg-bg-2 text-fg-3 hover:text-red-400">
+                        }} type="button" aria-label={t("Remove recipe")} title={t("Remove recipe")} className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent hover:bg-bg-2 text-fg-3 hover:text-red-400">
                         {<Trash2 size={11} aria-hidden />}
                       </Button>
                     </div>
@@ -210,8 +213,8 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
                               application.templateId,
                               application.controlValues,
                             )
-                          } type="button" aria-label="Reset" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
-                          <span className="truncate">{"Reset"}</span>
+                          } type="button" aria-label={t("Reset")} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg">
+                          <span className="truncate">{t("Reset")}</span>
                         </Button>
                         <Button onClick={() =>
                             handleUpdateRecipeControls(
@@ -219,8 +222,8 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
                               application.templateId,
                               application.controlValues,
                             )
-                          } type="button" aria-label="Update" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90">
-                          <span className="truncate">{"Update"}</span>
+                          } type="button" aria-label={t("Update")} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90">
+                          <span className="truncate">{t("Update")}</span>
                         </Button>
                       </div>
                     </div>
@@ -245,7 +248,7 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
                       effect.enabled !== false ? "text-green-400" : ""
                     }`)}
                   >
-                    {effect.enabled !== false ? "On" : "Off"}
+                    {effect.enabled !== false ? t("On") : t("Off")}
                   </span>
                 </Card>
               ))}
@@ -254,7 +257,7 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
       )}
 
       {clipType === "video" && (
-        <InspectorSection title="Background Removal" sectionId="background-removal" defaultOpen={false}>
+        <InspectorSection title={t("Background Removal")} sectionId="background-removal" defaultOpen={false}>
           <BackgroundRemovalSection clipId={clipId} />
         </InspectorSection>
       )}
@@ -268,7 +271,7 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
         clipType === "sticker") &&
         selectedClip && (
           <InspectorSection
-            title="Particle Effects"
+            title={t("Particle Effects")}
             sectionId="particle-effects"
             defaultOpen={false}
           >
@@ -282,11 +285,11 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
 
       {/* Chroma Key - Using ChromaKeyEngine - Only for video/image */}
       {showVideoControls && (
-        <InspectorSection title="Chroma Key (Green Screen)" sectionId="chroma-key">
+        <InspectorSection title={t("Chroma Key (Green Screen)")} sectionId="chroma-key">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-fg-2 font-normal text-[10px]">
-                Enable
+                {t("Enable")}
               </span>
               <InspectorToggle
                 ariaLabel="Enable chroma key"
@@ -298,7 +301,7 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
               <>
                 <div className="flex items-center justify-between">
                   <span className="text-fg-2 font-normal text-[10px]">
-                    Key Color
+                    {t("Key Color")}
                   </span>
                   <ColorPicker
                     label="Key Color"
@@ -323,26 +326,26 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
 
       {/* Motion Tracking - Using MotionTrackingEngine - Only for video/image */}
       {showVideoControls && (
-        <InspectorSection title="Motion Tracking" sectionId="motion-tracking">
+        <InspectorSection title={t("Motion Tracking")} sectionId="motion-tracking">
           <MotionTrackingSection clipId={clipId} />
         </InspectorSection>
       )}
 
       {showVideoControls && (
-        <InspectorSection title="Planar Tracking" sectionId="planar-tracking">
+        <InspectorSection title={t("Planar Tracking")} sectionId="planar-tracking">
           <PlanarTrackingSection clipId={clipId} />
         </InspectorSection>
       )}
 
       {showVideoEffects && (
-        <InspectorSection title="Video Effects" sectionId="video-effects">
+        <InspectorSection title={t("Video Effects")} sectionId="video-effects">
           <VideoEffectsSection clipId={clipId} />
         </InspectorSection>
       )}
 
       {showVideoControls && (
         <InspectorSection
-          title="Green Screen"
+          title={t("Green Screen")}
           sectionId="green-screen"
           defaultOpen={false}
         >
@@ -353,7 +356,7 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
       {/* Picture-in-Picture Section */}
       {showVideoControls && (
         <InspectorSection
-          title="Picture-in-Picture"
+          title={t("Picture-in-Picture")}
           sectionId="pip"
           defaultOpen={false}
         >
@@ -362,26 +365,26 @@ export const EffectsTab: React.FC<EffectsTabProps> = ({
       )}
 
       {showVideoControls && (
-        <InspectorSection title="Masking" sectionId="masking" defaultOpen={false}>
+        <InspectorSection title={t("Masking")} sectionId="masking" defaultOpen={false}>
           <MaskSection clipId={clipId} />
         </InspectorSection>
       )}
 
       {showVideoControls && (
-        <InspectorSection title="Nested Sequences" defaultOpen={false}>
+        <InspectorSection title={t("Nested Sequences")} defaultOpen={false}>
           <NestedSequenceSection clipId={clipId} />
         </InspectorSection>
       )}
 
       {showVideoControls && (
-        <InspectorSection title="Adjustment Layers" defaultOpen={false}>
+        <InspectorSection title={t("Adjustment Layers")} defaultOpen={false}>
           <AdjustmentLayerSection clipId={clipId} />
         </InspectorSection>
       )}
 
       {showTextSection && (
         <InspectorSection
-          title="Text Behind Subject"
+          title={t("Text Behind Subject")}
           sectionId="text-behind-subject"
           defaultOpen={false}
         >

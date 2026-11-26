@@ -10,6 +10,7 @@ import { cn } from "@openreel/ui";
 
 import { RotateCcw } from "@/icons/lucide-compat";
 import type { CurvesValues, CurvePoint } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 
 const DEFAULT_CURVES: CurvesValues = {
   rgb: [
@@ -148,6 +149,7 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
   onChange,
   onReset: _onReset,
 }) => {
+  const t = useT();
   void _onReset;
   const [activeChannel, setActiveChannel] = useState<keyof CurvesValues>("rgb");
   const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(
@@ -425,17 +427,17 @@ export const CurvesEditor: React.FC<CurvesEditorProps> = ({
       {/* Controls */}
       <div className="flex justify-between items-center">
         <span className="text-fg-2 font-normal text-[9px]">
-          Click to add point • Double-click to remove
+          {t("Click to add point • Double-click to remove")}
         </span>
-        <Button onClick={handleResetChannel} type="button" aria-label="Reset" className="min-w-0 justify-center rounded-[7px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 bg-transparent hover:bg-bg-2 flex items-center gap-1 px-2 py-1 text-[10px] text-fg-3 hover:text-fg transition-colors">
+        <Button onClick={handleResetChannel} type="button" aria-label={t("Reset")} className="min-w-0 justify-center rounded-[7px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 bg-transparent hover:bg-bg-2 flex items-center gap-1 px-2 py-1 text-[10px] text-fg-3 hover:text-fg transition-colors">
           <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<RotateCcw size={10} />}</span>
-          <span className="truncate">{"Reset"}</span>
+          <span className="truncate">{t("Reset")}</span>
         </Button>
       </div>
 
       {/* Point count indicator */}
       <span className="text-fg-2 font-normal block text-center text-[9px]">
-        {currentPoints.length} points
+        {currentPoints.length} {t("points")}
       </span>
     </div>
   );
