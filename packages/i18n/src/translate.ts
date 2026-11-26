@@ -1,4 +1,4 @@
-import type { Locale } from "./index";
+import { languageStore, type Locale } from "./index";
 import { zhCN } from "./zh-CN";
 
 const PLACEHOLDER = /\{(\w+)\}/g;
@@ -16,4 +16,12 @@ export function translate(
   return template.replace(PLACEHOLDER, (match: string, key: string) =>
     Object.prototype.hasOwnProperty.call(vars, key) ? String(vars[key]) : match,
   );
+}
+
+/** Translate with the store's current locale; for services, stores and bridges. */
+export function translateNow(
+  source: string,
+  vars?: Record<string, string | number>,
+): string {
+  return translate(languageStore.getLocale(), source, vars);
 }

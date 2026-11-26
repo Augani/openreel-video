@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { translate } from "./translate";
+import { initLanguage } from "./index";
+import { translate, translateNow } from "./translate";
 
 describe("translate", () => {
   it("translates known keys", () => {
@@ -33,4 +34,16 @@ describe("translate", () => {
       expect(translate("zh-CN", key, { name: "Intro" })).toBe(key);
     },
   );
+});
+
+describe("translateNow", () => {
+  it("translates with the current locale for non-React callers", () => {
+    initLanguage({ storage: null, systemLanguages: ["en-US"] });
+    expect(translateNow("Cancel")).toBe("Cancel");
+    initLanguage({
+      storage: { getItem: () => "zh-CN", setItem: () => {} },
+      systemLanguages: ["en-US"],
+    });
+    expect(translateNow("Cancel")).toBe("取消");
+  });
 });
