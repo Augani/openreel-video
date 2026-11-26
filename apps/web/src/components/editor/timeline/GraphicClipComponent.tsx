@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { protectedDurations, type GraphicInstance, type Track } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 import { Link2 } from "lucide-react";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@openreel/ui";
 import { calculateSnap } from "./utils";
@@ -46,6 +47,7 @@ const GraphicClipComponentImpl: React.FC<GraphicClipComponentProps> = ({
   onSelect,
   allTracks,
 }) => {
+  const t = useT();
   const locked = allTracks.find((track) => track.id === instance.trackId)?.locked ?? false;
   const snapSettings = useUIStore((state) => state.snapSettings);
   const [live, setLive] = useState<{ startTime: number; duration: number } | null>(null);
@@ -211,10 +213,10 @@ const GraphicClipComponentImpl: React.FC<GraphicClipComponentProps> = ({
       <ContextMenuContent className="w-[230px] [&_[role=menuitem]]:text-xs" data-testid="graphic-bar-menu">
         {linkedId ? (
           <>
-            <ContextMenuItem data-testid="menu-open-linked" onSelect={() => { void openLinkedCompositionWindow(linkedId); }}>Open Linked Composition</ContextMenuItem>
-            <ContextMenuItem data-testid="menu-render-replace" onSelect={() => { void renderAndReplaceCommand(instance.id); }}>Render and Replace</ContextMenuItem>
+            <ContextMenuItem data-testid="menu-open-linked" onSelect={() => { void openLinkedCompositionWindow(linkedId); }}>{t("Open Linked Composition")}</ContextMenuItem>
+            <ContextMenuItem data-testid="menu-render-replace" onSelect={() => { void renderAndReplaceCommand(instance.id); }}>{t("Render and Replace")}</ContextMenuItem>
             <ContextMenuSeparator />
-            <ContextMenuItem onSelect={() => { void detachLinkedCompositionCommand(instance.id); }}>Unlink from Composition</ContextMenuItem>
+            <ContextMenuItem onSelect={() => { void detachLinkedCompositionCommand(instance.id); }}>{t("Unlink from Composition")}</ContextMenuItem>
           </>
         ) : (
           <ContextMenuItem
@@ -224,11 +226,11 @@ const GraphicClipComponentImpl: React.FC<GraphicClipComponentProps> = ({
               void replaceSelectionWithLinkedComposition(instance.name);
             }}
           >
-            Replace with Linked Composition
+            {t("Replace with Linked Composition")}
           </ContextMenuItem>
         )}
         <ContextMenuSeparator />
-        <ContextMenuItem onSelect={() => { void ungroupGraphicCommand(instance.id); }}>Ungroup Layers</ContextMenuItem>
+        <ContextMenuItem onSelect={() => { void ungroupGraphicCommand(instance.id); }}>{t("Ungroup Layers")}</ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
   );

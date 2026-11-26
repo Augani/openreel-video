@@ -18,6 +18,7 @@ import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
 import { getTimelineTrackSelection } from "../../../utils/timeline-item-actions";
 import { replaceSelectionWithLinkedComposition } from "../../../services/linked-comp-commands";
+import { useT } from "@openreel/i18n/react";
 
 type GraphicsClipType = ShapeClip | SVGClip | StickerClip | TextClip;
 
@@ -36,6 +37,7 @@ export function GraphicsClipContextMenu({
   onDelete,
   onDuplicate,
 }: GraphicsClipContextMenuProps) {
+  const t = useT();
   const selectMultiple = useUIStore((state) => state.selectMultiple);
   const project = useProjectStore((state) => state.project);
   const ownerProjectId = useRef(project.id);
@@ -92,17 +94,17 @@ export function GraphicsClipContextMenu({
   const getClipTypeLabel = () => {
     switch (clipType) {
       case "shape":
-        return "Shape";
+        return "Shape Clip";
       case "svg":
-        return "SVG";
+        return "SVG Clip";
       case "sticker":
-        return "Sticker";
+        return "Sticker Clip";
       case "emoji":
-        return "Emoji";
+        return "Emoji Clip";
       case "text":
-        return "Text";
+        return "Text Clip";
       default:
-        return "Graphics";
+        return "Graphics Clip";
     }
   };
 
@@ -119,11 +121,11 @@ export function GraphicsClipContextMenu({
     <ContextMenuContent className="w-[200px] [&_[role=menuitem]]:gap-2 [&_[role=menuitem]]:text-xs"
       onPointerDown={event => event.stopPropagation()} onMouseDown={event => event.stopPropagation()}
       onMouseUp={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>
-      <ContextMenuLabel className="flex items-center gap-2 text-xs">{getClipTypeIcon()}{getClipTypeLabel()} Clip</ContextMenuLabel>
+      <ContextMenuLabel className="flex items-center gap-2 text-xs">{getClipTypeIcon()}{t(getClipTypeLabel())}</ContextMenuLabel>
       <ContextMenuSeparator />
-      <ContextMenuItem onSelect={handleCopy}><Copy size={14} aria-hidden />Copy Clip</ContextMenuItem>
-      <ContextMenuItem disabled={editingDisabled} onSelect={() => void handleDuplicate()}><Layers size={14} aria-hidden />Duplicate</ContextMenuItem>
-      <ContextMenuItem onSelect={handleSelectTrackClips}><ListChecks size={14} aria-hidden />{isCaption ? "Select All Captions" : "Select All Clips on Track"}</ContextMenuItem>
+      <ContextMenuItem onSelect={handleCopy}><Copy size={14} aria-hidden />{t("Copy Clip")}</ContextMenuItem>
+      <ContextMenuItem disabled={editingDisabled} onSelect={() => void handleDuplicate()}><Layers size={14} aria-hidden />{t("Duplicate")}</ContextMenuItem>
+      <ContextMenuItem onSelect={handleSelectTrackClips}><ListChecks size={14} aria-hidden />{isCaption ? t("Select All Captions") : t("Select All Clips on Track")}</ContextMenuItem>
       {(clipType === "text" || clipType === "shape" || clipType === "svg") && !isCaption && (
         <ContextMenuItem
           data-testid="replace-with-linked-composition"
@@ -134,10 +136,10 @@ export function GraphicsClipContextMenu({
             void replaceSelectionWithLinkedComposition();
             onClose?.();
           }}
-        ><Layers size={14} aria-hidden />Replace with Linked Composition</ContextMenuItem>
+        ><Layers size={14} aria-hidden />{t("Replace with Linked Composition")}</ContextMenuItem>
       )}
       <ContextMenuSeparator />
-      <ContextMenuItem disabled={editingDisabled} onSelect={() => void handleDelete()}><Trash2 size={14} aria-hidden />Delete</ContextMenuItem>
+      <ContextMenuItem disabled={editingDisabled} onSelect={() => void handleDelete()}><Trash2 size={14} aria-hidden />{t("Delete")}</ContextMenuItem>
     </ContextMenuContent>
   );
 }

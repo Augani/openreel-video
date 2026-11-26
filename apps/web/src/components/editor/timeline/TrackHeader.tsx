@@ -8,6 +8,7 @@ import {
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@openreel/ui";
 import type { Track } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 import {
   patchLabel,
   resolveSourceChannelGroups,
@@ -47,6 +48,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
   active = false,
   audioDivider = false,
 }) {
+  const t = useT();
   const compact = useCompactEditor();
   const {
     lockTrack,
@@ -196,31 +198,31 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
     const Separator = kind === "context" ? ContextMenuSeparator : DropdownMenuSeparator;
     return <>
       {kind === "context" && isAudio && <>
-        <ContextMenuCheckboxItem checked={track.muted} onCheckedChange={checked => void muteTrack(track.id, checked === true)}>{`Mute ${track.name}`}</ContextMenuCheckboxItem>
-        <ContextMenuCheckboxItem checked={track.solo} onCheckedChange={checked => void soloTrack(track.id, checked === true)}>{`Solo ${track.name}`}</ContextMenuCheckboxItem>
-        <ContextMenuCheckboxItem checked={track.soloSafe === true} onCheckedChange={checked => void setTrackSoloSafe(track.id, checked === true)}>{`Solo Safe ${track.name}`}</ContextMenuCheckboxItem>
+        <ContextMenuCheckboxItem checked={track.muted} onCheckedChange={checked => void muteTrack(track.id, checked === true)}>{t("Mute {name}", { name: track.name })}</ContextMenuCheckboxItem>
+        <ContextMenuCheckboxItem checked={track.solo} onCheckedChange={checked => void soloTrack(track.id, checked === true)}>{t("Solo {name}", { name: track.name })}</ContextMenuCheckboxItem>
+        <ContextMenuCheckboxItem checked={track.soloSafe === true} onCheckedChange={checked => void setTrackSoloSafe(track.id, checked === true)}>{t("Solo Safe {name}", { name: track.name })}</ContextMenuCheckboxItem>
         <Separator />
       </>}
-      <Item onSelect={startRename}><Pencil size={14} aria-hidden />Rename Track</Item>
-      <Item disabled={!hasGaps} onSelect={() => void handleRemoveGaps()}><AlignLeft size={14} aria-hidden />Remove Gaps</Item>
-      {track.groupId && <Item onSelect={() => void groupTracks(track.id)}><Unlink size={14} aria-hidden />Ungroup Track</Item>}
+      <Item onSelect={startRename}><Pencil size={14} aria-hidden />{t("Rename Track")}</Item>
+      <Item disabled={!hasGaps} onSelect={() => void handleRemoveGaps()}><AlignLeft size={14} aria-hidden />{t("Remove Gaps")}</Item>
+      {track.groupId && <Item onSelect={() => void groupTracks(track.id)}><Unlink size={14} aria-hidden />{t("Ungroup Track")}</Item>}
       {groupCandidates.length > 0 && <>
-        <Separator /><Label className="text-xs">Move &amp; trim together</Label>
-        {groupCandidates.map(candidate => <Item key={candidate.id} onSelect={() => void groupTracks(track.id, candidate.id)}><Link2 size={14} aria-hidden />Group with {candidate.name}</Item>)}
+        <Separator /><Label className="text-xs">{t("Move & trim together")}</Label>
+        {groupCandidates.map(candidate => <Item key={candidate.id} onSelect={() => void groupTracks(track.id, candidate.id)}><Link2 size={14} aria-hidden />{t("Group with {name}", { name: candidate.name })}</Item>)}
       </>}
       <Separator />
       {kind === "context" && <>
-        {targetKind && <ContextMenuCheckboxItem checked={isTargeted} onCheckedChange={() => toggleTrackTargeted(track.id)}>Track Target (Shift+T)</ContextMenuCheckboxItem>}
-        <ContextMenuCheckboxItem checked={syncLocked} onCheckedChange={toggleSyncLock}>Sync Lock (Shift+Y)</ContextMenuCheckboxItem>
+        {targetKind && <ContextMenuCheckboxItem checked={isTargeted} onCheckedChange={() => toggleTrackTargeted(track.id)}>{t("Track Target (Shift+T)")}</ContextMenuCheckboxItem>}
+        <ContextMenuCheckboxItem checked={syncLocked} onCheckedChange={toggleSyncLock}>{t("Sync Lock (Shift+Y)")}</ContextMenuCheckboxItem>
         <Separator />
       </>}
       {isAudio && (kind === "context"
-        ? <ContextMenuCheckboxItem checked={showGainLine} onCheckedChange={() => setGainLineVisible(track.id, !showGainLine)}>Show Clip Keyframes</ContextMenuCheckboxItem>
-        : <DropdownMenuItem onSelect={() => setGainLineVisible(track.id, !showGainLine)}>{showGainLine ? "Hide Clip Keyframes" : "Show Clip Keyframes"}</DropdownMenuItem>)}
+        ? <ContextMenuCheckboxItem checked={showGainLine} onCheckedChange={() => setGainLineVisible(track.id, !showGainLine)}>{t("Show Clip Keyframes")}</ContextMenuCheckboxItem>
+        : <DropdownMenuItem onSelect={() => setGainLineVisible(track.id, !showGainLine)}>{t(showGainLine ? "Hide Clip Keyframes" : "Show Clip Keyframes")}</DropdownMenuItem>)}
       {isAudio && (kind === "context"
-        ? <ContextMenuCheckboxItem checked={showAutomationLanes} onCheckedChange={() => setAutomationLanesVisible(track.id, !showAutomationLanes)}>Show Volume and Pan Automation</ContextMenuCheckboxItem>
-        : <DropdownMenuItem onSelect={() => setAutomationLanesVisible(track.id, !showAutomationLanes)}>{showAutomationLanes ? "Hide Volume and Pan Automation" : "Show Volume and Pan Automation"}</DropdownMenuItem>)}
-      <Item onSelect={() => void handleRemoveTrack()}><Trash2 size={14} aria-hidden />Delete Track</Item>
+        ? <ContextMenuCheckboxItem checked={showAutomationLanes} onCheckedChange={() => setAutomationLanesVisible(track.id, !showAutomationLanes)}>{t("Show Volume and Pan Automation")}</ContextMenuCheckboxItem>
+        : <DropdownMenuItem onSelect={() => setAutomationLanesVisible(track.id, !showAutomationLanes)}>{t(showAutomationLanes ? "Hide Volume and Pan Automation" : "Show Volume and Pan Automation")}</DropdownMenuItem>)}
+      <Item onSelect={() => void handleRemoveTrack()}><Trash2 size={14} aria-hidden />{t("Delete Track")}</Item>
     </>;
   };
 
@@ -301,16 +303,16 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
           {compact && <DropdownMenu>
             <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" aria-label={`Options for ${track.name || trackInfo.label}`}><MoreHorizontal size={18} aria-hidden /></Button></DropdownMenuTrigger>
             <DropdownMenuContent side="right" align="start" className="w-[220px] [&_[role=menuitem]]:gap-2 [&_[role=menuitem]]:text-xs" onCloseAutoFocus={event => { if (renameSession.current) event.preventDefault(); }}>
-              {targetKind && <DropdownMenuItem onSelect={toggleTarget}>{isTarget ? "Clear source patch" : "Patch source to this track"}</DropdownMenuItem>}
-              {targetKind && <DropdownMenuItem onSelect={() => toggleTrackTargeted(track.id)}>{isTargeted ? "Untarget track" : "Target track"}</DropdownMenuItem>}
-              <DropdownMenuItem onSelect={toggleSyncLock}>{syncLocked ? "Turn off Sync Lock" : "Turn on Sync Lock"}</DropdownMenuItem>
-              {isVisual && <DropdownMenuItem onSelect={() => void hideTrack(track.id, !track.hidden)}>{track.hidden ? "Show track" : "Hide track"}</DropdownMenuItem>}
+              {targetKind && <DropdownMenuItem onSelect={toggleTarget}>{t(isTarget ? "Clear source patch" : "Patch source to this track")}</DropdownMenuItem>}
+              {targetKind && <DropdownMenuItem onSelect={() => toggleTrackTargeted(track.id)}>{t(isTargeted ? "Untarget track" : "Target track")}</DropdownMenuItem>}
+              <DropdownMenuItem onSelect={toggleSyncLock}>{t(syncLocked ? "Turn off Sync Lock" : "Turn on Sync Lock")}</DropdownMenuItem>
+              {isVisual && <DropdownMenuItem onSelect={() => void hideTrack(track.id, !track.hidden)}>{t(track.hidden ? "Show track" : "Hide track")}</DropdownMenuItem>}
               {isAudio && <>
-                <DropdownMenuItem onSelect={() => void muteTrack(track.id, !track.muted)}>{track.muted ? "Unmute track" : "Mute track"}</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => void soloTrack(track.id, !track.solo)}>{track.solo ? "Clear solo" : "Solo track"}</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => void setTrackSoloSafe(track.id, track.soloSafe !== true)}>{track.soloSafe === true ? "Turn off Solo Safe" : "Turn on Solo Safe"}</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void muteTrack(track.id, !track.muted)}>{t(track.muted ? "Unmute track" : "Mute track")}</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void soloTrack(track.id, !track.solo)}>{t(track.solo ? "Clear solo" : "Solo track")}</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void setTrackSoloSafe(track.id, track.soloSafe !== true)}>{t(track.soloSafe === true ? "Turn off Solo Safe" : "Turn on Solo Safe")}</DropdownMenuItem>
               </>}
-              <DropdownMenuItem onSelect={() => void lockTrack(track.id, !track.locked)}>{track.locked ? "Unlock track" : "Lock track"}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void lockTrack(track.id, !track.locked)}>{t(track.locked ? "Unlock track" : "Lock track")}</DropdownMenuItem>
               <DropdownMenuSeparator />{trackActions("dropdown")}
             </DropdownMenuContent>
           </DropdownMenu>}
@@ -340,16 +342,16 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-[200px] [&_[role=menuitem]]:text-xs" onClick={(e) => e.stopPropagation()}>
-                  <DropdownMenuLabel>Patch source audio to {track.name}</DropdownMenuLabel>
+                  <DropdownMenuLabel>{t("Patch source audio to {name}", { name: track.name })}</DropdownMenuLabel>
                   {Array.from({ length: channelCount }, (_, channel) => (
                     <DropdownMenuItem key={channel} data-testid={`track-patch-channel-${channel}`} disabled={track.locked || disabledChannels.includes(channel)} onSelect={() => setChannelPatch(channel, channel === patchedChannel ? null : track.id)}>
-                      {patchedChannel === channel ? "Unpatch" : "Patch"} {patchLabel(channel)}{disabledChannels.includes(channel) ? " (off)" : ""}
+                      {t(patchedChannel === channel ? "Unpatch" : "Patch")} {patchLabel(channel)}{disabledChannels.includes(channel) ? t(" (off)") : ""}
                     </DropdownMenuItem>
                   ))}
                   <DropdownMenuSeparator />
                   {Array.from({ length: channelCount }, (_, channel) => (
                     <DropdownMenuItem key={`t${channel}`} data-testid={`track-toggle-channel-${channel}`} onSelect={() => setChannelEnabled(channel, disabledChannels.includes(channel))}>
-                      {disabledChannels.includes(channel) ? "Switch on" : "Switch off"} {patchLabel(channel)}
+                      {t(disabledChannels.includes(channel) ? "Switch on" : "Switch off")} {patchLabel(channel)}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>

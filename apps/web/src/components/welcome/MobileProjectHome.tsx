@@ -3,6 +3,7 @@ import {
   Button, Input, ScrollArea, DropdownMenu, DropdownMenuTrigger,
   DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
 } from "@openreel/ui";
+import { useT } from "@openreel/i18n/react";
 import { Film, PlayCircle, LoaderCircle } from "lucide-react";
 import { MobileHomeIcon } from "./MobileHomeIcon";
 import { checkForRecovery, autoSaveManager, type AutoSaveMetadata } from "../../services/auto-save";
@@ -39,6 +40,7 @@ function durationLabel(duration: number) {
 }
 
 export function MobileProjectHome({ initialTab }: { initialTab?: "templates" | "recent" }) {
+  const t = useT();
   const [tab, setTab] = useState<HomeTab>(initialTab === "templates" ? "templates" : "projects");
   const [saves, setSaves] = useState<AutoSaveMetadata[]>([]);
   const [loading, setLoading] = useState(true);
@@ -152,9 +154,9 @@ export function MobileProjectHome({ initialTab }: { initialTab?: "templates" | "
               <span><strong>New project</strong><small>Pick videos and photos from your {android ? "gallery" : "library"}</small></span>
             </Button></DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-64">
-              <DropdownMenuItem onSelect={() => fileInput.current?.click()}>Choose videos and photos…</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => fileInput.current?.click()}>{t("Choose videos and photos…")}</DropdownMenuItem>
               <DropdownMenuSeparator/>
-              {formats.map(format => <DropdownMenuItem key={format.label} onSelect={() => void startEmpty(format)}>Start empty · {format.label}</DropdownMenuItem>)}
+              {formats.map(format => <DropdownMenuItem key={format.label} onSelect={() => void startEmpty(format)}>{t("Start empty · {name}", { name: t(format.label) })}</DropdownMenuItem>)}
             </DropdownMenuContent>
           </DropdownMenu>
           <Input ref={fileInput} className="sr-only" type="file" tabIndex={-1} multiple accept="video/*,image/*" aria-label="Media for a new project" onChange={e => { const files = Array.from(e.target.files ?? []); e.target.value = ""; void importFiles(files); }}/>

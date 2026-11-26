@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
   ScrollArea,
 } from "@openreel/ui";
+import { useT } from "@openreel/i18n/react";
 import {
   X,
   Undo2,
@@ -56,6 +57,7 @@ function EmptyState({
   hasOpenProject: boolean;
   compact?: boolean;
 }): JSX.Element {
+  const t = useT();
   const send = useChatStore((s) => s.send);
   const connection = useAIConnectionStore();
   const ready = isConnectionReady(connection);
@@ -97,7 +99,7 @@ function EmptyState({
               onClick={() => void send(s)}
               className="h-7 w-full min-w-0 rounded-md border border-border bg-bg-1/60 px-2.5 py-1.5 text-left text-[11px] font-semibold text-fg-2 transition-colors hover:border-accent/50 hover:bg-hover hover:text-fg"
             >
-              <span className="truncate">{s}</span>
+              <span className="truncate">{t(s)}</span>
             </ShadcnButton>
           ))}
         </div>
@@ -107,6 +109,7 @@ function EmptyState({
 }
 
 export function ChatPanel({ onClose }: { onClose?: () => void }): JSX.Element {
+  const t = useT();
   useEffect(observeAIHistory, []);
   const phone = usePhoneEditor();
   const connectionOpen = useEditorWorkspaceStore(s => s.aiConnectionOpen);
@@ -165,14 +168,14 @@ export function ChatPanel({ onClose }: { onClose?: () => void }): JSX.Element {
 
   const actionMenu = (
             <DropdownMenuContent align="end" className="w-64">
-              {phone && <DropdownMenuItem disabled={busy || !messages.length} onSelect={() => { newChat(); setDraft(""); setHistoryOpen(false); }}><Plus/>New chat</DropdownMenuItem>}
+              {phone && <DropdownMenuItem disabled={busy || !messages.length} onSelect={() => { newChat(); setDraft(""); setHistoryOpen(false); }}><Plus/>{t("New chat")}</DropdownMenuItem>}
               <DropdownMenuItem
                 onSelect={() =>
                   useEditorWorkspaceStore.getState().setAIConnectionOpen(true)
                 }
               >
                 <Settings />
-                AI connection settings
+                {t("AI connection settings")}
               </DropdownMenuItem>
               <DropdownMenuCheckboxItem
                 checked={historyOpen}
@@ -180,14 +183,14 @@ export function ChatPanel({ onClose }: { onClose?: () => void }): JSX.Element {
                 disabled={busy}
               >
                 <History />
-                Conversation history
+                {t("Conversation history")}
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
                 checked={sharingOpen}
                 onCheckedChange={setSharingOpen}
               >
                 <Link2 />
-                Edit sharing &amp; collaboration
+                {t("Edit sharing & collaboration")}
               </DropdownMenuCheckboxItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -195,13 +198,16 @@ export function ChatPanel({ onClose }: { onClose?: () => void }): JSX.Element {
                 disabled={!canUndoTurn}
               >
                 <Undo2 />
-                Undo last AI turn
+                {t("Undo last AI turn")}
               </DropdownMenuItem>
-              {phone && <><DropdownMenuSeparator/><DropdownMenuLabel>More edit ideas</DropdownMenuLabel>{SUGGESTIONS.map(text => <DropdownMenuItem key={text} disabled={busy || !hasOpenProject} onSelect={() => setDraft(text)}>{text}</DropdownMenuItem>)}</>}
+              {phone && <><DropdownMenuSeparator/><DropdownMenuLabel>{t("More edit ideas")}</DropdownMenuLabel>{SUGGESTIONS.map(text => <DropdownMenuItem key={text} disabled={busy || !hasOpenProject} onSelect={() => setDraft(text)}>{t(text)}</DropdownMenuItem>)}</>}
               {totalTokens > 0 && (
                 <DropdownMenuLabel className="text-[11px] font-normal text-fg-muted">
-                  {tokenLabel} tokens · {usage.inputTokens} in ·{" "}
-                  {usage.outputTokens} out
+                  {t("{label} tokens · {input} in · {output} out", {
+                    label: tokenLabel,
+                    input: usage.inputTokens,
+                    output: usage.outputTokens,
+                  })}
                 </DropdownMenuLabel>
               )}
               {onClose && (
@@ -209,7 +215,7 @@ export function ChatPanel({ onClose }: { onClose?: () => void }): JSX.Element {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onSelect={onClose}>
                     <X />
-                    Close assistant
+                    {t("Close assistant")}
                   </DropdownMenuItem>
                 </>
               )}

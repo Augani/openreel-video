@@ -1,4 +1,5 @@
 import { ChevronDown, Minus, Plus, Maximize2 } from 'lucide-react';
+import { useT } from '@openreel/i18n/react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +22,7 @@ const ZOOM_PRESETS = [
 ];
 
 export function ZoomControl() {
+  const t = useT();
   const { zoom, setZoom, zoomIn, zoomOut, resetView } = useUIStore();
   const { project } = useProjectStore();
 
@@ -130,15 +132,15 @@ export function ZoomControl() {
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={handleZoomToFit}>
             <Maximize2 size={14} className="mr-2" />
-            Fit to Canvas
+            {t('Fit to Canvas')}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={handleZoomToFill}>
             <Maximize2 size={14} className="mr-2" />
-            Fill View
+            {t('Fill View')}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={resetView}>
-            Reset (100%)
+            {t('Reset (100%)')}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

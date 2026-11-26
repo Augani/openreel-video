@@ -8,6 +8,9 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@openreel/i18n/react": path.resolve(__dirname, "../../packages/i18n/src/react.ts"),
+      "@openreel/i18n/translate": path.resolve(__dirname, "../../packages/i18n/src/translate.ts"),
+      "@openreel/i18n": path.resolve(__dirname, "../../packages/i18n/src"),
     },
   },
   build: {

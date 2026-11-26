@@ -7,6 +7,11 @@ import type {
 export { CHANNELS } from "./channels";
 export * from "./onboarding";
 
+export const languageSetArgsSchema = z.object({
+  preference: z.enum(["system", "en", "zh-CN"]),
+  locale: z.enum(["en", "zh-CN"]),
+});
+
 export const hardwareInfoSchema = z.object({
   cpu: z.object({
     model: z.string(),

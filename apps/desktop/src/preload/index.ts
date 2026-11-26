@@ -19,6 +19,10 @@ contextBridge.exposeInMainWorld("openreel", {
     get: () => ipcRenderer.invoke(CHANNELS.onboardingGet, undefined),
     set: (mirror: unknown) => ipcRenderer.invoke(CHANNELS.onboardingSet, mirror),
   },
+  language: {
+    set: (payload: { preference: "system" | "en" | "zh-CN"; locale: "en" | "zh-CN" }) =>
+      ipcRenderer.invoke(CHANNELS.languageSet, payload),
+  },
   ollama: {
     probe: () => ipcRenderer.invoke(CHANNELS.ollamaProbe, undefined),
   },

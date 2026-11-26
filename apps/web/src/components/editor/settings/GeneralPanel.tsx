@@ -6,6 +6,7 @@ import { useProjectStore } from "../../../stores/project-store";
 import { CHANNEL_PRESETS, CHANNEL_PRESET_LABELS, type ChannelPreset } from "@openreel/core";
 import { EDITING_FRAME_RATE_OPTIONS } from "../editing-frame-rate";
 import { AudioOutputSelect } from "./AudioOutputSelect";
+import { LanguageSection } from "./LanguageSection";
 
 const ASPECT_PRESETS = [
   { label: "16:9 Landscape (1080p)", width: 1920, height: 1080 },
@@ -50,6 +51,8 @@ export function GeneralPanel() {
   const llmProviders = SERVICE_REGISTRY.filter(service => service.id === "openai-compatible" || service.id === "anthropic-compatible");
   const aggregatorProviders = SERVICE_REGISTRY.filter(service => service.id === "kie-ai" || service.id === "freepik" || preferences.configuredServices.includes(service.id));
   return <div className="space-y-5 pb-1 text-xs">
+    <LanguageSection />
+    <hr className="border-border" />
     <section className="space-y-3" aria-labelledby="composition-settings-heading">
       <div><h3 id="composition-settings-heading" className="text-sm font-medium">Project Composition</h3><p className="mt-1 text-xs leading-5 text-fg-2">Set the canvas dimensions for your project. Pick a preset for TikTok, Reels, YouTube, or enter custom values.</p></div>
       <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">

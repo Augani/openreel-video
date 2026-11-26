@@ -12,6 +12,7 @@ import {
 import { X, Plus } from "lucide-react";
 import { useEditorWorkspaceStore } from "../../../stores/editor-workspace-store";
 import type { TransitionType } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 import type { ResolvedTransitionHandle } from "./transition-handles";
 import { useProjectStore } from "../../../stores/project-store";
 import { getTransitionBridge } from "../../../bridges/transition-bridge";
@@ -90,6 +91,7 @@ export const TransitionHandle: React.FC<TransitionHandleProps> = React.memo(func
   isSelected,
   onSelect,
 }) {
+  const t = useT();
   const { centerX, transition, clipA, clipB, edge } = handle;
   const [open, setOpen] = useState(false);
   const [armed, setArmed] = useState(false);
@@ -305,14 +307,14 @@ export const TransitionHandle: React.FC<TransitionHandleProps> = React.memo(func
           className="w-52 max-h-72 overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
-          <DropdownMenuLabel>Transition</DropdownMenuLabel>
+          <DropdownMenuLabel>{t("Transition")}</DropdownMenuLabel>
           {transition && (
             <>
               <DropdownMenuItem
                 className="text-red-400"
                 onSelect={() => void handleRemove()}
               >
-                Remove transition
+                {t("Remove transition")}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
             </>
@@ -323,7 +325,7 @@ export const TransitionHandle: React.FC<TransitionHandleProps> = React.memo(func
               className={transition?.type === type.type ? "text-accent" : ""}
               onSelect={() => void applyType(type.type)}
             >
-              {type.name}
+              {t(type.name)}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>

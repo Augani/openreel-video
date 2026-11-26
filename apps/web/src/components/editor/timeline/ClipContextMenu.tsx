@@ -54,6 +54,7 @@ import { clearEssentialSound, tagAudioType } from "../../../services/essential-s
 import { runEnhanceSpeechCommand } from "../../../services/enhance-speech";
 import { groupSelectedClips, makeSubsequenceCommand, nestSelectedClips, openNestClip, ungroupSelectedClips } from "../../../services/sequence-commands";
 import { synchronizeSelectedClips } from "../../../services/sync-clips-commands";
+import { useT } from "@openreel/i18n/react";
 
 /** Clip ids a label change applies to: the selected timeline clips when this one is among them. */
 function clipLabelTargets(clipId: string): string[] {
@@ -64,6 +65,7 @@ function clipLabelTargets(clipId: string): string[] {
 
 /** Synchronize submenu: needs two or more selected clips including this one. */
 function SynchronizeItems({ clipId, disabled, onClose }: { clipId: string; disabled: boolean; onClose?: () => void }) {
+  const t = useT();
   const selected = useUIStore((state) => state.selectedItems);
   const count = new Set([clipId, ...selected.map((s) => s.id)].filter((id) => useProjectStore.getState().getClip(id))).size;
   const run = (mode: "audio" | "in-point" | "timecode") => {
@@ -73,11 +75,11 @@ function SynchronizeItems({ clipId, disabled, onClose }: { clipId: string; disab
   };
   return (
     <ContextMenuSub>
-      <ContextMenuSubTrigger data-testid="clip-synchronize" disabled={disabled || count < 2}><Music size={14} aria-hidden />Synchronize</ContextMenuSubTrigger>
+      <ContextMenuSubTrigger data-testid="clip-synchronize" disabled={disabled || count < 2}><Music size={14} aria-hidden />{t("Synchronize")}</ContextMenuSubTrigger>
       <ContextMenuSubContent>
-        <ContextMenuItem data-testid="sync-by-audio" onSelect={() => run("audio")}>By Audio</ContextMenuItem>
-        <ContextMenuItem data-testid="sync-by-in-point" onSelect={() => run("in-point")}>By In Point</ContextMenuItem>
-        <ContextMenuItem data-testid="sync-by-timecode" onSelect={() => run("timecode")}>By Timecode</ContextMenuItem>
+        <ContextMenuItem data-testid="sync-by-audio" onSelect={() => run("audio")}>{t("By Audio")}</ContextMenuItem>
+        <ContextMenuItem data-testid="sync-by-in-point" onSelect={() => run("in-point")}>{t("By In Point")}</ContextMenuItem>
+        <ContextMenuItem data-testid="sync-by-timecode" onSelect={() => run("timecode")}>{t("By Timecode")}</ContextMenuItem>
       </ContextMenuSubContent>
     </ContextMenuSub>
   );
@@ -94,6 +96,7 @@ export function ClipContextMenu({
   track,
   onClose,
 }: ClipContextMenuProps) {
+  const t = useT();
   const {
     project,
     copyClips,
@@ -259,54 +262,54 @@ export function ClipContextMenu({
     <ContextMenuContent className="w-[220px] [&_[role=menuitem]]:gap-2 [&_[role=menuitem]]:text-xs"
       onPointerDown={event => event.stopPropagation()} onMouseDown={event => event.stopPropagation()}
       onMouseUp={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>
-      <ContextMenuLabel className="flex items-center gap-2 text-xs">{getClipTypeIcon()}{getClipTypeLabel()}</ContextMenuLabel>
+      <ContextMenuLabel className="flex items-center gap-2 text-xs">{getClipTypeIcon()}{t(getClipTypeLabel())}</ContextMenuLabel>
       <ContextMenuSeparator />
-      <ContextMenuItem onSelect={handleCopy}><Copy size={14} aria-hidden />Copy Clip</ContextMenuItem>
-      <ContextMenuItem disabled={editingDisabled} onSelect={() => void handleDuplicate()}><Layers size={14} aria-hidden />Duplicate</ContextMenuItem>
-      <ContextMenuItem onSelect={handleSelectTrackClips}><ListChecks size={14} aria-hidden />Select All Clips on Track</ContextMenuItem>
+      <ContextMenuItem onSelect={handleCopy}><Copy size={14} aria-hidden />{t("Copy Clip")}</ContextMenuItem>
+      <ContextMenuItem disabled={editingDisabled} onSelect={() => void handleDuplicate()}><Layers size={14} aria-hidden />{t("Duplicate")}</ContextMenuItem>
+      <ContextMenuItem onSelect={handleSelectTrackClips}><ListChecks size={14} aria-hidden />{t("Select All Clips on Track")}</ContextMenuItem>
       <ContextMenuSeparator />
       {(clip.metadata?.compoundClipId !== undefined || clip.mediaId.startsWith("compound:")) && (
-        <ContextMenuItem data-testid="open-nested-sequence" onSelect={() => { void openNestClip(clip.id); onClose?.(); }}><Layers size={14} aria-hidden />Open Nested Sequence</ContextMenuItem>
+        <ContextMenuItem data-testid="open-nested-sequence" onSelect={() => { void openNestClip(clip.id); onClose?.(); }}><Layers size={14} aria-hidden />{t("Open Nested Sequence")}</ContextMenuItem>
       )}
       {typeof clip.metadata?.[LINKED_BAKE_CLIP_KEY] === "string" && (
-        <ContextMenuItem data-testid="restore-unrendered-menu" disabled={editingDisabled} onSelect={() => { void restoreUnrenderedCommand(String(clip.metadata?.[LINKED_BAKE_CLIP_KEY])); onClose?.(); }}><Layers size={14} aria-hidden />Restore Unrendered</ContextMenuItem>
+        <ContextMenuItem data-testid="restore-unrendered-menu" disabled={editingDisabled} onSelect={() => { void restoreUnrenderedCommand(String(clip.metadata?.[LINKED_BAKE_CLIP_KEY])); onClose?.(); }}><Layers size={14} aria-hidden />{t("Restore Unrendered")}</ContextMenuItem>
       )}
       <ContextMenuItem data-testid="nest-clips" disabled={editingDisabled} onSelect={() => {
         if (!useUIStore.getState().getSelectedClipIds().includes(clip.id)) useUIStore.getState().select({ type: "clip", id: clip.id });
         void nestSelectedClips();
         onClose?.();
-      }}><Layers size={14} aria-hidden />Nest</ContextMenuItem>
+      }}><Layers size={14} aria-hidden />{t("Nest")}</ContextMenuItem>
       <ContextMenuItem data-testid="make-subsequence-clips" disabled={editingDisabled} onSelect={() => {
         if (!useUIStore.getState().getSelectedClipIds().includes(clip.id)) useUIStore.getState().select({ type: "clip", id: clip.id });
         void makeSubsequenceCommand();
         onClose?.();
-      }}><Layers size={14} aria-hidden />Make Subsequence</ContextMenuItem>
-      <ContextMenuItem data-testid="group-clips" disabled={editingDisabled} onSelect={() => { void groupSelectedClips(); onClose?.(); }}><Group size={14} aria-hidden />Group</ContextMenuItem>
-      <ContextMenuItem data-testid="ungroup-clips" disabled={editingDisabled || !clip.groupId} onSelect={() => { void ungroupSelectedClips(); onClose?.(); }}><Ungroup size={14} aria-hidden />Ungroup</ContextMenuItem>
+      }}><Layers size={14} aria-hidden />{t("Make Subsequence")}</ContextMenuItem>
+      <ContextMenuItem data-testid="group-clips" disabled={editingDisabled} onSelect={() => { void groupSelectedClips(); onClose?.(); }}><Group size={14} aria-hidden />{t("Group")}</ContextMenuItem>
+      <ContextMenuItem data-testid="ungroup-clips" disabled={editingDisabled || !clip.groupId} onSelect={() => { void ungroupSelectedClips(); onClose?.(); }}><Ungroup size={14} aria-hidden />{t("Ungroup")}</ContextMenuItem>
       <SynchronizeItems clipId={clip.id} disabled={editingDisabled} onClose={onClose} />
       <ContextMenuSeparator />
-      <ContextMenuItem disabled={editingDisabled || !isPlayheadOnClip} onSelect={() => void handleSplit()}><Scissors size={14} aria-hidden />Split at Playhead</ContextMenuItem>
-      <ContextMenuItem disabled={editingDisabled || !hasGapBeforeClip} onSelect={() => void handleCloseGap()}><ArrowLeftToLine size={14} aria-hidden />Close Gap to Previous</ContextMenuItem>
-      <ContextMenuItem disabled={editingDisabled || !isPlayheadOnClip} onSelect={() => { runWithToast("Add edit", addEditToAllTracks); onClose?.(); }}><SplitSquareVertical size={14} aria-hidden />Add Edit to All Tracks</ContextMenuItem>
-      <ContextMenuItem disabled={!isPlayheadOnClip} onSelect={() => { runWithToast("Match frame", () => matchFrame(clip.id)); onClose?.(); }}><Crosshair size={14} aria-hidden />Match Frame</ContextMenuItem>
+      <ContextMenuItem disabled={editingDisabled || !isPlayheadOnClip} onSelect={() => void handleSplit()}><Scissors size={14} aria-hidden />{t("Split at Playhead")}</ContextMenuItem>
+      <ContextMenuItem disabled={editingDisabled || !hasGapBeforeClip} onSelect={() => void handleCloseGap()}><ArrowLeftToLine size={14} aria-hidden />{t("Close Gap to Previous")}</ContextMenuItem>
+      <ContextMenuItem disabled={editingDisabled || !isPlayheadOnClip} onSelect={() => { runWithToast("Add edit", addEditToAllTracks); onClose?.(); }}><SplitSquareVertical size={14} aria-hidden />{t("Add Edit to All Tracks")}</ContextMenuItem>
+      <ContextMenuItem disabled={!isPlayheadOnClip} onSelect={() => { runWithToast("Match frame", () => matchFrame(clip.id)); onClose?.(); }}><Crosshair size={14} aria-hidden />{t("Match Frame")}</ContextMenuItem>
       {hasLinkedPartner && <>
         <ContextMenuSeparator />
-        <ContextMenuLabel className="text-xs">Split edit</ContextMenuLabel>
-        <ContextMenuItem disabled={editingDisabled} onSelect={() => { runWithToast("J-cut", () => makeSplitEdit("j", { clipId: clip.id })); onClose?.(); }}><ArrowLeftToLine size={14} aria-hidden />J-cut: audio leads {splitEditFrames}f</ContextMenuItem>
-        <ContextMenuItem disabled={editingDisabled} onSelect={() => { runWithToast("L-cut", () => makeSplitEdit("l", { clipId: clip.id })); onClose?.(); }}><ArrowRightToLine size={14} aria-hidden />L-cut: audio trails {splitEditFrames}f</ContextMenuItem>
-        <ContextMenuItem disabled={editingDisabled} onSelect={() => { useUIStore.getState().select({ type: "clip", id: clip.id }); runWithToast("Extend edit", () => extendSelectedEdit("both")); onClose?.(); }}><Crosshair size={14} aria-hidden />Extend edit to playhead</ContextMenuItem>
+        <ContextMenuLabel className="text-xs">{t("Split edit")}</ContextMenuLabel>
+        <ContextMenuItem disabled={editingDisabled} onSelect={() => { runWithToast("J-cut", () => makeSplitEdit("j", { clipId: clip.id })); onClose?.(); }}><ArrowLeftToLine size={14} aria-hidden />{t("J-cut: audio leads {frames}f", { frames: splitEditFrames })}</ContextMenuItem>
+        <ContextMenuItem disabled={editingDisabled} onSelect={() => { runWithToast("L-cut", () => makeSplitEdit("l", { clipId: clip.id })); onClose?.(); }}><ArrowRightToLine size={14} aria-hidden />{t("L-cut: audio trails {frames}f", { frames: splitEditFrames })}</ContextMenuItem>
+        <ContextMenuItem disabled={editingDisabled} onSelect={() => { useUIStore.getState().select({ type: "clip", id: clip.id }); runWithToast("Extend edit", () => extendSelectedEdit("both")); onClose?.(); }}><Crosshair size={14} aria-hidden />{t("Extend edit to playhead")}</ContextMenuItem>
         <ContextMenuSub>
-          <ContextMenuSubTrigger><SplitSquareVertical size={14} aria-hidden />Split edit length</ContextMenuSubTrigger>
+          <ContextMenuSubTrigger><SplitSquareVertical size={14} aria-hidden />{t("Split edit length")}</ContextMenuSubTrigger>
           <ContextMenuSubContent>
             <ContextMenuRadioGroup value={String(splitEditFrames)} onValueChange={(value) => useEditorWorkspaceStore.getState().setSplitEditFrames(Number(value))}>
-              {[6, 12, 24, 48].map((frames) => <ContextMenuRadioItem key={frames} value={String(frames)}>{frames} frames</ContextMenuRadioItem>)}
+              {[6, 12, 24, 48].map((frames) => <ContextMenuRadioItem key={frames} value={String(frames)}>{t("{frames} frames", { frames })}</ContextMenuRadioItem>)}
             </ContextMenuRadioGroup>
           </ContextMenuSubContent>
         </ContextMenuSub>
       </>}
-      <ContextMenuItem data-testid="clip-reveal-in-project" onSelect={() => { runWithToast("Reveal in Project", () => revealClipInProject(clip.id)); onClose?.(); }}><FolderSearch size={14} aria-hidden />Reveal in Project</ContextMenuItem>
+      <ContextMenuItem data-testid="clip-reveal-in-project" onSelect={() => { runWithToast("Reveal in Project", () => revealClipInProject(clip.id)); onClose?.(); }}><FolderSearch size={14} aria-hidden />{t("Reveal in Project")}</ContextMenuItem>
       <ContextMenuSub>
-        <ContextMenuSubTrigger data-testid="clip-label-menu"><Tag size={14} aria-hidden />Label</ContextMenuSubTrigger>
+        <ContextMenuSubTrigger data-testid="clip-label-menu"><Tag size={14} aria-hidden />{t("Label")}</ContextMenuSubTrigger>
         <ContextMenuSubContent className="max-h-[320px] overflow-auto [&_[role=menuitem]]:text-xs">
           <LabelPickerItems
             kind="context"
@@ -316,12 +319,12 @@ export function ClipContextMenu({
           />
         </ContextMenuSubContent>
       </ContextMenuSub>
-      {(isVideo || isAudio) && <ContextMenuItem data-testid="clip-make-subclip" onSelect={() => { void makeSubclipFromClip(clip.id).then((outcome) => { if (!outcome.success) toast.warning("Make Subclip", outcome.message); else toast.info("Make Subclip", outcome.message); }); onClose?.(); }}><Scissors size={14} aria-hidden />Make Subclip</ContextMenuItem>}
+      {(isVideo || isAudio) && <ContextMenuItem data-testid="clip-make-subclip" onSelect={() => { void makeSubclipFromClip(clip.id).then((outcome) => { if (!outcome.success) toast.warning("Make Subclip", outcome.message); else toast.info("Make Subclip", outcome.message); }); onClose?.(); }}><Scissors size={14} aria-hidden />{t("Make Subclip")}</ContextMenuItem>}
       {(isVideo || isImage || isAudio) && <>
         <ContextMenuSeparator />
-        <ContextMenuLabel className="text-xs">{isAudio ? "Audio" : "Effects"}</ContextMenuLabel>
-        <ContextMenuItem disabled={!hasEffects} onSelect={handleCopyEffects}><Sparkles size={14} aria-hidden />{isAudio ? "Copy Audio Effects" : "Copy Effects"}</ContextMenuItem>
-        <ContextMenuItem disabled={editingDisabled || !hasCopiedEffects} onSelect={() => void handlePasteEffects()}><Sparkles size={14} aria-hidden />{isAudio ? "Paste Audio Effects" : "Paste Effects"}</ContextMenuItem>
+        <ContextMenuLabel className="text-xs">{isAudio ? t("Audio") : t("Effects")}</ContextMenuLabel>
+        <ContextMenuItem disabled={!hasEffects} onSelect={handleCopyEffects}><Sparkles size={14} aria-hidden />{isAudio ? t("Copy Audio Effects") : t("Copy Effects")}</ContextMenuItem>
+        <ContextMenuItem disabled={editingDisabled || !hasCopiedEffects} onSelect={() => void handlePasteEffects()}><Sparkles size={14} aria-hidden />{isAudio ? t("Paste Audio Effects") : t("Paste Effects")}</ContextMenuItem>
       </>}
       {(isAudio || isVideoWithAudio) && (
         <ContextMenuItem
@@ -334,7 +337,7 @@ export function ClipContextMenu({
             void runEnhanceSpeechCommand(targets);
           }}
         >
-          <Volume2 size={14} aria-hidden />Enhance Speech
+          <Volume2 size={14} aria-hidden />{t("Enhance Speech")}
         </ContextMenuItem>
       )}
       {(isAudio || isVideoWithAudio) && (
@@ -348,12 +351,12 @@ export function ClipContextMenu({
             void import("../../../services/reduce-reverb").then((module) => module.runReduceReverbCommand(targets));
           }}
         >
-          <Volume2 size={14} aria-hidden />Reduce Reverb
+          <Volume2 size={14} aria-hidden />{t("Reduce Reverb")}
         </ContextMenuItem>
       )}
       {(isAudio || isVideoWithAudio) && (
         <ContextMenuSub>
-          <ContextMenuSubTrigger data-testid="clip-audio-type-menu" disabled={editingDisabled}><Volume2 size={14} aria-hidden />Set Audio Type</ContextMenuSubTrigger>
+          <ContextMenuSubTrigger data-testid="clip-audio-type-menu" disabled={editingDisabled}><Volume2 size={14} aria-hidden />{t("Set Audio Type")}</ContextMenuSubTrigger>
           <ContextMenuSubContent className="[&_[role=menuitem]]:text-xs">
             {AUDIO_TYPES.map((type) => (
               <ContextMenuItem
@@ -366,7 +369,7 @@ export function ClipContextMenu({
                   tagAudioType(targets, type).catch((error: unknown) => toast.warning("Set Audio Type", error instanceof Error ? error.message : "The audio type could not be set."));
                 }}
               >
-                {AUDIO_TYPE_LABELS[type]}{clip.audioType === type ? " ✓" : ""}
+                {t(AUDIO_TYPE_LABELS[type])}{clip.audioType === type ? " ✓" : ""}
               </ContextMenuItem>
             ))}
             <ContextMenuSeparator />
@@ -380,27 +383,27 @@ export function ClipContextMenu({
                 clearEssentialSound(targets).catch((error: unknown) => toast.warning("Clear Audio Type", error instanceof Error ? error.message : "The audio type could not be cleared."));
               }}
             >
-              Clear Audio Type
+              {t("Clear Audio Type")}
             </ContextMenuItem>
           </ContextMenuSubContent>
         </ContextMenuSub>
       )}
-      {isVideoWithAudio && <ContextMenuItem disabled={editingDisabled} onSelect={() => void handleSeparateAudio()}><Music size={14} aria-hidden />Separate Audio</ContextMenuItem>}
+      {isVideoWithAudio && <ContextMenuItem disabled={editingDisabled} onSelect={() => void handleSeparateAudio()}><Music size={14} aria-hidden />{t("Separate Audio")}</ContextMenuItem>}
       {isVideo && mediaItem?.type === "video" && <ContextMenuSub>
-        <ContextMenuSubTrigger data-testid="clip-time-interpolation-menu" disabled={editingDisabled}><Sparkles size={14} aria-hidden />Time Interpolation</ContextMenuSubTrigger>
+        <ContextMenuSubTrigger data-testid="clip-time-interpolation-menu" disabled={editingDisabled}><Sparkles size={14} aria-hidden />{t("Time Interpolation")}</ContextMenuSubTrigger>
         <ContextMenuSubContent className="[&_[role=menuitemradio]]:text-xs">
           <ContextMenuRadioGroup value={effectiveTimeInterpolation(clip)} onValueChange={(value) => {
             if (isTimeInterpolation(value) && canAct(true)) void setClipsTimeInterpolation(timeInterpolationTargets(clip.id), value);
             onClose?.();
           }}>
-            {TIME_INTERPOLATION_MODES.map((mode) => <ContextMenuRadioItem key={mode} value={mode} disabled={editingDisabled}>{TIME_INTERPOLATION_LABELS[mode]}</ContextMenuRadioItem>)}
+            {TIME_INTERPOLATION_MODES.map((mode) => <ContextMenuRadioItem key={mode} value={mode} disabled={editingDisabled}>{t(TIME_INTERPOLATION_LABELS[mode])}</ContextMenuRadioItem>)}
           </ContextMenuRadioGroup>
         </ContextMenuSubContent>
       </ContextMenuSub>}
-      {isVideo && mediaItem?.type === "video" && <ContextMenuItem disabled={editingDisabled || isReversedClip(clip)} onSelect={handleSceneDetection}><Film size={14} aria-hidden />Detect Scene Edits…</ContextMenuItem>}
+      {isVideo && mediaItem?.type === "video" && <ContextMenuItem disabled={editingDisabled || isReversedClip(clip)} onSelect={handleSceneDetection}><Film size={14} aria-hidden />{t("Detect Scene Edits…")}</ContextMenuItem>}
       <ContextMenuSeparator />
-      <ContextMenuItem disabled={editingDisabled} onSelect={() => void handleRippleDelete()}><Trash2 size={14} aria-hidden />Ripple Delete</ContextMenuItem>
-      <ContextMenuItem disabled={editingDisabled} onSelect={() => void handleDelete()}><Trash2 size={14} aria-hidden />Delete</ContextMenuItem>
+      <ContextMenuItem disabled={editingDisabled} onSelect={() => void handleRippleDelete()}><Trash2 size={14} aria-hidden />{t("Ripple Delete")}</ContextMenuItem>
+      <ContextMenuItem disabled={editingDisabled} onSelect={() => void handleDelete()}><Trash2 size={14} aria-hidden />{t("Delete")}</ContextMenuItem>
     </ContextMenuContent>
   );
 }

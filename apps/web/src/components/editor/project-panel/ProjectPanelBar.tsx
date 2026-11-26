@@ -25,6 +25,7 @@ import {
   uniqueBinName,
   type MediaColumnId,
 } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 import { useProjectStore } from "../../../stores/project-store";
 import { useProjectPanelStore } from "../../../stores/project-panel-store";
 import { useUIStore } from "../../../stores/ui-store";
@@ -113,6 +114,7 @@ const PendingBinRow: React.FC<{ placeholder: string }> = ({ placeholder }) => {
 };
 
 const SmartBinsMenu: React.FC<{ data: ProjectPanelData }> = ({ data }) => {
+  const t = useT();
   const query = useProjectPanelStore((s) => s.query);
   const searchColumn = useProjectPanelStore((s) => s.searchColumn);
   const active = data.activeSmartBin;
@@ -134,9 +136,9 @@ const SmartBinsMenu: React.FC<{ data: ProjectPanelData }> = ({ data }) => {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="max-h-[320px] w-[260px] overflow-auto text-xs" data-testid="smart-bins-menu">
-        <DropdownMenuLabel className="text-[11px]">Smart bins</DropdownMenuLabel>
+        <DropdownMenuLabel className="text-[11px]">{t("Smart bins")}</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {data.smartBins.length === 0 && <div className="px-2 py-1.5 text-[11px] text-fg-muted">No smart bins yet. Search, then save it.</div>}
+        {data.smartBins.length === 0 && <div className="px-2 py-1.5 text-[11px] text-fg-muted">{t("No smart bins yet. Search, then save it.")}</div>}
         {data.smartBins.map((bin) => (
           <DropdownMenuCheckboxItem
             key={bin.id}
@@ -160,18 +162,18 @@ const SmartBinsMenu: React.FC<{ data: ProjectPanelData }> = ({ data }) => {
             });
           }}
         >
-          Save current search as smart bin
+          {t("Save current search as smart bin")}
         </DropdownMenuItem>
         {active && query.trim() && !savable && (
-          <div className="px-2 pb-1.5 text-[11px] text-fg-muted">Search in the same column as "{active.name}" to save it.</div>
+          <div className="px-2 pb-1.5 text-[11px] text-fg-muted">{t('Search in the same column as "{name}" to save it.', { name: active.name })}</div>
         )}
         {active && (
           <>
             <DropdownMenuItem onSelect={() => useProjectPanelStore.getState().openDialog({ kind: "rename-smart-bin", smartBinId: active.id })}>
-              Rename "{active.name}"…
+              {t('Rename "{name}"…', { name: active.name })}
             </DropdownMenuItem>
             <DropdownMenuItem data-testid="delete-smart-bin" onSelect={() => void runOrganize("Delete smart bin", deleteSmartBin(active.id))}>
-              Delete "{active.name}"
+              {t('Delete "{name}"', { name: active.name })}
             </DropdownMenuItem>
           </>
         )}
@@ -181,6 +183,7 @@ const SmartBinsMenu: React.FC<{ data: ProjectPanelData }> = ({ data }) => {
 };
 
 export const ProjectPanelBar: React.FC<{ data: ProjectPanelData; selectionCount: number }> = ({ data, selectionCount }) => {
+  const t = useT();
   const view = useProjectPanelStore((s) => s.view);
   const setView = useProjectPanelStore((s) => s.setView);
   const columns = useProjectPanelStore((s) => s.columns);
@@ -262,7 +265,7 @@ export const ProjectPanelBar: React.FC<{ data: ProjectPanelData; selectionCount:
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="max-h-[320px] w-[170px] overflow-auto text-xs">
-          <DropdownMenuLabel className="text-[11px]">Search in</DropdownMenuLabel>
+          <DropdownMenuLabel className="text-[11px]">{t("Search in")}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           {([{ id: "all", title: "All columns" }, ...MEDIA_COLUMNS] as Array<{ id: MediaColumnId | "all"; title: string }>).map((c) => (
             <DropdownMenuCheckboxItem
@@ -271,7 +274,7 @@ export const ProjectPanelBar: React.FC<{ data: ProjectPanelData; selectionCount:
               data-testid={`search-in-${c.id}`}
               onSelect={() => setSearchColumn(c.id)}
             >
-              {c.title}
+              {t(c.title)}
             </DropdownMenuCheckboxItem>
           ))}
         </DropdownMenuContent>
@@ -284,7 +287,7 @@ export const ProjectPanelBar: React.FC<{ data: ProjectPanelData; selectionCount:
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="max-h-[360px] w-[170px] overflow-auto text-xs">
-            <DropdownMenuLabel className="text-[11px]">Columns</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-[11px]">{t("Columns")}</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {MEDIA_COLUMNS.map((c) => (
               <DropdownMenuCheckboxItem
@@ -297,7 +300,7 @@ export const ProjectPanelBar: React.FC<{ data: ProjectPanelData; selectionCount:
                   toggleColumn(c.id);
                 }}
               >
-                {c.title}
+                {t(c.title)}
               </DropdownMenuCheckboxItem>
             ))}
           </DropdownMenuContent>

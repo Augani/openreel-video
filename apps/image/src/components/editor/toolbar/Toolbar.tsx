@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useT } from '@openreel/i18n/react';
 import {
   MousePointer2,
   Hand,
@@ -142,6 +143,7 @@ function ToolGroupButton({
   activeTool: Tool;
   onSelectTool: (tool: Tool) => void;
 }) {
+  const t = useT();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -223,7 +225,7 @@ function ToolGroupButton({
                 }`}
               >
                 <ToolIcon size={16} />
-                <span className="flex-1 text-left">{tool.label}</span>
+                <span className="flex-1 text-left">{t(tool.label)}</span>
                 {tool.shortcut && (
                   <span className="text-xs text-muted-foreground/60">{tool.shortcut}</span>
                 )}

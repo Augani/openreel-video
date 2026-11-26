@@ -96,6 +96,8 @@ export const CHANNELS = {
   linkedCompPost: "openreel:linkedComp:post",
   /** Main -> renderer: a relayed linked-composition message. */
   linkedCompMessage: "openreel:linkedComp:message",
+  /** Renderer -> main: the menu language preference and its resolved locale. */
+  languageSet: "openreel:language:set",
   windowControl: "openreel:window:control",
   windowIsMaximized: "openreel:window:isMaximized",
   lifecycleUnsavedQuery: "openreel:lifecycle:unsavedQuery",

@@ -39,6 +39,7 @@ import {
   setSubclipRestrictTrims,
 } from "../../../services/project-panel-commands";
 import { toast } from "../../../stores/notification-store";
+import { useT } from "@openreel/i18n/react";
 
 /** Small label colour square used in bins, lists and menus. */
 export const LabelChip: React.FC<{ label?: MediaLabelId | null; className?: string }> = ({ label, className }) => {
@@ -86,30 +87,34 @@ export const LabelPickerItems: React.FC<{
   onPick: (label: MediaLabelId | null) => void;
   /** Extra "Inherit from media" entry (timeline clips). */
   onInherit?: () => void;
-}> = ({ kind, current, onPick, onInherit }) => (
-  <>
-    {MEDIA_LABELS.map((label) => (
-      <Item key={label.id} kind={kind} data-testid={`label-${label.id}`} onSelect={() => onPick(label.id)}>
-        <LabelChip label={label.id} />
-        <span className="ml-2">{label.name}</span>
-        {current === label.id && <span className="ml-auto pl-3 text-accent">✓</span>}
+}> = ({ kind, current, onPick, onInherit }) => {
+  const t = useT();
+  return (
+    <>
+      {MEDIA_LABELS.map((label) => (
+        <Item key={label.id} kind={kind} data-testid={`label-${label.id}`} onSelect={() => onPick(label.id)}>
+          <LabelChip label={label.id} />
+          <span className="ml-2">{t(label.name)}</span>
+          {current === label.id && <span className="ml-auto pl-3 text-accent">✓</span>}
+        </Item>
+      ))}
+      <Separator kind={kind} />
+      <Item kind={kind} data-testid="label-none" onSelect={() => onPick(null)}>
+        <LabelChip label={null} />
+        <span className="ml-2">{t("None")}</span>
       </Item>
-    ))}
-    <Separator kind={kind} />
-    <Item kind={kind} data-testid="label-none" onSelect={() => onPick(null)}>
-      <LabelChip label={null} />
-      <span className="ml-2">None</span>
-    </Item>
-    {onInherit && (
-      <Item kind={kind} data-testid="label-inherit" onSelect={onInherit}>
-        <span className="ml-[22px]">Inherit from media</span>
-      </Item>
-    )}
-  </>
-);
+      {onInherit && (
+        <Item kind={kind} data-testid="label-inherit" onSelect={onInherit}>
+          <span className="ml-[22px]">{t("Inherit from media")}</span>
+        </Item>
+      )}
+    </>
+  );
+};
 
 /** Organise entries for a media item: label, move, subclip, rename, notes. */
 export const MediaOrganizeItems: React.FC<{ item: MediaItem; kind: MenuKind }> = ({ item, kind }) => {
+  const t = useT();
   const bins = useProjectStore((s) => s.project.bins);
   const allBins = React.useMemo(() => binsOf({ bins }), [bins]);
   const sourceMarks = useSourceMonitorStore((s) => s.marks[item.id]);
@@ -121,12 +126,12 @@ export const MediaOrganizeItems: React.FC<{ item: MediaItem; kind: MenuKind }> =
   return (
     <>
       <Separator kind={kind} />
-      <Sub kind={kind} title="Label" testId="menu-label">
+      <Sub kind={kind} title={t("Label")} testId="menu-label">
         <LabelPickerItems kind={kind} current={item.label} onPick={onLabel} />
       </Sub>
-      <Sub kind={kind} title="Move to bin" testId="menu-move">
+      <Sub kind={kind} title={t("Move to bin")} testId="menu-move">
         <Item kind={kind} data-testid="move-root" onSelect={() => onMove(null)}>
-          Project root
+          {t("Project root")}
         </Item>
         {allBins.map((bin) => (
           <Item key={bin.id} kind={kind} data-testid={`move-${bin.id}`} onSelect={() => onMove(bin.id)}>
@@ -135,10 +140,10 @@ export const MediaOrganizeItems: React.FC<{ item: MediaItem; kind: MenuKind }> =
         ))}
       </Sub>
       <Item kind={kind} data-testid="menu-new-bin-from-selection" onSelect={() => { if (!useUIStore.getState().isSelected(item.id)) useUIStore.getState().select({ type: "clip", id: item.id }); void newBinFromSelection(); }}>
-        New bin from selection
+        {t("New bin from selection")}
       </Item>
       <Item kind={kind} data-testid="menu-automate-to-sequence" onSelect={() => { if (!useUIStore.getState().isSelected(item.id)) useUIStore.getState().select({ type: "clip", id: item.id }); openDialog({ kind: "automate-to-sequence" }); }}>
-        Automate to Sequence…
+        {t("Automate to Sequence…")}
       </Item>
       {canSubclip && (
         <Item
@@ -153,7 +158,7 @@ export const MediaOrganizeItems: React.FC<{ item: MediaItem; kind: MenuKind }> =
             });
           }}
         >
-          Make Subclip from Source marks
+          {t("Make Subclip from Source marks")}
         </Item>
       )}
       {item.subclip && kind === "context" && (
@@ -161,40 +166,40 @@ export const MediaOrganizeItems: React.FC<{ item: MediaItem; kind: MenuKind }> =
           checked={item.subclip.restrictTrims}
           onCheckedChange={(checked) => void runOrganize("Restrict trims", setSubclipRestrictTrims(item.id, checked === true))}
         >
-          Restrict trims to subclip
+          {t("Restrict trims to subclip")}
         </ContextMenuCheckboxItem>
       )}
       {item.subclip && kind === "dropdown" && (
         <DropdownMenuItem onSelect={() => void runOrganize("Restrict trims", setSubclipRestrictTrims(item.id, !item.subclip!.restrictTrims))}>
-          {item.subclip.restrictTrims ? "Allow trims beyond subclip" : "Restrict trims to subclip"}
+          {t(item.subclip.restrictTrims ? "Allow trims beyond subclip" : "Restrict trims to subclip")}
         </DropdownMenuItem>
       )}
       <Separator kind={kind} />
-      <Item kind={kind} onSelect={() => openDialog({ kind: "rename-media", mediaId: item.id })}>Rename…</Item>
-      <Item kind={kind} onSelect={() => openDialog({ kind: "comment", mediaId: item.id })}>Comment…</Item>
-      <Item kind={kind} onSelect={() => openDialog({ kind: "description", mediaId: item.id })}>Description…</Item>
+      <Item kind={kind} onSelect={() => openDialog({ kind: "rename-media", mediaId: item.id })}>{t("Rename…")}</Item>
+      <Item kind={kind} onSelect={() => openDialog({ kind: "comment", mediaId: item.id })}>{t("Comment…")}</Item>
+      <Item kind={kind} onSelect={() => openDialog({ kind: "description", mediaId: item.id })}>{t("Description…")}</Item>
       {item.type !== "audio" && (
         <Item kind={kind} data-testid="menu-interpret-footage" onSelect={() => openDialog({ kind: "interpret-footage", mediaId: item.id })}>
-          Interpret Footage…
+          {t("Interpret Footage…")}
         </Item>
       )}
       {(item.type === "video" || item.type === "image") && (
         <Item kind={kind} data-testid="menu-vr-properties" onSelect={() => openDialog({ kind: "vr-properties", mediaId: item.id })}>
-          VR Properties…
+          {t("VR Properties…")}
         </Item>
       )}
       {item.raw && (
         <Item kind={kind} data-testid="menu-raw-settings" onSelect={() => openDialog({ kind: "raw-settings", mediaId: item.id })}>
-          RAW Source Settings…
+          {t("RAW Source Settings…")}
         </Item>
       )}
-      <Sub kind={kind} title="Log" testId="menu-log">
+      <Sub kind={kind} title={t("Log")} testId="menu-log">
         <Item kind={kind} data-testid="menu-good-take" onSelect={() => void runOrganize("Good take", setGoodTake(actionTargetIds(item.id), !item.goodTake))}>
-          {item.goodTake ? "Clear good take" : "Mark as good take"}
+          {t(item.goodTake ? "Clear good take" : "Mark as good take")}
         </Item>
-        <Item kind={kind} onSelect={() => openDialog({ kind: "scene", mediaId: item.id })}>Scene…</Item>
-        <Item kind={kind} onSelect={() => openDialog({ kind: "shot", mediaId: item.id })}>Shot…</Item>
-        <Item kind={kind} onSelect={() => openDialog({ kind: "take", mediaId: item.id })}>Take…</Item>
+        <Item kind={kind} onSelect={() => openDialog({ kind: "scene", mediaId: item.id })}>{t("Scene…")}</Item>
+        <Item kind={kind} onSelect={() => openDialog({ kind: "shot", mediaId: item.id })}>{t("Shot…")}</Item>
+        <Item kind={kind} onSelect={() => openDialog({ kind: "take", mediaId: item.id })}>{t("Take…")}</Item>
       </Sub>
     </>
   );
@@ -202,13 +207,14 @@ export const MediaOrganizeItems: React.FC<{ item: MediaItem; kind: MenuKind }> =
 
 /** Merge Clips: enabled when exactly one video and one audio asset are selected. */
 const MergeClipsItems: React.FC = () => {
+  const t = useT();
   const selected = useUIStore((state) => state.selectedItems);
   const items = useProjectStore((state) => state.project.mediaLibrary.items);
   const enabled = mergeCandidates(items, selected.map((s) => s.id)) !== null;
   return (
     <>
-      <ContextMenuItem data-testid="merge-clips" disabled={!enabled} onSelect={() => void mergeSelectedAssets({ muteCameraAudio: true })}>Merge Clips (mute camera audio)</ContextMenuItem>
-      <ContextMenuItem data-testid="merge-clips-keep" disabled={!enabled} onSelect={() => void mergeSelectedAssets({ muteCameraAudio: false })}>Merge Clips (keep camera audio)</ContextMenuItem>
+      <ContextMenuItem data-testid="merge-clips" disabled={!enabled} onSelect={() => void mergeSelectedAssets({ muteCameraAudio: true })}>{t("Merge Clips (mute camera audio)")}</ContextMenuItem>
+      <ContextMenuItem data-testid="merge-clips-keep" disabled={!enabled} onSelect={() => void mergeSelectedAssets({ muteCameraAudio: false })}>{t("Merge Clips (keep camera audio)")}</ContextMenuItem>
     </>
   );
 };
@@ -220,22 +226,25 @@ export const MediaItemContextMenu: React.FC<{
   onOpenInSource: () => void;
   onAddToTimeline: () => void;
   onDelete: () => void;
-}> = ({ item, children, onOpenInSource, onAddToTimeline, onDelete }) => (
-  <ContextMenu
-    onOpenChange={(open) => {
-      // Right-clicking an unselected item selects it first, like a file browser.
-      if (open && !useUIStore.getState().isSelected(item.id)) useUIStore.getState().select({ type: "clip", id: item.id });
-    }}
-  >
-    <ContextMenuTrigger asChild><div className="contents">{children}</div></ContextMenuTrigger>
-    <ContextMenuContent className="w-[230px] [&_[role=menuitem]]:text-xs" data-testid="media-context-menu">
-      <ContextMenuItem onSelect={onOpenInSource}>Open in Source monitor</ContextMenuItem>
-      <ContextMenuItem onSelect={onAddToTimeline}>Add to timeline</ContextMenuItem>
-      {item.type !== "image" && <ContextMenuItem data-testid="media-audio-channels" onSelect={() => { openSourceChannelsFor(selectedAudioMediaIds().includes(item.id) ? selectedAudioMediaIds() : [item.id]); }}>Audio channels…</ContextMenuItem>}
-      <MergeClipsItems />
-      <MediaOrganizeItems item={item} kind="context" />
-      <ContextMenuSeparator />
-      <ContextMenuItem onSelect={onDelete}>Delete</ContextMenuItem>
-    </ContextMenuContent>
-  </ContextMenu>
-);
+}> = ({ item, children, onOpenInSource, onAddToTimeline, onDelete }) => {
+  const t = useT();
+  return (
+    <ContextMenu
+      onOpenChange={(open) => {
+        // Right-clicking an unselected item selects it first, like a file browser.
+        if (open && !useUIStore.getState().isSelected(item.id)) useUIStore.getState().select({ type: "clip", id: item.id });
+      }}
+    >
+      <ContextMenuTrigger asChild><div className="contents">{children}</div></ContextMenuTrigger>
+      <ContextMenuContent className="w-[230px] [&_[role=menuitem]]:text-xs" data-testid="media-context-menu">
+        <ContextMenuItem onSelect={onOpenInSource}>{t("Open in Source monitor")}</ContextMenuItem>
+        <ContextMenuItem onSelect={onAddToTimeline}>{t("Add to timeline")}</ContextMenuItem>
+        {item.type !== "image" && <ContextMenuItem data-testid="media-audio-channels" onSelect={() => { openSourceChannelsFor(selectedAudioMediaIds().includes(item.id) ? selectedAudioMediaIds() : [item.id]); }}>{t("Audio channels…")}</ContextMenuItem>}
+        <MergeClipsItems />
+        <MediaOrganizeItems item={item} kind="context" />
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={onDelete}>{t("Delete")}</ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+};

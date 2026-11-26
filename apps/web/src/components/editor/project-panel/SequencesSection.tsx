@@ -14,6 +14,7 @@ import {
   sequenceContentDuration,
   type Sequence,
 } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 import { useProjectStore } from "../../../stores/project-store";
 import { useProjectPanelStore } from "../../../stores/project-panel-store";
 import { formatFrameTimecode } from "../../../utils/frame-timecode";
@@ -67,6 +68,7 @@ const RowNameEditor: React.FC<{ sequence: Sequence; onDone: () => void }> = ({ s
  * onto a bin files it.
  */
 export const SequencesSection: React.FC<{ data: ProjectPanelData; trailing?: React.ReactNode }> = ({ data, trailing }) => {
+  const t = useT();
   const { sequences: storedSequences, activeSequenceId, openSequenceIds, timeline, settings, compounds } = useProjectStore(
     useShallow((s) => ({
       sequences: s.project.sequences,
@@ -176,11 +178,11 @@ export const SequencesSection: React.FC<{ data: ProjectPanelData; trailing?: Rea
                     </div>
                   </ContextMenuTrigger>
                   <ContextMenuContent className="w-[200px] [&_[role=menuitem]]:gap-2 [&_[role=menuitem]]:text-xs" data-testid="sequence-row-menu">
-                    <ContextMenuItem onSelect={() => void openSequence(sequence.id)}><Layers size={13} aria-hidden />Open in timeline</ContextMenuItem>
-                    <ContextMenuItem onSelect={() => setRenamingId(sequence.id)}><Edit3 size={13} aria-hidden />Rename</ContextMenuItem>
-                    <ContextMenuItem onSelect={() => void duplicateSequenceCommand(sequence.id)}><Copy size={13} aria-hidden />Duplicate</ContextMenuItem>
+                    <ContextMenuItem onSelect={() => void openSequence(sequence.id)}><Layers size={13} aria-hidden />{t("Open in timeline")}</ContextMenuItem>
+                    <ContextMenuItem onSelect={() => setRenamingId(sequence.id)}><Edit3 size={13} aria-hidden />{t("Rename")}</ContextMenuItem>
+                    <ContextMenuItem onSelect={() => void duplicateSequenceCommand(sequence.id)}><Copy size={13} aria-hidden />{t("Duplicate")}</ContextMenuItem>
                     <ContextMenuSeparator />
-                    <ContextMenuItem disabled={(project.sequences?.length ?? 0) <= 1} onSelect={() => void deleteSequenceCommand(sequence.id)}><Trash2 size={13} aria-hidden />Delete</ContextMenuItem>
+                    <ContextMenuItem disabled={(project.sequences?.length ?? 0) <= 1} onSelect={() => void deleteSequenceCommand(sequence.id)}><Trash2 size={13} aria-hidden />{t("Delete")}</ContextMenuItem>
                   </ContextMenuContent>
                 </ContextMenu>
               </li>

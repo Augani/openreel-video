@@ -1,9 +1,11 @@
 import { useState, useRef } from 'react';
+import { useT } from '@openreel/i18n/react';
 import { Plus, Trash2, Copy, MoreHorizontal, ChevronUp, ChevronDown } from 'lucide-react';
 import { useProjectStore } from '../../../stores/project-store';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@openreel/ui';
 
 export function PagesBar() {
+  const t = useT();
   const {
     project,
     selectedArtboardId,
@@ -131,11 +133,11 @@ export function PagesBar() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-40">
                         <DropdownMenuItem onClick={() => handleStartRename(artboard.id)}>
-                          Rename
+                          {t('Rename')}
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleDuplicatePage(artboard.id)}>
                           <Copy size={14} className="mr-2" />
-                          Duplicate
+                          {t('Duplicate')}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => handleDeletePage(artboard.id)}
@@ -143,7 +145,7 @@ export function PagesBar() {
                           className="text-destructive focus:text-destructive"
                         >
                           <Trash2 size={14} className="mr-2" />
-                          Delete
+                          {t('Delete')}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

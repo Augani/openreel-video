@@ -1,4 +1,6 @@
 import { useState } from "react";
+import type { LanguagePreference } from "@openreel/i18n";
+import { useLanguage, useT } from "@openreel/i18n/react";
 import { useCommands } from "../commands";
 import { cn } from "../lib/cn";
 import type { View } from "../App";
@@ -27,25 +29,37 @@ function MenuItem({ item, close }: { item: Item; close: () => void }) {
 
 export function Menubar({ view }: { view: View }) {
   const cmd = useCommands();
+  const t = useT();
+  const { preference, setPreference } = useLanguage();
   const [open, setOpen] = useState<string | null>(null);
   const close = () => setOpen(null);
 
+  const languageItem = (value: LanguagePreference, label: string): Item => ({
+    label: `${preference === value ? "✓ " : ""}${label}`,
+    onClick: () => setPreference(value),
+  });
+
   const menus: Record<string, Item[]> = {
     File: [
-      { label: "New Effect", shortcut: "⌘N", onClick: cmd.newEffect },
-      { label: "New Filter", shortcut: "⌘⇧N", onClick: cmd.newFilter },
-      { label: "New Template", onClick: cmd.newTemplate },
+      { label: t("New Effect"), shortcut: "⌘N", onClick: cmd.newEffect },
+      { label: t("New Filter"), shortcut: "⌘⇧N", onClick: cmd.newFilter },
+      { label: t("New Template"), onClick: cmd.newTemplate },
       { label: "", sep: true },
-      { label: "Back to hub", onClick: cmd.goHome },
+      { label: t("Back to hub"), onClick: cmd.goHome },
+    ],
+    Language: [
+      languageItem("system", t("Follow system")),
+      languageItem("en", "English"),
+      languageItem("zh-CN", "简体中文"),
     ],
     ...(view !== "hub" ? {
       Help: [
-        { label: "Tutorials — start learning", onClick: cmd.openTutorials },
-        { label: "Keyboard: ⌘Z undo · ⌘S save", disabled: true },
+        { label: t("Tutorials — start learning"), onClick: cmd.openTutorials },
+        { label: t("Keyboard: ⌘Z undo · ⌘S save"), disabled: true },
       ],
     } : {
       Help: [
-        { label: "Tutorials — start learning", onClick: cmd.openTutorials },
+        { label: t("Tutorials — start learning"), onClick: cmd.openTutorials },
       ],
     }),
   };
@@ -59,7 +73,7 @@ export function Menubar({ view }: { view: View }) {
             onMouseEnter={() => setOpen((o) => (o ? name : o))}
             className={cn("rounded px-2 py-1 text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100", open === name && "bg-zinc-800 text-zinc-100")}
           >
-            {name}
+            {t(name)}
           </button>
           {open === name && (
             <div className="absolute left-0 top-[26px] z-50 min-w-[200px] rounded-md border border-zinc-700 bg-zinc-900 p-1 shadow-lg">

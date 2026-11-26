@@ -6,6 +6,7 @@ import {
 } from "@openreel/core";
 import { X, Copy, Clipboard, Trash2, ChevronLeft, ChevronRight } from "@/icons/lucide-compat";
 import { Button, ScrollArea, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuCheckboxItem, ContextMenuLabel, ContextMenuSeparator, cn } from "@openreel/ui";
+import { useT } from "@openreel/i18n/react";
 
 const PROPERTY_COLORS: Record<string, string> = {
   "position.x": "#22d3ee", "position.y": "#34d399", "scale.x": "#4ade80", "scale.y": "#86efac",
@@ -39,6 +40,7 @@ function InterpolationMenu({ children, disabled, side, resolveIds, typesOf, onAp
   children: React.ReactNode; disabled: boolean; side: KeyframeInterpolationSide; resolveIds: (event: React.MouseEvent) => string[];
   typesOf: (id: string) => SideTypes; onApply: (ids: string[], op: KeyframeInterpolationOp) => void; spatial?: SpatialMenu;
 }) {
+  const t = useT();
   const ids = useRef<string[]>([]);
   const [current, setCurrent] = useState<SideTypes>({});
   const [spatialCurrent, setSpatialCurrent] = useState<SpatialInterpolationOp | null>(null);
@@ -61,15 +63,15 @@ function InterpolationMenu({ children, disabled, side, resolveIds, typesOf, onAp
         {children}
       </ContextMenuTrigger>
       <ContextMenuContent aria-label="Keyframe interpolation">
-        <ContextMenuLabel>Temporal Interpolation ({KEYFRAME_INTERPOLATION_SIDE_LABELS[side].toLowerCase()})</ContextMenuLabel>
+        <ContextMenuLabel>{t("Temporal Interpolation ({side})", { side: t(KEYFRAME_INTERPOLATION_SIDE_LABELS[side]) })}</ContextMenuLabel>
         {KEYFRAME_INTERPOLATION_OPS.map(op => (
-          <ContextMenuCheckboxItem key={op} checked={isCurrent(op)} onSelect={() => onApply(ids.current, op)}>{KEYFRAME_INTERPOLATION_LABELS[op]}</ContextMenuCheckboxItem>
+          <ContextMenuCheckboxItem key={op} checked={isCurrent(op)} onSelect={() => onApply(ids.current, op)}>{t(KEYFRAME_INTERPOLATION_LABELS[op])}</ContextMenuCheckboxItem>
         ))}
         {spatial && spatialIds.length > 0 && <>
           <ContextMenuSeparator/>
-          <ContextMenuLabel>Spatial Interpolation (position path)</ContextMenuLabel>
+          <ContextMenuLabel>{t("Spatial Interpolation (position path)")}</ContextMenuLabel>
           {SPATIAL_INTERPOLATION_OPS.map(op => (
-            <ContextMenuCheckboxItem key={`spatial-${op}`} checked={spatialCurrent === op} aria-label={`Spatial ${SPATIAL_INTERPOLATION_LABELS[op]}`} onSelect={() => spatial.onApply(spatialIds, op)}>{SPATIAL_INTERPOLATION_LABELS[op]}</ContextMenuCheckboxItem>
+            <ContextMenuCheckboxItem key={`spatial-${op}`} checked={spatialCurrent === op} aria-label={`Spatial ${SPATIAL_INTERPOLATION_LABELS[op]}`} onSelect={() => spatial.onApply(spatialIds, op)}>{t(SPATIAL_INTERPOLATION_LABELS[op])}</ContextMenuCheckboxItem>
           ))}
         </>}
       </ContextMenuContent>

@@ -15,6 +15,7 @@ import {
   Switch,
   cn,
 } from "@openreel/ui";
+import { useT } from "@openreel/i18n/react";
 import { ChevronDown, Plus, Sparkles, X } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
 import {
@@ -51,6 +52,7 @@ const ISSUE_LABELS: Record<RepairEffectType, string> = {
  * read-only spectrogram of the source or the processed result.
  */
 export const RepairSection: React.FC<RepairSectionProps> = ({ clipId }) => {
+  const t = useT();
   const clip = useProjectStore((state) =>
     state.project.timeline.tracks.flatMap((track) => track.clips).find((candidate) => candidate.id === clipId),
   );
@@ -213,7 +215,7 @@ export const RepairSection: React.FC<RepairSectionProps> = ({ clipId }) => {
                   setExpanded(effect.id);
                 }}
               >
-                {REPAIR_EFFECT_DEFINITIONS[type].label}
+                {t(REPAIR_EFFECT_DEFINITIONS[type].label)}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>

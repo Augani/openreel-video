@@ -44,6 +44,7 @@ import { useTtsAudioStore } from "../../stores/tts-store";
 import { toast } from "../../stores/notification-store";
 import { saveFileHandle, saveDirectoryHandle } from "../../services/media-storage";
 import { cn } from "@openreel/ui";
+import { useT } from "@openreel/i18n/react";
 
 import { KieAIImageDialog } from "./kieai/KieAIImageDialog";
 import { loadMediaBlob } from "../../services/media-storage";
@@ -312,6 +313,7 @@ const MediaThumbnail: React.FC<{
   onKieAI,
   onRetryKieAI,
 }) => {
+  const t = useT();
   const [isHovered, setIsHovered] = useState(false);
   const audioPeaks = useMediaAudioPeaks(item, viewMode !== "list");
   const thumbnailState = useThumbnailState(item);
@@ -638,25 +640,25 @@ const MediaThumbnail: React.FC<{
         <DropdownMenuContent align="end">
           {item.kieaiError ? (
             <DropdownMenuItem disabled={!onRetryKieAI} onSelect={onRetryKieAI}>
-              <RefreshCw size={14} />Retry generation
+              <RefreshCw size={14} />{t("Retry generation")}
             </DropdownMenuItem>
           ) : item.isPending ? (
-            <DropdownMenuItem disabled>Generation in progress…</DropdownMenuItem>
+            <DropdownMenuItem disabled>{t("Generation in progress…")}</DropdownMenuItem>
           ) : item.isPlaceholder ? (
-            <DropdownMenuItem onSelect={onReplace}><RefreshCw size={14} />Replace asset</DropdownMenuItem>
+            <DropdownMenuItem onSelect={onReplace}><RefreshCw size={14} />{t("Replace asset")}</DropdownMenuItem>
           ) : (
             <>
-              <DropdownMenuItem onSelect={onOpenInSource}><Plus size={14} />Open in Source monitor</DropdownMenuItem>
-              <DropdownMenuItem onSelect={onAddToTimeline}><Plus size={14} />Add to timeline</DropdownMenuItem>
+              <DropdownMenuItem onSelect={onOpenInSource}><Plus size={14} />{t("Open in Source monitor")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={onAddToTimeline}><Plus size={14} />{t("Add to timeline")}</DropdownMenuItem>
               {item.type === "image" && onKieAI && (
-                <DropdownMenuItem onSelect={onKieAI}><Sparkles size={14} />Create with KieAI</DropdownMenuItem>
+                <DropdownMenuItem onSelect={onKieAI}><Sparkles size={14} />{t("Create with KieAI")}</DropdownMenuItem>
               )}
             </>
           )}
-          {item.metadata.stockSource && <DropdownMenuItem onSelect={copyCredits}>Copy credits</DropdownMenuItem>}
+          {item.metadata.stockSource && <DropdownMenuItem onSelect={copyCredits}>{t("Copy credits")}</DropdownMenuItem>}
           <MediaOrganizeItems item={item} kind="dropdown" />
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={onDelete}><Trash2 size={14} />Delete</DropdownMenuItem>
+          <DropdownMenuItem onSelect={onDelete}><Trash2 size={14} />{t("Delete")}</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
@@ -733,6 +735,7 @@ const MediaThumbnailRow = React.memo(function MediaThumbnailRow({
 });
 
 export const AssetsPanel: React.FC = () => {
+  const t = useT();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const activeTab = useEditorWorkspaceStore((s) => s.section);
   const mobileCaptionsOpen = useEditorWorkspaceStore(s => s.mobileCaptionsOpen);
@@ -1352,8 +1355,8 @@ export const AssetsPanel: React.FC = () => {
                     <ShadcnButton variant="secondary" className="h-[30px] shrink-0 gap-1 px-2 text-xs"><MediaLibraryIcon name="record" />Record</ShadcnButton>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={openVoiceOver}><AudioLibraryIcon name="voiceover" />Record voice-over</DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => openModal("recorder")}><MediaLibraryIcon name="record-start" />Record screen or camera</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={openVoiceOver}><AudioLibraryIcon name="voiceover" />{t("Record voice-over")}</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => openModal("recorder")}><MediaLibraryIcon name="record-start" />{t("Record screen or camera")}</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>

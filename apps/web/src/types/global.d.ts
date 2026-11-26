@@ -737,6 +737,13 @@ declare global {
         get(): Promise<OpenReelOnboardingMirror | null>;
         set(mirror: OpenReelOnboardingMirror): Promise<void>;
       };
+      /** Menu language preference, mirrored to the Electron native menu. */
+      language?: {
+        set(payload: {
+          preference: "system" | "en" | "zh-CN";
+          locale: "en" | "zh-CN";
+        }): Promise<{ ok: boolean }>;
+      };
       ollama?: {
         probe(): Promise<OpenReelOllamaProbeResult>;
       };

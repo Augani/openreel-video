@@ -41,4 +41,13 @@ describe("application menu Help items", () => {
       expect(dead.map((n) => n.label)).toEqual([]);
     });
   }
+
+  it("builds the application menu in Simplified Chinese", () => {
+    const template = buildMenuTemplate("linux", "zh-CN");
+    expect(template.map((m) => m.label)).toEqual(["文件", "编辑", "效果", "视图", "窗口", "帮助"]);
+    const file = template.find((m) => m.label === "文件")!;
+    expect(file.submenu!.map((i) => i.label)).toEqual(
+      expect.arrayContaining(["新建项目", "打开…", "导出…"]),
+    );
+  });
 });

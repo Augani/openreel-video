@@ -1,4 +1,5 @@
 import { useEditorWorkspaceStore } from "../../stores/editor-workspace-store";
+import { useT } from "@openreel/i18n/react";
 import { getPrimarySelectedTrackId } from "./timeline/primary-track";
 import { keyboardShortcuts } from "../../services/keyboard-shortcuts";
 import { Button as ShadcnButton, Input, Slider, Popover as ShadcnPopover, PopoverContent, PopoverTrigger } from "@openreel/ui";
@@ -148,6 +149,7 @@ const TLTool = ({
 );
 
 export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }) => {
+  const t = useT();
   const compact = useCompactEditor();
   const phone = usePhoneEditor();
   const headerWidth = phone ? 0 : compact ? 108 : 169;
@@ -1068,7 +1070,7 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
   );
 
   const addTrackMenu = addTrackItems.map(item =>
-    <DropdownMenuItem key={item.label} onSelect={() => void item.onClick()}>{item.icon}{item.label}</DropdownMenuItem>,
+    <DropdownMenuItem key={item.label} onSelect={() => void item.onClick()}>{item.icon}{t(item.label)}</DropdownMenuItem>,
   );
 
   const timelineToolbar = (

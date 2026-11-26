@@ -1,4 +1,6 @@
 import { Menu, type MenuItemConstructorOptions, type BrowserWindow } from "electron";
+import type { Locale } from "@openreel/i18n";
+import { translate } from "@openreel/i18n/translate";
 import { isNativeDialogOpen } from "./native-dialog-state";
 
 const nativeEditSelectors = new Map([
@@ -15,80 +17,84 @@ interface MenuNode {
   submenu?: MenuNode[];
 }
 
-export function buildMenuTemplate(platform: string): MenuNode[] {
+export function buildMenuTemplate(platform: string, locale: Locale = "en"): MenuNode[] {
   const isMac = platform === "darwin";
   const template: MenuNode[] = [];
   if (isMac) {
     template.push({
-      label: "OpenReel",
+      label: translate(locale, "OpenReel"),
       submenu: [
-        { label: "About OpenReel", role: "about" },
-        { label: "Settings…", accelerator: "Cmd+,", actionId: "settings" },
-        { label: "Quit", role: "quit", accelerator: "Cmd+Q" },
+        { label: translate(locale, "About OpenReel"), role: "about" },
+        { label: translate(locale, "Settings…"), accelerator: "Cmd+,", actionId: "settings" },
+        { label: translate(locale, "Quit"), role: "quit", accelerator: "Cmd+Q" },
       ],
     });
   }
   template.push({
-    label: "File",
+    label: translate(locale, "File"),
     submenu: [
-      { label: "New Project", accelerator: "CmdOrCtrl+N", actionId: "newProject" },
-      { label: "Open…", accelerator: "CmdOrCtrl+O", actionId: "open" },
-      { label: "Export…", accelerator: "CmdOrCtrl+E", actionId: "export" },
-      { label: "Project Manager…", actionId: "projectManager" },
-      { label: "Collaborate…", accelerator: "Shift+CmdOrCtrl+J", actionId: "collaborate" },
+      { label: translate(locale, "New Project"), accelerator: "CmdOrCtrl+N", actionId: "newProject" },
+      { label: translate(locale, "Open…"), accelerator: "CmdOrCtrl+O", actionId: "open" },
+      { label: translate(locale, "Export…"), accelerator: "CmdOrCtrl+E", actionId: "export" },
+      { label: translate(locale, "Project Manager…"), actionId: "projectManager" },
+      { label: translate(locale, "Collaborate…"), accelerator: "Shift+CmdOrCtrl+J", actionId: "collaborate" },
     ],
   });
   template.push({
-    label: "Edit",
+    label: translate(locale, "Edit"),
     submenu: [
-      { label: "Undo", accelerator: "CmdOrCtrl+Z", actionId: "undo" },
-      { label: "Redo", accelerator: "Shift+CmdOrCtrl+Z", actionId: "redo" },
-      { label: "Cut", role: "cut" },
-      { label: "Copy", role: "copy" },
-      { label: "Paste", role: "paste" },
-      { label: "Select All", accelerator: "CmdOrCtrl+A", actionId: "selectAll" },
+      { label: translate(locale, "Undo"), accelerator: "CmdOrCtrl+Z", actionId: "undo" },
+      { label: translate(locale, "Redo"), accelerator: "Shift+CmdOrCtrl+Z", actionId: "redo" },
+      { label: translate(locale, "Cut"), role: "cut" },
+      { label: translate(locale, "Copy"), role: "copy" },
+      { label: translate(locale, "Paste"), role: "paste" },
+      { label: translate(locale, "Select All"), accelerator: "CmdOrCtrl+A", actionId: "selectAll" },
       ...(!isMac
-        ? [{ label: "Settings…", accelerator: "Ctrl+,", actionId: "settings" }]
+        ? [{ label: translate(locale, "Settings…"), accelerator: "Ctrl+,", actionId: "settings" }]
         : []),
     ],
   });
   template.push({
-    label: "Effects",
-    submenu: [{ label: "Manage Plugins…", actionId: "managePlugins" }],
+    label: translate(locale, "Effects"),
+    submenu: [{ label: translate(locale, "Manage Plugins…"), actionId: "managePlugins" }],
   });
   template.push({
-    label: "View",
+    label: translate(locale, "View"),
     submenu: [
-      { label: "Reload", role: "reload", accelerator: "CmdOrCtrl+R" },
-      { label: "Force Reload", role: "forceReload", accelerator: "Shift+CmdOrCtrl+R" },
+      { label: translate(locale, "Reload"), role: "reload", accelerator: "CmdOrCtrl+R" },
+      { label: translate(locale, "Force Reload"), role: "forceReload", accelerator: "Shift+CmdOrCtrl+R" },
       {
-        label: "Toggle Developer Tools",
+        label: translate(locale, "Toggle Developer Tools"),
         role: "toggleDevTools",
         accelerator: "Alt+CmdOrCtrl+I",
       },
-      { label: "Toggle Full Screen", role: "togglefullscreen" },
+      { label: translate(locale, "Toggle Full Screen"), role: "togglefullscreen" },
     ],
   });
   template.push({
-    label: "Window",
+    label: translate(locale, "Window"),
     submenu: [
-      { label: "Minimize", role: "minimize" },
-      { label: "Close", role: "close" },
+      { label: translate(locale, "Minimize"), role: "minimize" },
+      { label: translate(locale, "Close"), role: "close" },
     ],
   });
   template.push({
-    label: "Help",
+    label: translate(locale, "Help"),
     submenu: [
-      { label: "Welcome & Setup…", actionId: "showWelcomeSetup" },
-      { label: "Learn OpenReel…", actionId: "openLessons" },
-      { label: "Connect an AI Agent…", actionId: "connectAgent" },
-      { label: "Open Source Licenses", actionId: "openLicenses" },
+      { label: translate(locale, "Welcome & Setup…"), actionId: "showWelcomeSetup" },
+      { label: translate(locale, "Learn OpenReel…"), actionId: "openLessons" },
+      { label: translate(locale, "Connect an AI Agent…"), actionId: "connectAgent" },
+      { label: translate(locale, "Open Source Licenses"), actionId: "openLicenses" },
     ],
   });
   return template;
 }
 
-export function installApplicationMenu(platform: string, onAction: (id: string) => void): void {
+export function installApplicationMenu(
+  platform: string,
+  onAction: (id: string) => void,
+  locale: Locale = "en",
+): void {
   const toElectron = (node: MenuNode): MenuItemConstructorOptions => ({
     label: node.label,
     accelerator: node.accelerator,
@@ -102,7 +108,7 @@ export function installApplicationMenu(platform: string, onAction: (id: string) 
         ? undefined
         : () => onAction(node.label),
   });
-  const template = buildMenuTemplate(platform).map(toElectron);
+  const template = buildMenuTemplate(platform, locale).map(toElectron);
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 

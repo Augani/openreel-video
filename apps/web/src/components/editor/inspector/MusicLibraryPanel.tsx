@@ -25,6 +25,7 @@ import {
   ContextMenuCheckboxItem,
   ContextMenuSeparator,
 } from "@openreel/ui";
+import { useT } from "@openreel/i18n/react";
 import { useEngineStore } from "../../../stores/engine-store";
 import { useProjectStore } from "../../../stores/project-store";
 import {
@@ -71,6 +72,7 @@ function SoundCard({
   onStop,
   onAdd,
 }: SoundCardProps) {
+  const t = useT();
   const playButton = useRef<HTMLButtonElement>(null);
   const peaks = useMemo(() => {
     // Resample to 60 bars covering the whole sound (the envelope arrives at 60 already).
@@ -220,7 +222,7 @@ function SoundCard({
           disabled={!isPlaying && !isPaused && !isLoading}
           onSelect={onStop}
         >
-          Stop preview
+          {t("Stop preview")}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -230,6 +232,7 @@ function SoundCard({
 export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
   source,
 }) => {
+  const t = useT();
   const getSoundLibraryEngine = useEngineStore(
     (state) => state.getSoundLibraryEngine,
   );
@@ -720,7 +723,7 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
               {activeTab === "music" && (
                 <ContextMenuSub>
                   <ContextMenuSubTrigger>
-                    All music genres
+                    {t("All music genres")}
                   </ContextMenuSubTrigger>
                   <ContextMenuSubContent>
                     <ContextMenuRadioGroup
@@ -730,11 +733,11 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
                       }
                     >
                       <ContextMenuRadioItem value="all">
-                        All genres
+                        {t("All genres")}
                       </ContextMenuRadioItem>
                       {presentMusicGenres.map((genre) => (
                         <ContextMenuRadioItem key={genre.id} value={genre.id}>
-                          {genre.name}
+                          {t(genre.name)}
                         </ContextMenuRadioItem>
                       ))}
                     </ContextMenuRadioGroup>
@@ -742,7 +745,7 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
                 </ContextMenuSub>
               )}
               <ContextMenuSub>
-                <ContextMenuSubTrigger>Filter by mood</ContextMenuSubTrigger>
+                <ContextMenuSubTrigger>{t("Filter by mood")}</ContextMenuSubTrigger>
                 <ContextMenuSubContent>
                   {presentMoods.map((mood) => (
                     <ContextMenuCheckboxItem
@@ -751,7 +754,7 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
                       onCheckedChange={() => toggleMood(mood.id)}
                       onSelect={(event) => event.preventDefault()}
                     >
-                      {mood.name}
+                      {t(mood.name)}
                     </ContextMenuCheckboxItem>
                   ))}
                 </ContextMenuSubContent>
@@ -764,7 +767,7 @@ export const MusicLibraryPanel: React.FC<{ source?: "music" | "sfx" }> = ({
                   setSelectedMoods([]);
                 }}
               >
-                Clear filters
+                {t("Clear filters")}
               </ContextMenuItem>
             </ContextMenuContent>
           </ContextMenu>

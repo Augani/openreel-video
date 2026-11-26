@@ -7,6 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@openreel/ui";
+import { useT } from "@openreel/i18n/react";
 import { useEngineStore } from "../../../stores/engine-store";
 import { indicatorView, useDroppedFrameIndicatorPrefs, type IndicatorTone } from "./dropped-frame-indicator-state";
 
@@ -42,6 +43,7 @@ function useDroppedFrames(source: DroppedFrameSource | null): number {
  * restarts with every playback run. Clicking it opens the monitor setting that turns it off (and back on).
  */
 export const DroppedFrameIndicator: React.FC<{ source?: DroppedFrameSource | null }> = ({ source }) => {
+  const t = useT();
   const engineSource = useEngineStore((s) => s.playbackController);
   const effective = source === undefined ? engineSource : source;
   const count = useDroppedFrames(effective);
@@ -65,11 +67,11 @@ export const DroppedFrameIndicator: React.FC<{ source?: DroppedFrameSource | nul
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuCheckboxItem checked={enabled} onCheckedChange={setEnabled}>
-            Show dropped frame indicator
+            {t("Show dropped frame indicator")}
           </DropdownMenuCheckboxItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem disabled={!effective || count === 0} onSelect={() => effective?.resetDroppedFrames()}>
-            Reset count
+            {t("Reset count")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

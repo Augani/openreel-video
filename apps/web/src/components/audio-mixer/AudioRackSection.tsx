@@ -31,6 +31,7 @@ import {
   Slider,
   cn,
 } from "@openreel/ui";
+import { useT } from "@openreel/i18n/react";
 import { ChevronDown, ChevronUp, Plus, Power, X } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../stores/project-store";
 import { GainReductionMeter, RepairEffectEditor } from "../audio-repair/RepairEffectEditor";
@@ -234,6 +235,7 @@ export const AudioRackSection = memo(function AudioRackSection({
   label,
   rack,
 }: AudioRackSectionProps) {
+  const t = useT();
   const setAudioRack = useProjectStore((state) => state.setAudioRack);
   const effects = rack?.effects ?? [];
   const maxEffects = getMaxRackEffects();
@@ -392,7 +394,7 @@ export const AudioRackSection = memo(function AudioRackSection({
           <DropdownMenuContent align="start">
             {AUDIO_RACK_EFFECT_TYPES.map((type) => (
               <DropdownMenuItem key={type} onSelect={() => add(type)}>
-                {AUDIO_RACK_EFFECT_DEFINITIONS[type].label}
+                {t(AUDIO_RACK_EFFECT_DEFINITIONS[type].label)}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>

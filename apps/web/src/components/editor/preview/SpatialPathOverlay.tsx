@@ -9,6 +9,7 @@ import {
   type Keyframe,
 } from "@openreel/core";
 import { ContextMenu, ContextMenuCheckboxItem, ContextMenuContent, ContextMenuLabel, ContextMenuTrigger } from "@openreel/ui";
+import { useT } from "@openreel/i18n/react";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { applySpatialInterpolationToClip, moveSpatialVertexOnClip, setSpatialHandleOnClip } from "../../../services/spatial-path-edit";
@@ -33,6 +34,7 @@ type Live =
  * Position here is the clip's position keyframes in project pixels from the frame centre.
  */
 export const SpatialPathOverlay: React.FC<{ clipId: string | null; bounds: Bounds | null; disabled?: boolean }> = ({ clipId, bounds, disabled = false }) => {
+  const t = useT();
   const clip = useProjectStore((s) => (clipId ? s.project.timeline.tracks.flatMap((t) => t.clips).find((c) => c.id === clipId) : undefined));
   const playhead = useTimelineStore((s) => s.playheadPosition);
   const svg = useRef<SVGSVGElement>(null);
@@ -139,10 +141,10 @@ export const SpatialPathOverlay: React.FC<{ clipId: string | null; bounds: Bound
                 />
               </ContextMenuTrigger>
               <ContextMenuContent aria-label="Spatial interpolation">
-                <ContextMenuLabel>Spatial Interpolation</ContextMenuLabel>
+                <ContextMenuLabel>{t("Spatial Interpolation")}</ContextMenuLabel>
                 {SPATIAL_INTERPOLATION_OPS.map((op) => (
                   <ContextMenuCheckboxItem key={op} checked={vertex.mode === op} onSelect={() => clipId && applySpatialInterpolationToClip(clipId, [vertex.xKeyId], op)}>
-                    {SPATIAL_INTERPOLATION_LABELS[op]}
+                    {t(SPATIAL_INTERPOLATION_LABELS[op])}
                   </ContextMenuCheckboxItem>
                 ))}
               </ContextMenuContent>

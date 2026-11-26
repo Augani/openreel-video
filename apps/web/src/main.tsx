@@ -10,8 +10,10 @@ import { installRawWorker } from "./services/raw-worker-client";
 import { startRawThumbnailSync } from "./services/raw-thumbnails";
 import { compositionIdFromHash } from "./services/linked-comp-protocol";
 import { segmentWorkerFromHash } from "./services/export-queue/segment-worker-protocol";
+import { initWebI18n } from "./i18n/init";
 
 performance.mark("openreel:entry");
+initWebI18n();
 
 // Camera RAW is developed off the main thread.
 installRawWorker();

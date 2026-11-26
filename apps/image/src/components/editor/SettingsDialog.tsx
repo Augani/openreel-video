@@ -1,16 +1,19 @@
 import { useState } from 'react';
-import { X, Settings, Grid3X3, MousePointer, Save, Palette, Monitor } from 'lucide-react';
+import { X, Settings, Grid3X3, MousePointer, Save, Palette, Monitor, Languages } from 'lucide-react';
 import { useUIStore } from '../../stores/ui-store';
 import { Slider } from '@openreel/ui';
+import { useLanguage, useT } from '@openreel/i18n/react';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
 }
 
-type SettingsTab = 'canvas' | 'snapping' | 'appearance';
+type SettingsTab = 'canvas' | 'snapping' | 'appearance' | 'language';
 
 export function SettingsDialog({ isOpen, onClose }: Props) {
+  const t = useT();
+  const { preference, setPreference } = useLanguage();
   const [activeTab, setActiveTab] = useState<SettingsTab>('canvas');
 
   const {
@@ -33,9 +36,10 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
   if (!isOpen) return null;
 
   const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'canvas', label: 'Canvas', icon: <Grid3X3 size={16} /> },
-    { id: 'snapping', label: 'Snapping', icon: <MousePointer size={16} /> },
-    { id: 'appearance', label: 'Appearance', icon: <Palette size={16} /> },
+    { id: 'canvas', label: t('Canvas'), icon: <Grid3X3 size={16} /> },
+    { id: 'snapping', label: t('Snapping'), icon: <MousePointer size={16} /> },
+    { id: 'appearance', label: t('Appearance'), icon: <Palette size={16} /> },
+    { id: 'language', label: t('Language'), icon: <Languages size={16} /> },
   ];
 
   return (
@@ -45,7 +49,7 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div className="flex items-center gap-3">
             <Settings size={20} className="text-primary" />
-            <h2 className="text-lg font-semibold">Settings</h2>
+            <h2 className="text-lg font-semibold">{t('Settings')}</h2>
           </div>
           <button
             onClick={onClose}
@@ -142,6 +146,29 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
                     checked={snapToObjects}
                     onChange={toggleSnapToObjects}
                   />
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'language' && (
+              <div className="space-y-6">
+                <h3 className="text-sm font-medium text-foreground mb-4">{t('Language')}</h3>
+                <div className="space-y-2">
+                  {([
+                    ['system', t('Follow system')],
+                    ['en', 'English'],
+                    ['zh-CN', '简体中文'],
+                  ] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setPreference(value)}
+                      className="flex w-full items-center justify-between rounded-lg border border-border px-3 py-2 text-left text-sm hover:bg-accent"
+                    >
+                      <span>{label}</span>
+                      {preference === value && <span className="text-primary">✓</span>}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}

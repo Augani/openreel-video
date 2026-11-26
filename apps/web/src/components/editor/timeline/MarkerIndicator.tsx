@@ -13,6 +13,7 @@ import {
 } from "@openreel/ui";
 import { Flag, X } from "@/icons/lucide-compat";
 import type { Marker } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 import { MARKER_COLORS } from "../../../services/marker-commands";
 import { OPEN_COMMENT_COLOR, RESOLVED_COMMENT_COLOR } from "../../../services/review-commands";
 
@@ -73,6 +74,7 @@ export const MarkerIndicator: React.FC<MarkerIndicatorProps> = ({
   onRemove,
   onUpdate,
 }) => {
+  const t = useT();
   const [isHovered, setIsHovered] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
   const [editedLabel, setEditedLabel] = React.useState(marker.label);
@@ -167,7 +169,7 @@ export const MarkerIndicator: React.FC<MarkerIndicatorProps> = ({
   const menu = (
     <ContextMenuContent className="min-w-[160px]" data-testid="marker-context-menu">
       <ContextMenuItem onSelect={() => onEdit?.(marker.id)} disabled={!onEdit}>
-        Edit marker
+        {t("Edit marker")}
       </ContextMenuItem>
       {isComment && (
         <ContextMenuItem
@@ -180,11 +182,11 @@ export const MarkerIndicator: React.FC<MarkerIndicatorProps> = ({
           disabled={!onUpdate}
           data-testid="marker-toggle-resolved"
         >
-          {resolvedComment ? "Reopen comment" : "Resolve comment"}
+          {t(resolvedComment ? "Reopen comment" : "Resolve comment")}
         </ContextMenuItem>
       )}
       <ContextMenuSub>
-        <ContextMenuSubTrigger disabled={!onUpdate}>Change colour</ContextMenuSubTrigger>
+        <ContextMenuSubTrigger disabled={!onUpdate}>{t("Change colour")}</ContextMenuSubTrigger>
         <ContextMenuSubContent>
           {MARKER_COLORS.map((color) => (
             <ContextMenuItem
@@ -193,14 +195,14 @@ export const MarkerIndicator: React.FC<MarkerIndicatorProps> = ({
               className="gap-2"
             >
               <span className="h-3 w-3 rounded-full border border-border" style={{ backgroundColor: color.value }} />
-              {color.name}
+              {t(color.name)}
             </ContextMenuItem>
           ))}
         </ContextMenuSubContent>
       </ContextMenuSub>
       <ContextMenuSeparator />
       <ContextMenuItem onSelect={() => onRemove?.(marker.id)} disabled={!onRemove}>
-        Delete marker
+        {t("Delete marker")}
       </ContextMenuItem>
     </ContextMenuContent>
   );

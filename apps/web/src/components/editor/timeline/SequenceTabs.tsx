@@ -22,6 +22,7 @@ import {
 } from "@openreel/ui";
 import { Copy, Edit3, Layers, Plus, Trash2, X } from "@/icons/lucide-compat";
 import { ensureSequences, type Sequence } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 import { useProjectStore } from "../../../stores/project-store";
 import { useUIStore } from "../../../stores/ui-store";
 import {
@@ -166,6 +167,7 @@ export const NewSequenceDialog: React.FC<{ open: boolean; onOpenChange: (open: b
  * Project panel.
  */
 export const SequenceTabs: React.FC = React.memo(function SequenceTabs() {
+  const t = useT();
   const { tabs, activeId, total } = useSequenceTabs();
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -251,11 +253,11 @@ export const SequenceTabs: React.FC = React.memo(function SequenceTabs() {
               </div>
             </ContextMenuTrigger>
             <ContextMenuContent className="w-[190px] [&_[role=menuitem]]:gap-2 [&_[role=menuitem]]:text-xs" data-testid="sequence-tab-menu">
-              <ContextMenuItem onSelect={() => setRenamingId(sequence.id)}><Edit3 size={13} aria-hidden />Rename</ContextMenuItem>
-              <ContextMenuItem onSelect={() => void duplicateSequenceCommand(sequence.id)}><Copy size={13} aria-hidden />Duplicate</ContextMenuItem>
-              <ContextMenuItem disabled={tabs.length <= 1} onSelect={() => void closeSequenceTabCommand(sequence.id)}><X size={13} aria-hidden />Close tab</ContextMenuItem>
+              <ContextMenuItem onSelect={() => setRenamingId(sequence.id)}><Edit3 size={13} aria-hidden />{t("Rename")}</ContextMenuItem>
+              <ContextMenuItem onSelect={() => void duplicateSequenceCommand(sequence.id)}><Copy size={13} aria-hidden />{t("Duplicate")}</ContextMenuItem>
+              <ContextMenuItem disabled={tabs.length <= 1} onSelect={() => void closeSequenceTabCommand(sequence.id)}><X size={13} aria-hidden />{t("Close tab")}</ContextMenuItem>
               <ContextMenuSeparator />
-              <ContextMenuItem disabled={total <= 1} onSelect={() => void deleteSequenceCommand(sequence.id)}><Trash2 size={13} aria-hidden />Delete sequence</ContextMenuItem>
+              <ContextMenuItem disabled={total <= 1} onSelect={() => void deleteSequenceCommand(sequence.id)}><Trash2 size={13} aria-hidden />{t("Delete sequence")}</ContextMenuItem>
             </ContextMenuContent>
           </ContextMenu>
         );
@@ -272,14 +274,14 @@ export const SequenceTabs: React.FC = React.memo(function SequenceTabs() {
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-[230px] [&_[role=menuitem]]:text-xs" data-testid="sequence-new-menu">
-          <DropdownMenuItem onSelect={() => void newSequence()}>New sequence</DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => setDialogOpen(true)}>New sequence with settings…</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => void newSequence()}>{t("New sequence")}</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setDialogOpen(true)}>{t("New sequence with settings…")}</DropdownMenuItem>
           <DropdownMenuItem disabled={!selectedMediaId} onSelect={() => selectedMediaId && void newSequenceFromMedia(selectedMediaId)}>
-            New sequence from selected media
+            {t("New sequence from selected media")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem disabled={!hasSelectedClips} onSelect={() => void nestSelectedClips()}>Nest selected clips</DropdownMenuItem>
-          <DropdownMenuItem data-testid="make-subsequence" onSelect={() => void makeSubsequenceCommand()}>Make subsequence from In/Out or selection</DropdownMenuItem>
+          <DropdownMenuItem disabled={!hasSelectedClips} onSelect={() => void nestSelectedClips()}>{t("Nest selected clips")}</DropdownMenuItem>
+          <DropdownMenuItem data-testid="make-subsequence" onSelect={() => void makeSubsequenceCommand()}>{t("Make subsequence from In/Out or selection")}</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       <NewSequenceDialog open={dialogOpen} onOpenChange={setDialogOpen} />

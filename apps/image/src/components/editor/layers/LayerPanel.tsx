@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useT } from '@openreel/i18n/react';
 import { Eye, EyeOff, Lock, Unlock, Trash2, Copy, ChevronUp, ChevronDown, ArrowUp, ArrowDown, ArrowUpToLine, ArrowDownToLine, Clipboard, ClipboardCopy, Scissors, Paintbrush, Search, X, Image, Type, Hexagon, Folder, FolderPlus, FolderOpen } from 'lucide-react';
 import { useProjectStore } from '../../../stores/project-store';
 import type { Layer, LayerType } from '../../../types/project';
@@ -24,6 +25,7 @@ const LAYER_TYPE_ICONS: Record<LayerType, React.ReactNode> = {
 };
 
 export function LayerPanel() {
+  const t = useT();
   const {
     project,
     selectedLayerIds,
@@ -285,67 +287,67 @@ export function LayerPanel() {
                   <ContextMenuContent className="w-48">
                     <ContextMenuItem onClick={() => { selectLayer(layer.id); copyLayers(); }}>
                       <ClipboardCopy size={14} className="mr-2" />
-                      Copy
+                      {t('Copy')}
                       <ContextMenuShortcut>⌘C</ContextMenuShortcut>
                     </ContextMenuItem>
                     <ContextMenuItem onClick={() => { selectLayer(layer.id); cutLayers(); }}>
                       <Scissors size={14} className="mr-2" />
-                      Cut
+                      {t('Cut')}
                       <ContextMenuShortcut>⌘X</ContextMenuShortcut>
                     </ContextMenuItem>
                     <ContextMenuItem onClick={pasteLayers}>
                       <Clipboard size={14} className="mr-2" />
-                      Paste
+                      {t('Paste')}
                       <ContextMenuShortcut>⌘V</ContextMenuShortcut>
                     </ContextMenuItem>
                     <ContextMenuItem onClick={() => duplicateLayer(layer.id)}>
                       <Copy size={14} className="mr-2" />
-                      Duplicate
+                      {t('Duplicate')}
                       <ContextMenuShortcut>⌘D</ContextMenuShortcut>
                     </ContextMenuItem>
                     <ContextMenuSeparator />
                     {selectedLayerIds.length > 1 && (
                       <ContextMenuItem onClick={() => groupLayers(selectedLayerIds)}>
                         <FolderPlus size={14} className="mr-2" />
-                        Group Selection
+                        {t('Group Selection')}
                         <ContextMenuShortcut>⌘G</ContextMenuShortcut>
                       </ContextMenuItem>
                     )}
                     {layer.type === 'group' && (
                       <ContextMenuItem onClick={() => ungroupLayers(layer.id)}>
                         <FolderOpen size={14} className="mr-2" />
-                        Ungroup
+                        {t('Ungroup')}
                         <ContextMenuShortcut>⌘⇧G</ContextMenuShortcut>
                       </ContextMenuItem>
                     )}
                     {(selectedLayerIds.length > 1 || layer.type === 'group') && <ContextMenuSeparator />}
                     <ContextMenuItem onClick={() => { selectLayer(layer.id); copyLayerStyle(); }}>
                       <Paintbrush size={14} className="mr-2" />
-                      Copy Style
+                      {t('Copy Style')}
                     </ContextMenuItem>
                     <ContextMenuItem onClick={pasteLayerStyle} disabled={!copiedStyle}>
                       <Paintbrush size={14} className="mr-2" />
-                      Paste Style
+                      {t('Paste Style')}
                     </ContextMenuItem>
                     <ContextMenuSeparator />
                     <ContextMenuItem onClick={() => moveLayerToTop(layer.id)}>
                       <ArrowUpToLine size={14} className="mr-2" />
-                      Bring to Front
+                      {t('Bring to Front')}
                       <ContextMenuShortcut>⌘⇧]</ContextMenuShortcut>
                     </ContextMenuItem>
                     <ContextMenuItem onClick={() => moveLayerUp(layer.id)}>
                       <ArrowUp size={14} className="mr-2" />
-                      Bring Forward
+                      {t('Bring Forward')}
                       <ContextMenuShortcut>⌘]</ContextMenuShortcut>
                     </ContextMenuItem>
                     <ContextMenuItem onClick={() => moveLayerDown(layer.id)}>
                       <ArrowDown size={14} className="mr-2" />
-                      Send Backward
+                      {t('Send Backward')}
                       <ContextMenuShortcut>⌘[</ContextMenuShortcut>
                     </ContextMenuItem>
                     <ContextMenuItem onClick={() => moveLayerToBottom(layer.id)}>
                       <ArrowDownToLine size={14} className="mr-2" />
-                      Send to Back
+                      {t('Send to Back')}
                       <ContextMenuShortcut>⌘⇧[</ContextMenuShortcut>
                     </ContextMenuItem>
                     <ContextMenuSeparator />
@@ -354,14 +356,14 @@ export function LayerPanel() {
                       onCheckedChange={() => updateLayer(layer.id, { visible: !layer.visible })}
                     >
                       {layer.visible ? <Eye size={14} className="mr-2" /> : <EyeOff size={14} className="mr-2" />}
-                      Visible
+                      {t('Visible')}
                     </ContextMenuCheckboxItem>
                     <ContextMenuCheckboxItem
                       checked={layer.locked}
                       onCheckedChange={() => updateLayer(layer.id, { locked: !layer.locked })}
                     >
                       {layer.locked ? <Lock size={14} className="mr-2" /> : <Unlock size={14} className="mr-2" />}
-                      Locked
+                      {t('Locked')}
                     </ContextMenuCheckboxItem>
                     <ContextMenuSeparator />
                     <ContextMenuItem
@@ -369,7 +371,7 @@ export function LayerPanel() {
                       className="text-destructive focus:text-destructive"
                     >
                       <Trash2 size={14} className="mr-2" />
-                      Delete
+                      {t('Delete')}
                       <ContextMenuShortcut>⌫</ContextMenuShortcut>
                     </ContextMenuItem>
                   </ContextMenuContent>
