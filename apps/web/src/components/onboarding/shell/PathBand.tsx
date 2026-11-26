@@ -192,9 +192,9 @@ function BandContent({ live }: { live: boolean }) {
                 <tile.Icon size={16} />
               </span>
               <span className="min-w-0">
-                <span className="block text-sm font-semibold leading-5 text-fg">{tile.title}</span>
+                <span className="block text-sm font-semibold leading-5 text-fg">{t(tile.title)}</span>
                 <span className="block text-xs leading-4 text-fg-3 max-[1099px]:truncate">
-                  {tile.body}
+                  {t(tile.body)}
                 </span>
               </span>
             </button>

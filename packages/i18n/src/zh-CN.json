@@ -6046,5 +6046,8 @@
   "{amount} hour ago": "{amount} 小时前",
   "{amount} hours ago": "{amount} 小时前",
   "{amount} day ago": "{amount} 天前",
-  "{amount} days ago": "{amount} 天前"
+  "{amount} days ago": "{amount} 天前",
+  "Describe the video you want. The AI cuts, trims and titles. Undo any step.": "描述你想要的视频。AI 会剪辑、修剪并添加标题。每一步都可撤销。",
+  "Six short, hands-on lessons on a real project. About 10 minutes.": "在一个真实项目中完成六节短小实践课，约 10 分钟。",
+  "Premiere, Resolve or Final Cut? Keys, import, your layout.": "来自 Premiere、Resolve 或 Final Cut？快捷键、导入、你的布局。"
 }
