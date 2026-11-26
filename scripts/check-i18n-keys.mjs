@@ -1,85 +1,77 @@
 #!/usr/bin/env node
-// Static completeness check for menu translations: every literal key passed to
-// t("...") / translate("en"|"zh-CN", "...") in a file that imports
-// @openreel/i18n must exist in packages/i18n/src/zh-CN.json.
-import { readFileSync, readdirSync, statSync } from "node:fs";
+// Static completeness check.
+// - default: every literal key passed to t()/translate()/translateNow() exists;
+//   placeholder sets match, values are non-empty and keys are unique.
+// - --ui: additionally fail on user-visible JSX text/attributes that are still
+//   raw (not wrapped in t()), excluding the allowlist and i18n-ignore lines.
+import { readFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { DEFAULT_DIRS, root, scanProject } from "./i18n-scan.mjs";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const dictionary = JSON.parse(
-  readFileSync(path.join(root, "packages/i18n/src/zh-CN.json"), "utf8"),
-);
+const uiMode = process.argv.includes("--ui");
+const dictionaryPath = path.join(root, "packages/i18n/src/zh-CN.json");
+const rawDictionary = readFileSync(dictionaryPath, "utf8");
+const dictionary = JSON.parse(rawDictionary);
 
-const roots = [
-  "apps/web/src",
-  "apps/studio/src",
-  "apps/image/src",
-  "apps/desktop/src",
-];
-
-const files = [];
-function walk(directory) {
-  for (const entry of readdirSync(directory)) {
-    const full = path.join(directory, entry);
-    const stat = statSync(full);
-    if (stat.isDirectory()) walk(full);
-    else if (/\.(ts|tsx)$/.test(entry)) files.push(full);
+const problems = [];
+const pairs = [];
+const keyCounts = new Map();
+const pairPattern = /^\s{2}"((?:[^"\\]|\\.)*)":\s*"((?:[^"\\]|\\.)*)",?$/gmu;
+let match;
+while ((match = pairPattern.exec(rawDictionary)) !== null) {
+  const key = JSON.parse(`"${match[1]}"`);
+  const value = JSON.parse(`"${match[2]}"`);
+  pairs.push([key, value]);
+  keyCounts.set(key, (keyCounts.get(key) ?? 0) + 1);
+}
+for (const [key, count] of keyCounts) {
+  if (count > 1) problems.push(`duplicate key ${JSON.stringify(key)} (${count})`);
+}
+const placeholders = (text) =>
+  [...text.matchAll(/\{(\w+)\}/g)].map((entry) => entry[1]).sort().join(",");
+for (const [key, value] of pairs) {
+  if (value.length === 0) problems.push(`empty value for ${JSON.stringify(key)}`);
+  if (placeholders(key) !== placeholders(value)) {
+    problems.push(`placeholder mismatch ${JSON.stringify(key)}: {${placeholders(key)}} vs {${placeholders(value)}}`);
   }
 }
 
-for (const directory of roots) {
-  try {
-    walk(path.join(root, directory));
-  } catch {
-    // A workspace without the directory is fine.
-  }
-}
-
-const patterns = [
-  /\bt\(\s*"((?:[^"\\]|\\.)*)"/g,
-  /\bt\(\s*'((?:[^'\\]|\\.)*)'/g,
-  /\btranslate\(\s*"(?:en|zh-CN)"\s*,\s*"((?:[^"\\]|\\.)*)"/g,
-  /\btranslate\(\s*'(?:en|zh-CN)'\s*,\s*'((?:[^'\\]|\\.)*)'/g,
-  // Any simple first argument (e.g. `locale` in the desktop native menu); the
-  // key must still be a string literal and the first argument must not span a
-  // call or line, so non-literal keys are never matched.
-  /\btranslate\(\s*[^,()\n]+,\s*"((?:[^"\\]|\\.)*)"/g,
-  /\btranslate\(\s*[^,()\n]+,\s*'((?:[^'\\]|\\.)*)'/g,
-];
+const scanned = scanProject(root, Object.values(DEFAULT_DIRS).flat());
 
 const missing = [];
-for (const file of files) {
-  const text = readFileSync(file, "utf8");
-  if (!text.includes("@openreel/i18n")) continue;
-  const lines = text.split("\n");
-
-  for (const pattern of patterns) {
-    pattern.lastIndex = 0;
-    let match;
-    while ((match = pattern.exec(text)) !== null) {
-      const lineNumber = text.slice(0, match.index).split("\n").length;
-      if ((lines[lineNumber - 1] ?? "").includes("i18n-ignore")) continue;
-
-      let key;
-      try {
-        key = JSON.parse(`"${match[1]}"`);
-      } catch {
-        // Single-quoted literals keep embedded double quotes unescaped; unescape only
-        // the quote/backslash sequences and use the result as the dictionary key.
-        key = match[1].replace(/\\(['"\\])/g, "$1");
-      }
-      if (!Object.prototype.hasOwnProperty.call(dictionary, key)) {
-        missing.push(`${path.relative(root, file)}:${lineNumber}  ${JSON.stringify(key)}`);
-      }
+for (const entry of scanned) {
+  for (const call of entry.calls) {
+    if (!Object.prototype.hasOwnProperty.call(dictionary, call.key)) {
+      missing.push(`${entry.file}:${call.line}  ${JSON.stringify(call.key)} (${call.fn})`);
     }
   }
 }
 
-const unique = [...new Set(missing)];
-if (unique.length > 0) {
-  console.error(`Missing zh-CN keys (${unique.length}):`);
-  for (const entry of unique) console.error(`  ${entry}`);
+const rawUi = [];
+if (uiMode) {
+  for (const entry of scanned) {
+    for (const item of entry.jsxText) {
+      rawUi.push(`${entry.file}:${item.line}  JSX  ${JSON.stringify(item.text)}`);
+    }
+    for (const item of entry.attributes) {
+      rawUi.push(`${entry.file}:${item.line}  ${item.name}  ${JSON.stringify(item.text)}`);
+    }
+  }
+}
+
+const unique = (entries) => [...new Set(entries)];
+const failures = [
+  ...unique(problems),
+  ...unique(missing),
+  ...unique(rawUi),
+];
+
+if (failures.length > 0) {
+  console.error(`i18n check failed (${failures.length}):`);
+  for (const failure of failures) console.error(`  ${failure}`);
   process.exit(1);
 }
-console.log(`i18n keys OK (${files.length} files scanned)`);
+
+console.log(uiMode
+  ? `i18n UI OK (${scanned.length} files scanned)`
+  : `i18n keys OK (${scanned.length} files scanned)`);

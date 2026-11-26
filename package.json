@@ -18,6 +18,7 @@
     "check:retired-cloud-gpu": "node scripts/check-retired-cloud-gpu.mjs",
     "typecheck": "pnpm -r typecheck",
     "check:i18n": "node scripts/check-i18n-keys.mjs",
+    "check:i18n:ui": "node scripts/check-i18n-keys.mjs --ui",
     "test:desktop-e2e": "pnpm --filter @openreel/desktop test:desktop-e2e",
     "clean": "pnpm -r clean",
     "claude:help": "cat scripts/claude-review.md",

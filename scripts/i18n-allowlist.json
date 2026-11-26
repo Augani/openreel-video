@@ -1,0 +1,40 @@
+{
+  "exact": [
+    "OpenReel",
+    "Studio",
+    "ProRes",
+    "Rec.709",
+    "Rec.2020",
+    "Rec.2100",
+    "BT.2408",
+    "E-AC-3",
+    "AC-3",
+    "H.264",
+    "H.265",
+    "HEVC",
+    "AAC",
+    "MP4",
+    "MOV",
+    "WAV",
+    "R3D",
+    "BRAW",
+    "MCP",
+    "LUT",
+    "HDR",
+    "SDR",
+    "fps",
+    "kHz",
+    "kbps",
+    "Mbps",
+    "dB",
+    "N/A"
+  ],
+  "patterns": [
+    "^\\d",
+    "^[A-Z0-9 .:%/+×·-]+$",
+    "^https?://",
+    "^[{}/#.%]",
+    "^[a-z0-9_.:@-]+$",
+    "^\\W+$"
+  ]
+}
