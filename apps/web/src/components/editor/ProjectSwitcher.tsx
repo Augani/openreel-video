@@ -47,17 +47,17 @@ const ProjectPackageDialog = lazy(() => import("./ProjectPackageDialog").then((m
 
 function formatTimeAgo(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
-  if (seconds < 60) return "just now";
+  if (seconds < 60) return translateNow("just now");
   if (seconds < 3600) {
     const mins = Math.floor(seconds / 60);
-    return `${mins}m ago`;
+    return translateNow("{minutes}m ago", { minutes: mins });
   }
   if (seconds < 86400) {
     const hours = Math.floor(seconds / 3600);
-    return `${hours}h ago`;
+    return translateNow("{hours}h ago", { hours });
   }
   const days = Math.floor(seconds / 86400);
-  return `${days}d ago`;
+  return translateNow("{days}d ago", { days });
 }
 
 export const ProjectSwitcher: React.FC<{ trigger?: React.ReactNode; menuContent?: React.ReactNode }> = ({ trigger, menuContent }) => {

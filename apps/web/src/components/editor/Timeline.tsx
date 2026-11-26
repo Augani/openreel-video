@@ -1482,7 +1482,7 @@ export const Timeline: React.FC<{ onOpenMedia?: () => void }> = ({ onOpenMedia }
           </PopoverContent>
         </ShadcnPopover>
         <RenderCacheControls />
-        <div className="workspace-timeline-summary">{tracks.length} {t("tracks ·")} {project.timeline.duration > 0 ? `${tracks.reduce((sum,track) => sum+track.clips.length,0)+(project.textClips?.length??0)+(project.shapeClips?.length??0)+(project.svgClips?.length??0)+(project.stickerClips?.length??0)} clips` : t("empty")}</div>
+        <div className="workspace-timeline-summary">{t("{count} tracks ·", { count: tracks.length })} {project.timeline.duration > 0 ? t("{count} clips", { count: tracks.reduce((sum,track) => sum+track.clips.length,0)+(project.textClips?.length??0)+(project.shapeClips?.length??0)+(project.svgClips?.length??0)+(project.stickerClips?.length??0) }) : t("empty")}</div>
         <Slider aria-label={t("Timeline zoom")} className="workspace-timeline-zoom" min={ZOOM_PRESETS.MIN} max={ZOOM_PRESETS.MAX} value={[pixelsPerSecond]} onValueChange={([value]) => setZoom(value)} />
       </div>
   );

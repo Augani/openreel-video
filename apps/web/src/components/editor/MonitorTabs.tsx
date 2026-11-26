@@ -21,7 +21,7 @@ export function MonitorTabs({ active }: { active: MonitorTab }) {
         active === id ? "bg-bg-2 font-semibold text-fg" : "font-normal text-fg-3 hover:text-fg-2",
       )}
     >
-      {label}
+      {t(label)}
     </button>
   );
   return (

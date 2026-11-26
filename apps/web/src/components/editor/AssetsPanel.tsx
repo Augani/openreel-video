@@ -1345,7 +1345,7 @@ export const AssetsPanel: React.FC = () => {
           >
             <WorkspaceTabs label="Media sources" value={mediaSource} onChange={(value) => {
               setMediaSource(value);
-            }} options={[{value:"project",label:<>{t("Project")} {mediaItems.length > 0 && <span className="workspace-count">{mediaItems.length}</span>}</>},{value:"stock",label:"Stock"},{value:"recordings",label:"Recordings"}]} />
+            }} options={[{value:"project",label:<>{t("Project")} {mediaItems.length > 0 && <span className="workspace-count">{mediaItems.length}</span>}</>},{value:"stock",label:t("Stock")},{value:"recordings",label:t("Recordings")}]} />
             <div className="flex flex-col flex-1 min-h-0" {...workspaceTabPanel("Media sources",mediaSource)}>{mediaSource === "stock" ? <WorkspaceStockPanel backgrounds={BACKGROUND_PRESETS} onImportBackground={handleImportBackground} generatingBackground={generatingBackground} /> : mediaSource === "recordings" ? <RecordingsPanel items={mediaItems} onVoiceOver={openVoiceOver} onRecord={() => openModal("recorder")} onAddToTimeline={(item) => handleAddToTimeline(item)} onOpenInSource={(item) => openInSourceMonitor(item.id)} /> : <>
             <div className="workspace-media-browser flex flex-col shrink-0">
               <div className="workspace-media-toolbar flex gap-1.5">
@@ -1361,7 +1361,7 @@ export const AssetsPanel: React.FC = () => {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-              <div className="workspace-chips">{[["all","All"],["video","Video"],["audio","Audio"],["image","Images"]].map(([value,label]) => <ShadcnButton key={value} variant="ghost" aria-pressed={mediaFilter===value} onClick={() => setMediaFilter(value)}>{label}</ShadcnButton>)}</div>
+              <div className="workspace-chips">{[["all","All"],["video","Video"],["audio","Audio"],["image","Images"]].map(([value,label]) => <ShadcnButton key={value} variant="ghost" aria-pressed={mediaFilter===value} onClick={() => setMediaFilter(value)}>{t(label)}</ShadcnButton>)}</div>
             </div>
             <ProjectPanelBar data={panelData} selectionCount={mediaSelectionCount} />
             <ProxyIngestPanel />
@@ -1481,7 +1481,7 @@ export const AssetsPanel: React.FC = () => {
                       <p>{t("MP4, MOV, WebM, MP3, WAV, PNG, JPG")}<br />{t("Files stay on your device")}</p>
                     </ShadcnButton>
                     {!mediaItems.length && <div className="workspace-other-starts">
-                      <h3>OTHER WAYS TO START</h3>
+                      <h3>{t("OTHER WAYS TO START")}</h3>
                       <ShadcnButton variant="secondary" className="workspace-start-link" onClick={() => openModal("recorder")}><span className="workspace-start-icon"><MediaLibraryIcon name="record-start" /></span><span>{t("Record screen or camera")}<small>{t("Webcam, screen, or both")}</small></span></ShadcnButton>
                       <ShadcnButton variant="secondary" className="workspace-start-link" onClick={() => setMediaSource("stock")}><span className="workspace-start-icon"><MediaLibraryIcon name="stock-start" /></span><span>{t("Browse stock footage")}<small>{t("Free clips, music and SFX")}</small></span></ShadcnButton>
                       <ShadcnButton variant="secondary" className="workspace-start-link" onClick={() => setActiveTab("recipes")}><span className="workspace-start-icon"><MediaLibraryIcon name="recipe-start" /></span><span>{t("Start from a recipe")}<small>{t("Podcast clip, montage, explainer")}</small></span></ShadcnButton>

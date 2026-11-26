@@ -220,7 +220,7 @@ export const ProjectPanelBar: React.FC<{ data: ProjectPanelData; selectionCount:
           </span>
         ) : (
           <>
-            <Crumb label="Project" binId={null} current={data.path.length === 0} />
+            <Crumb label={t("Project")} binId={null} current={data.path.length === 0} />
             {data.path.map((bin, index) => (
               <React.Fragment key={bin.id}>
                 <ChevronRight size={11} className="shrink-0 text-fg-muted" aria-hidden />

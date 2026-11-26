@@ -3773,7 +3773,7 @@ export const Preview: React.FC = () => {
         ctx.font = "24px Inter, sans-serif";
         ctx.textAlign = "center";
         ctx.fillText(
-          "Import media to get started",
+          t("Import media to get started"),
           canvas.width / 2,
           canvas.height / 2,
         );
