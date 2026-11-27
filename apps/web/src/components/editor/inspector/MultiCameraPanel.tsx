@@ -77,6 +77,8 @@ import {
   resolveMulticamSources,
   updateAlignedSourceOffsets,
 } from "./multicam-workflow";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 interface MultiCameraPanelProps {
   onClose?: () => void;
@@ -97,6 +99,7 @@ function CameraNumber({
   max?: number;
   step?: number;
 }) {
+  const t = useT();
   const id = React.useId();
   const draft = useNumericDraft({
     value,
@@ -120,7 +123,7 @@ function CameraNumber({
           {...draft}
           className="h-8 min-w-0 border-border bg-bg-1 text-[12px]"
         />
-        <span className="text-[11px] text-fg-3">sec</span>
+        <span className="text-[11px] text-fg-3">{t("sec")}</span>
       </div>
     </div>
   );
@@ -136,6 +139,7 @@ function CameraSelect<T extends string>({
   onChange: (value: T) => void;
   options: { label: string; value: T }[];
 }) {
+  const t = useT();
   const id = React.useId();
   return (
     <div className="space-y-1.5">
@@ -152,7 +156,7 @@ function CameraSelect<T extends string>({
         <SelectContent>
           {options.map((option) => (
             <SelectItem key={option.value} value={option.value}>
-              {option.label}
+              {t(option.label)}
             </SelectItem>
           ))}
         </SelectContent>
@@ -168,6 +172,7 @@ const AngleCard: React.FC<{
   onRemove: () => void;
   onOffsetChange: (offset: number) => unknown;
 }> = ({ angle, isActive, onSelect, onRename, onRemove, onOffsetChange }) => {
+  const t = useT();
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(angle.name);
   const editing = useRef(false);
@@ -199,7 +204,7 @@ const AngleCard: React.FC<{
         {isEditing ? (
           <Input
             autoFocus
-            aria-label="Camera angle name"
+            aria-label={t("Camera angle name")}
             value={editName}
             onChange={(event) => setEditName(event.target.value)}
             onBlur={handleSave}
@@ -308,6 +313,7 @@ const GroupSection: React.FC<{
   isProcessing,
   status,
 }) => {
+  const t = useT();
   const input = useRef<HTMLInputElement>(null);
   // Only an actual angle transition redraws this group during playback.
   const activeAngleId = useTimelineStore((state) => {
@@ -342,7 +348,7 @@ const GroupSection: React.FC<{
             {group.name}
           </span>
           <span className="text-[11px] font-normal text-fg-3">
-            {group.angles.length} angles
+            {group.angles.length} {t("angles")}
           </span>
         </Button>
       </CollapsibleTrigger>
@@ -371,7 +377,7 @@ const GroupSection: React.FC<{
               className="flex-1 gap-1.5 border-border text-[12px]"
             >
               <Link size={13} aria-hidden />
-              Sync Audio
+              {t("Sync Audio")}
             </Button>
             <Button
               type="button"
@@ -381,14 +387,14 @@ const GroupSection: React.FC<{
               className="flex-1 gap-1.5 bg-accent text-[12px] text-accent-fg hover:bg-accent/90"
             >
               <Sparkles size={13} aria-hidden />
-              Auto Edit
+              {t("Auto Edit")}
             </Button>
             <Button
               type="button"
               variant="ghost"
               size="icon"
               onClick={onDelete}
-              aria-label="Delete camera group"
+              aria-label={t("Delete camera group")}
               className="h-8 w-8 text-fg-3 hover:text-status-error"
             >
               <Trash2 size={14} aria-hidden />
@@ -415,7 +421,7 @@ const GroupSection: React.FC<{
               onClick={() => input.current?.click()}
               className="text-[12px] text-fg-2"
             >
-              Import manifest
+              {t("Import manifest")}
             </Button>
             {group.manifest && (
               <Button
@@ -425,7 +431,7 @@ const GroupSection: React.FC<{
                 onClick={onExportManifest}
                 className="text-[12px] text-fg-2"
               >
-                Export manifest
+                {t("Export manifest")}
               </Button>
             )}
           </div>
@@ -437,9 +443,9 @@ const GroupSection: React.FC<{
           {(group.switches?.length ?? 0) > 0 && (
             <Card className="space-y-2 rounded-[7px] border-border bg-bg-1 p-3 text-fg shadow-none">
               <div className="flex items-center justify-between text-[12px]">
-                <span className="font-medium">Cut review</span>
+                <span className="font-medium">{t("Cut review")}</span>
                 <span className="text-fg-3">
-                  {Math.max(0, (group.switches?.length ?? 1) - 1)} cuts
+                  {Math.max(0, (group.switches?.length ?? 1) - 1)} {t("cuts")}
                 </span>
               </div>
               <div className="max-h-52 space-y-3 overflow-y-auto">
@@ -462,7 +468,7 @@ const GroupSection: React.FC<{
                           {angle?.name ?? cut.angleId}
                         </span>
                         <span className="text-fg-3">
-                          {cut.reason?.replaceAll("-", " ") ?? "manual"}
+                          {cut.reason?.replaceAll("-", " ") ?? t("manual")}
                           {cut.confidence !== undefined
                             ? ` · ${Math.round(cut.confidence * 100)}%`
                             : ""}
@@ -477,7 +483,7 @@ const GroupSection: React.FC<{
                             onClick={() => onNudgeCut(cut.id, -0.1)}
                             className="h-7 px-2 text-[11px]"
                           >
-                            −100 ms
+                            {t("−100 ms")}
                           </Button>
                           <Button
                             type="button"
@@ -486,7 +492,7 @@ const GroupSection: React.FC<{
                             onClick={() => onNudgeCut(cut.id, 0.1)}
                             className="h-7 px-2 text-[11px]"
                           >
-                            +100 ms
+                            {t("+100 ms")}
                           </Button>
                           <Button
                             type="button"
@@ -495,7 +501,7 @@ const GroupSection: React.FC<{
                             onClick={() => onRejectCut(cut.id)}
                             className="h-7 px-2 text-[11px] text-status-error"
                           >
-                            Reject
+                            {t("Reject")}
                           </Button>
                           <Button
                             type="button"
@@ -506,8 +512,8 @@ const GroupSection: React.FC<{
                             className="h-7 px-2 text-[11px] text-accent"
                           >
                             {cut.reviewStatus === "accepted"
-                              ? "Accepted"
-                              : "Accept"}
+                              ? t("Accepted")
+                              : t("Accept")}
                           </Button>
                         </div>
                       )}
@@ -516,8 +522,7 @@ const GroupSection: React.FC<{
                 })}
               </div>
               <p className="text-[11px] text-fg-3">
-                The generated output track remains fully editable on the
-                timeline.
+                {t("The generated output track remains fully editable on the timeline.")}
               </p>
             </Card>
           )}
@@ -530,7 +535,7 @@ const GroupSection: React.FC<{
                 onClick={onExportOtio}
                 className="text-[12px] text-fg-2"
               >
-                Export OTIO
+                {t("Export OTIO")}
               </Button>
               <Button
                 type="button"
@@ -539,7 +544,7 @@ const GroupSection: React.FC<{
                 onClick={onExportOrma}
                 className="text-[12px] text-fg-2"
               >
-                Export .orma
+                {t("Export .orma")}
               </Button>
               <Button
                 type="button"
@@ -548,7 +553,7 @@ const GroupSection: React.FC<{
                 onClick={onFindSocialClips}
                 className="text-[12px] text-fg-2"
               >
-                Find clips
+                {t("Find clips")}
               </Button>
             </div>
           )}
@@ -568,6 +573,7 @@ export const MultiCameraPanel: React.FC<MultiCameraPanelProps> = () => {
   return <MultiCameraSession key={session.key} />;
 };
 const MultiCameraSession: React.FC = () => {
+  const t = useT();
   const project = useProjectStore((state) => state.project);
   const getMultiCamEngine = useEngineStore((state) => state.getMultiCamEngine);
 
@@ -624,7 +630,7 @@ const MultiCameraSession: React.FC = () => {
       }
     };
     void loadEngine().catch((error) => {
-      if (!cancelled) toast.error("Camera tools could not load", String(error));
+      if (!cancelled) toast.error(translateNow("Camera tools could not load"), String(error));
     });
     return () => {
       cancelled = true;
@@ -844,7 +850,7 @@ const MultiCameraSession: React.FC = () => {
         useProjectStore.getState().project.multicamGroups ?? [],
       );
       toast.error(
-        "Camera group failed",
+        translateNow("Camera group failed"),
         error instanceof Error
           ? error.message
           : "Could not create the camera group.",
@@ -870,7 +876,7 @@ const MultiCameraSession: React.FC = () => {
         return;
       void persistGroups().catch((error) =>
         toast.error(
-          "Could not remove angle",
+          translateNow("Could not remove angle"),
           error instanceof Error ? error.message : undefined,
         ),
       );
@@ -892,7 +898,7 @@ const MultiCameraSession: React.FC = () => {
         return;
       void persistGroups().catch((error) =>
         toast.error(
-          "Could not rename angle",
+          translateNow("Could not rename angle"),
           error instanceof Error ? error.message : undefined,
         ),
       );
@@ -914,7 +920,7 @@ const MultiCameraSession: React.FC = () => {
         return;
       return persistGroups().catch((error) =>
         toast.error(
-          "Could not save offset",
+          translateNow("Could not save offset"),
           error instanceof Error ? error.message : undefined,
         ),
       );
@@ -973,7 +979,7 @@ const MultiCameraSession: React.FC = () => {
           groupId,
           `Audio synchronized · ${Math.round(confidence * 100)}% confidence`,
         );
-        toast.success("Camera audio synchronized", group.name);
+        toast.success(translateNow("Camera audio synchronized"), group.name);
       } catch (error) {
         if (!owner.sameSession()) return;
         multiCamEngine.loadGroups(
@@ -982,7 +988,7 @@ const MultiCameraSession: React.FC = () => {
         const message =
           error instanceof Error ? error.message : "Audio sync failed.";
         setStatus(groupId, message);
-        toast.error("Audio sync failed", message);
+        toast.error(translateNow("Audio sync failed"), message);
       } finally {
         busyRef.current = false;
         if (owner.sameSession()) setProcessingGroupId(null);
@@ -1251,7 +1257,7 @@ const MultiCameraSession: React.FC = () => {
           `${shotPlan.shots.length} shots created on “${group.name} Auto Edit”`,
         );
         toast.success(
-          "Automatic multicam edit created",
+          translateNow("Automatic multicam edit created"),
           `${Math.max(0, shotPlan.shots.length - 1)} cuts · one undo step`,
         );
       } catch (error) {
@@ -1262,7 +1268,7 @@ const MultiCameraSession: React.FC = () => {
         const message =
           error instanceof Error ? error.message : "Automatic edit failed.";
         setStatus(groupId, message);
-        toast.error("Automatic edit failed", message);
+        toast.error(translateNow("Automatic edit failed"), message);
       } finally {
         busyRef.current = false;
         if (owner.sameSession()) setProcessingGroupId(null);
@@ -1322,7 +1328,7 @@ const MultiCameraSession: React.FC = () => {
       } catch (error) {
         if (owner.sameSession())
           toast.error(
-            "Analysis unavailable",
+            translateNow("Analysis unavailable"),
             error instanceof Error ? error.message : undefined,
           );
       }
@@ -1372,13 +1378,13 @@ const MultiCameraSession: React.FC = () => {
         await persistGroups(workingEngine);
         if (owner.sameSession())
           toast.success(
-            "Multicam manifest imported",
+            translateNow("Multicam manifest imported"),
             `${parsed.participants.length} participants · ${parsed.cameras.length} cameras`,
           );
       } catch (error) {
         if (owner.sameSession())
           toast.error(
-            "Manifest import failed",
+            translateNow("Manifest import failed"),
             error instanceof Error ? error.message : undefined,
           );
       } finally {
@@ -1447,13 +1453,13 @@ const MultiCameraSession: React.FC = () => {
         }
         if (owner.sameSession())
           toast.success(
-            "Social clip candidates added",
+            translateNow("Social clip candidates added"),
             `${candidates.length} timeline markers`,
           );
       } catch (error) {
         if (owner.sameSession())
           toast.error(
-            "Analysis unavailable",
+            translateNow("Analysis unavailable"),
             error instanceof Error ? error.message : undefined,
           );
       } finally {
@@ -1525,7 +1531,7 @@ const MultiCameraSession: React.FC = () => {
         useTimelineStore.getState().playheadPosition - group.syncPoint;
       if (time < 0 || time >= group.duration) {
         toast.error(
-          "Move the playhead inside the camera group",
+          translateNow("Move the playhead inside the camera group"),
           `Group range: ${group.syncPoint.toFixed(2)}s – ${(group.syncPoint + group.duration).toFixed(2)}s`,
         );
         return;
@@ -1548,7 +1554,7 @@ const MultiCameraSession: React.FC = () => {
           useProjectStore.getState().project.multicamGroups ?? [],
         );
         toast.error(
-          "Could not switch camera",
+          translateNow("Could not switch camera"),
           error instanceof Error ? error.message : undefined,
         );
       } finally {
@@ -1627,7 +1633,7 @@ const MultiCameraSession: React.FC = () => {
       });
       void persistGroups().catch((error) =>
         toast.error(
-          "Could not delete group",
+          translateNow("Could not delete group"),
           error instanceof Error ? error.message : undefined,
         ),
       );
@@ -1652,11 +1658,10 @@ const MultiCameraSession: React.FC = () => {
         <Video size={16} className="text-accent" />
         <div className="flex-1 flex flex-col gap-0.5">
           <span className="text-[13px] font-medium text-fg">
-            Multi-Camera Editing
+            {t("Multi-Camera Editing")}
           </span>
           <span className="font-normal text-[12px] leading-5 text-fg-3">
-            Choose recordings of the same event, create a group, then sync audio
-            or cut between cameras at the playhead.
+            {t("Choose recordings of the same event, create a group, then sync audio or cut between cameras at the playhead.")}
           </span>
         </div>
       </div>
@@ -1664,7 +1669,7 @@ const MultiCameraSession: React.FC = () => {
       {groups.length > 0 && (
         <div className="space-y-2">
           <span className="text-[12px] font-medium text-fg-2">
-            Camera Groups
+            {t("Camera Groups")}
           </span>
           {groups.map((group) => (
             <GroupSection
@@ -1704,20 +1709,17 @@ const MultiCameraSession: React.FC = () => {
 
       <div className="space-y-2 pt-2 border-t border-border">
         <span className="block text-[12px] font-medium text-fg-2">
-          Create New Group
+          {t("Create New Group")}
         </span>
         <span className="font-normal block text-[12px] leading-5 text-fg-3">
-          Choose 2 or more recordings of the same event. Use separate tracks for
-          camera sources; source tracks are hidden and muted when the edit is
-          created.
+          {t("Choose 2 or more recordings of the same event. Use separate tracks for camera sources; source tracks are hidden and muted when the edit is created.")}
         </span>
 
         {availableClips.length === 0 ? (
           <div className="text-center py-4">
             <Video size={24} className="mx-auto mb-2 text-fg-3 opacity-50" />
             <span className="font-normal text-[10px] text-fg-3">
-              Add video clips to unlocked timeline tracks to use multi-camera
-              editing
+              {t("Add video clips to unlocked timeline tracks to use multi-camera editing")}
             </span>
           </div>
         ) : (
@@ -1774,7 +1776,7 @@ const MultiCameraSession: React.FC = () => {
             variant="ghost"
             className="h-10 w-full justify-between px-3 text-[12px] text-fg"
           >
-            Automatic edit settings
+            {t("Automatic edit settings")}
             <ChevronDown size={14} aria-hidden />
           </Button>
         </CollapsibleTrigger>
@@ -1782,17 +1784,17 @@ const MultiCameraSession: React.FC = () => {
           <div className="space-y-4 p-3 pt-0">
             <Label className="flex items-center gap-2 text-[12px] text-fg-2">
               <Checkbox
-                aria-label="Sync cameras before Auto Edit"
+                aria-label={t("Sync cameras before Auto Edit")}
                 className="size-3.5 [&_svg]:size-3"
                 checked={syncBeforeAutoEdit}
                 onCheckedChange={(checked) =>
                   setSyncBeforeAutoEdit(checked === true)
                 }
               />
-              Sync cameras before Auto Edit (turn off to use manual offsets)
+              {t("Sync cameras before Auto Edit (turn off to use manual offsets)")}
             </Label>
             <span className="text-[12px] font-medium text-fg-2">
-              Automatic edit policy
+              {t("Automatic edit policy")}
             </span>
             <CameraSelect
               label="Preset"
@@ -1866,35 +1868,35 @@ const MultiCameraSession: React.FC = () => {
               />
             </div>
             <span className="font-normal block text-[12px] text-fg-3">
-              Maximum shot length triggers a listener reaction or wide reset.
+              {t("Maximum shot length triggers a listener reaction or wide reset.")}
             </span>
             <Label className="flex items-center gap-2 text-[12px] text-fg-2">
               <Checkbox
-                aria-label="Add per-channel local Whisper transcripts"
+                aria-label={t("Add per-channel local Whisper transcripts")}
                 className="size-3.5 [&_svg]:size-3"
                 checked={includeTranscripts}
                 onCheckedChange={(checked) =>
                   setIncludeTranscripts(checked === true)
                 }
               />
-              Add per-channel local Whisper transcripts to the .orma artifact
+              {t("Add per-channel local Whisper transcripts to the .orma artifact")}
             </Label>
             <Label className="flex items-center gap-2 text-[12px] text-fg-2">
               <Checkbox
-                aria-label="Add local MediaPipe face/reaction cues"
+                aria-label={t("Add local MediaPipe face/reaction cues")}
                 className="size-3.5 [&_svg]:size-3"
                 checked={includeVisualReactions}
                 onCheckedChange={(checked) =>
                   setIncludeVisualReactions(checked === true)
                 }
               />
-              Add local MediaPipe face/reaction cues (slower)
+              {t("Add local MediaPipe face/reaction cues (slower)")}
             </Label>
           </div>
         </CollapsibleContent>
       </Collapsible>
       <span className="font-normal text-[12px] leading-5 text-fg-3 text-center">
-        Automatic edits create an editable timeline track and undo in one step
+        {t("Automatic edits create an editable timeline track and undo in one step")}
       </span>
     </fieldset>
   );

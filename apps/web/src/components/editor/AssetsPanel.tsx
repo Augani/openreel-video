@@ -44,6 +44,8 @@ import { useTtsAudioStore } from "../../stores/tts-store";
 import { toast } from "../../stores/notification-store";
 import { saveFileHandle, saveDirectoryHandle } from "../../services/media-storage";
 import { cn } from "@openreel/ui";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 import { KieAIImageDialog } from "./kieai/KieAIImageDialog";
 import { loadMediaBlob } from "../../services/media-storage";
@@ -68,7 +70,7 @@ import { Scissors } from "@/icons/lucide-compat";
 const WorkspaceGraphicsPanel = lazy(() => import("./WorkspaceGraphicsPanel").then((module) => ({ default: module.WorkspaceGraphicsPanel })));
 const MusicLibraryPanel = lazy(() => import("./inspector/MusicLibraryPanel").then((module) => ({ default: module.MusicLibraryPanel })));
 
-const panelFallback = <div className="h-full" role="status" aria-label="Loading panel" />;
+const panelFallback = <div className="h-full" role="status" aria-label={translateNow("Loading panel")} />;
 const WorkspaceGeneratePanel = React.lazy(() => import("./WorkspaceGeneratePanel").then((m) => ({ default: m.WorkspaceGeneratePanel })));
 const WorkspaceRecipesPanel = React.lazy(() => import("./panels/WorkspaceRecipesPanel").then((m) => ({ default: m.WorkspaceRecipesPanel })));
 const MediaBrowserPanel = React.lazy(() => import("./MediaBrowserPanel").then((m) => ({ default: m.MediaBrowserPanel })));
@@ -312,14 +314,15 @@ const MediaThumbnail: React.FC<{
   onKieAI,
   onRetryKieAI,
 }) => {
+  const t = useT();
   const [isHovered, setIsHovered] = useState(false);
   const audioPeaks = useMediaAudioPeaks(item, viewMode !== "list");
   const thumbnailState = useThumbnailState(item);
   const copyCredits = () => {
     if (!item.metadata.stockSource) return;
     void navigator.clipboard.writeText(stockCreditText(item.metadata.stockSource)).then(
-      () => toast.success("Credits copied"),
-      () => toast.warning("Could not copy credits", stockCreditText(item.metadata.stockSource!)),
+      () => toast.success(translateNow("Credits copied")),
+      () => toast.warning(translateNow("Could not copy credits"), stockCreditText(item.metadata.stockSource!)),
     );
   };
 
@@ -426,7 +429,7 @@ const MediaThumbnail: React.FC<{
         {/* Hover actions */}
         {isHovered && (
           <div className="flex items-center gap-1 flex-shrink-0">
-            {item.metadata.stockSource && <ShadcnButton size="sm" variant="ghost" onClick={event => { event.stopPropagation(); copyCredits(); }}>Copy credits</ShadcnButton>}
+            {item.metadata.stockSource && <ShadcnButton size="sm" variant="ghost" onClick={event => { event.stopPropagation(); copyCredits(); }}>{t("Copy credits")}</ShadcnButton>}
             {item.kieaiError ? (
               <PanelIconButton
                 label="Retry generation"
@@ -435,7 +438,7 @@ const MediaThumbnail: React.FC<{
                 className="p-1 bg-red-500/20 rounded hover:bg-red-500/40 transition-colors"
               />
             ) : item.isPending ? (
-              <div className="p-1" title="Generating…">
+              <div className="p-1" title={t("Generating…")}>
                 <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
               </div>
             ) : item.isPlaceholder ? (
@@ -535,7 +538,7 @@ const MediaThumbnail: React.FC<{
               aria-label={`${item.name}: media offline`}
             >
               <Icon size={thumbnailIconSize} />
-              <span>Media offline</span>
+              <span>{t("Media offline")}</span>
             </div>
           </>
         ) : item.thumbnailUrl || thumbnailState.imageUrl ? (
@@ -545,7 +548,7 @@ const MediaThumbnail: React.FC<{
             className="w-full h-full object-cover"
           />
         ) : thumbnailState.waiting ? (
-          <div className="workspace-media-skeleton" data-testid="media-thumbnail-skeleton" aria-label="Generating thumbnail" role="img" />
+          <div className="workspace-media-skeleton" data-testid="media-thumbnail-skeleton" aria-label={t("Generating thumbnail")} role="img" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-bg-2">
             <Icon size={thumbnailIconSize} className={iconColor} />
@@ -556,7 +559,7 @@ const MediaThumbnail: React.FC<{
         {item.kieaiError && (
           <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-red-500 rounded text-[8px] text-white font-bold flex items-center gap-1">
             <AlertTriangle size={8} />
-            Failed
+            {t("Failed")}
           </div>
         )}
 
@@ -572,7 +575,7 @@ const MediaThumbnail: React.FC<{
         {!item.kieaiError && !item.isPending && item.isPlaceholder && (
           <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-yellow-500 rounded text-[8px] text-black font-bold flex items-center gap-1">
             <AlertTriangle size={10} />
-            {desktopIngestAvailable() ? "Offline" : "Missing"}
+            {desktopIngestAvailable() ? t("Offline") : t("Missing")}
           </div>
         )}
 
@@ -584,13 +587,13 @@ const MediaThumbnail: React.FC<{
         )}
 
         {isUsed && !item.isPlaceholder && !item.isPending && !item.kieaiError && (
-          <span className="workspace-media-used" aria-label="Used in timeline" />
+          <span className="workspace-media-used" aria-label={t("Used in timeline")} />
         )}
 
-        {(item.label || item.subclip) && (
+        {(t(item.label ?? "") || item.subclip) && (
           <div className="absolute bottom-1 left-1 flex items-center gap-1 rounded-[3px] bg-black/60 px-1 py-0.5" data-testid="media-badges">
-            {item.label && <LabelChip label={item.label} />}
-            {item.subclip && <Scissors size={10} className="text-accent" aria-label="Subclip" />}
+            {t(item.label ?? "") && <LabelChip label={item.label} />}
+            {item.subclip && <Scissors size={10} className="text-accent" aria-label={t("Subclip")} />}
           </div>
         )}
 
@@ -638,25 +641,25 @@ const MediaThumbnail: React.FC<{
         <DropdownMenuContent align="end">
           {item.kieaiError ? (
             <DropdownMenuItem disabled={!onRetryKieAI} onSelect={onRetryKieAI}>
-              <RefreshCw size={14} />Retry generation
+              <RefreshCw size={14} />{t("Retry generation")}
             </DropdownMenuItem>
           ) : item.isPending ? (
-            <DropdownMenuItem disabled>Generation in progress…</DropdownMenuItem>
+            <DropdownMenuItem disabled>{t("Generation in progress…")}</DropdownMenuItem>
           ) : item.isPlaceholder ? (
-            <DropdownMenuItem onSelect={onReplace}><RefreshCw size={14} />Replace asset</DropdownMenuItem>
+            <DropdownMenuItem onSelect={onReplace}><RefreshCw size={14} />{t("Replace asset")}</DropdownMenuItem>
           ) : (
             <>
-              <DropdownMenuItem onSelect={onOpenInSource}><Plus size={14} />Open in Source monitor</DropdownMenuItem>
-              <DropdownMenuItem onSelect={onAddToTimeline}><Plus size={14} />Add to timeline</DropdownMenuItem>
+              <DropdownMenuItem onSelect={onOpenInSource}><Plus size={14} />{t("Open in Source monitor")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={onAddToTimeline}><Plus size={14} />{t("Add to timeline")}</DropdownMenuItem>
               {item.type === "image" && onKieAI && (
-                <DropdownMenuItem onSelect={onKieAI}><Sparkles size={14} />Create with KieAI</DropdownMenuItem>
+                <DropdownMenuItem onSelect={onKieAI}><Sparkles size={14} />{t("Create with KieAI")}</DropdownMenuItem>
               )}
             </>
           )}
-          {item.metadata.stockSource && <DropdownMenuItem onSelect={copyCredits}>Copy credits</DropdownMenuItem>}
+          {item.metadata.stockSource && <DropdownMenuItem onSelect={copyCredits}>{t("Copy credits")}</DropdownMenuItem>}
           <MediaOrganizeItems item={item} kind="dropdown" />
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={onDelete}><Trash2 size={14} />Delete</DropdownMenuItem>
+          <DropdownMenuItem onSelect={onDelete}><Trash2 size={14} />{t("Delete")}</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
@@ -733,6 +736,7 @@ const MediaThumbnailRow = React.memo(function MediaThumbnailRow({
 });
 
 export const AssetsPanel: React.FC = () => {
+  const t = useT();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const activeTab = useEditorWorkspaceStore((s) => s.section);
   const mobileCaptionsOpen = useEditorWorkspaceStore(s => s.mobileCaptionsOpen);
@@ -762,7 +766,7 @@ export const AssetsPanel: React.FC = () => {
 
   const setActiveTab = useCallback((tab: AssetsTab) => {
     if (activeTab === "ai" && tab !== "ai" && ttsHasUnsaved) {
-      toast.warning("Unsaved audio discarded", "Save to media or download next time to keep it.");
+      toast.warning(translateNow("Unsaved audio discarded"), "Save to media or download next time to keep it.");
     }
     setActiveTabRaw(tab);
   }, [activeTab, ttsHasUnsaved, setActiveTabRaw]);
@@ -939,7 +943,7 @@ export const AssetsPanel: React.FC = () => {
               if (owns()) setImportProgress(`CinemaDNG ${sequence.prefix}: ${p.stage} frame ${Math.min(p.frame + 1, p.total)}/${p.total}`);
             },
           });
-          if (!result.success) toast.error("CinemaDNG sequence not imported", result.error);
+          if (!result.success) toast.error(translateNow("CinemaDNG sequence not imported"), result.error);
         }
         for (let i = 0; i < fileArray.length; i++) {
           if (!owns()) return;
@@ -1067,7 +1071,7 @@ export const AssetsPanel: React.FC = () => {
           setImportProgress(`Replacing asset...`);
           try {
             const result = await replaceMediaAsset(itemId, file);
-            if (!result.success) toast.error("Could not replace media", result.error?.message);
+            if (!result.success) toast.error(translateNow("Could not replace media"), result.error?.message);
           } catch (error) {
             console.error("Asset replacement failed:", error);
           } finally {
@@ -1083,7 +1087,7 @@ export const AssetsPanel: React.FC = () => {
 
   const handleRelinkFromFolder = useCallback(async () => {
     if (!("showDirectoryPicker" in window)) {
-      toast.error("Folder picker not supported", "Please relink assets individually using the refresh button on each missing asset.");
+      toast.error(translateNow("Folder picker not supported"), "Please relink assets individually using the refresh button on each missing asset.");
       return;
     }
     const origin = useProjectStore.getState();
@@ -1125,7 +1129,7 @@ export const AssetsPanel: React.FC = () => {
         }
       }
     } catch {
-      if (isCurrent()) toast.error("Could not read this folder", "Choose it again or relink the missing assets individually.");
+      if (isCurrent()) toast.error(translateNow("Could not read this folder"), "Choose it again or relink the missing assets individually.");
       return;
     }
 
@@ -1157,9 +1161,9 @@ export const AssetsPanel: React.FC = () => {
     if (!isCurrent()) return;
 
     if (linked > 0) {
-      toast.success(`Relinked ${linked} of ${placeholders.length} asset${placeholders.length !== 1 ? "s" : ""}`);
+      toast.success(translateNow("Relinked {linked} of {total} assets", { linked, total: placeholders.length }));
     } else {
-      toast.error("No assets relinked", "Check that the files match the missing assets and can be decoded. You can also relink each asset individually.");
+      toast.error(translateNow("No assets relinked"), "Check that the files match the missing assets and can be decoded. You can also relink each asset individually.");
     }
   }, [replaceMediaAsset]);
 
@@ -1181,7 +1185,7 @@ export const AssetsPanel: React.FC = () => {
     const store = useProjectStore.getState();
     const target = store.project.timeline.tracks.find((track) => !track.locked && (item.type === "audio" ? track.role === "dialogue" : track.name === "Main"));
     const result = await store.placeMediaClip(item.id, target?.id, useTimelineStore.getState().playheadPosition);
-    if (!result.success) toast.error("Could not add media", result.error?.message ?? "Try dropping it on a different track.");
+    if (!result.success) toast.error(translateNow("Could not add media"), result.error?.message ?? "Try dropping it on a different track.");
   }, []);
 
   const handleConfirmAspectRatioMatch = useCallback(async () => {
@@ -1285,12 +1289,12 @@ export const AssetsPanel: React.FC = () => {
     try {
       const blob = await loadMediaBlob(item.id);
       if (!ownsSource()) return;
-      if (!blob) { toast.error("Asset not found", "Cannot load the image data for this asset."); return; }
+      if (!blob) { toast.error(translateNow("Asset not found"), "Cannot load the image data for this asset."); return; }
       const mimeType = blob.type || (item.name.match(/\.png$/i) ? "image/png" : "image/jpeg");
       const file = new File([blob], item.name, { type: mimeType });
       setKieaiDialog({ file, previewUrl: item.thumbnailUrl });
     } catch (error) {
-      if (ownsSource()) toast.error("Failed to open KieAI", error instanceof Error ? error.message : "Unknown error");
+      if (ownsSource()) toast.error(translateNow("Failed to open KieAI"), error instanceof Error ? error.message : "Unknown error");
     }
   }, []);
 
@@ -1341,23 +1345,23 @@ export const AssetsPanel: React.FC = () => {
           >
             <WorkspaceTabs label="Media sources" value={mediaSource} onChange={(value) => {
               setMediaSource(value);
-            }} options={[{value:"project",label:<>Project {mediaItems.length > 0 && <span className="workspace-count">{mediaItems.length}</span>}</>},{value:"stock",label:"Stock"},{value:"recordings",label:"Recordings"}]} />
+            }} options={[{value:"project",label:<>{t("Project")} {mediaItems.length > 0 && <span className="workspace-count">{mediaItems.length}</span>}</>},{value:"stock",label:t("Stock")},{value:"recordings",label:t("Recordings")}]} />
             <div className="flex flex-col flex-1 min-h-0" {...workspaceTabPanel("Media sources",mediaSource)}>{mediaSource === "stock" ? <WorkspaceStockPanel backgrounds={BACKGROUND_PRESETS} onImportBackground={handleImportBackground} generatingBackground={generatingBackground} /> : mediaSource === "recordings" ? <RecordingsPanel items={mediaItems} onVoiceOver={openVoiceOver} onRecord={() => openModal("recorder")} onAddToTimeline={(item) => handleAddToTimeline(item)} onOpenInSource={(item) => openInSourceMonitor(item.id)} /> : <>
             <div className="workspace-media-browser flex flex-col shrink-0">
               <div className="workspace-media-toolbar flex gap-1.5">
-                <label className="workspace-search"><MediaLibraryIcon name="search" /><Input ref={searchInputRef} aria-label="Search media" placeholder="Search media" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /></label>
-                <ShadcnButton variant="secondary" className="h-[30px] shrink-0 px-2.5 text-[13px] gap-1.5" aria-label="Import media" onClick={triggerFileInput}><MediaLibraryIcon name="import" />Import</ShadcnButton>
+                <label className="workspace-search"><MediaLibraryIcon name="search" /><Input ref={searchInputRef} aria-label={t("Search media")} placeholder={t("Search media")} value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} /></label>
+                <ShadcnButton variant="secondary" className="h-[30px] shrink-0 px-2.5 text-[13px] gap-1.5" aria-label={t("Import media")} onClick={triggerFileInput}><MediaLibraryIcon name="import" />{t("Import")}</ShadcnButton>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <ShadcnButton variant="secondary" className="h-[30px] shrink-0 gap-1 px-2 text-xs"><MediaLibraryIcon name="record" />Record</ShadcnButton>
+                    <ShadcnButton variant="secondary" className="h-[30px] shrink-0 gap-1 px-2 text-xs"><MediaLibraryIcon name="record" />{t("Record")}</ShadcnButton>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={openVoiceOver}><AudioLibraryIcon name="voiceover" />Record voice-over</DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => openModal("recorder")}><MediaLibraryIcon name="record-start" />Record screen or camera</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={openVoiceOver}><AudioLibraryIcon name="voiceover" />{t("Record voice-over")}</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => openModal("recorder")}><MediaLibraryIcon name="record-start" />{t("Record screen or camera")}</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-              <div className="workspace-chips">{[["all","All"],["video","Video"],["audio","Audio"],["image","Images"]].map(([value,label]) => <ShadcnButton key={value} variant="ghost" aria-pressed={mediaFilter===value} onClick={() => setMediaFilter(value)}>{label}</ShadcnButton>)}</div>
+              <div className="workspace-chips">{[["all","All"],["video","Video"],["audio","Audio"],["image","Images"]].map(([value,label]) => <ShadcnButton key={value} variant="ghost" aria-pressed={mediaFilter===value} onClick={() => setMediaFilter(value)}>{t(label)}</ShadcnButton>)}</div>
             </div>
             <ProjectPanelBar data={panelData} selectionCount={mediaSelectionCount} />
             <ProxyIngestPanel />
@@ -1375,7 +1379,7 @@ export const AssetsPanel: React.FC = () => {
                     }`}
                   >
                     <AlertTriangle size={10} className="shrink-0" />
-                    <span>Missing</span>
+                    <span>{t("Missing")}</span>
                     <span className="shrink-0 rounded-full bg-yellow-500 px-1 text-[9.5px] font-bold text-black">{missingAssetsCount}</span>
                   </PanelButton>
                   <PanelButton
@@ -1384,7 +1388,7 @@ export const AssetsPanel: React.FC = () => {
                     className="flex h-5 min-w-0 items-center gap-1 rounded-[4px] border border-yellow-500/40 bg-yellow-500/5 px-1.5 text-[10.5px] font-medium normal-case tracking-normal text-yellow-500 transition-all hover:bg-yellow-500/15"
                   >
                     <RefreshCw size={10} className="shrink-0" />
-                    <span>Relink</span>
+                    <span>{t("Relink")}</span>
                   </PanelButton>
                 </div>
               ) : null}
@@ -1400,7 +1404,7 @@ export const AssetsPanel: React.FC = () => {
               >
                 {filteredItems.length === 0 && panelData.visibleBins.length === 0 ? (
                   <div className="flex flex-1 items-center justify-center text-[12px] text-fg-muted">
-                    {panelData.searching || mediaFilter !== "all" || showOnlyMissing ? "No matching media" : "This bin is empty"}
+                    {panelData.searching || mediaFilter !== "all" || showOnlyMissing ? t("No matching media") : t("This bin is empty")}
                   </div>
                 ) : (
                   <MediaListView
@@ -1444,7 +1448,7 @@ export const AssetsPanel: React.FC = () => {
                     >
                       <div className="flex flex-col items-center gap-1.5">
                         <Upload size={20} className="text-fg-muted group-hover:text-accent transition-colors" />
-                        <span className="text-[10px] text-fg-muted group-hover:text-accent transition-colors font-medium">Add media</span>
+                        <span className="text-[10px] text-fg-muted group-hover:text-accent transition-colors font-medium">{t("Add media")}</span>
                       </div>
                     </PanelButton>
                   </div>
@@ -1456,7 +1460,7 @@ export const AssetsPanel: React.FC = () => {
                 {isDragOver && (
                   <div className="absolute inset-4 border-2 border-dashed border-accent rounded-xl flex items-center justify-center bg-accent-soft pointer-events-none z-50 backdrop-blur-sm">
                     <div className="text-accent text-sm font-bold bg-bg-1 px-4 py-2 rounded-full shadow-lg">
-                      Drop files to import
+                      {t("Drop files to import")}
                     </div>
                   </div>
                 )}
@@ -1472,15 +1476,15 @@ export const AssetsPanel: React.FC = () => {
               <div className="workspace-media-content px-[10px] pb-3 relative" data-empty={filteredItems.length === 0 && mediaItems.length === 0}>
                 {filteredItems.length === 0 && panelData.visibleBins.length === 0 ? (
                   <>
-                    <ShadcnButton variant="ghost" onClick={triggerFileInput} className="workspace-empty-bin w-full h-auto whitespace-normal" aria-label="Import Media">
-                      <span><MediaLibraryIcon name="empty-upload" /></span><strong>{mediaItems.length ? (panelData.searching || mediaFilter !== "all" || showOnlyMissing ? "No matching media" : "This bin is empty") : "Drop video, audio or images"}</strong>
-                      <p>MP4, MOV, WebM, MP3, WAV, PNG, JPG<br />Files stay on your device</p>
+                    <ShadcnButton variant="ghost" onClick={triggerFileInput} className="workspace-empty-bin w-full h-auto whitespace-normal" aria-label={t("Import Media")}>
+                      <span><MediaLibraryIcon name="empty-upload" /></span><strong>{mediaItems.length ? (panelData.searching || mediaFilter !== "all" || showOnlyMissing ? t("No matching media") : t("This bin is empty")) : t("Drop video, audio or images")}</strong>
+                      <p>{t("MP4, MOV, WebM, MP3, WAV, PNG, JPG")}<br />{t("Files stay on your device")}</p>
                     </ShadcnButton>
                     {!mediaItems.length && <div className="workspace-other-starts">
-                      <h3>OTHER WAYS TO START</h3>
-                      <ShadcnButton variant="secondary" className="workspace-start-link" onClick={() => openModal("recorder")}><span className="workspace-start-icon"><MediaLibraryIcon name="record-start" /></span><span>Record screen or camera<small>Webcam, screen, or both</small></span></ShadcnButton>
-                      <ShadcnButton variant="secondary" className="workspace-start-link" onClick={() => setMediaSource("stock")}><span className="workspace-start-icon"><MediaLibraryIcon name="stock-start" /></span><span>Browse stock footage<small>Free clips, music and SFX</small></span></ShadcnButton>
-                      <ShadcnButton variant="secondary" className="workspace-start-link" onClick={() => setActiveTab("recipes")}><span className="workspace-start-icon"><MediaLibraryIcon name="recipe-start" /></span><span>Start from a recipe<small>Podcast clip, montage, explainer</small></span></ShadcnButton>
+                      <h3>{t("OTHER WAYS TO START")}</h3>
+                      <ShadcnButton variant="secondary" className="workspace-start-link" onClick={() => openModal("recorder")}><span className="workspace-start-icon"><MediaLibraryIcon name="record-start" /></span><span>{t("Record screen or camera")}<small>{t("Webcam, screen, or both")}</small></span></ShadcnButton>
+                      <ShadcnButton variant="secondary" className="workspace-start-link" onClick={() => setMediaSource("stock")}><span className="workspace-start-icon"><MediaLibraryIcon name="stock-start" /></span><span>{t("Browse stock footage")}<small>{t("Free clips, music and SFX")}</small></span></ShadcnButton>
+                      <ShadcnButton variant="secondary" className="workspace-start-link" onClick={() => setActiveTab("recipes")}><span className="workspace-start-icon"><MediaLibraryIcon name="recipe-start" /></span><span>{t("Start from a recipe")}<small>{t("Podcast clip, montage, explainer")}</small></span></ShadcnButton>
                     </div>}
                   </>
                 ) : null}
@@ -1488,21 +1492,21 @@ export const AssetsPanel: React.FC = () => {
                 {isDragOver && (
                   <div className="absolute inset-4 border-2 border-dashed border-accent rounded-xl flex items-center justify-center bg-accent-soft pointer-events-none z-50 backdrop-blur-sm">
                     <div className="text-accent text-sm font-bold bg-bg-1 px-4 py-2 rounded-full shadow-lg">
-                      Drop files to import
+                      {t("Drop files to import")}
                     </div>
                   </div>
                 )}
               </div>
             </ScrollArea>
             )}
-            <div className="workspace-panel-footer"><span>{mediaItems.length ? `${mediaItems.length} ${mediaItems.length === 1 ? "item" : "items"}${mediaSizeLabel ? ` · ${mediaSizeLabel}` : ""}` : "No media yet"}</span>{<ShadcnButton variant="ghost" className="p-0 h-auto text-[11px] text-fg-muted" aria-label="Sort media" onClick={cycleNameSort}>{panelSort && panelSort.column !== "name" ? `Sort: ${panelSort.column} ${panelSort.direction === "asc" ? "↑" : "↓"}` : `Sort: ${sortOrder === "none" ? "Recent" : sortOrder === "asc" ? "A–Z" : "Z–A"} ▾`}</ShadcnButton>}</div>
+            <div className="workspace-panel-footer"><span>{mediaItems.length ? `${mediaItems.length} ${mediaItems.length === 1 ? "item" : "items"}${mediaSizeLabel ? ` · ${mediaSizeLabel}` : ""}` : t("No media yet")}</span>{<ShadcnButton variant="ghost" className="p-0 h-auto text-[11px] text-fg-muted" aria-label={t("Sort media")} onClick={cycleNameSort}>{panelSort && panelSort.column !== "name" ? `Sort: ${panelSort.column} ${panelSort.direction === "asc" ? "↑" : "↓"}` : `Sort: ${sortOrder === "none" ? "Recent" : sortOrder === "asc" ? "A–Z" : "Z–A"} ▾`}</ShadcnButton>}</div>
             </>}</div>
           </div>
         );
       case "settings":
         return <WorkspaceSettingsPanel />;
       case "audio":
-        return <div className="workspace-audio-panel flex flex-col h-full min-h-0"><WorkspaceTabs label="Audio sources" value={audioSource === "tts" ? "voiceover" : audioSource} onChange={setAudioSource} options={[{value:"music",label:"Music"},{value:"sfx",label:"Sound FX"},{value:"voiceover",label:"Voiceover"}]} /><div className="flex-1 min-h-0 overflow-auto" {...workspaceTabPanel("Audio sources",audioSource === "tts" ? "voiceover" : audioSource)}>{audioSource === "voiceover" ? <VoiceOverPanel /> : audioSource === "tts" ? <TextToSpeechPanel /> : <Suspense fallback={null}><MusicLibraryPanel source={audioSource === "sfx" ? "sfx" : "music"} /></Suspense>}</div><div className="workspace-audio-footer p-2.5 border-t border-border flex gap-2"><ShadcnButton variant="secondary" className="flex-1 h-8 text-xs" onClick={() => setAudioSource("voiceover")}><AudioLibraryIcon name="voiceover" className="workspace-audio-icon workspace-audio-voice-icon" />Voiceover</ShadcnButton><ShadcnButton variant="secondary" className="flex-1 h-8 text-xs" onClick={() => setAudioSource("tts")}><AudioLibraryIcon name="speech" className="workspace-audio-icon workspace-audio-speech-icon" />Text to speech</ShadcnButton></div></div>;
+        return <div className="workspace-audio-panel flex flex-col h-full min-h-0"><WorkspaceTabs label="Audio sources" value={audioSource === "tts" ? "voiceover" : audioSource} onChange={setAudioSource} options={[{value:"music",label:"Music"},{value:"sfx",label:"Sound FX"},{value:"voiceover",label:"Voiceover"}]} /><div className="flex-1 min-h-0 overflow-auto" {...workspaceTabPanel("Audio sources",audioSource === "tts" ? "voiceover" : audioSource)}>{audioSource === "voiceover" ? <VoiceOverPanel /> : audioSource === "tts" ? <TextToSpeechPanel /> : <Suspense fallback={null}><MusicLibraryPanel source={audioSource === "sfx" ? "sfx" : "music"} /></Suspense>}</div><div className="workspace-audio-footer p-2.5 border-t border-border flex gap-2"><ShadcnButton variant="secondary" className="flex-1 h-8 text-xs" onClick={() => setAudioSource("voiceover")}><AudioLibraryIcon name="voiceover" className="workspace-audio-icon workspace-audio-voice-icon" />{t("Voiceover")}</ShadcnButton><ShadcnButton variant="secondary" className="flex-1 h-8 text-xs" onClick={() => setAudioSource("tts")}><AudioLibraryIcon name="speech" className="workspace-audio-icon workspace-audio-speech-icon" />{t("Text to speech")}</ShadcnButton></div></div>;
       case "graphics":
         return <Suspense fallback={null}><WorkspaceGraphicsPanel backgrounds={BACKGROUND_PRESETS} onImportBackground={handleImportBackground} generatingBackground={generatingBackground} /></Suspense>;
       case "text":
@@ -1586,7 +1590,7 @@ export const AssetsPanel: React.FC = () => {
         <Input
           ref={fileInputRef}
           type="file"
-          aria-label="Import media"
+          aria-label={t("Import media")}
           accept={`video/*,audio/*,image/*,.mxf,.prproj,.srt,.vtt,.sbv,.ttml,.dfxp,.itt,.scc,.mcc,.stl,${RAW_FILE_ACCEPT}`}
           multiple
           className="hidden"

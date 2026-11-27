@@ -6,6 +6,7 @@ import {
   resolveLessonKeys,
   type LessonKeys,
 } from "./lesson-keys";
+import { useT } from "@openreel/i18n/react";
 
 /** Re-renders when the user focuses the window or another tab changes bindings (preset switches). */
 function subscribeKeys(onChange: () => void): () => void {
@@ -48,10 +49,11 @@ export function Kbd({ children }: { children: ReactNode }): JSX.Element {
 }
 
 export function LessonText({ template, keys }: { template: string; keys: LessonKeys }): JSX.Element {
+  const t = useT();
   return (
     <>
       {renderLessonText(template, keys).map((part, i) =>
-        part.type === "key" ? <Kbd key={i}>{part.label}</Kbd> : <span key={i}>{part.text}</span>,
+        part.type === "key" ? <Kbd key={i}>{t(part.label)}</Kbd> : <span key={i}>{part.text}</span>,
       )}
     </>
   );

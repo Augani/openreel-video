@@ -2,6 +2,7 @@ import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogT
 import { version as appVersion } from "../../../package.json";
 
 import { DOCS_URL, ISSUES_URL } from "./about-links";
+import { useT } from "@openreel/i18n/react";
 
 export { DOCS_URL, ISSUES_URL };
 const LICENSE_URL = "https://github.com/Augani/openreel-video/blob/main/LICENSE";
@@ -17,6 +18,7 @@ interface AboutDialogProps {
 
 /** Version, licence and where to find help. */
 export function AboutDialog({ open, onOpenChange }: AboutDialogProps) {
+  const t = useT();
   const link = (href: string, label: string) => (
     <Button asChild variant="outline" size="sm">
       <a href={href} target="_blank" rel="noopener noreferrer">
@@ -28,15 +30,15 @@ export function AboutDialog({ open, onOpenChange }: AboutDialogProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm" data-testid="about-dialog">
         <DialogHeader>
-          <DialogTitle>About OpenReel</DialogTitle>
-          <DialogDescription>An open source video editor for the browser and desktop.</DialogDescription>
+          <DialogTitle>{t("About OpenReel")}</DialogTitle>
+          <DialogDescription>{t("An open source video editor for the browser and desktop.")}</DialogDescription>
         </DialogHeader>
         <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-[12px]">
-          <dt className="text-fg-muted">Version</dt>
+          <dt className="text-fg-muted">{t("Version")}</dt>
           <dd className="text-fg" data-testid="about-version">{appVersion}</dd>
-          <dt className="text-fg-muted">Running as</dt>
+          <dt className="text-fg-muted">{t("Running as")}</dt>
           <dd className="text-fg">{runtimeLabel()}</dd>
-          <dt className="text-fg-muted">Licence</dt>
+          <dt className="text-fg-muted">{t("Licence")}</dt>
           <dd className="text-fg">
             <a className="underline decoration-fg-muted underline-offset-2 hover:text-accent" href={LICENSE_URL} target="_blank" rel="noopener noreferrer">
               MIT

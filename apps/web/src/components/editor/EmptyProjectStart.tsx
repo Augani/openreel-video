@@ -5,6 +5,7 @@ import { Button, Label, RadioGroup, RadioGroupItem } from "@openreel/ui";
 import type { Project } from "@openreel/core";
 import { useProjectStore } from "../../stores/project-store";
 import { useOnboardingStore } from "../../stores/onboarding-store";
+import { useT } from "@openreel/i18n/react";
 
 const formats = [
   {
@@ -60,6 +61,7 @@ const hasProjectContent = (project: Project) =>
   );
 
 export const EmptyProjectStart = memo(function EmptyProjectStart() {
+  const t = useT();
   const { projectId, width, height, executor, hasContent } = useProjectStore(
     useShallow(({ project, actionExecutor }) => ({
       projectId: project.id,
@@ -163,11 +165,11 @@ export const EmptyProjectStart = memo(function EmptyProjectStart() {
   return (
     <div className="workspace-empty-project">
       <div className="workspace-project-card">
-        <h1>Start your project</h1>
-        <p>Pick a format. You can change it any time in Settings.</p>
+        <h1>{t("Start your project")}</h1>
+        <p>{t("Pick a format. You can change it any time in Settings.")}</p>
         <RadioGroup
           className="workspace-formats"
-          aria-label="Project format"
+          aria-label={t("Project format")}
           value={selected}
           disabled={busy}
           onValueChange={(format) => {
@@ -196,21 +198,21 @@ export const EmptyProjectStart = memo(function EmptyProjectStart() {
                   }}
                 />
               </span>
-              <strong>{format.label}</strong>
-              <small>{format.description}</small>
+              <strong>{t(format.label)}</strong>
+              <small>{t(format.description)}</small>
             </Label>
           ))}
         </RadioGroup>
         {!currentFormat && !sameOwner(draft, owner) && (
           <p className="workspace-current-format">
-            Current format: {width} × {height}. Choose a preset to change it.
+            {t("Current format:")} {width} × {height}. Choose a preset to change it.
           </p>
         )}
         {sameOwner(failure, owner) && <p role="alert">{failure!.message}</p>}
         <footer>
-          <p>Or drop footage anywhere to match its format</p>
+          <p>{t("Or drop footage anywhere to match its format")}</p>
           <Button disabled={busy} onClick={() => void create()}>
-            Create project
+            {t("Create project")}
           </Button>
         </footer>
       </div>

@@ -66,6 +66,8 @@ import {
 import { GraphicTemplateThumb, templateCaption } from "./GraphicTemplateThumb";
 import { MogrtImportReportPanel } from "./MogrtImportReport";
 import type { MogrtImportReport } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const KIND_PROPERTIES: Record<GraphicLayer["kind"], Array<{ property: GraphicParamProperty; label: string }>> = {
   text: [
@@ -141,6 +143,7 @@ const NumberField: React.FC<{ label: string; value: number; onCommit: (value: nu
 // ---------------------------------------------------------------------------
 
 const BrowseTab: React.FC = () => {
+  const t = useT();
   const userTemplates = useGraphicTemplatesStore((state) => state.userTemplates);
   const removeUserTemplate = useGraphicTemplatesStore((state) => state.remove);
   const [category, setCategory] = useState<string>("all");
@@ -164,13 +167,13 @@ const BrowseTab: React.FC = () => {
     if (!file) return;
     const result = await importGraphicTemplateFile(file);
     setMogrt(result.mogrtReport ? { report: result.mogrtReport, ...(result.ok ? {} : { failure: result.message }) } : null);
-    if (result.ok) toast.success("Template imported", `"${result.template.name}" is under My templates.${result.mogrtReport && (result.mogrtReport.dropped || result.mogrtReport.approximated) ? " See the import report for what changed." : ""}`);
-    else toast.error("Template not imported", result.message);
+    if (result.ok) toast.success(translateNow("Template imported"), `"${result.template.name}" is under My templates.${result.mogrtReport && (result.mogrtReport.dropped || result.mogrtReport.approximated) ? " See the import report for what changed." : ""}`);
+    else toast.error(translateNow("Template not imported"), result.message);
   };
 
   return (
     <div className="flex flex-col gap-3" data-testid="graphic-browse">
-      <div className="flex flex-wrap gap-1" role="group" aria-label="Template category">
+      <div className="flex flex-wrap gap-1" role="group" aria-label={t("Template category")}>
         {[{ id: "all", name: "All" }, ...GRAPHIC_TEMPLATE_CATEGORIES].map((item) => (
           <Button
             key={item.id}
@@ -228,17 +231,17 @@ const BrowseTab: React.FC = () => {
           );
         })}
       </div>
-      {shown.length === 0 && <p className="text-xs text-fg-muted">No templates in this category yet.</p>}
+      {shown.length === 0 && <p className="text-xs text-fg-muted">{t("No templates in this category yet.")}</p>}
       <div className="flex flex-col gap-2 border-t border-border/60 pt-3">
         <Button
           variant="outline"
           size="sm"
           className="justify-start gap-1.5"
           disabled={!hasProject || groupable === 0}
-          title="Select text, shape or SVG clips on the timeline, then group them into one graphic with controls"
+          title={t("Select text, shape or SVG clips on the timeline, then group them into one graphic with controls")}
           onClick={() => { void groupSelectionIntoGraphic(); }}
         >
-          <Group size={13} aria-hidden /> Group {groupable > 0 ? `${groupable} selected clip${groupable === 1 ? "" : "s"}` : "selected clips"} into a graphic
+          <Group size={13} aria-hidden /> {t("Group")} {groupable > 0 ? `${groupable} selected clip${groupable === 1 ? "" : "s"}` : t("selected clips")} {t("into a graphic")}
         </Button>
         <input
           ref={fileInput}
@@ -252,9 +255,9 @@ const BrowseTab: React.FC = () => {
           }}
         />
         <Button variant="outline" size="sm" className="justify-start gap-1.5" onClick={() => fileInput.current?.click()}>
-          <Upload size={13} aria-hidden /> Import template…
+          <Upload size={13} aria-hidden /> {t("Import template…")}
         </Button>
-        <p className="text-[10px] text-fg-muted">OpenReel templates (.openreel-template) and Premiere Motion Graphics Templates (.mogrt).</p>
+        <p className="text-[10px] text-fg-muted">{t("OpenReel templates (.openreel-template) and Premiere Motion Graphics Templates (.mogrt).")}</p>
         {mogrt && <MogrtImportReportPanel report={mogrt.report} failure={mogrt.failure} onDismiss={() => setMogrt(null)} />}
       </div>
     </div>
@@ -299,6 +302,7 @@ export const GraphicTemplateEditor: React.FC<{
   title: string;
   onEdit: (label: string, fn: (template: GraphicTemplate) => GraphicTemplate) => void;
 }> = ({ template, title, onEdit }) => {
+  const t = useT();
   const [selected, setSelected] = useState<string[]>([]);
   const valid = selected.filter((id) => template.layers.some((layer) => layer.id === id));
   const layer = template.layers.find((item) => item.id === valid[0]);
@@ -313,7 +317,7 @@ export const GraphicTemplateEditor: React.FC<{
   const addImageLayer = async (file: File | undefined) => {
     if (!file) return;
     if (file.size > 2_000_000) {
-      toast.warning("Image too large", "Template images are limited to 2 MB.");
+      toast.warning(translateNow("Image too large"), "Template images are limited to 2 MB.");
       return;
     }
     const src = await new Promise<string>((resolve, reject) => {
@@ -329,7 +333,7 @@ export const GraphicTemplateEditor: React.FC<{
       image.src = src;
     });
     if (!src || dimensions.w === 0) {
-      toast.warning("Image not added", "That file could not be read as a PNG, JPEG, WebP or GIF image.");
+      toast.warning(translateNow("Image not added"), "That file could not be read as a PNG, JPEG, WebP or GIF image.");
       return;
     }
     const aspect = dimensions.w / dimensions.h;
@@ -352,14 +356,14 @@ export const GraphicTemplateEditor: React.FC<{
       <header className="flex flex-col gap-0.5">
         <h3 className="text-sm font-semibold text-fg truncate">{title}</h3>
         <p className="text-[11px] text-fg-muted" data-testid="graphic-protection">
-          Intro {Math.round(intro * 100) / 100}s and outro {Math.round(outro * 100) / 100}s are protected. Shortest length {minDuration}s.
+          {t("Intro")} {Math.round(intro * 100) / 100}{t("s and outro")} {Math.round(outro * 100) / 100}{t("s are protected. Shortest length")} {minDuration}s.
         </p>
       </header>
 
-      <section aria-label="Layers" className="flex flex-col gap-1">
-        <h4 className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">Layers</h4>
+      <section aria-label={t("Layers")} className="flex flex-col gap-1">
+        <h4 className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">{t("Layers")}</h4>
         <p className="text-[10px] text-fg-muted">
-          Text draws above shapes and SVG art; order applies within each kind. Shift-click to select several.
+          {t("Text draws above shapes and SVG art; order applies within each kind. Shift-click to select several.")}
         </p>
         <ul className="flex flex-col gap-0.5" data-testid="graphic-layer-list">
           {ordered.map(({ item, index }) => {
@@ -413,15 +417,15 @@ export const GraphicTemplateEditor: React.FC<{
         </ul>
       </section>
 
-      <section aria-label="Add layer" className="flex flex-wrap items-center gap-1">
+      <section aria-label={t("Add layer")} className="flex flex-wrap items-center gap-1">
         <Button size="sm" variant="outline" className="h-6 gap-1 px-1.5 text-[11px]" onClick={() => edit("Add text layer", (t) => addLayer(t, newLayer(t, "text")))}>
-          <TypeIcon size={11} aria-hidden /> Text
+          <TypeIcon size={11} aria-hidden /> {t("Text")}
         </Button>
         <Button size="sm" variant="outline" className="h-6 gap-1 px-1.5 text-[11px]" onClick={() => edit("Add shape layer", (t) => addLayer(t, newLayer(t, "shape")))}>
-          <Shapes size={11} aria-hidden /> Shape
+          <Shapes size={11} aria-hidden /> {t("Shape")}
         </Button>
         <Button size="sm" variant="outline" className="h-6 gap-1 px-1.5 text-[11px]" onClick={() => imageInput.current?.click()}>
-          <ImageIcon size={11} aria-hidden /> Image…
+          <ImageIcon size={11} aria-hidden /> {t("Image…")}
         </Button>
         <input
           ref={imageInput}
@@ -436,8 +440,8 @@ export const GraphicTemplateEditor: React.FC<{
         />
       </section>
 
-      <section aria-label="Align and distribute" className="flex flex-col gap-1.5">
-        <h4 className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">Align and distribute</h4>
+      <section aria-label={t("Align and distribute")} className="flex flex-col gap-1.5">
+        <h4 className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">{t("Align and distribute")}</h4>
         <div className="flex flex-wrap gap-1">
           {ALIGN_ACTIONS.map((action) => (
             <Button
@@ -445,7 +449,7 @@ export const GraphicTemplateEditor: React.FC<{
               size="icon"
               variant="outline"
               className="h-6 w-6"
-              aria-label={action.label}
+              aria-label={t(action.label)}
               title={`${action.label} (${valid.length > 1 ? "to selection" : "to frame"})`}
               disabled={valid.length === 0}
               onClick={() => edit("Align layers", (t) => alignLayers(t, valid, action.mode, valid.length > 1 ? "selection" : "frame"))}
@@ -457,7 +461,7 @@ export const GraphicTemplateEditor: React.FC<{
             size="icon"
             variant="outline"
             className="h-6 w-6"
-            aria-label="Distribute horizontally"
+            aria-label={t("Distribute horizontally")}
             disabled={valid.length < 3}
             onClick={() => edit("Distribute layers", (t) => distributeLayers(t, valid, "horizontal"))}
           >
@@ -467,7 +471,7 @@ export const GraphicTemplateEditor: React.FC<{
             size="icon"
             variant="outline"
             className="h-6 w-6"
-            aria-label="Distribute vertically"
+            aria-label={t("Distribute vertically")}
             disabled={valid.length < 3}
             onClick={() => edit("Distribute layers", (t) => distributeLayers(t, valid, "vertical"))}
           >
@@ -478,7 +482,7 @@ export const GraphicTemplateEditor: React.FC<{
 
       {layer ? (
         <>
-          <section aria-label="Layer geometry" className="flex flex-col gap-1.5">
+          <section aria-label={t("Layer geometry")} className="flex flex-col gap-1.5">
             <h4 className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">{layer.name}</h4>
             <div className="flex flex-wrap gap-x-3 gap-y-1">
               {/* Pinned layers show where the pin puts them; typing a position releases that axis' pin. */}
@@ -497,14 +501,14 @@ export const GraphicTemplateEditor: React.FC<{
             </div>
           </section>
 
-          <section aria-label="Responsive design" className="flex flex-col gap-1.5" data-testid="graphic-pins">
-            <h4 className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">Responsive design</h4>
+          <section aria-label={t("Responsive design")} className="flex flex-col gap-1.5" data-testid="graphic-pins">
+            <h4 className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">{t("Responsive design")}</h4>
             {(["horizontal", "vertical"] as const).map((axis) => {
               const edge = pinValue(axis);
               const pin = layer.pin?.[axis];
               return (
                 <div key={axis} className="flex flex-wrap items-center gap-1.5">
-                  <span className="w-[4.25rem] text-[11px] text-fg-muted">Pin {axis === "horizontal" ? "horizontal" : "vertical"}</span>
+                  <span className="w-[4.25rem] text-[11px] text-fg-muted">{t("Pin")} {axis === "horizontal" ? t("horizontal") : t("vertical")}</span>
                   <Select
                     value={edge}
                     onValueChange={(next) => {
@@ -517,7 +521,7 @@ export const GraphicTemplateEditor: React.FC<{
                     </SelectTrigger>
                     <SelectContent>
                       {PIN_EDGES.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                        <SelectItem key={option.value} value={option.value}>{t(option.label)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -531,7 +535,7 @@ export const GraphicTemplateEditor: React.FC<{
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="frame">Video frame</SelectItem>
+                          <SelectItem value="frame">{t("Video frame")}</SelectItem>
                           {targetsForPin.map((other) => (
                             <SelectItem key={other.id} value={other.id}>{other.name}</SelectItem>
                           ))}
@@ -549,11 +553,11 @@ export const GraphicTemplateEditor: React.FC<{
             })}
           </section>
 
-          <section aria-label="Expose controls" className="flex flex-col gap-1.5">
-            <h4 className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">Expose as control</h4>
+          <section aria-label={t("Expose controls")} className="flex flex-col gap-1.5">
+            <h4 className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">{t("Expose as control")}</h4>
             <Input
-              aria-label="Control name"
-              placeholder="Control name (optional)"
+              aria-label={t("Control name")}
+              placeholder={t("Control name (optional)")}
               value={exposeLabel}
               onChange={(event) => setExposeLabel(event.target.value)}
               className="h-6 text-[11px]"
@@ -580,12 +584,12 @@ export const GraphicTemplateEditor: React.FC<{
           </section>
         </>
       ) : (
-        <p className="text-[11px] text-fg-muted">Select a layer to edit its position, pinning and exposed controls.</p>
+        <p className="text-[11px] text-fg-muted">{t("Select a layer to edit its position, pinning and exposed controls.")}</p>
       )}
 
-      <section aria-label="Controls" className="flex flex-col gap-1.5" data-testid="graphic-param-list">
-        <h4 className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">Exposed controls</h4>
-        {template.parameters.length === 0 && <p className="text-[11px] text-fg-muted">Nothing exposed yet.</p>}
+      <section aria-label={t("Controls")} className="flex flex-col gap-1.5" data-testid="graphic-param-list">
+        <h4 className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">{t("Exposed controls")}</h4>
+        {template.parameters.length === 0 && <p className="text-[11px] text-fg-muted">{t("Nothing exposed yet.")}</p>}
         {template.parameters.map((parameter) => (
           <div key={parameter.id} className="flex items-center gap-1" data-param-row={parameter.id}>
             <Input
@@ -600,7 +604,7 @@ export const GraphicTemplateEditor: React.FC<{
             />
             <Input
               aria-label={`Group of control ${parameter.label}`}
-              placeholder="Group"
+              placeholder={t("Group")}
               defaultValue={parameter.group ?? ""}
               key={`${parameter.id}:g:${parameter.group ?? ""}`}
               onBlur={(event) => {
@@ -630,6 +634,7 @@ export const GraphicTemplateEditor: React.FC<{
 // ---------------------------------------------------------------------------
 
 export const EssentialGraphicsPanel: React.FC = () => {
+  const t = useT();
   const [tab, setTab] = useState<"browse" | "edit">("browse");
   const project = useProjectStore((state) => state.project);
   const selectedItems = useUIStore((state) => state.selectedItems);
@@ -658,7 +663,7 @@ export const EssentialGraphicsPanel: React.FC = () => {
           <EditTab key={instance.id} instance={instance} />
         ) : (
           <p className="text-xs text-fg-muted" data-testid="graphic-edit-empty">
-            Select a graphic on the timeline to edit its layers, align and pin them, and choose which properties become controls.
+            {t("Select a graphic on the timeline to edit its layers, align and pin them, and choose which properties become controls.")}
           </p>
         )}
       </div>

@@ -11,6 +11,7 @@ import {
 import { PropertySlider } from "./shell/PropertySlider";
 import { ColorSelector } from "../../../motion/components/primitives";
 import { useNumericDraft } from "./shell/useNumericDraft";
+import { useT } from "@openreel/i18n/react";
 
 interface EditorShaderRef {
   readonly shaderId: string;
@@ -120,11 +121,12 @@ interface ShaderNumberFieldProps {
 }
 
 const ShaderNumberInput: React.FC<ShaderNumberFieldProps> = ({ param, value, onChange }) => {
+  const t = useT();
   const id = useId();
   const input = useNumericDraft({ value, onChange, min: param.min, max: param.max, step: param.step });
   return (
     <div className="min-w-0 space-y-1.5 w-full">
-      <Label htmlFor={id} className="block truncate text-[11px] font-medium leading-[1.4] text-text-secondary">{param.label}</Label>
+      <Label htmlFor={id} className="block truncate text-[11px] font-medium leading-[1.4] text-text-secondary">{t(param.label)}</Label>
       <div className="relative min-w-0">
         <Input {...input} id={id} type="number" inputMode="decimal" min={param.min} max={param.max} step={param.step}
           className="flex h-7 w-full min-w-0 rounded-[7px] border border-border bg-bg-1 px-2.5 py-1.5 font-mono text-[12px] font-medium tabular-nums text-fg-2 outline-none transition-colors placeholder:text-fg-muted focus:border-accent disabled:cursor-not-allowed disabled:opacity-50"

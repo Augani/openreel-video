@@ -1,5 +1,6 @@
 import { Slider } from "@openreel/ui";
 import { formatFrameTimecode } from "../../utils/frame-timecode";
+import { useT } from "@openreel/i18n/react";
 
 export function PreviewScrubber({
   position,
@@ -14,10 +15,11 @@ export function PreviewScrubber({
   disabled?: boolean;
   onSeek: (seconds: number) => void;
 }) {
+  const t = useT();
   return (
     <Slider
       className="workspace-preview-scrub"
-      aria-label="Preview position"
+      aria-label={t("Preview position")}
       aria-valuetext={formatFrameTimecode(position, frameRate)}
       min={0}
       max={Math.max(1 / frameRate, duration)}

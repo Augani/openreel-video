@@ -18,6 +18,7 @@ import {
   stillExportFilename,
   type StillExportRequest,
 } from "../../services/still-export";
+import { useT } from "@openreel/i18n/react";
 
 interface ExportStillPanelProps {
   /** Timeline span to export (seconds, Out exclusive); omit for the whole timeline. */
@@ -41,6 +42,7 @@ const numberOrUndefined = (value: string): number | undefined => {
  * agent tools `export_image_sequence` and `export_gif`.
  */
 export const ExportStillPanel: React.FC<ExportStillPanelProps> = ({ range, onDone }) => {
+  const t = useT();
   const project = useProjectStore((state) => state.project);
   const [mode, setMode] = useState<Mode>("sequence");
   const [format, setFormat] = useState<SequenceImageFormat>("png");
@@ -131,21 +133,21 @@ export const ExportStillPanel: React.FC<ExportStillPanelProps> = ({ range, onDon
 
   return (
     <div className="mx-auto max-w-xl space-y-4" data-testid="export-still-panel">
-      <div role="radiogroup" aria-label="Still export type" className="flex gap-4 text-xs">
+      <div role="radiogroup" aria-label={t("Still export type")} className="flex gap-4 text-xs">
         <label className="flex items-center gap-2">
           <input type="radio" name="still-mode" checked={mode === "sequence"} onChange={() => setMode("sequence")} data-testid="still-mode-sequence" />
-          Image sequence (PNG / JPEG)
+          {t("Image sequence (PNG / JPEG)")}
         </label>
         <label className="flex items-center gap-2">
           <input type="radio" name="still-mode" checked={mode === "gif"} onChange={() => setMode("gif")} data-testid="still-mode-gif" />
-          Animated GIF
+          {t("Animated GIF")}
         </label>
       </div>
 
       {mode === "sequence" ? (
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label htmlFor="still-format" className="text-[11px] text-fg-2">Format</Label>
+            <Label htmlFor="still-format" className="text-[11px] text-fg-2">{t("Format")}</Label>
             <select
               id="still-format"
               value={format}
@@ -153,40 +155,40 @@ export const ExportStillPanel: React.FC<ExportStillPanelProps> = ({ range, onDon
               className="h-8 w-full rounded border border-border bg-bg-2 px-2 text-xs"
               data-testid="still-format"
             >
-              <option value="png">PNG (lossless)</option>
+              <option value="png">{t("PNG (lossless)")}</option>
               <option value="jpg">JPEG</option>
             </select>
           </div>
           {format === "jpg" && (
             <div className="space-y-1.5">
-              <Label htmlFor="still-quality" className="text-[11px] text-fg-2">JPEG quality (1-100)</Label>
+              <Label htmlFor="still-quality" className="text-[11px] text-fg-2">{t("JPEG quality (1-100)")}</Label>
               <Input id="still-quality" type="number" min={1} max={100} value={quality} onChange={(event) => setQuality(event.currentTarget.value)} className="h-8 text-xs" data-testid="still-quality" />
             </div>
           )}
           <div className="space-y-1.5">
-            <Label htmlFor="still-pattern" className="text-[11px] text-fg-2">File name pattern</Label>
+            <Label htmlFor="still-pattern" className="text-[11px] text-fg-2">{t("File name pattern")}</Label>
             <Input id="still-pattern" value={pattern} onChange={(event) => setPattern(event.currentTarget.value)} className="h-8 text-xs" data-testid="still-pattern" />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="still-start-number" className="text-[11px] text-fg-2">Start number</Label>
+            <Label htmlFor="still-start-number" className="text-[11px] text-fg-2">{t("Start number")}</Label>
             <Input id="still-start-number" type="number" min={0} value={startNumber} onChange={(event) => setStartNumber(event.currentTarget.value)} className="h-8 text-xs" data-testid="still-start-number" />
           </div>
           <p className="col-span-2 text-[10px] leading-snug text-fg-muted" data-testid="still-summary">
-            {plan.error ? null : `${plan.frames} frame${plan.frames === 1 ? "" : "s"}, e.g. ${plan.sample}, delivered as one zip.`} The zeros in braces set the padding; the number is added to the project frame index.
+            {plan.error ? null : `${plan.frames} frame${plan.frames === 1 ? "" : "s"}, e.g. ${plan.sample}, delivered as one zip.`} {t("The zeros in braces set the padding; the number is added to the project frame index.")}
           </p>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label htmlFor="still-fps" className="text-[11px] text-fg-2">Frame rate (1-50 fps)</Label>
+            <Label htmlFor="still-fps" className="text-[11px] text-fg-2">{t("Frame rate (1-50 fps)")}</Label>
             <Input id="still-fps" type="number" min={1} max={50} value={fps} onChange={(event) => setFps(event.currentTarget.value)} className="h-8 text-xs" data-testid="still-fps" />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="still-colors" className="text-[11px] text-fg-2">Palette colours (2-256)</Label>
+            <Label htmlFor="still-colors" className="text-[11px] text-fg-2">{t("Palette colours (2-256)")}</Label>
             <Input id="still-colors" type="number" min={2} max={256} value={colors} onChange={(event) => setColors(event.currentTarget.value)} className="h-8 text-xs" data-testid="still-colors" />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="still-loop" className="text-[11px] text-fg-2">Loop</Label>
+            <Label htmlFor="still-loop" className="text-[11px] text-fg-2">{t("Loop")}</Label>
             <select
               id="still-loop"
               value={loopMode}
@@ -194,31 +196,31 @@ export const ExportStillPanel: React.FC<ExportStillPanelProps> = ({ range, onDon
               className="h-8 w-full rounded border border-border bg-bg-2 px-2 text-xs"
               data-testid="still-loop"
             >
-              <option value="forever">Forever</option>
-              <option value="once">Play once</option>
-              <option value="count">A set number of times</option>
+              <option value="forever">{t("Forever")}</option>
+              <option value="once">{t("Play once")}</option>
+              <option value="count">{t("A set number of times")}</option>
             </select>
           </div>
           {loopMode === "count" ? (
             <div className="space-y-1.5">
-              <Label htmlFor="still-loop-count" className="text-[11px] text-fg-2">Plays</Label>
+              <Label htmlFor="still-loop-count" className="text-[11px] text-fg-2">{t("Plays")}</Label>
               <Input id="still-loop-count" type="number" min={1} max={65535} value={loopCount} onChange={(event) => setLoopCount(event.currentTarget.value)} className="h-8 text-xs" data-testid="still-loop-count" />
             </div>
           ) : (
             <div className="space-y-1.5">
-              <Label htmlFor="still-gif-width" className="text-[11px] text-fg-2">Width (px)</Label>
+              <Label htmlFor="still-gif-width" className="text-[11px] text-fg-2">{t("Width (px)")}</Label>
               <Input id="still-gif-width" type="number" min={2} max={4096} placeholder={String(gifSize.width)} value={gifWidth} onChange={(event) => setGifWidth(event.currentTarget.value)} className="h-8 text-xs" data-testid="still-gif-width" />
             </div>
           )}
           <p className="col-span-2 text-[10px] leading-snug text-fg-muted" data-testid="still-summary">
             {plan.error ? null : `${gifSize.width} x ${gifSize.height}, ${plan.frames} frames at ${gifPlaybackFps(Math.min(50, Math.max(1, numberOrUndefined(fps) ?? 15))).toFixed(2)} fps. `}
-            GIF delays are whole hundredths of a second, so the real rate is rounded; frames are sampled at that rate to keep the duration true. One palette for the whole GIF.
+            {t("GIF delays are whole hundredths of a second, so the real rate is rounded; frames are sampled at that rate to keep the duration true. One palette for the whole GIF.")}
           </p>
         </div>
       )}
 
       {range && (
-        <p className="text-[11px] text-fg-muted">Exporting the marked In/Out only.</p>
+        <p className="text-[11px] text-fg-muted">{t("Exporting the marked In/Out only.")}</p>
       )}
       {plan.error && (
         <p className="text-[11px] text-red-400" role="alert" data-testid="still-error">{plan.error}</p>
@@ -232,18 +234,18 @@ export const ExportStillPanel: React.FC<ExportStillPanelProps> = ({ range, onDon
         <div className="space-y-1" data-testid="still-progress">
           <Progress value={Math.round((progress?.progress ?? 0) * 100)} />
           <p className="text-[10px] text-fg-muted">
-            {progress ? `${progress.phase}: frame ${progress.currentFrame} of ${progress.totalFrames}` : "Starting..."}
+            {progress ? `${progress.phase}: frame ${progress.currentFrame} of ${progress.totalFrames}` : t("Starting...")}
           </p>
         </div>
       )}
       <div className="flex justify-end gap-2">
         {running ? (
-          <Button variant="secondary" size="sm" className="h-8 text-xs" onClick={cancel} type="button" aria-label="Cancel image export">
-            Cancel
+          <Button variant="secondary" size="sm" className="h-8 text-xs" onClick={cancel} type="button" aria-label={t("Cancel image export")}>
+            {t("Cancel")}
           </Button>
         ) : (
-          <Button size="sm" className="h-8 text-xs" onClick={() => void start()} disabled={!plan.request} type="button" aria-label={mode === "gif" ? "Export GIF" : "Export image sequence"} data-testid="still-export">
-            {mode === "gif" ? "Export GIF" : "Export image sequence"}
+          <Button size="sm" className="h-8 text-xs" onClick={() => void start()} disabled={!plan.request} type="button" aria-label={mode === "gif" ? t("Export GIF") : t("Export image sequence")} data-testid="still-export">
+            {mode === "gif" ? t("Export GIF") : t("Export image sequence")}
           </Button>
         )}
       </div>

@@ -1,5 +1,6 @@
 import { useProjectStore } from "../stores/project-store";
 import { toast } from "../stores/notification-store";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * Files the operating system opened with OpenReel (double-click, Open With, a second launch with a file on the
@@ -98,7 +99,7 @@ export function defaultOpenFilesDeps(): OpenFilesDeps {
         window.location.hash = "#/editor";
         return true;
       } catch (error) {
-        toast.error(`Could not open ${baseName(path)}`, error instanceof Error ? error.message : undefined);
+        toast.error(translateNow("Could not open {name}", { name: baseName(path) }), error instanceof Error ? error.message : undefined);
         return false;
       }
     },
@@ -118,7 +119,7 @@ export function defaultOpenFilesDeps(): OpenFilesDeps {
         }
         return opened;
       } catch (error) {
-        toast.error("Could not open the project", error instanceof Error ? error.message : undefined);
+        toast.error(translateNow("Could not open the project"), error instanceof Error ? error.message : undefined);
         return false;
       }
     },

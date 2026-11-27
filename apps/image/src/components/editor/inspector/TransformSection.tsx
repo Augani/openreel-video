@@ -1,12 +1,14 @@
 import { FlipHorizontal2, FlipVertical2, RotateCw, RotateCcw } from 'lucide-react';
 import { useProjectStore } from '../../../stores/project-store';
 import type { Layer } from '../../../types/project';
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   layer: Layer;
 }
 
 export function TransformSection({ layer }: Props) {
+  const t = useT();
   const { updateLayer, updateLayerTransform } = useProjectStore();
 
   const { x, y, width, height, rotation, skewX, skewY, opacity } = layer.transform;
@@ -34,7 +36,7 @@ export function TransformSection({ layer }: Props) {
   return (
     <div className="space-y-3">
       <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-        Transform
+        {t("Transform")}
       </h4>
 
       <div className="grid grid-cols-2 gap-2">
@@ -60,7 +62,7 @@ export function TransformSection({ layer }: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-[10px] text-muted-foreground mb-1">Width</label>
+          <label className="block text-[10px] text-muted-foreground mb-1">{t("Width")}</label>
           <input
             type="number"
             value={Math.round(width)}
@@ -70,7 +72,7 @@ export function TransformSection({ layer }: Props) {
           />
         </div>
         <div>
-          <label className="block text-[10px] text-muted-foreground mb-1">Height</label>
+          <label className="block text-[10px] text-muted-foreground mb-1">{t("Height")}</label>
           <input
             type="number"
             value={Math.round(height)}
@@ -83,7 +85,7 @@ export function TransformSection({ layer }: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-[10px] text-muted-foreground mb-1">Rotation</label>
+          <label className="block text-[10px] text-muted-foreground mb-1">{t("Rotation")}</label>
           <div className="flex items-center gap-1">
             <input
               type="number"
@@ -95,7 +97,7 @@ export function TransformSection({ layer }: Props) {
           </div>
         </div>
         <div>
-          <label className="block text-[10px] text-muted-foreground mb-1">Opacity</label>
+          <label className="block text-[10px] text-muted-foreground mb-1">{t("Opacity")}</label>
           <div className="flex items-center gap-1">
             <input
               type="number"
@@ -112,7 +114,7 @@ export function TransformSection({ layer }: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-[10px] text-muted-foreground mb-1">Skew X</label>
+          <label className="block text-[10px] text-muted-foreground mb-1">{t("Skew X")}</label>
           <div className="flex items-center gap-1">
             <input
               type="number"
@@ -126,7 +128,7 @@ export function TransformSection({ layer }: Props) {
           </div>
         </div>
         <div>
-          <label className="block text-[10px] text-muted-foreground mb-1">Skew Y</label>
+          <label className="block text-[10px] text-muted-foreground mb-1">{t("Skew Y")}</label>
           <div className="flex items-center gap-1">
             <input
               type="number"
@@ -149,7 +151,7 @@ export function TransformSection({ layer }: Props) {
               ? 'bg-primary/20 border-primary text-primary'
               : 'bg-secondary/50 border-border text-muted-foreground hover:text-foreground hover:bg-secondary'
           }`}
-          title="Flip Horizontal"
+          title={t("Flip Horizontal")}
         >
           <FlipHorizontal2 size={14} />
         </button>
@@ -161,7 +163,7 @@ export function TransformSection({ layer }: Props) {
               ? 'bg-primary/20 border-primary text-primary'
               : 'bg-secondary/50 border-border text-muted-foreground hover:text-foreground hover:bg-secondary'
           }`}
-          title="Flip Vertical"
+          title={t("Flip Vertical")}
         >
           <FlipVertical2 size={14} />
         </button>
@@ -169,7 +171,7 @@ export function TransformSection({ layer }: Props) {
         <button
           onClick={() => handleRotate(-90)}
           className="flex items-center justify-center gap-1 p-2 rounded-md bg-secondary/50 border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
-          title="Rotate 90° Counter-clockwise"
+          title={t("Rotate 90° Counter-clockwise")}
         >
           <RotateCcw size={14} />
         </button>
@@ -177,7 +179,7 @@ export function TransformSection({ layer }: Props) {
         <button
           onClick={() => handleRotate(90)}
           className="flex items-center justify-center gap-1 p-2 rounded-md bg-secondary/50 border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
-          title="Rotate 90° Clockwise"
+          title={t("Rotate 90° Clockwise")}
         >
           <RotateCw size={14} />
         </button>

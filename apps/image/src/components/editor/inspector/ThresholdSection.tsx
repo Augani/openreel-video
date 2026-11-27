@@ -3,12 +3,14 @@ import { useProjectStore } from '../../../stores/project-store';
 import type { Layer } from '../../../types/project';
 import { DEFAULT_THRESHOLD } from '../../../types/adjustments';
 import { Binary, RotateCcw } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   layer: Layer;
 }
 
 export function ThresholdSection({ layer }: Props) {
+  const t = useT();
   const { updateLayer } = useProjectStore();
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -42,7 +44,7 @@ export function ThresholdSection({ layer }: Props) {
       >
         <div className="flex items-center gap-2">
           <Binary size={14} className="text-muted-foreground" />
-          <span className="text-xs font-medium">Threshold</span>
+          <span className="text-xs font-medium">{t("Threshold")}</span>
           {threshold.enabled && (
             <span className="w-1.5 h-1.5 rounded-full bg-primary" />
           )}
@@ -61,13 +63,13 @@ export function ThresholdSection({ layer }: Props) {
       {isExpanded && (
         <div className="px-3 pb-3 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-muted-foreground">Threshold Level</span>
+            <span className="text-[10px] text-muted-foreground">{t("Threshold Level")}</span>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-mono text-muted-foreground">{threshold.level}</span>
               <button
                 onClick={resetThreshold}
                 className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-secondary transition-colors"
-                title="Reset"
+                title={t("Reset")}
               >
                 <RotateCcw size={12} />
               </button>
@@ -99,7 +101,7 @@ export function ThresholdSection({ layer }: Props) {
           </div>
 
           <p className="text-[9px] text-muted-foreground">
-            Pixels below the threshold become black, above become white.
+            {t("Pixels below the threshold become black, above become white.")}
           </p>
         </div>
       )}

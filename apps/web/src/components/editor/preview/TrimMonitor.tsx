@@ -22,6 +22,8 @@ import {
 import { toast } from "../../../stores/notification-store";
 import { formatFrameTimecode } from "../../../utils/frame-timecode";
 import { TwoUpPanes } from "./DynamicTrimTwoUp";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const STEPS = [-5, -1, 1, 5] as const;
 
@@ -37,7 +39,7 @@ const MODE_HINTS: Record<TrimMonitorMode, string> = {
 };
 
 function report(outcome: { success: boolean; message?: string }): void {
-  if (!outcome.success && outcome.message) toast.error("Trim", outcome.message);
+  if (!outcome.success && outcome.message) toast.error(translateNow("Trim"), outcome.message);
 }
 
 /**
@@ -52,6 +54,7 @@ export const TrimMonitor: React.FC = () => {
 };
 
 const TrimMonitorView: React.FC = () => {
+  const t = useT();
   const mode = useTrimMonitorStore((state) => state.mode);
   const side = useTrimMonitorStore((state) => state.side);
   const playingAround = useTrimMonitorStore((state) => state.playingAround);
@@ -97,7 +100,7 @@ const TrimMonitorView: React.FC = () => {
   const submitOffset = (): void => {
     const frames = parseTrimOffset(offsetText);
     if (frames === null) {
-      toast.error("Trim", "Enter a whole number of frames, such as -3 or +5.");
+      toast.error(translateNow("Trim"), "Enter a whole number of frames, such as -3 or +5.");
       return;
     }
     const outcome = trimMonitorOffset(frames);
@@ -110,7 +113,7 @@ const TrimMonitorView: React.FC = () => {
     <div
       data-testid="trim-monitor"
       role="group"
-      aria-label="Trim Monitor"
+      aria-label={t("Trim Monitor")}
       className={`pointer-events-none absolute inset-0 z-30 flex flex-col rounded-[10px] ${playingAround ? "" : "bg-[var(--screen-bg)]"}`}
     >
       <div className={`min-h-0 flex-1 ${playingAround ? "invisible" : ""}`} aria-hidden={playingAround}>
@@ -118,14 +121,14 @@ const TrimMonitorView: React.FC = () => {
       </div>
       <div className="pointer-events-auto flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-white/10 bg-black/70 px-2 py-1.5 text-white">
         <div className="flex items-center gap-1">
-          <button type="button" className={buttonClass} data-testid="trim-monitor-prev" aria-label="Previous edit point" title="Previous edit point (Up)" onClick={() => report(trimMonitorNavigate(-1))}>
-            Prev edit
+          <button type="button" className={buttonClass} data-testid="trim-monitor-prev" aria-label={t("Previous edit point")} title={t("Previous edit point (Up)")} onClick={() => report(trimMonitorNavigate(-1))}>
+            {t("Prev edit")}
           </button>
-          <button type="button" className={buttonClass} data-testid="trim-monitor-next" aria-label="Next edit point" title="Next edit point (Down)" onClick={() => report(trimMonitorNavigate(1))}>
-            Next edit
+          <button type="button" className={buttonClass} data-testid="trim-monitor-next" aria-label={t("Next edit point")} title={t("Next edit point (Down)")} onClick={() => report(trimMonitorNavigate(1))}>
+            {t("Next edit")}
           </button>
         </div>
-        <div className="flex items-center gap-1" role="radiogroup" aria-label="Trim mode">
+        <div className="flex items-center gap-1" role="radiogroup" aria-label={t("Trim mode")}>
           {modes.map((m) => (
             <button
               key={m}
@@ -154,12 +157,12 @@ const TrimMonitorView: React.FC = () => {
                 className={`${buttonClass} ${edit[s] && side === s ? "!border-sky-300 !bg-sky-400/30" : ""}`}
                 onClick={() => report(setTrimMonitorSide(s))}
               >
-                {s === "outgoing" ? "Outgoing clip" : "Incoming clip"}
+                {s === "outgoing" ? t("Outgoing clip") : t("Incoming clip")}
               </button>
             ))}
           </div>
         ) : null}
-        <div className="flex items-center gap-1" aria-label="Trim by frames">
+        <div className="flex items-center gap-1" aria-label={t("Trim by frames")}>
           {STEPS.map((n) => (
             <button
               key={n}
@@ -174,9 +177,9 @@ const TrimMonitorView: React.FC = () => {
           ))}
           <input
             data-testid="trim-monitor-offset"
-            aria-label="Trim offset in frames"
+            aria-label={t("Trim offset in frames")}
             inputMode="numeric"
-            placeholder="±frames"
+            placeholder={t("±frames")}
             value={offsetText}
             onChange={(event) => setOffsetText(event.target.value)}
             onKeyDown={(event) => {
@@ -189,7 +192,7 @@ const TrimMonitorView: React.FC = () => {
             className="w-16 rounded border border-white/20 bg-black/40 px-1.5 py-1 text-[11px] text-white placeholder:text-white/40"
           />
           <button type="button" className={buttonClass} data-testid="trim-monitor-apply" onClick={submitOffset}>
-            Apply
+            {t("Apply")}
           </button>
         </div>
         <button
@@ -197,18 +200,18 @@ const TrimMonitorView: React.FC = () => {
           aria-pressed={playingAround}
           data-testid="trim-monitor-play-around"
           className={`${buttonClass} ${playingAround ? "!border-green-300 !bg-green-500/30" : ""}`}
-          title="Play around the edit and loop (Space)"
+          title={t("Play around the edit and loop (Space)")}
           onClick={() => report(togglePlayAround())}
         >
-          {playingAround ? "Stop" : "Play Around Edit"}
+          {playingAround ? t("Stop") : t("Play Around Edit")}
         </button>
         <span data-testid="trim-monitor-readout" role="status" aria-live="polite" className="ml-auto text-[11px] tabular-nums text-white/80">
           {formatFrameTimecode(edit.time, frameRate)} · {TRIM_MONITOR_MODE_LABELS[mode]}
           {live !== null ? ` · ${signed(live)}f live` : lastOffset !== null ? ` · ${signed(lastOffset)}f` : ""}
           {notice ? ` · ${notice}` : ""}
         </span>
-        <button type="button" className={buttonClass} data-testid="trim-monitor-close" aria-label="Close Trim Monitor" onClick={() => closeTrimMonitor()}>
-          Close
+        <button type="button" className={buttonClass} data-testid="trim-monitor-close" aria-label={t("Close Trim Monitor")} onClick={() => closeTrimMonitor()}>
+          {t("Close")}
         </button>
       </div>
     </div>

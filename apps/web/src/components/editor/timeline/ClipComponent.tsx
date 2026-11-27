@@ -52,6 +52,8 @@ import {
   type ClipOrigin,
 } from "@openreel/core";
 import { v4 as uuidv4 } from "uuid";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 /** Whether a mouse button or touch is currently down, tracked once for every clip. */
 let pointerIsDown = false;
@@ -134,6 +136,7 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
   onSnapIndicator,
   onTrimClip,
 }) => {
+  const t = useT();
   const mediaItem = useProjectStore((state) => state.getMediaItem(clip.mediaId));
   // Label colour: the clip's own, else its media's (Project panel).
   const clipLabel = getMediaLabel(resolveClipLabel(clip, mediaItem));
@@ -465,7 +468,7 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
 
       const bridge = getTransitionBridge();
       if (!bridge.isInitialized()) {
-        toast.error("Transition engine not ready", "Try again in a moment.");
+        toast.error(translateNow("Transition engine not ready"), "Try again in a moment.");
         return;
       }
       const defaultParams = {
@@ -504,7 +507,7 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
         }
       }
       toast.error(
-        "Transition failed",
+        translateNow("Transition failed"),
         result.error || "Could not create transition",
       );
     },
@@ -554,16 +557,16 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
       if (effectType) {
         const result = await applyEditorEffectToClip(clip.id, { effectType, effectParams: effectPayload?.effectParams });
         if (effectType === "stabilize") {
-          if (!result) toast.warning("Stabilization unavailable", "Select an unlocked video clip to configure stabilization.");
+          if (!result) toast.warning(translateNow("Stabilization unavailable"), "Select an unlocked video clip to configure stabilization.");
           return;
         }
         if (result) {
-          toast.success("Effect applied", `${effectType} added`);
+          toast.success(translateNow("Effect applied"), `${effectType} added`);
           // Auto-select the clip so the user sees the new effect in
           // the inspector.
           useUIStore.getState().select({ id: clip.id, type: "clip" });
         } else {
-          toast.error("Effect failed", "Could not apply effect");
+          toast.error(translateNow("Effect failed"), "Could not apply effect");
         }
         return;
       }
@@ -817,7 +820,7 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
         // A drop that cannot be resolved must not leave overlapping clips:
         // put every moved clip back where the drag started.
         const revertDrop = async (reason: string) => {
-          toast.warning("Drop not applied", reason);
+          toast.warning(translateNow("Drop not applied"), reason);
           await restoreClipOrigins(origins);
         };
         try {
@@ -1089,7 +1092,7 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
       <RemoteClipSelection clipId={clip.id} />
       {isSelected && <span className="mobile-clip-duration">{clip.duration.toFixed(1)}s</span>}
       {clip.groupId && (
-        <span data-testid="clip-group-indicator" title="Grouped clip: selects, moves and deletes with its group" className="pointer-events-none absolute right-1 top-[6px] z-20 flex h-3.5 w-3.5 items-center justify-center rounded-[3px] bg-black/55 text-white">
+        <span data-testid="clip-group-indicator" title={t("Grouped clip: selects, moves and deletes with its group")} className="pointer-events-none absolute right-1 top-[6px] z-20 flex h-3.5 w-3.5 items-center justify-center rounded-[3px] bg-black/55 text-white">
           <Group size={10} aria-hidden />
         </span>
       )}
@@ -1099,7 +1102,7 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
           <div className="absolute -inset-px rounded-lg border border-amber-300/80 shadow-[0_0_18px_rgba(251,191,36,0.55)] pointer-events-none animate-pulse" />
           <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_0%,rgba(255,255,255,0.08)_28%,rgba(251,191,36,0.28)_50%,rgba(255,255,255,0.08)_72%,transparent_100%)] pointer-events-none animate-pulse" />
           <div className="absolute top-1 right-1 rounded-full bg-black/70 px-2 py-0.5 text-[9px] font-medium uppercase tracking-[0.12em] text-amber-200 pointer-events-none">
-            {effectApplicationLabel ?? "Applying effect"}
+            {effectApplicationLabel ?? t("Applying effect")}
           </div>
         </>
       )}
@@ -1217,10 +1220,10 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
         <span className="min-w-0 truncate">
         {clipName}
         {isAudio && Math.abs(clip.volume - 1) > 0.0001 && (
-          <> · {clip.volume > 0 ? `${(20 * Math.log10(clip.volume)).toFixed(1).replace(/\.0$/, "").replace("-", "−")} dB` : "−∞ dB"}</>
+          <> · {clip.volume > 0 ? `${(20 * Math.log10(clip.volume)).toFixed(1).replace(/\.0$/, "").replace("-", "−")} dB` : t("−∞ dB")}</>
         )}
         </span>
-        {!isAudio && hasConfiguredVideoEffects && <span role="img" aria-label="Video effects configured" className="workspace-timeline-effect-badge">fx</span>}
+        {!isAudio && hasConfiguredVideoEffects && <span role="img" aria-label={t("Video effects configured")} className="workspace-timeline-effect-badge">{t("fx")}</span>}
         {clip.audioType && (
           <span
             data-testid="clip-audio-type-chip"
@@ -1430,7 +1433,7 @@ function moveSelectionBatch(
       useProjectStore.getState().updateOverlayClipTiming(move.clipId, { startTime: move.startTime });
     }
   }).catch((error: unknown) => {
-    toast.error("Move failed", error instanceof Error ? error.message : "Please try again.");
+    toast.error(translateNow("Move failed"), error instanceof Error ? error.message : "Please try again.");
   });
   batchQueue = run;
   return run;

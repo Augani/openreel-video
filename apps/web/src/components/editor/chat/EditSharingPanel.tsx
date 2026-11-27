@@ -8,6 +8,8 @@ import { useChatStore } from "../../../stores/chat-store";
 import { EditingSession } from "../../../services/agent/editing-session";
 import { executeEditingTool } from "../../../services/agent/editing-tools";
 import { runExclusive } from "../../../services/agent/host-singleton";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const control = "h-auto rounded-md border border-border bg-bg-2 px-2 py-1.5 text-[11px] font-normal leading-4 text-fg-2 hover:bg-hover focus-visible:outline focus-visible:outline-accent disabled:opacity-40";
 function downloadJSON(text: string, name: string): void {
@@ -19,6 +21,7 @@ function downloadJSON(text: string, name: string): void {
 }
 
 export function EditSharingPanel({ disabled }: { disabled: boolean }) {
+  const t = useT();
   const project = useProjectStore((s) => s.project);
   const selected = useUIStore((s) => s.selectedItems[0]?.id);
   const [json, setJSON] = useState("");
@@ -52,13 +55,13 @@ export function EditSharingPanel({ disabled }: { disabled: boolean }) {
   });
   const exportEdit = () => perform(() => {
     const text = JSON.stringify(createPortableEdit(useProjectStore.getState().getFullProject()), null, 2);
-    setJSON(text); downloadJSON(text, "openreel-edit.json"); setMessage("Edit JSON exported. Share the original media files separately.");
+    setJSON(text); downloadJSON(text, "openreel-edit.json"); setMessage(translateNow("Edit JSON exported. Share the original media files separately."));
   });
   const exportPreset = () => perform(() => {
     const clip = clips.find((c) => c.id === targetId); if (!clip) throw new Error("Choose a media clip first");
     const transition = project.timeline.tracks.flatMap((t) => t.transitions).find((t) => t.clipAId === clip.id);
     const preset = createEditPreset({ name: "Shared look & transition", effects: clip.effects, ...(transition ? { transition: { type: transition.type, duration: transition.duration, params: transition.params } } : {}) });
-    const text = JSON.stringify(preset, null, 2); parseEditPreset(text); setJSON(text); downloadJSON(text, "openreel-preset.json"); setMessage("Reusable preset exported. Applying it generates fresh effect and transition IDs.");
+    const text = JSON.stringify(preset, null, 2); parseEditPreset(text); setJSON(text); downloadJSON(text, "openreel-preset.json"); setMessage(translateNow("Reusable preset exported. Applying it generates fresh effect and transition IDs."));
   });
   const applyPreset = () => perform(async () => {
     const preset: EditPreset = parseEditPreset(json);
@@ -76,25 +79,25 @@ export function EditSharingPanel({ disabled }: { disabled: boolean }) {
   return (
     <Collapsible className="workspace-edit-sharing border-b border-border px-3 py-2 text-xs">
       <CollapsibleTrigger asChild><Button type="button" variant="ghost" size="sm" className="group flex h-auto w-full items-center justify-start gap-2 whitespace-normal p-0 text-left text-xs font-normal leading-[inherit] text-fg-2 hover:bg-bg-2 [&_svg]:size-3">
-        <span className="min-w-0">Edit JSON &amp; reusable presets</span><ChevronRight size={12} aria-hidden className="ml-auto shrink-0 text-fg-muted transition-transform group-data-[state=open]:rotate-90" />
+        <span className="min-w-0">{t("Edit JSON & reusable presets")}</span><ChevronRight size={12} aria-hidden className="ml-auto shrink-0 text-fg-muted transition-transform group-data-[state=open]:rotate-90" />
       </Button></CollapsibleTrigger>
       <CollapsibleContent className="mt-3 space-y-2">
-        <p className="text-[11px] leading-relaxed text-fg-muted">Portable edit v3 shares the timeline and local media references. Import replaces the current edit in one undo step. Files contain data only; scripts, URLs and agent instructions are rejected.</p>
+        <p className="text-[11px] leading-relaxed text-fg-muted">{t("Portable edit v3 shares the timeline and local media references. Import replaces the current edit in one undo step. Files contain data only; scripts, URLs and agent instructions are rejected.")}</p>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" type="button" className={control} disabled={busy} onClick={exportEdit}>Export edit JSON</Button>
-          <Button variant="outline" size="sm" type="button" className={control} disabled={busy} onClick={() => fileInput.current?.click()}>Read JSON file</Button>
-          <Input ref={fileInput} aria-label="Read edit or preset file" type="file" accept=".json,application/json" className="hidden" disabled={busy} onChange={(e) => { const file = e.target.files?.[0]; if (file) void perform(async () => { if (file.size > 5_000_000) throw new Error("JSON exceeds 5 MB"); setJSON(await file.text()); }); e.target.value = ""; }} />
+          <Button variant="outline" size="sm" type="button" className={control} disabled={busy} onClick={exportEdit}>{t("Export edit JSON")}</Button>
+          <Button variant="outline" size="sm" type="button" className={control} disabled={busy} onClick={() => fileInput.current?.click()}>{t("Read JSON file")}</Button>
+          <Input ref={fileInput} aria-label={t("Read edit or preset file")} type="file" accept=".json,application/json" className="hidden" disabled={busy} onChange={(e) => { const file = e.target.files?.[0]; if (file) void perform(async () => { if (file.size > 5_000_000) throw new Error("JSON exceeds 5 MB"); setJSON(await file.text()); }); e.target.value = ""; }} />
         </div>
-        <label className="block text-fg-2">Edit or preset JSON<Textarea aria-label="Edit or preset JSON" className="mt-1 h-28 w-full resize-y rounded-md border border-border bg-bg-2 p-2 font-mono text-[10px] select-text focus:outline-none focus:ring-1 focus:ring-accent md:text-[10px]" disabled={busy} value={json} onChange={(e) => setJSON(e.target.value)} spellCheck={false} placeholder="Paste validated edit or preset JSON here" /></label>
-        <Button variant="outline" size="sm" type="button" className={control} disabled={busy || !json.trim()} onClick={() => void importEdit()}>Import edit JSON</Button>
-        <label className="block text-fg-2">Preset target<Select value={targetId} onValueChange={setTarget} disabled={busy}>
-          <SelectTrigger aria-label="Preset target clip" className={`mt-1 w-full ${control}`}><SelectValue placeholder="Choose a clip" /></SelectTrigger>
-          <SelectContent>{clips.map((clip) => <SelectItem key={clip.id} value={clip.id}>{project.mediaLibrary.items.find((m) => m.id === clip.mediaId)?.name ?? "Clip"} · {clip.startTime.toFixed(1)}s · {clip.id.slice(0, 8)}</SelectItem>)}</SelectContent>
+        <label className="block text-fg-2">{t("Edit or preset JSON")}<Textarea aria-label={t("Edit or preset JSON")} className="mt-1 h-28 w-full resize-y rounded-md border border-border bg-bg-2 p-2 font-mono text-[10px] select-text focus:outline-none focus:ring-1 focus:ring-accent md:text-[10px]" disabled={busy} value={json} onChange={(e) => setJSON(e.target.value)} spellCheck={false} placeholder={t("Paste validated edit or preset JSON here")} /></label>
+        <Button variant="outline" size="sm" type="button" className={control} disabled={busy || !json.trim()} onClick={() => void importEdit()}>{t("Import edit JSON")}</Button>
+        <label className="block text-fg-2">{t("Preset target")}<Select value={targetId} onValueChange={setTarget} disabled={busy}>
+          <SelectTrigger aria-label={t("Preset target clip")} className={`mt-1 w-full ${control}`}><SelectValue placeholder={t("Choose a clip")} /></SelectTrigger>
+          <SelectContent>{clips.map((clip) => <SelectItem key={clip.id} value={clip.id}>{project.mediaLibrary.items.find((m) => m.id === clip.mediaId)?.name ?? t("Clip")} · {clip.startTime.toFixed(1)}s · {clip.id.slice(0, 8)}</SelectItem>)}</SelectContent>
         </Select></label>
-        <div className="flex gap-2"><Button variant="outline" size="sm" type="button" className={control} disabled={busy || !targetId} onClick={exportPreset}>Export preset</Button><Button variant="outline" size="sm" type="button" className={control} disabled={busy || !targetId || !json.trim()} onClick={() => void applyPreset()}>Apply preset JSON</Button></div>
-        <div className="flex gap-2"><Button variant="outline" size="sm" type="button" className={control} disabled={busy || !useProjectStore.getState().canUndo()} onClick={() => void applyHistory("undo")}>Undo edit</Button><Button variant="outline" size="sm" type="button" className={control} disabled={busy || !useProjectStore.getState().canRedo()} onClick={() => void applyHistory("redo")}>Redo edit</Button></div>
-        {project.mediaLibrary.items.filter((m) => m.isPlaceholder).map((media) => <label key={media.id} className="block rounded border border-border p-2 text-[11px]">Relink {media.name}<Input aria-label={`Relink ${media.name}`} className="mt-1 h-auto w-full text-[11px] md:text-[11px]" type="file" accept={`${media.type}/*`} disabled={busy} onChange={(e) => { const file = e.target.files?.[0]; if (file) void perform(async () => { if (!file.type.startsWith(media.type + "/")) throw new Error("Choose the same media type"); await runExclusive(async () => { const session = new EditingSession(); const txn = session.beginTransaction(); await session.relinkMedia(media.id, file); await session.commitTransaction(txn, "Relink shared media"); }); setMessage(`${media.name} relinked. Element IDs were preserved.`); }); }} /></label>)}
-        {working && <p role="status" className="text-fg-muted">Validating and applying…</p>}
+        <div className="flex gap-2"><Button variant="outline" size="sm" type="button" className={control} disabled={busy || !targetId} onClick={exportPreset}>{t("Export preset")}</Button><Button variant="outline" size="sm" type="button" className={control} disabled={busy || !targetId || !json.trim()} onClick={() => void applyPreset()}>{t("Apply preset JSON")}</Button></div>
+        <div className="flex gap-2"><Button variant="outline" size="sm" type="button" className={control} disabled={busy || !useProjectStore.getState().canUndo()} onClick={() => void applyHistory("undo")}>{t("Undo edit")}</Button><Button variant="outline" size="sm" type="button" className={control} disabled={busy || !useProjectStore.getState().canRedo()} onClick={() => void applyHistory("redo")}>{t("Redo edit")}</Button></div>
+        {project.mediaLibrary.items.filter((m) => m.isPlaceholder).map((media) => <label key={media.id} className="block rounded border border-border p-2 text-[11px]">{t("Relink")} {media.name}<Input aria-label={`Relink ${media.name}`} className="mt-1 h-auto w-full text-[11px] md:text-[11px]" type="file" accept={`${media.type}/*`} disabled={busy} onChange={(e) => { const file = e.target.files?.[0]; if (file) void perform(async () => { if (!file.type.startsWith(media.type + "/")) throw new Error("Choose the same media type"); await runExclusive(async () => { const session = new EditingSession(); const txn = session.beginTransaction(); await session.relinkMedia(media.id, file); await session.commitTransaction(txn, "Relink shared media"); }); setMessage(`${media.name} relinked. Element IDs were preserved.`); }); }} /></label>)}
+        {working && <p role="status" className="text-fg-muted">{t("Validating and applying…")}</p>}
         {message && <p role="status" className="text-[11px] text-status-success">{message}</p>}
         {error && <p role="alert" className="break-words text-[11px] text-status-error">{error}</p>}
       </CollapsibleContent>

@@ -42,6 +42,7 @@ import {
   VolumeX,
 } from "@/icons/lucide-compat";
 import { cn } from "@openreel/ui";
+import { useT } from "@openreel/i18n/react";
 import { SequenceColorSpaceMenu } from "./preview/SequenceColorSpaceMenu";
 import { useProjectStore } from "../../stores/project-store";
 import { currentBurnInSource } from "../../utils/burn-in-source";
@@ -851,6 +852,7 @@ interface ClipWithPlaceholder {
 }
 
 export const Preview: React.FC = () => {
+  const t = useT();
   const phone = usePhoneEditor();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -3771,7 +3773,7 @@ export const Preview: React.FC = () => {
         ctx.font = "24px Inter, sans-serif";
         ctx.textAlign = "center";
         ctx.fillText(
-          "Import media to get started",
+          t("Import media to get started"),
           canvas.width / 2,
           canvas.height / 2,
         );
@@ -8748,7 +8750,7 @@ export const Preview: React.FC = () => {
       {/* ── Panel bar header (mockup: 'Player') ───────────────── */}
       {!isMaximized && !isFullscreen && (
         <div className="workspace-preview-header">
-          <MonitorTabs active="program" /><span>Timeline 1</span>
+          <MonitorTabs active="program" /><span>{t("Timeline 1")}</span>
           <div className="workspace-preview-options">
             <MaskPenButton />
             <ObjectMaskButton />
@@ -8758,7 +8760,7 @@ export const Preview: React.FC = () => {
                 data-testid="aces-badge"
                 role="status"
                 className="workspace-preview-choice text-xs"
-                title="ACES color management: input transform, ACEScct grading, RRT and output transform. The monitor and scopes show the output transform."
+                title={t("ACES color management: input transform, ACEScct grading, RRT and output transform. The monitor and scopes show the output transform.")}
               >
                 {`ACES · ${(settings.acesOutput ?? "srgb") === "rec709" ? "Rec.709" : "sRGB"}`}
               </span>
@@ -8768,7 +8770,7 @@ export const Preview: React.FC = () => {
                 data-testid="ocio-badge"
                 role="status"
                 className="workspace-preview-choice text-xs"
-                title="OpenColorIO: footage enters through its OCIO colour space, compositing runs in the working space, and the monitor shows the config's display and view."
+                title={t("OpenColorIO: footage enters through its OCIO colour space, compositing runs in the working space, and the monitor shows the config's display and view.")}
               >
                 {`OCIO · ${settings.ocio.display} / ${settings.ocio.view}`}
               </span>
@@ -8778,28 +8780,28 @@ export const Preview: React.FC = () => {
                 data-testid="memory-pressure-badge"
                 role="status"
                 className="workspace-preview-choice text-xs text-amber-500"
-                title="Memory is running low. The preview runs at a lower resolution and keeps fewer decoded frames; exports are not affected. Close other apps or use proxies (Shift+P) to recover."
+                title={t("Memory is running low. The preview runs at a lower resolution and keeps fewer decoded frames; exports are not affected. Close other apps or use proxies (Shift+P) to recover.")}
               >
-                {memoryPolicy.pressure === "critical" ? "Low memory: reduced preview" : "Memory high: preview ×0.75"}
+                {memoryPolicy.pressure === "critical" ? t("Low memory: reduced preview") : t("Memory high: preview ×0.75")}
               </span>
             )}
-            <DropdownMenu><DropdownMenuTrigger asChild><ShadcnButton variant="secondary" aria-label="Preview Zoom" className="workspace-preview-choice"><span>{zoomLevel === 1 ? "Fit" : `${Math.round(zoomLevel*100)}%`} <span aria-hidden="true">▾</span></span></ShadcnButton></DropdownMenuTrigger><DropdownMenuContent>{ZOOM_OPTIONS.map((opt) => <DropdownMenuItem key={opt.value} onSelect={() => setZoomLevel(opt.value)}>{opt.value === 1 ? "Fit" : opt.label}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>
-            <DropdownMenu><DropdownMenuTrigger asChild><ShadcnButton variant="secondary" aria-label="Playback quality" className="workspace-preview-choice"><span>{playbackQuality === "full" ? "Full res" : PREVIEW_QUALITY_OPTIONS.find((o) => o.value === playbackQuality)?.label ?? "Auto"} <span aria-hidden="true">▾</span></span></ShadcnButton></DropdownMenuTrigger><DropdownMenuContent>{PREVIEW_QUALITY_OPTIONS.map((opt) => <DropdownMenuItem key={opt.value} onSelect={() => setPlaybackQuality(opt.value)}>{opt.label}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>
-            <DropdownMenu><DropdownMenuTrigger asChild><ShadcnButton variant="ghost" aria-label="Preview options" className="workspace-preview-guides text-accent bg-accent-soft"><PreviewTransportIcon name="guides" size={16} strokeWidth={1.8} /></ShadcnButton></DropdownMenuTrigger><DropdownMenuContent align="end">
-              <DropdownMenuLabel>Preview</DropdownMenuLabel>
-              <DropdownMenuItem disabled={Boolean(playbackLockedReason) || exportState.isExporting || actualEndTime <= 0} onSelect={handleSkipBack}>Skip back 5s</DropdownMenuItem>
-              <DropdownMenuItem disabled={Boolean(playbackLockedReason) || exportState.isExporting || actualEndTime <= 0} onSelect={handleSkipForward}>Skip forward 5s</DropdownMenuItem>
+            <DropdownMenu><DropdownMenuTrigger asChild><ShadcnButton variant="secondary" aria-label={t("Preview Zoom")} className="workspace-preview-choice"><span>{zoomLevel === 1 ? t("Fit") : `${Math.round(zoomLevel*100)}%`} <span aria-hidden="true">▾</span></span></ShadcnButton></DropdownMenuTrigger><DropdownMenuContent>{ZOOM_OPTIONS.map((opt) => <DropdownMenuItem key={opt.value} onSelect={() => setZoomLevel(opt.value)}>{opt.value === 1 ? t("Fit") : t(opt.label)}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>
+            <DropdownMenu><DropdownMenuTrigger asChild><ShadcnButton variant="secondary" aria-label={t("Playback quality")} className="workspace-preview-choice"><span>{playbackQuality === "full" ? t("Full res") : PREVIEW_QUALITY_OPTIONS.find((o) => o.value === playbackQuality)?.label ?? t("Auto")} <span aria-hidden="true">▾</span></span></ShadcnButton></DropdownMenuTrigger><DropdownMenuContent>{PREVIEW_QUALITY_OPTIONS.map((opt) => <DropdownMenuItem key={opt.value} onSelect={() => setPlaybackQuality(opt.value)}>{t(opt.label)}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>
+            <DropdownMenu><DropdownMenuTrigger asChild><ShadcnButton variant="ghost" aria-label={t("Preview options")} className="workspace-preview-guides text-accent bg-accent-soft"><PreviewTransportIcon name="guides" size={16} strokeWidth={1.8} /></ShadcnButton></DropdownMenuTrigger><DropdownMenuContent align="end">
+              <DropdownMenuLabel>{t("Preview")}</DropdownMenuLabel>
+              <DropdownMenuItem disabled={Boolean(playbackLockedReason) || exportState.isExporting || actualEndTime <= 0} onSelect={handleSkipBack}>{t("Skip back 5s")}</DropdownMenuItem>
+              <DropdownMenuItem disabled={Boolean(playbackLockedReason) || exportState.isExporting || actualEndTime <= 0} onSelect={handleSkipForward}>{t("Skip forward 5s")}</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem checked={scopesVisible} onCheckedChange={setScopesVisible}>Video scopes (Shift+S)</DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={showSafeMargins} onCheckedChange={setShowSafeMargins}>Title and action safe margins</DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={showCompositionGrid} onCheckedChange={setShowCompositionGrid}>Composition grid</DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={canvasSnappingEnabled} onCheckedChange={(enabled) => { setCanvasSnappingEnabled(enabled); setCanvasSnapGuides({x:null,y:null}); }}>Canvas snapping</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={scopesVisible} onCheckedChange={setScopesVisible}>{t("Video scopes (Shift+S)")}</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={showSafeMargins} onCheckedChange={setShowSafeMargins}>{t("Title and action safe margins")}</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={showCompositionGrid} onCheckedChange={setShowCompositionGrid}>{t("Composition grid")}</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={canvasSnappingEnabled} onCheckedChange={(enabled) => { setCanvasSnappingEnabled(enabled); setCanvasSnapGuides({x:null,y:null}); }}>{t("Canvas snapping")}</DropdownMenuCheckboxItem>
               <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem data-testid="vr-view-toggle" checked={vrViewOn && Boolean(settings.vr && settings.vr.projection !== "none")} disabled={!settings.vr || settings.vr.projection === "none"} onCheckedChange={setVrViewOn}>VR video view{!settings.vr || settings.vr.projection === "none" ? " (set VR Properties first)" : ""}</DropdownMenuCheckboxItem>
-              <DropdownMenuItem data-testid="vr-view-reset-menu" disabled={!settings.vr || settings.vr.projection === "none"} onSelect={resetVrView}>Reset VR view</DropdownMenuItem>
-              <DropdownMenuItem data-testid="sequence-vr-properties" onSelect={() => setVrDialogOpen(true)}>Sequence VR Properties…</DropdownMenuItem>
+              <DropdownMenuCheckboxItem data-testid="vr-view-toggle" checked={vrViewOn && Boolean(settings.vr && settings.vr.projection !== "none")} disabled={!settings.vr || settings.vr.projection === "none"} onCheckedChange={setVrViewOn}>{t("VR video view")}{!settings.vr || settings.vr.projection === "none" ? t(" (set VR Properties first)") : ""}</DropdownMenuCheckboxItem>
+              <DropdownMenuItem data-testid="vr-view-reset-menu" disabled={!settings.vr || settings.vr.projection === "none"} onSelect={resetVrView}>{t("Reset VR view")}</DropdownMenuItem>
+              <DropdownMenuItem data-testid="sequence-vr-properties" onSelect={() => setVrDialogOpen(true)}>{t("Sequence VR Properties…")}</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuSub><DropdownMenuSubTrigger data-testid="color-management-trigger">Color management</DropdownMenuSubTrigger><DropdownMenuSubContent>
+              <DropdownMenuSub><DropdownMenuSubTrigger data-testid="color-management-trigger">{t("Color management")}</DropdownMenuSubTrigger><DropdownMenuSubContent>
                 {([["display-referred", "Display-referred (default)"], ["aces", "ACES (ACEScct grading)"], ["ocio", "OpenColorIO config"]] as const).map(([value, label]) => (
                   <DropdownMenuCheckboxItem key={value} data-testid={`color-management-${value}`} checked={(settings.colorManagement ?? "display-referred") === value} onCheckedChange={() => {
                     if (value === "ocio") {
@@ -8809,36 +8811,36 @@ export const Preview: React.FC = () => {
                       return;
                     }
                     void updateSettings({ colorManagement: value === "aces" ? "aces" : undefined, ...(value === "aces" ? {} : { acesOutput: undefined }) });
-                  }}>{label}</DropdownMenuCheckboxItem>
+                  }}>{t(label)}</DropdownMenuCheckboxItem>
                 ))}
-                <DropdownMenuItem data-testid="ocio-open-dialog" onSelect={() => setOcioDialogOpen(true)}>OpenColorIO configuration…</DropdownMenuItem>
+                <DropdownMenuItem data-testid="ocio-open-dialog" onSelect={() => setOcioDialogOpen(true)}>{t("OpenColorIO configuration…")}</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel className="text-[10px] font-normal text-fg-3">ACES output transform</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-[10px] font-normal text-fg-3">{t("ACES output transform")}</DropdownMenuLabel>
                 {([["srgb", "sRGB (RRT + ODT)"], ["rec709", "Rec.709 (BT.1886)"]] as const).map(([value, label]) => (
-                  <DropdownMenuCheckboxItem key={value} data-testid={`aces-output-${value}`} disabled={settings.colorManagement !== "aces"} checked={(settings.acesOutput ?? "srgb") === value} onCheckedChange={() => { void updateSettings({ acesOutput: value === "srgb" ? undefined : value }); }}>{label}</DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem key={value} data-testid={`aces-output-${value}`} disabled={settings.colorManagement !== "aces"} checked={(settings.acesOutput ?? "srgb") === value} onCheckedChange={() => { void updateSettings({ acesOutput: value === "srgb" ? undefined : value }); }}>{t(label)}</DropdownMenuCheckboxItem>
                 ))}
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel className="max-w-[260px] whitespace-normal text-[10px] font-normal leading-snug">OpenColorIO: a config you load (with its LUT files) decides how each clip is read, the working space, and the display, view and looks the monitor and exports show. Settings are stored in the project and are one undo step. ACES: footage enters through an input transform (Interpret footage picks it per footage item), compositing runs in ACEScg half float, grading in ACEScct, and the picture leaves through the ACES RRT and the output transform above. HDR10 and HLG exports use the Rec.2020 1000 nit transforms. The monitor, scopes and SDR exports show the output transform. Frames with adjustment layers or text behind subject still render display-referred.</DropdownMenuLabel>
+                <DropdownMenuLabel className="max-w-[260px] whitespace-normal text-[10px] font-normal leading-snug">{t("OpenColorIO: a config you load (with its LUT files) decides how each clip is read, the working space, and the display, view and looks the monitor and exports show. Settings are stored in the project and are one undo step. ACES: footage enters through an input transform (Interpret footage picks it per footage item), compositing runs in ACEScg half float, grading in ACEScct, and the picture leaves through the ACES RRT and the output transform above. HDR10 and HLG exports use the Rec.2020 1000 nit transforms. The monitor, scopes and SDR exports show the output transform. Frames with adjustment layers or text behind subject still render display-referred.")}</DropdownMenuLabel>
               </DropdownMenuSubContent></DropdownMenuSub>
               <SequenceColorSpaceMenu />
-              <DropdownMenuSub><DropdownMenuSubTrigger disabled={(settings.workingColorSpace ?? "rec709") !== "rec2020" && settings.colorManagement !== "aces" && settings.colorManagement !== "ocio"}>HDR graphics white</DropdownMenuSubTrigger><DropdownMenuSubContent>
+              <DropdownMenuSub><DropdownMenuSubTrigger disabled={(settings.workingColorSpace ?? "rec709") !== "rec2020" && settings.colorManagement !== "aces" && settings.colorManagement !== "ocio"}>{t("HDR graphics white")}</DropdownMenuSubTrigger><DropdownMenuSubContent>
                 {GRAPHICS_WHITE_OPTIONS.map(({ nits, label }) => (
-                  <DropdownMenuCheckboxItem key={nits} checked={(settings.graphicsWhiteNits ?? DEFAULT_GRAPHICS_WHITE_NITS) === nits} onCheckedChange={() => { void updateSettings({ graphicsWhiteNits: nits === DEFAULT_GRAPHICS_WHITE_NITS ? undefined : nits }); }}>{label}</DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem key={nits} checked={(settings.graphicsWhiteNits ?? DEFAULT_GRAPHICS_WHITE_NITS) === nits} onCheckedChange={() => { void updateSettings({ graphicsWhiteNits: nits === DEFAULT_GRAPHICS_WHITE_NITS ? undefined : nits }); }}>{t(label)}</DropdownMenuCheckboxItem>
                 ))}
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel className="max-w-[240px] whitespace-normal text-[10px] font-normal leading-snug">Where titles, shapes, stickers and subtitles sit in an HDR project: the brightness of their white. 203 nits is ITU-R BT.2408 graphics white. Video is not affected.</DropdownMenuLabel>
+                <DropdownMenuLabel className="max-w-[240px] whitespace-normal text-[10px] font-normal leading-snug">{t("Where titles, shapes, stickers and subtitles sit in an HDR project: the brightness of their white. 203 nits is ITU-R BT.2408 graphics white. Video is not affected.")}</DropdownMenuLabel>
               </DropdownMenuSubContent></DropdownMenuSub>
-              <DropdownMenuSub><DropdownMenuSubTrigger>Sequence start timecode</DropdownMenuSubTrigger><DropdownMenuSubContent>
+              <DropdownMenuSub><DropdownMenuSubTrigger>{t("Sequence start timecode")}</DropdownMenuSubTrigger><DropdownMenuSubContent>
                 {SEQUENCE_START_TIMECODES.map(({ label, hours }) => {
                   const value = sequenceStartTimecodeValue(hours, settings.frameRate);
-                  return <DropdownMenuCheckboxItem key={label} checked={(settings.startTimecode ?? "").replace(";", ":") === (value ?? "").replace(";", ":")} onCheckedChange={() => { void updateSettings({ startTimecode: value }); }}>{label}</DropdownMenuCheckboxItem>;
+                  return <DropdownMenuCheckboxItem key={label} checked={(settings.startTimecode ?? "").replace(";", ":") === (value ?? "").replace(";", ":")} onCheckedChange={() => { void updateSettings({ startTimecode: value }); }}>{t(label)}</DropdownMenuCheckboxItem>;
                 })}
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel className="max-w-[240px] whitespace-normal text-[10px] font-normal leading-snug">Written into MOV and MXF exports from the desktop app and used as the record timecode of EDL, XML and FCPXML exports. Set a custom value in the Export dialog.</DropdownMenuLabel>
+                <DropdownMenuLabel className="max-w-[240px] whitespace-normal text-[10px] font-normal leading-snug">{t("Written into MOV and MXF exports from the desktop app and used as the record timecode of EDL, XML and FCPXML exports. Set a custom value in the Export dialog.")}</DropdownMenuLabel>
               </DropdownMenuSubContent></DropdownMenuSub>
-              <DropdownMenuSub><DropdownMenuSubTrigger>Aspect ratio</DropdownMenuSubTrigger><DropdownMenuSubContent>{ASPECT_PRESETS.map((opt) => <DropdownMenuItem key={opt.label} onSelect={() => { void updateSettings({width:opt.width,height:opt.height}); }}>{opt.label} · {opt.width}×{opt.height}</DropdownMenuItem>)}</DropdownMenuSubContent></DropdownMenuSub>
-              <DropdownMenuItem onSelect={handleMaximize}>{isMaximized ? "Restore Size" : "Maximize Preview"}</DropdownMenuItem>
-              <DropdownMenuItem onSelect={handleFullscreen}>{isFullscreen ? "Exit Full Screen" : "Full Screen"}</DropdownMenuItem>
+              <DropdownMenuSub><DropdownMenuSubTrigger>{t("Aspect ratio")}</DropdownMenuSubTrigger><DropdownMenuSubContent>{ASPECT_PRESETS.map((opt) => <DropdownMenuItem key={opt.label} onSelect={() => { void updateSettings({width:opt.width,height:opt.height}); }}>{t(opt.label)} · {opt.width}×{opt.height}</DropdownMenuItem>)}</DropdownMenuSubContent></DropdownMenuSub>
+              <DropdownMenuItem onSelect={handleMaximize}>{t(isMaximized ? "Restore Size" : "Maximize Preview")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={handleFullscreen}>{t(isFullscreen ? "Exit Full Screen" : "Full Screen")}</DropdownMenuItem>
             </DropdownMenuContent></DropdownMenu>
           </div>
         </div>
@@ -8860,10 +8862,10 @@ export const Preview: React.FC = () => {
         <PreviewTransportControls duration={actualEndTime} frameRate={settings.frameRate} playing={isPlaying}
           lockedReason={playbackLockedReason} exporting={exportState.isExporting} onTogglePlayback={togglePlayback} />
         <div data-preview-tools className="flex gap-1.5 items-center">
-          <ShadcnButton variant="ghost" size="icon-sm" title={`Loop ${formatFrameTimecode(previewLoopRange?.start ?? 0, settings.frameRate)} to ${formatFrameTimecode(previewLoopRange?.end ?? 0, settings.frameRate)} • I: mark start • O: mark end • Shift+L: toggle`} aria-pressed={loopEnabled} onClick={handleToggleLoop} type="button" aria-label={loopEnabled ? "Disable preview loop" : "Enable preview loop"} disabled={(actualEndTime <= 0 || exportState.isExporting)} className={cn("inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", "bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg", `w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${loopEnabled ? "bg-accent/15 text-accent" : "bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"}`)}>
+          <ShadcnButton variant="ghost" size="icon-sm" title={`Loop ${formatFrameTimecode(previewLoopRange?.start ?? 0, settings.frameRate)} to ${formatFrameTimecode(previewLoopRange?.end ?? 0, settings.frameRate)} • I: mark start • O: mark end • Shift+L: toggle`} aria-pressed={loopEnabled} onClick={handleToggleLoop} type="button" aria-label={loopEnabled ? t("Disable preview loop") : t("Enable preview loop")} disabled={(actualEndTime <= 0 || exportState.isExporting)} className={cn("inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", "bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg", `w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${loopEnabled ? "bg-accent/15 text-accent" : "bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"}`)}>
             {<PreviewTransportIcon name="loop" size={16} strokeWidth={1.8} />}
           </ShadcnButton>
-          <ShadcnButton variant="ghost" size="icon-sm" onClick={() => setIsMuted(!userMuted)} type="button" aria-label={isMuted ? "Unmute" : "Mute"} title={isMuted ? "Unmute" : "Mute"} className={cn("inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", "bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg", `w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${
+          <ShadcnButton variant="ghost" size="icon-sm" onClick={() => setIsMuted(!userMuted)} type="button" aria-label={isMuted ? t("Unmute") : t("Mute")} title={isMuted ? t("Unmute") : t("Mute")} className={cn("inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", "bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg", `w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${
               isMuted
                 ? "bg-bg-2 text-status-error"
                 : "bg-bg-2 text-fg-2 hover:text-fg hover:bg-bg-3"
@@ -8871,7 +8873,7 @@ export const Preview: React.FC = () => {
             {isMuted ? <VolumeX size={16} /> : <PreviewTransportIcon name="volume" size={16} strokeWidth={1.8} />}
           </ShadcnButton>
 
-          <ShadcnButton variant="ghost" size="icon-sm" data-preview-fullscreen aria-pressed={isFullscreen} onClick={handleFullscreen} type="button" aria-label={isFullscreen ? "Exit Full Screen" : "Full Screen"} title={isFullscreen ? "Exit Full Screen" : "Full Screen"} className={cn("inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", "bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg", `w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${
+          <ShadcnButton variant="ghost" size="icon-sm" data-preview-fullscreen aria-pressed={isFullscreen} onClick={handleFullscreen} type="button" aria-label={isFullscreen ? t("Exit Full Screen") : t("Full Screen")} title={isFullscreen ? t("Exit Full Screen") : t("Full Screen")} className={cn("inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", "bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg", `w-[34px] h-[34px] grid place-items-center rounded-[7px] transition-colors ${
               isFullscreen
                 ? "bg-accent-soft text-accent"
                 : "bg-bg-2 text-fg-2 hover:text-fg hover:bg-bg-3"
@@ -8889,7 +8891,7 @@ export const Preview: React.FC = () => {
       ref={containerRef}
       data-tour="preview"
       tabIndex={0}
-      aria-label="Preview canvas"
+      aria-label={t("Preview canvas")}
       onKeyDown={handlePreviewKeyDown}
       onPointerDownCapture={(event) => {
         const target = event.target as HTMLElement;
@@ -8964,7 +8966,7 @@ export const Preview: React.FC = () => {
             ref={canvasRef}
             role="img"
             aria-busy={previewFramePending}
-            aria-label={isPlaying ? "Program preview (playing)" : presentedFrameTime === null ? "Program preview" : `${presentedFrameIsFallback ? "Program preview unavailable at" : "Program frame"} ${formatFrameTimecode(presentedFrameTime, settings.frameRate)}`}
+            aria-label={isPlaying ? t("Program preview (playing)") : presentedFrameTime === null ? t("Program preview") : `${presentedFrameIsFallback ? "Program preview unavailable at" : "Program frame"} ${formatFrameTimecode(presentedFrameTime, settings.frameRate)}`}
             width={previewRes.width}
             height={previewRes.height}
             className="w-full h-full object-contain bg-[var(--screen-bg)] rounded-[10px]"
@@ -8982,7 +8984,7 @@ export const Preview: React.FC = () => {
           {vrDialogOpen ? (
             <React.Suspense fallback={null}>
               <VrPropertiesDialog
-                title="Sequence VR Properties"
+                title={t("Sequence VR Properties")}
                 subtitle="Projection, frame layout and captured view of this sequence"
                 value={settings.vr}
                 onClose={() => setVrDialogOpen(false)}
@@ -9010,7 +9012,7 @@ export const Preview: React.FC = () => {
 
           {showCompositionGrid && !cropMode ? (
             <div
-              aria-label="Composition grid"
+              aria-label={t("Composition grid")}
               className="pointer-events-none absolute inset-0 z-20"
             >
               {[1, 2].map((line) => (
@@ -9030,13 +9032,13 @@ export const Preview: React.FC = () => {
 
           {showSafeMargins && !cropMode ? (
             <div
-              aria-label="Title and action safe margins"
+              aria-label={t("Title and action safe margins")}
               className="pointer-events-none absolute inset-0 z-20"
             >
               <span className="absolute inset-[5%] border border-dashed border-white/60 shadow-[0_0_1px_rgba(0,0,0,0.9)]" />
               <span className="absolute inset-[10%] border border-white/75 shadow-[0_0_1px_rgba(0,0,0,0.9)]" />
               <span className="absolute left-[10%] top-[10%] rounded-br bg-black/55 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white/80">
-                Title safe
+                {t("Title safe")}
               </span>
             </div>
           ) : null}
@@ -9169,7 +9171,7 @@ export const Preview: React.FC = () => {
               {/* Selection border - yellow/orange for subtitles */}
               <div className="absolute inset-0 border-2 border-yellow-500 rounded-lg pointer-events-none" />
               <div className="absolute -top-6 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-yellow-500 rounded text-[10px] font-medium text-black whitespace-nowrap">
-                Subtitle Selected - Edit in Inspector
+                {t("Subtitle Selected - Edit in Inspector")}
               </div>
             </div>
           )}
@@ -9198,7 +9200,7 @@ export const Preview: React.FC = () => {
                     aria-hidden="true"
                     className="absolute -top-6 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-black/70 rounded text-[10px] text-white whitespace-nowrap"
                   >
-                    Click to select
+                    {t("Click to select")}
                   </div>
                 </div>
               );

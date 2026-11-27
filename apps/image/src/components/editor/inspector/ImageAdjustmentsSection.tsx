@@ -1,6 +1,7 @@
 import { useProjectStore } from '../../../stores/project-store';
 import type { ImageLayer, Filter, BlurType } from '../../../types/project';
 import { Sun, Contrast, Palette, Thermometer, Focus, Sparkles, CircleDot, Scan, Film, Minus, Move, Target, SunMedium, Vibrate, Sunrise, SunDim, Aperture } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   layer: ImageLayer;
@@ -18,6 +19,7 @@ interface AdjustmentSliderProps {
 }
 
 function AdjustmentSlider({ icon, label, value, min, max, defaultValue, onChange, unit = '' }: AdjustmentSliderProps) {
+  const t = useT();
   const isModified = value !== defaultValue;
   const percentage = ((value - min) / (max - min)) * 100;
 
@@ -37,7 +39,7 @@ function AdjustmentSlider({ icon, label, value, min, max, defaultValue, onChange
               onClick={() => onChange(defaultValue)}
               className="text-[9px] text-muted-foreground hover:text-foreground px-1 py-0.5 rounded hover:bg-secondary transition-colors"
             >
-              Reset
+              {t("Reset")}
             </button>
           )}
         </div>
@@ -69,6 +71,7 @@ function AdjustmentSlider({ icon, label, value, min, max, defaultValue, onChange
 }
 
 export function ImageAdjustmentsSection({ layer }: Props) {
+  const t = useT();
   const { updateLayer } = useProjectStore();
 
   const handleFilterChange = (key: keyof Filter, value: number | BlurType) => {
@@ -128,14 +131,14 @@ export function ImageAdjustmentsSection({ layer }: Props) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          Adjustments
+          {t("Adjustments")}
         </h4>
         {hasModifications && (
           <button
             onClick={resetAllFilters}
             className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
           >
-            Reset All
+            {t("Reset All")}
           </button>
         )}
       </div>
@@ -249,7 +252,7 @@ export function ImageAdjustmentsSection({ layer }: Props) {
         {layer.filters.blur > 0 && (
           <div className="space-y-2 pl-5 border-l-2 border-primary/30">
             <div className="space-y-1.5">
-              <label className="text-[11px] text-foreground font-medium">Blur Type</label>
+              <label className="text-[11px] text-foreground font-medium">{t("Blur Type")}</label>
               <div className="flex gap-1">
                 {([
                   { type: 'gaussian' as BlurType, icon: <Focus size={12} />, label: 'Gaussian' },

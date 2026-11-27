@@ -25,6 +25,7 @@ import {
   type MatteView,
 } from "../../../stores/color-monitor-store";
 import { PropertySlider } from "./shell/PropertySlider";
+import { useT } from "@openreel/i18n/react";
 
 const keyframeEngine = new KeyframeEngine();
 const NO_EFFECTS: readonly Effect[] = [];
@@ -98,6 +99,7 @@ const MiniWheel: React.FC<{
   disabled: boolean;
   onCommit: (x: number, y: number) => void;
 }> = ({ x, y, disabled, onCommit }) => {
+  const t = useT();
   const [drag, setDrag] = React.useState<{ x: number; y: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const shown = drag ?? { x, y };
@@ -120,7 +122,7 @@ const MiniWheel: React.FC<{
       <div
         ref={ref}
         role="slider"
-        aria-label="Secondary color wheel"
+        aria-label={t("Secondary color wheel")}
         aria-valuetext={`x ${shown.x}, y ${shown.y}`}
         aria-valuenow={Math.round(Math.hypot(shown.x, shown.y) * 100)}
         aria-valuemin={0}
@@ -160,7 +162,7 @@ const MiniWheel: React.FC<{
         />
       </div>
       <span className="text-[10px] leading-snug text-fg-3">
-        Push the matte towards a hue. Double-click to reset.
+        {t("Push the matte towards a hue. Double-click to reset.")}
       </span>
     </div>
   );
@@ -173,6 +175,7 @@ export const KeyButton: React.FC<{
   value: number;
   disabled: boolean;
 }> = ({ clipId, effectId, paramKey, value, disabled }) => {
+  const t = useT();
   const property = effectInstanceKeyframeProperty(effectId, paramKey);
   const keyframes = useProjectStore(
     (state) => state.getClip(clipId)?.keyframes,
@@ -206,7 +209,7 @@ export const KeyButton: React.FC<{
       disabled={disabled}
       aria-label={`Keyframe ${paramKey}`}
       aria-pressed={animated}
-      title={animated ? "Animated: add or update a keyframe at the playhead" : "Add a keyframe at the playhead"}
+      title={animated ? t("Animated: add or update a keyframe at the playhead") : t("Add a keyframe at the playhead")}
       className="h-6 w-6 shrink-0 self-end"
       onClick={onClick}
     >
@@ -221,6 +224,7 @@ const SecondaryCard: React.FC<{
   index: number;
   disabled: boolean;
 }> = ({ clipId, effect, index, disabled }) => {
+  const t = useT();
   const values = useMemo(
     () => resolveProEffectParams(TYPE, effect.params) as Params,
     [effect.params],
@@ -279,7 +283,7 @@ const SecondaryCard: React.FC<{
       className="flex flex-col gap-2 rounded-[8px] border border-border bg-bg-2 p-2"
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold text-fg">Secondary {index + 1}</span>
+        <span className="text-[11px] font-semibold text-fg">{t("Secondary")} {index + 1}</span>
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
@@ -287,7 +291,7 @@ const SecondaryCard: React.FC<{
             type="button"
             className="h-6 w-6"
             aria-label={`Reset secondary ${index + 1}`}
-            title="Reset to defaults"
+            title={t("Reset to defaults")}
             disabled={disabled}
             onClick={() => update({ ...PRO_EFFECT_DEFAULTS[TYPE] })}
           >
@@ -307,7 +311,7 @@ const SecondaryCard: React.FC<{
             type="button"
             className="h-6 w-6"
             aria-label={`Remove secondary ${index + 1}`}
-            title="Remove secondary"
+            title={t("Remove secondary")}
             disabled={disabled}
             onClick={() => {
               if (own) setView({ clipId: null, effectId: null, matteView: 0, eyedropper: null });
@@ -320,7 +324,7 @@ const SecondaryCard: React.FC<{
       </div>
 
       <div className={BLOCK}>
-        <span className={BLOCK_TITLE}>Key</span>
+        <span className={BLOCK_TITLE}>{t("Key")}</span>
         <div className="flex items-center gap-1">
           {(
             [
@@ -377,25 +381,25 @@ const SecondaryCard: React.FC<{
                     })
                   }
                 >
-                  {view.label}
+                  {t(view.label)}
                 </button>
               ))}
             </div>
           </div>
         </div>
         <span className="text-[9px] leading-snug text-fg-3">
-          Pick, then +/- to widen or narrow the key. The matte view is preview only.
+          {t("Pick, then +/- to widen or narrow the key. The matte view is preview only.")}
         </span>
 
-        <span className="text-[10px] font-medium text-fg-2">Hue</span>
+        <span className="text-[10px] font-medium text-fg-2">{t("Hue")}</span>
         {HUE.map((spec) => slider(spec))}
-        <span className="text-[10px] font-medium text-fg-2">Saturation</span>
+        <span className="text-[10px] font-medium text-fg-2">{t("Saturation")}</span>
         {SAT.map((spec) => slider(spec))}
-        <span className="text-[10px] font-medium text-fg-2">Luma</span>
+        <span className="text-[10px] font-medium text-fg-2">{t("Luma")}</span>
         {LUM.map((spec) => slider(spec))}
         {REFINE.map((spec) => slider(spec))}
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[10px] text-fg-2">Invert matte</span>
+          <span className="text-[10px] text-fg-2">{t("Invert matte")}</span>
           <Switch
             aria-label={`Invert matte ${index + 1}`}
             checked={values.invert === true}
@@ -406,7 +410,7 @@ const SecondaryCard: React.FC<{
       </div>
 
       <div className={BLOCK}>
-        <span className={BLOCK_TITLE}>Correction (inside the matte)</span>
+        <span className={BLOCK_TITLE}>{t("Correction (inside the matte)")}</span>
         {CORRECT.map((spec) => slider(spec, true))}
         <MiniWheel
           x={num("wheelX")}
@@ -417,7 +421,7 @@ const SecondaryCard: React.FC<{
       </div>
 
       <div className={BLOCK}>
-        <span className={BLOCK_TITLE}>Limit to shape</span>
+        <span className={BLOCK_TITLE}>{t("Limit to shape")}</span>
         <div role="group" aria-label={`Limit shape ${index + 1}`} className="flex overflow-hidden rounded-[6px] border border-border">
           {MASK_SHAPES.map((shape) => (
             <button
@@ -431,7 +435,7 @@ const SecondaryCard: React.FC<{
               )}
               onClick={() => update({ maskShape: shape.value })}
             >
-              {shape.label}
+              {t(shape.label)}
             </button>
           ))}
         </div>
@@ -439,7 +443,7 @@ const SecondaryCard: React.FC<{
           <>
             {MASK.map((spec) => slider(spec))}
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] text-fg-2">Invert shape</span>
+              <span className="text-[10px] text-fg-2">{t("Invert shape")}</span>
               <Switch
                 aria-label={`Invert shape ${index + 1}`}
                 checked={values.maskInvert === true}
@@ -456,6 +460,7 @@ const SecondaryCard: React.FC<{
 
 /** Lumetri-style HSL Secondary stack for one clip (each secondary is an hsl-secondary effect). */
 export const HslSecondarySection: React.FC<{ clipId: string }> = ({ clipId }) => {
+  const t = useT();
   const { effects, locked } = useProjectStore(
     useShallow((state) => {
       let found: { effects: readonly Effect[]; trackId: string } | undefined;
@@ -504,7 +509,7 @@ export const HslSecondarySection: React.FC<{ clipId: string }> = ({ clipId }) =>
     <div className="flex flex-col gap-2" data-testid="hsl-secondary-section">
       {secondaries.length === 0 ? (
         <p className="text-[10px] leading-snug text-fg-3">
-          Key a colour range with the eyedropper, then correct only that range.
+          {t("Key a colour range with the eyedropper, then correct only that range.")}
         </p>
       ) : null}
       {secondaries.map((effect, index) => (
@@ -519,7 +524,7 @@ export const HslSecondarySection: React.FC<{ clipId: string }> = ({ clipId }) =>
         onClick={() => void add()}
       >
         <Plus className="mr-1 h-3 w-3" />
-        Add secondary
+        {t("Add secondary")}
       </Button>
     </div>
   );

@@ -12,6 +12,7 @@ import {
   type PreviewTextSource,
   type ShaderPreviewSample,
 } from "../editor/panels/effect-previews/kind-defs";
+import { useT } from "@openreel/i18n/react";
 
 function shaderAccessibleName(
   def: MotionShaderDef,
@@ -65,6 +66,7 @@ function ShaderTile({
   pressed: boolean | undefined;
   onSelect: (shaderId: string) => void;
 }): JSX.Element {
+  const t = useT();
   const { active, handlers } = useLivePreviewActivity();
   return (
     <Button
@@ -86,7 +88,7 @@ function ShaderTile({
         {def.name}
       </span>
       <span className="block truncate text-[9px] text-fg-4">
-        {def.collection ?? "Built-in"} · {def.category}
+        {def.collection ?? t("Built-in")} · {def.category}
       </span>
     </Button>
   );
@@ -113,6 +115,7 @@ export function ShaderPreviewBrowser({
   textStyle?: TextStyle;
   textTransform?: Transform;
 }): JSX.Element {
+  const t = useT();
   const textSource = useMemo<PreviewTextSource | undefined>(
     // The shader already on the clip is left out so picking a material does not re-key every tile.
     () => (textStyle ? { text, style: { ...textStyle, shader: undefined }, transform: textTransform } : undefined),
@@ -166,7 +169,7 @@ export function ShaderPreviewBrowser({
         value={query}
         onChange={(event) => setQuery(event.target.value)}
         placeholder={
-          sample === "effect" ? "Search effects" : "Search materials"
+          sample === "effect" ? t("Search effects") : t("Search materials")
         }
         aria-label={`Search ${label.toLowerCase()}`}
         className="h-8 w-full rounded-[7px] border border-border bg-bg-2 px-2.5 py-0 text-xs text-fg outline-none transition-colors placeholder:text-fg-4 focus:border-accent md:text-xs"
@@ -222,7 +225,7 @@ export function ShaderPreviewBrowser({
       </EffectPreviewProvider>
       {visibleDefs.length === 0 ? (
         <div className="rounded-[8px] border border-dashed border-border px-3 py-5 text-center text-[11px] text-fg-4">
-          No {sample === "effect" ? "effects" : "materials"} match “{query}”.
+          {t("No")} {sample === "effect" ? t("effects") : t("materials")} {t("match “")}{query}”.
         </div>
       ) : null}
     </div>

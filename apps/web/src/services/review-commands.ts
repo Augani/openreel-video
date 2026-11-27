@@ -20,6 +20,7 @@ import { useTimelineStore } from "../stores/timeline-store";
 import { useUIStore } from "../stores/ui-store";
 import { toast } from "../stores/notification-store";
 import { download, seekToMarker, type MarkerExportFile } from "./marker-commands";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * Review comments are timeline markers with an author and a status (see
@@ -72,7 +73,7 @@ export async function addReviewComment(text: string, options: { time?: number; a
     createdAt: Date.now(),
   });
   if (!result.success) {
-    toast.warning("Could not add the comment", result.error?.message);
+    toast.warning(translateNow("Could not add the comment"), result.error?.message);
     return null;
   }
   return markers().find((m) => !before.has(m.id))?.id ?? null;
@@ -179,12 +180,12 @@ export function buildReviewExport(kind: ReviewExportKind): MarkerExportFile {
 
 export function exportReviewComments(kind: ReviewExportKind): MarkerExportFile | null {
   if (reviewComments(markers()).length === 0) {
-    toast.info("No comments to export", "Add a comment at the playhead first.");
+    toast.info(translateNow("No comments to export"), "Add a comment at the playhead first.");
     return null;
   }
   const file = buildReviewExport(kind);
   download(file);
-  toast.success("Comments exported", file.filename);
+  toast.success(translateNow("Comments exported"), file.filename);
   return file;
 }
 
@@ -224,11 +225,11 @@ export async function importReviewCsvText(text: string): Promise<{ added: number
   const parsed = parseReviewCsv(text, fps);
   const added = await addImportedComments(parsed);
   if (added === 0) {
-    toast.warning("No comments imported", parsed.skipped[0]?.reason ?? "The file has no comment rows.");
+    toast.warning(translateNow("No comments imported"), parsed.skipped[0]?.reason ?? "The file has no comment rows.");
   } else if (parsed.skipped.length > 0) {
-    toast.warning(`Imported ${added} comments`, `${parsed.skipped.length} rows were skipped (row ${parsed.skipped[0].row}: ${parsed.skipped[0].reason}).`);
+    toast.warning(translateNow("Imported {count} comments", { count: added }), translateNow("{count} rows were skipped (row {row}: {reason}).", { count: parsed.skipped.length, row: parsed.skipped[0].row, reason: parsed.skipped[0].reason }));
   } else {
-    toast.success(`Imported ${added} comment${added === 1 ? "" : "s"}`);
+    toast.success(translateNow(added === 1 ? "Imported {count} comment" : "Imported {count} comments", { count: added }));
   }
   return { added, skipped: parsed.skipped.length };
 }

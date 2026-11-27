@@ -34,6 +34,8 @@ import { connectionOf, useCollabStore } from "../../services/collab/collab-store
 import { useSettingsStore } from "../../stores/settings-store";
 import { toast } from "../../stores/notification-store";
 import { useAnalytics, AnalyticsEvents } from "../../hooks/useAnalytics";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 // Dialogs that only open on demand stay out of the editor chunk (bundle-budgets.json).
 // Settings (API keys, MCP, watch folders, render cache) is not a first-paint feature: its chunk loads the first time it opens.
@@ -47,6 +49,7 @@ const ProjectPackageDialog = lazy(() => import("./ProjectPackageDialog").then((m
 
 
 export const Toolbar: React.FC = () => {
+  const t = useT();
   const phone = usePhoneEditor();
   const isDesktop = typeof window !== "undefined" && window.openreel?.platform === "desktop";
   const nativePlatform = /Mac/i.test(navigator.platform) ? "darwin" : /Win/i.test(navigator.platform) ? "win32" : "linux";
@@ -233,7 +236,7 @@ export const Toolbar: React.FC = () => {
     async (screenBlob: Blob, webcamBlob?: Blob) => {
       if (!screenBlob || screenBlob.size === 0) {
         toast.error(
-          "Recording failed",
+          translateNow("Recording failed"),
           "No video data was captured. Please try again.",
         );
         return;
@@ -274,13 +277,13 @@ export const Toolbar: React.FC = () => {
 
       if (importCount > 0) {
         toast.success(
-          `${importCount} recording${importCount > 1 ? "s" : ""} imported!`,
+          translateNow(importCount === 1 ? "{count} recording imported!" : "{count} recordings imported!", { count: importCount }),
           webcamBlob && webcamBlob.size > 0
-            ? "Screen and webcam added to assets. Use the timeline to composite them."
-            : "Screen recording added to assets.",
+            ? translateNow("Screen and webcam added to assets. Use the timeline to composite them.")
+            : translateNow("Screen recording added to assets."),
         );
       } else if (errors.length > 0) {
-        toast.error("Import failed", errors.join(". "));
+        toast.error(translateNow("Import failed"), errors.join(". "));
       }
     },
     [importMedia],
@@ -301,32 +304,32 @@ export const Toolbar: React.FC = () => {
         exportControl={isDesktop ? <span className="mobile-native-export"><DesktopExportButton compact /></span> : <EditorExportControl
           state={exportState} disabled={false} compact onOpen={openExportDialog} onCancel={handleCancelExport} onDismissError={resetError} />}
         menu={<EditorMenuBar onExport={openExportDialog} onQuickExport={handleQuickExport} onCompress={() => setIsCompressOpen(true)}/>}
-      /> : <><ProjectSwitcher trigger={<ShadcnButton variant="ghost" className="workspace-brand p-0 h-auto" aria-label="Project menu">
+      /> : <><ProjectSwitcher trigger={<ShadcnButton variant="ghost" className="workspace-brand p-0 h-auto" aria-label={t("Project menu")}>
         <img src={`${import.meta.env.BASE_URL}icons/editor-reel.svg`} alt="" />OpenReel
       </ShadcnButton>} />
       <EditorMenuBar onExport={openExportDialog} onQuickExport={handleQuickExport} onCompress={() => setIsCompressOpen(true)} />
       <div className="workspace-project">
-        <Input aria-label="Project name" value={projectNameDraft} onChange={(e) => setProjectNameDraft(e.target.value)}
+        <Input aria-label={t("Project name")} value={projectNameDraft} onChange={(e) => setProjectNameDraft(e.target.value)}
           onBlur={commitProjectName}
           onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); else if (e.key === "Escape") { cancelProjectNameCommit.current = true; setProjectNameDraft(project.name); e.currentTarget.blur(); } }} />
         <span className="workspace-project-meta">{project.settings.width}×{project.settings.height} · {project.settings.frameRate} fps</span>
         <WorkspaceSaveStatus />
       </div>
       <div className="workspace-actions">
-        <div role="group" aria-label="Editing mode" className="workspace-mode">
-          <ShadcnButton variant="ghost" aria-pressed={!aiMode} onClick={() => useUIStore.getState().setPanelVisible("agentChat", false)}>Manual</ShadcnButton>
-          <ShadcnButton variant="ghost" aria-pressed={aiMode} onClick={() => { const c = useAIConnectionStore.getState(); if (!c.model.trim() || (!c.apiKey && c.provider !== "compatible")) useEditorWorkspaceStore.getState().setAIConnectionOpen(true); else useUIStore.getState().setPanelVisible("agentChat", true); }}><EditorHeaderIcon kind="ai" /> AI assist</ShadcnButton>
+        <div role="group" aria-label={t("Editing mode")} className="workspace-mode">
+          <ShadcnButton variant="ghost" aria-pressed={!aiMode} onClick={() => useUIStore.getState().setPanelVisible("agentChat", false)}>{t("Manual")}</ShadcnButton>
+          <ShadcnButton variant="ghost" aria-pressed={aiMode} onClick={() => { const c = useAIConnectionStore.getState(); if (!c.model.trim() || (!c.apiKey && c.provider !== "compatible")) useEditorWorkspaceStore.getState().setAIConnectionOpen(true); else useUIStore.getState().setPanelVisible("agentChat", true); }}><EditorHeaderIcon kind="ai" /> {t("AI assist")}</ShadcnButton>
         </div>
         <div className="workspace-history">
-          <ShadcnButton variant="ghost" size="icon" aria-label="Undo" onClick={() => void useProjectStore.getState().undo()}><EditorHeaderIcon kind="undo" /></ShadcnButton>
-          <ShadcnButton variant="ghost" size="icon" aria-label="Redo" onClick={() => void useProjectStore.getState().redo()}><EditorHeaderIcon kind="redo" /></ShadcnButton>
+          <ShadcnButton variant="ghost" size="icon" aria-label={t("Undo")} onClick={() => void useProjectStore.getState().undo()}><EditorHeaderIcon kind="undo" /></ShadcnButton>
+          <ShadcnButton variant="ghost" size="icon" aria-label={t("Redo")} onClick={() => void useProjectStore.getState().redo()}><EditorHeaderIcon kind="redo" /></ShadcnButton>
         </div>
         <ExportQueueButton className="workspace-queue h-7 w-7 text-fg-2" />
         <CollaboratorAvatars compact />
-        <ShadcnButton variant="ghost" className="workspace-collab" data-testid="collab-button" data-connection={collabConnection} aria-label="Collaborate" title="Edit this project with other people" onClick={openCollabDialog}>
-          {collabConnection === "off" ? "Collaborate" : collabConnection === "live" ? "Live" : collabConnection === "offline" ? "Offline" : "Joining…"}
+        <ShadcnButton variant="ghost" className="workspace-collab" data-testid="collab-button" data-connection={collabConnection} aria-label={t("Collaborate")} title={t("Edit this project with other people")} onClick={openCollabDialog}>
+          {collabConnection === "off" ? t("Collaborate") : collabConnection === "live" ? t("Live") : collabConnection === "offline" ? t("Offline") : t("Joining…")}
         </ShadcnButton>
-        <ShadcnButton variant="secondary" className="workspace-share" title="Back up or package this project" aria-label="Project backup" onClick={() => setIsShareOpen(true)}>Backup</ShadcnButton>
+        <ShadcnButton variant="secondary" className="workspace-share" title={t("Back up or package this project")} aria-label={t("Project backup")} onClick={() => setIsShareOpen(true)}>{t("Backup")}</ShadcnButton>
         {/* Export */}
         {isDesktop ? <DesktopExportButton /> : <EditorExportControl
           state={exportState} disabled={false} onOpen={openExportDialog}
@@ -396,9 +399,9 @@ export const Toolbar: React.FC = () => {
           <div className="fixed top-topbar right-0 bottom-0 w-80 bg-bg-1 border-l border-border z-50 shadow-lg animate-in slide-in-from-right duration-200">
             <div className="flex items-center justify-between p-3 border-b border-border">
               <span className="font-bold text-sm text-fg">
-                Action history
+                {t("Action history")}
               </span>
-              <ShadcnButton variant="ghost" size="icon-sm" onClick={closeModal} type="button" aria-label="Close action history" title="Close action history" className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent p-1.5 rounded hover:bg-hover text-fg-3 hover:text-fg transition-colors">
+              <ShadcnButton variant="ghost" size="icon-sm" onClick={closeModal} type="button" aria-label={t("Close action history")} title={t("Close action history")} className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent p-1.5 rounded hover:bg-hover text-fg-3 hover:text-fg transition-colors">
                 {<X size={14} aria-hidden />}
               </ShadcnButton>
             </div>

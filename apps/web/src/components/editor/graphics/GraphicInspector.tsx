@@ -15,6 +15,7 @@ import {
   saveGraphicAsTemplate,
   ungroupGraphicCommand,
 } from "../../../services/graphic-commands";
+import { useT } from "@openreel/i18n/react";
 
 const seconds = (value: number): string => `${Math.round(value * 100) / 100}s`;
 
@@ -23,6 +24,7 @@ const seconds = (value: number): string => `${Math.round(value * 100) / 100}s`;
  * plus save / export / ungroup. Layer-level editing lives in Essential Graphics > Edit.
  */
 export const GraphicInspector: React.FC<{ instance: GraphicInstance }> = ({ instance }) => {
+  const t = useT();
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState("");
   const { intro, outro, minDuration } = protectedDurations(instance.template);
@@ -36,18 +38,18 @@ export const GraphicInspector: React.FC<{ instance: GraphicInstance }> = ({ inst
       <div className="flex flex-col gap-3 p-3" data-testid="linked-baked-inspector" data-graphic-id={instance.id}>
         <header className="flex flex-col gap-0.5">
           <h3 className="text-sm font-semibold text-fg truncate" title={instance.name}>{instance.name}</h3>
-          <p className="flex items-center gap-1 text-[11px] text-fg-muted"><Clapperboard size={12} aria-hidden /> Rendered linked composition</p>
+          <p className="flex items-center gap-1 text-[11px] text-fg-muted"><Clapperboard size={12} aria-hidden /> {t("Rendered linked composition")}</p>
         </header>
         <p className="text-xs text-fg-muted">
-          This clip is the rendered picture of the composition. Restore Unrendered brings the live layers back so you can edit them again.
+          {t("This clip is the rendered picture of the composition. Restore Unrendered brings the live layers back so you can edit them again.")}
         </p>
         {stale && (
           <p role="status" className="text-xs text-warning" data-testid="linked-stale">
-            The composition was edited after this render, so the picture is out of date.
+            {t("The composition was edited after this render, so the picture is out of date.")}
           </p>
         )}
         <Button size="sm" className="justify-start gap-2" data-testid="restore-unrendered" onClick={() => { void restoreUnrenderedCommand(instance.id); }}>
-          <Undo2 size={13} aria-hidden /> Restore Unrendered
+          <Undo2 size={13} aria-hidden /> {t("Restore Unrendered")}
         </Button>
       </div>
     );
@@ -64,18 +66,18 @@ export const GraphicInspector: React.FC<{ instance: GraphicInstance }> = ({ inst
       <header className="flex flex-col gap-0.5">
         <h3 className="text-sm font-semibold text-fg truncate" title={instance.name}>{instance.name}</h3>
         <p className="text-[11px] text-fg-muted">
-          {instance.template.layers.length} layers · {seconds(instance.duration)} · in {seconds(intro)} · out {seconds(outro)}
+          {instance.template.layers.length} {t("layers ·")} {seconds(instance.duration)} {t("· in")} {seconds(intro)} {t("· out")} {seconds(outro)}
         </p>
         <p className="text-[11px] text-fg-muted">
-          Stretching keeps the intro and outro intact; shortest length {seconds(minDuration)}.
+          {t("Stretching keeps the intro and outro intact; shortest length")} {seconds(minDuration)}.
         </p>
       </header>
 
       {linked && (
         <div className="flex flex-col gap-2 rounded border border-border/60 p-2" data-testid="linked-composition-actions">
-          <p className="flex items-center gap-1 text-[11px] text-fg-muted"><Link2 size={12} aria-hidden /> Linked composition: edits made in its window update every instance.</p>
+          <p className="flex items-center gap-1 text-[11px] text-fg-muted"><Link2 size={12} aria-hidden /> {t("Linked composition: edits made in its window update every instance.")}</p>
           <Button size="sm" className="justify-start gap-2" data-testid="open-linked-composition" onClick={() => { void openLinkedCompositionWindow(linked); }}>
-            <ExternalLink size={13} aria-hidden /> Open composition
+            <ExternalLink size={13} aria-hidden /> {t("Open composition")}
           </Button>
           <Button
             variant="outline"
@@ -88,10 +90,10 @@ export const GraphicInspector: React.FC<{ instance: GraphicInstance }> = ({ inst
               void renderAndReplaceCommand(instance.id).finally(() => setRendering(false));
             }}
           >
-            <Clapperboard size={13} aria-hidden /> {rendering ? "Rendering…" : "Render and Replace"}
+            <Clapperboard size={13} aria-hidden /> {rendering ? t("Rendering…") : t("Render and Replace")}
           </Button>
           <Button variant="ghost" size="sm" className="justify-start gap-2 text-fg-muted" onClick={() => { void detachLinkedCompositionCommand(instance.id); }}>
-            <Link2Off size={13} aria-hidden /> Unlink from composition
+            <Link2Off size={13} aria-hidden /> {t("Unlink from composition")}
           </Button>
         </div>
       )}
@@ -103,7 +105,7 @@ export const GraphicInspector: React.FC<{ instance: GraphicInstance }> = ({ inst
           <div className="flex items-center gap-1.5">
             <Input
               autoFocus
-              aria-label="Template name"
+              aria-label={t("Template name")}
               placeholder={`${instance.name} (custom)`}
               value={name}
               onChange={(event) => setName(event.target.value)}
@@ -113,11 +115,11 @@ export const GraphicInspector: React.FC<{ instance: GraphicInstance }> = ({ inst
               }}
               className="h-7 text-xs"
             />
-            <Button size="sm" onClick={save}>Save</Button>
+            <Button size="sm" onClick={save}>{t("Save")}</Button>
           </div>
         ) : (
           <Button variant="outline" size="sm" className="justify-start gap-2" onClick={() => setNaming(true)}>
-            <Save size={13} aria-hidden /> Save as template…
+            <Save size={13} aria-hidden /> {t("Save as template…")}
           </Button>
         )}
         <Button
@@ -126,16 +128,16 @@ export const GraphicInspector: React.FC<{ instance: GraphicInstance }> = ({ inst
           className="justify-start gap-2"
           onClick={() => downloadGraphicTemplate(graphicInstanceToTemplate(instance, { name: instance.name }))}
         >
-          <Download size={13} aria-hidden /> Export .openreel-template
+          <Download size={13} aria-hidden /> {t("Export .openreel-template")}
         </Button>
         <Button
           variant="ghost"
           size="sm"
           className="justify-start gap-2 text-fg-muted"
-          title="Turn the layers into ordinary clips you can edit one by one"
+          title={t("Turn the layers into ordinary clips you can edit one by one")}
           onClick={() => { void ungroupGraphicCommand(instance.id); }}
         >
-          <Unlink size={13} aria-hidden /> Ungroup layers
+          <Unlink size={13} aria-hidden /> {t("Ungroup layers")}
         </Button>
       </div>
     </div>

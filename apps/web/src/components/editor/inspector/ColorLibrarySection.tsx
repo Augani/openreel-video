@@ -1,4 +1,5 @@
 import React, { Suspense } from "react";
+import { translateNow } from "@openreel/i18n/translate";
 import { lazyWithRetry } from "./lazy-retry";
 
 // Looks, LUT library and saved looks (graded real-footage previews) load on demand: out of the editor chunk.
@@ -10,7 +11,7 @@ interface Props {
 
 /** Built-in looks, the LUT library, saved looks and the Input LUT slot, in one place. */
 export const ColorLibrarySection: React.FC<Props> = ({ clipId }) => (
-  <Suspense fallback={<div className="h-24 animate-pulse rounded-[7px] bg-bg-2" role="status" aria-label="Loading looks and LUTs" />}>
+  <Suspense fallback={<div className="h-24 animate-pulse rounded-[7px] bg-bg-2" role="status" aria-label={translateNow("Loading looks and LUTs")} />}>
     <LooksAndLuts clipId={clipId} />
   </Suspense>
 );

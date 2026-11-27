@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { getAudioOutputRouter, type AudioOutputDevice } from "@openreel/core";
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, cn } from "@openreel/ui";
 import { useSettingsStore } from "../../../stores/settings-store";
+import { useT } from "@openreel/i18n/react";
 
 const DEFAULT_VALUE = "default";
 
@@ -37,6 +38,7 @@ export function useAudioOutputDevices(): { devices: AudioOutputDevice[]; support
  * disconnected until it returns.
  */
 export function AudioOutputSelect({ className, compact = false, testId = "audio-output-select" }: { className?: string; compact?: boolean; testId?: string }) {
+  const t = useT();
   const deviceId = useSettingsStore((state) => state.audioOutputDeviceId);
   const deviceLabel = useSettingsStore((state) => state.audioOutputDeviceLabel);
   const { devices, support, labelsHidden, fallbackActive, requestAccess } = useAudioOutputDevices();
@@ -53,7 +55,7 @@ export function AudioOutputSelect({ className, compact = false, testId = "audio-
     <div className={cn("flex min-w-0 flex-col gap-1", className)} data-testid={testId}>
       <Select value={selected} onValueChange={choose} disabled={unsupported}>
         <SelectTrigger
-          aria-label="Audio output device"
+          aria-label={t("Audio output device")}
           aria-describedby={statusId}
           data-testid={`${testId}-trigger`}
           className={cn("min-w-0 rounded-md bg-bg-2 px-2 text-xs", compact ? "h-7 w-[170px]" : "h-8 w-full")}
@@ -61,25 +63,25 @@ export function AudioOutputSelect({ className, compact = false, testId = "audio-
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={DEFAULT_VALUE}>System default</SelectItem>
+          <SelectItem value={DEFAULT_VALUE}>{t("System default")}</SelectItem>
           {missing && <SelectItem value={deviceId}>{`${deviceLabel || "Saved device"} (disconnected)`}</SelectItem>}
           {devices.filter((device) => !device.isDefault).map((device) => (
-            <SelectItem key={device.deviceId} value={device.deviceId}>{device.label}</SelectItem>
+            <SelectItem key={device.deviceId} value={device.deviceId}>{t(device.label)}</SelectItem>
           ))}
         </SelectContent>
       </Select>
       <p id={statusId} role="status" className="text-[11px] leading-4 text-fg-2" data-testid={`${testId}-status`}>
         {unsupported
-          ? "This browser can't choose an output device; audio plays on the system default."
+          ? t("This browser can't choose an output device; audio plays on the system default.")
           : missing || fallbackActive
             ? `${deviceLabel || "The saved device"} is disconnected. Playing on the system default until it returns.`
             : support === "element"
-              ? "Routed through a media element in this browser; expect slightly higher latency."
-              : compact ? "" : "Applies to preview playback and scrubbing. Exports are not affected."}
+              ? t("Routed through a media element in this browser; expect slightly higher latency.")
+              : compact ? "" : t("Applies to preview playback and scrubbing. Exports are not affected.")}
       </p>
       {labelsHidden && !unsupported && (
         <Button type="button" variant="outline" size="sm" className="h-7 w-fit px-2 text-xs" onClick={() => void requestAccess()} data-testid={`${testId}-reveal`}>
-          Show device names
+          {t("Show device names")}
         </Button>
       )}
     </div>

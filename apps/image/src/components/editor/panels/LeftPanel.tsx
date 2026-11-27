@@ -102,6 +102,7 @@ const LayerItem = memo(function LayerItem({
   removeLayer,
   getLayerIcon,
 }: LayerItemProps) {
+  const t = useT();
   const isSelected = selectedLayerIds.includes(layer.id);
   const isEditing = editingLayerId === layer.id;
   const isGroup = layer.type === 'group';
@@ -199,21 +200,21 @@ const LayerItem = memo(function LayerItem({
           <button
             onClick={toggleVisibility}
             className="p-1 rounded hover:bg-accent/50 transition-colors"
-            title={layer.visible ? 'Hide' : 'Show'}
+            title={layer.visible ? t("Hide") : t("Show")}
           >
             {layer.visible ? <Eye size={12} /> : <EyeOff size={12} />}
           </button>
           <button
             onClick={toggleLock}
             className="p-1 rounded hover:bg-accent/50 transition-colors"
-            title={layer.locked ? 'Unlock' : 'Lock'}
+            title={layer.locked ? t("Unlock") : t("Lock")}
           >
             {layer.locked ? <Lock size={12} /> : <Unlock size={12} />}
           </button>
           <button
             onClick={handleDelete}
             className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
-            title="Delete"
+            title={t("Delete")}
           >
             <Trash2 size={12} />
           </button>
@@ -261,6 +262,7 @@ import {
   searchTemplates,
   Template,
 } from '../../../services/templates-service';
+import { useT } from "@openreel/i18n/react";
 
 const panels: { id: Panel; icon: React.ElementType; label: string }[] = [
   { id: 'layers', icon: Layers, label: 'Layers' },
@@ -273,6 +275,7 @@ const panels: { id: Panel; icon: React.ElementType; label: string }[] = [
 ];
 
 export const LeftPanel = memo(function LeftPanel() {
+  const t = useT();
   const { activePanel, setActivePanel } = useUIStore();
 
   return (
@@ -289,10 +292,10 @@ export const LeftPanel = memo(function LeftPanel() {
                   ? 'text-primary bg-primary/10'
                   : 'text-muted-foreground hover:text-foreground hover:bg-accent'
               }`}
-              title={panel.label}
+              title={t(panel.label)}
             >
               <Icon size={20} />
-              <span className="text-[10px] mt-1 font-medium">{panel.label}</span>
+              <span className="text-[10px] mt-1 font-medium">{t(panel.label)}</span>
             </button>
           );
         })}
@@ -312,6 +315,7 @@ export const LeftPanel = memo(function LeftPanel() {
 });
 
 function LayersPanel() {
+  const t = useT();
   const {
     project,
     selectedLayerIds,
@@ -434,7 +438,7 @@ function LayersPanel() {
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Search layers..."
+            placeholder={t("Search layers...")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-8 pr-3 py-2 text-xs bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -446,9 +450,9 @@ function LayersPanel() {
         {filteredLayers.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center p-4">
             <Layers size={32} className="text-muted-foreground/50 mb-2" />
-            <p className="text-xs text-muted-foreground">No layers yet</p>
+            <p className="text-xs text-muted-foreground">{t("No layers yet")}</p>
             <p className="text-[10px] text-muted-foreground mt-1">
-              Add text, shapes, or images
+              {t("Add text, shapes, or images")}
             </p>
           </div>
         ) : (
@@ -490,7 +494,7 @@ function LayersPanel() {
               className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90"
             >
               <FolderPlus size={14} />
-              Group {selectedLayerIds.length} Layers
+              {t("Group")} {selectedLayerIds.length} {t("Layers")}
             </button>
           )}
 
@@ -500,40 +504,40 @@ function LayersPanel() {
               className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground text-xs font-medium hover:bg-secondary/80"
             >
               <FolderOpen size={14} />
-              Ungroup
+              {t("Ungroup")}
             </button>
           )}
 
           {selectedLayerIds.length === 1 && (
             <>
               <div className="flex items-center justify-between gap-1">
-                <span className="text-[10px] text-muted-foreground">Order</span>
+                <span className="text-[10px] text-muted-foreground">{t("Order")}</span>
                 <div className="flex items-center gap-0.5">
                   <button
                     onClick={() => moveLayerToTop(selectedLayerIds[0])}
                     className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
-                    title="Bring to Front"
+                    title={t("Bring to Front")}
                   >
                     <ArrowUpToLine size={14} />
                   </button>
                   <button
                     onClick={() => moveLayerUp(selectedLayerIds[0])}
                     className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
-                    title="Bring Forward"
+                    title={t("Bring Forward")}
                   >
                     <ChevronUp size={14} />
                   </button>
                   <button
                     onClick={() => moveLayerDown(selectedLayerIds[0])}
                     className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
-                    title="Send Backward"
+                    title={t("Send Backward")}
                   >
                     <ChevronDown size={14} />
                   </button>
                   <button
                     onClick={() => moveLayerToBottom(selectedLayerIds[0])}
                     className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
-                    title="Send to Back"
+                    title={t("Send to Back")}
                   >
                     <ArrowDownToLine size={14} />
                   </button>
@@ -546,14 +550,14 @@ function LayersPanel() {
                   className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md bg-secondary text-secondary-foreground text-[10px] font-medium hover:bg-secondary/80"
                 >
                   <Copy size={12} />
-                  Duplicate
+                  {t("Duplicate")}
                 </button>
                 <button
                   onClick={() => removeLayer(selectedLayerIds[0])}
                   className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md bg-destructive/10 text-destructive text-[10px] font-medium hover:bg-destructive/20"
                 >
                   <Trash2 size={12} />
-                  Delete
+                  {t("Delete")}
                 </button>
               </div>
             </>
@@ -565,6 +569,7 @@ function LayersPanel() {
 }
 
 function AssetsPanel() {
+  const t = useT();
   const { project, addImageLayer } = useProjectStore();
   const [searchQuery, setSearchQuery] = useState('');
   const assets = project ? Object.values(project.assets) : [];
@@ -586,7 +591,7 @@ function AssetsPanel() {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Search assets..."
+            placeholder={t("Search assets...")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
@@ -597,13 +602,13 @@ function AssetsPanel() {
       {assets.length === 0 ? (
         <div className="text-center py-8">
           <Folder size={32} className="mx-auto text-muted-foreground mb-2" />
-          <p className="text-xs text-muted-foreground">No assets yet</p>
-          <p className="text-xs text-muted-foreground mt-1">Upload images to use in your design</p>
+          <p className="text-xs text-muted-foreground">{t("No assets yet")}</p>
+          <p className="text-xs text-muted-foreground mt-1">{t("Upload images to use in your design")}</p>
         </div>
       ) : filteredAssets.length === 0 ? (
         <div className="text-center py-8">
           <Search size={32} className="mx-auto text-muted-foreground mb-2" />
-          <p className="text-xs text-muted-foreground">No matching assets</p>
+          <p className="text-xs text-muted-foreground">{t("No matching assets")}</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2">
@@ -637,6 +642,7 @@ function AssetsPanel() {
 }
 
 function TemplatesPanel() {
+  const t = useT();
   const { createProject } = useProjectStore();
   const { setCurrentView } = useUIStore();
   const [searchQuery, setSearchQuery] = useState('');
@@ -675,7 +681,7 @@ function TemplatesPanel() {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Search templates..."
+            placeholder={t("Search templates...")}
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
@@ -695,7 +701,7 @@ function TemplatesPanel() {
               : 'bg-secondary text-secondary-foreground hover:bg-accent'
           }`}
         >
-          All
+          {t("All")}
         </button>
         {categories.map((category) => (
           <button
@@ -718,7 +724,7 @@ function TemplatesPanel() {
       {filteredTemplates.length === 0 ? (
         <div className="text-center py-8">
           <LayoutTemplate size={32} className="mx-auto text-muted-foreground mb-2" />
-          <p className="text-xs text-muted-foreground">No templates found</p>
+          <p className="text-xs text-muted-foreground">{t("No templates found")}</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2">
@@ -763,6 +769,7 @@ function TemplatesPanel() {
 }
 
 function TextPanel() {
+  const t = useT();
   const { addTextLayer } = useProjectStore();
 
   const textStyles = [
@@ -774,7 +781,7 @@ function TextPanel() {
 
   return (
     <div className="p-3">
-      <h3 className="text-sm font-medium text-foreground mb-3">Add Text</h3>
+      <h3 className="text-sm font-medium text-foreground mb-3">{t("Add Text")}</h3>
       <div className="space-y-2">
         {textStyles.map((style) => (
           <button
@@ -786,7 +793,7 @@ function TextPanel() {
               className="block text-foreground"
               style={{ fontSize: `${Math.min(style.fontSize / 3, 16)}px`, fontWeight: style.fontWeight }}
             >
-              {style.label}
+              {t(style.label)}
             </span>
           </button>
         ))}
@@ -796,6 +803,7 @@ function TextPanel() {
 }
 
 function ShapesPanel() {
+  const t = useT();
   const { addShapeLayer } = useProjectStore();
 
   const shapes: { type: 'rectangle' | 'ellipse' | 'triangle' | 'polygon' | 'star' | 'line'; label: string }[] = [
@@ -809,7 +817,7 @@ function ShapesPanel() {
 
   return (
     <div className="p-3">
-      <h3 className="text-sm font-medium text-foreground mb-3">Shapes</h3>
+      <h3 className="text-sm font-medium text-foreground mb-3">{t("Shapes")}</h3>
       <div className="grid grid-cols-3 gap-2">
         {shapes.map((shape) => (
           <button
@@ -818,7 +826,7 @@ function ShapesPanel() {
             className="aspect-square flex flex-col items-center justify-center rounded-lg bg-background border border-border hover:border-primary hover:bg-primary/5 transition-all"
           >
             <Shapes size={24} className="text-muted-foreground mb-1" />
-            <span className="text-[10px] text-muted-foreground">{shape.label}</span>
+            <span className="text-[10px] text-muted-foreground">{t(shape.label)}</span>
           </button>
         ))}
       </div>
@@ -886,6 +894,7 @@ const ELEMENT_CATEGORIES = [
 ];
 
 function ElementsPanel() {
+  const t = useT();
   const { addShapeLayer } = useProjectStore();
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -909,7 +918,7 @@ function ElementsPanel() {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Search elements..."
+            placeholder={t("Search elements...")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
@@ -941,7 +950,7 @@ function ElementsPanel() {
                   >
                     <Icon size={20} className="text-muted-foreground mb-0.5" />
                     <span className="text-[9px] text-muted-foreground truncate max-w-full px-1">
-                      {item.label}
+                      {t(item.label)}
                     </span>
                   </button>
                 );
@@ -953,7 +962,7 @@ function ElementsPanel() {
         {filteredCategories.length === 0 && (
           <div className="text-center py-8">
             <Search size={32} className="mx-auto text-muted-foreground mb-2" />
-            <p className="text-xs text-muted-foreground">No elements found</p>
+            <p className="text-xs text-muted-foreground">{t("No elements found")}</p>
           </div>
         )}
       </div>
@@ -962,6 +971,7 @@ function ElementsPanel() {
 }
 
 function UploadsPanel() {
+  const t = useT();
   const { project, addAsset, addImageLayer } = useProjectStore();
   const [isDragging, setIsDragging] = useState(false);
   const assets = project ? Object.values(project.assets) : [];
@@ -1030,7 +1040,7 @@ function UploadsPanel() {
 
   return (
     <div className="p-3 h-full overflow-y-auto">
-      <h3 className="text-sm font-medium text-foreground mb-3">Upload Files</h3>
+      <h3 className="text-sm font-medium text-foreground mb-3">{t("Upload Files")}</h3>
 
       <div
         onDragOver={(e) => {
@@ -1047,10 +1057,10 @@ function UploadsPanel() {
       >
         <Upload size={24} className="mx-auto text-muted-foreground mb-2" />
         <p className="text-xs text-foreground mb-1">
-          Drag & drop or click to browse
+          {t("Drag & drop or click to browse")}
         </p>
         <label className="inline-block px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium cursor-pointer hover:bg-primary/90 transition-colors">
-          Browse Files
+          {t("Browse Files")}
           <input
             type="file"
             accept="image/*"
@@ -1060,14 +1070,14 @@ function UploadsPanel() {
           />
         </label>
         <p className="text-[10px] text-muted-foreground mt-2">
-          PNG, JPG, SVG, WebP
+          {t("PNG, JPG, SVG, WebP")}
         </p>
       </div>
 
       {assets.length > 0 && (
         <div className="mt-4">
           <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-            Your Uploads ({assets.length})
+            {t("Your Uploads (")}{assets.length})
           </h4>
           <div className="grid grid-cols-3 gap-1.5">
             {assets.map((asset) => (

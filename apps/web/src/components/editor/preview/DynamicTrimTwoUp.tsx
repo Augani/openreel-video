@@ -4,6 +4,7 @@ import { useProjectStore } from "../../../stores/project-store";
 import { useTrimMonitorStore } from "../../../stores/trim-monitor-store";
 import { captureProgramFrame } from "../../../services/comparison-service";
 import { dynamicTrimTwoUpTimes } from "../../../services/dynamic-trim";
+import { useT } from "@openreel/i18n/react";
 
 /** Quiet period before a capture starts: coalesces the shuttle's ticks and lets the Program monitor settle first. */
 const CAPTURE_DELAY_MS = 40;
@@ -38,6 +39,7 @@ export interface TwoUpPanesProps {
  * comparison view: nothing here reaches the project, the render cache or an export).
  */
 export const TwoUpPanes: React.FC<TwoUpPanesProps> = ({ outgoing, incoming, refreshKey, prefix, className }) => {
+  const t = useT();
   const outgoingRef = useRef<HTMLCanvasElement>(null);
   const incomingRef = useRef<HTMLCanvasElement>(null);
   const latest = useRef({ outgoing, incoming });
@@ -89,22 +91,22 @@ export const TwoUpPanes: React.FC<TwoUpPanesProps> = ({ outgoing, incoming, refr
         <canvas
           ref={outgoingRef}
           data-testid={`${prefix}-outgoing`}
-          aria-label="Outgoing clip, last frame"
+          aria-label={t("Outgoing clip, last frame")}
           className="h-full w-full bg-[var(--screen-bg)] object-contain"
         />
         <figcaption className="absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/85">
-          Outgoing
+          {t("Outgoing")}
         </figcaption>
       </figure>
       <figure className="relative m-0 min-w-0">
         <canvas
           ref={incomingRef}
           data-testid={`${prefix}-incoming`}
-          aria-label="Incoming clip, first frame"
+          aria-label={t("Incoming clip, first frame")}
           className="h-full w-full bg-[var(--screen-bg)] object-contain"
         />
         <figcaption className="absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/85">
-          Incoming
+          {t("Incoming")}
         </figcaption>
       </figure>
     </div>

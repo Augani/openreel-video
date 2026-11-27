@@ -41,6 +41,8 @@ import {
 } from "../../services/kieai/image-generation";
 import { kieaiPostJson } from "../../services/kieai/client";
 import { toast } from "../../stores/notification-store";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const STYLE_CHIPS = [
   ["Cinematic", Film],
@@ -50,6 +52,7 @@ const STYLE_CHIPS = [
 ] as const;
 
 export function WorkspaceGeneratePanel() {
+  const t = useT();
   const [tab, setTab] = useState("image");
   const [prompt, setPrompt] = useState("");
   const [style, setStyle] = useState("Cinematic");
@@ -145,7 +148,7 @@ export function WorkspaceGeneratePanel() {
         // A generation belongs to the project which requested it, never a newly opened one.
         if (useProjectStore.getState().project.id !== projectId) {
           toast.warning(
-            "Project changed",
+            translateNow("Project changed"),
             "A provider task was submitted. Its result remains available in your provider account.",
           );
           break;
@@ -201,7 +204,7 @@ export function WorkspaceGeneratePanel() {
       useTimelineStore.getState().playheadPosition,
     );
     if (!result.success)
-      toast.error("Could not add result", result.error?.message);
+      toast.error(translateNow("Could not add result"), result.error?.message);
   };
   return (
     <div className="workspace-generate flex h-full min-h-0 flex-col">
@@ -238,7 +241,7 @@ export function WorkspaceGeneratePanel() {
                 onClick={() => setTab("image")}
               >
                 <ChevronLeft size={13} />
-                Back to Generate
+                {t("Back to Generate")}
               </Button>
               <AIGenTab />
             </>
@@ -249,7 +252,7 @@ export function WorkspaceGeneratePanel() {
                   <Button
                     variant="outline"
                     className="workspace-generation-model"
-                    aria-label="Generation model and settings"
+                    aria-label={t("Generation model and settings")}
                   >
                     <ConnectionStatus
                       ready={keyConnected}
@@ -268,17 +271,17 @@ export function WorkspaceGeneratePanel() {
                 <PopoverContent
                   align="start"
                   className="workspace-generation-settings"
-                  aria-label="Generation settings"
+                  aria-label={t("Generation settings")}
                 >
-                  <h3>Generation settings</h3>
+                  <h3>{t("Generation settings")}</h3>
                   <div className="workspace-generation-options">
-                    <label>Model</label>
+                    <label>{t("Model")}</label>
                     <Select
                       value={tab === "video" ? "kling-2.6" : model}
                       onValueChange={setModel}
                     >
                       <SelectTrigger
-                        aria-label="Generation model"
+                        aria-label={t("Generation model")}
                         className="workspace-generation-model"
                       >
                         <SelectValue />
@@ -286,24 +289,24 @@ export function WorkspaceGeneratePanel() {
                       <SelectContent>
                         {tab === "video" ? (
                           <SelectItem value="kling-2.6">
-                            Kling 2.6 · KieAI
+                            {t("Kling 2.6 · KieAI")}
                           </SelectItem>
                         ) : (
                           <>
                             <SelectItem value="z-image">
-                              Z-Image · KieAI
+                              {t("Z-Image · KieAI")}
                             </SelectItem>
                             <SelectItem value="nano-banana-2">
-                              Nano Banana 2 · KieAI
+                              {t("Nano Banana 2 · KieAI")}
                             </SelectItem>
                           </>
                         )}
                       </SelectContent>
                     </Select>
-                    <label>Variations</label>
+                    <label>{t("Variations")}</label>
                     <Select value={count} onValueChange={setCount}>
                       <SelectTrigger
-                        aria-label="Number of variations"
+                        aria-label={t("Number of variations")}
                         className="h-8 w-full text-xs"
                       >
                         <SelectValue />
@@ -311,17 +314,17 @@ export function WorkspaceGeneratePanel() {
                       <SelectContent>
                         {["1", "2", "4"].map((c) => (
                           <SelectItem value={c} key={c}>
-                            {c} {c === "1" ? "variation" : "variations"}
+                            {c} {c === "1" ? t("variation") : t("variations")}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                     {tab === "video" && (
                       <div className="contents">
-                        <label>Duration</label>
+                        <label>{t("Duration")}</label>
                         <Select value={duration} onValueChange={setDuration}>
                           <SelectTrigger
-                            aria-label="Video duration"
+                            aria-label={t("Video duration")}
                             className="h-8 w-full text-xs"
                           >
                             <SelectValue />
@@ -335,7 +338,7 @@ export function WorkspaceGeneratePanel() {
                     )}
                   </div>
                   <p className="workspace-generate-disclosure">
-                    Uses your KieAI credits. Results save to Project media.
+                    {t("Uses your KieAI credits. Results save to Project media.")}
                   </p>
                   <div className="workspace-generation-settings-actions">
                     <Button
@@ -346,7 +349,7 @@ export function WorkspaceGeneratePanel() {
                       }}
                     >
                       <Settings2 size={12} />
-                      All AI tools
+                      {t("All AI tools")}
                     </Button>
                     <Button
                       variant="ghost"
@@ -355,7 +358,7 @@ export function WorkspaceGeneratePanel() {
                         useSettingsStore.getState().openSettings("api-keys");
                       }}
                     >
-                      Provider settings
+                      {t("Provider settings")}
                     </Button>
                   </div>
                 </PopoverContent>
@@ -363,11 +366,11 @@ export function WorkspaceGeneratePanel() {
               <label className="workspace-generate-prompt">
                 PROMPT
                 <Textarea
-                  aria-label="Generation prompt"
+                  aria-label={t("Generation prompt")}
                   placeholder={
                     tab === "video"
-                      ? "Describe a shot, camera movement and mood…"
-                      : "Describe the image you want to create…"
+                      ? t("Describe a shot, camera movement and mood…")
+                      : t("Describe the image you want to create…")
                   }
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
@@ -412,7 +415,7 @@ export function WorkspaceGeneratePanel() {
                 ) : (
                   <Sparkle size={13} />
                 )}
-                Generate {count} {count === "1" ? "variation" : "variations"}
+                {t("Generate")} {count} {count === "1" ? t("variation") : t("variations")}
               </Button>
               {disabledReason && (
                 <p className="workspace-generate-hint">
@@ -424,7 +427,7 @@ export function WorkspaceGeneratePanel() {
                         useSettingsStore.getState().openSettings("api-keys")
                       }
                     >
-                      {keyStatus === "locked" ? "Unlock" : "Connect"}
+                      {keyStatus === "locked" ? t("Unlock") : t("Connect")}
                     </Button>
                   )}
                 </p>
@@ -439,13 +442,13 @@ export function WorkspaceGeneratePanel() {
                       useSettingsStore.getState().openSettings("api-keys")
                     }
                   >
-                    API key settings
+                    {t("API key settings")}
                   </Button>
                 </div>
               )}
               <div className="workspace-library-label">
                 <span>RESULTS</span>
-                <small>Saved to Project › AI</small>
+                <small>{t("Saved to Project › AI")}</small>
               </div>
               <div className="workspace-generation-results">
                 {results.map((m) => (
@@ -474,11 +477,11 @@ export function WorkspaceGeneratePanel() {
                       {m.kieaiError ? (
                         <span>
                           <AlertCircle size={18} />
-                          <small>Generation failed</small>
+                          <small>{t("Generation failed")}</small>
                         </span>
                       ) : m.isPending ? (
                         <span role="status">
-                          <small>Generating…</small>
+                          <small>{t("Generating…")}</small>
                           <Progress
                             className="workspace-generation-progress"
                             aria-label={`Generating ${m.name}`}
@@ -490,7 +493,7 @@ export function WorkspaceGeneratePanel() {
                         <span>
                           <ImageIcon size={22} />
                           <small>
-                            {m.isPlaceholder ? "Result unavailable" : m.name}
+                            {m.isPlaceholder ? t("Result unavailable") : m.name}
                           </small>
                         </span>
                       )}
@@ -504,7 +507,7 @@ export function WorkspaceGeneratePanel() {
                         title={
                           tasks.some((task) => task.mediaId === m.id)
                             ? undefined
-                            : "The provider task is unavailable on this device. Generate a new variation."
+                            : t("The provider task is unavailable on this device. Generate a new variation.")
                         }
                         onClick={() => {
                           const task = tasks.find(
@@ -518,7 +521,7 @@ export function WorkspaceGeneratePanel() {
                           }
                         }}
                       >
-                        Retry
+                        {t("Retry")}
                       </Button>
                     )}
                   </div>
@@ -527,7 +530,7 @@ export function WorkspaceGeneratePanel() {
               {!results.length && (
                 <div className="workspace-generation-empty">
                   <ImageIcon size={22} />
-                  <p>Your generated variations will appear here.</p>
+                  <p>{t("Your generated variations will appear here.")}</p>
                 </div>
               )}
               <Button
@@ -537,7 +540,7 @@ export function WorkspaceGeneratePanel() {
                 onClick={() => void add()}
               >
                 <Plus size={13} />
-                Add selected to timeline
+                {t("Add selected to timeline")}
               </Button>
             </>
           )}
@@ -551,14 +554,14 @@ export function WorkspaceGeneratePanel() {
             onClick={() => setTab("tools")}
           >
             <Settings2 size={12} />
-            All AI tools
+            {t("All AI tools")}
           </Button>
           <Button
             variant="ghost"
             className="h-6 p-0 text-[10px]"
             onClick={() => useSettingsStore.getState().openSettings("api-keys")}
           >
-            Provider settings
+            {t("Provider settings")}
           </Button>
         </footer>
       )}

@@ -5,6 +5,7 @@ import { useOnboardingStore } from "../../../stores/onboarding-store";
 import { exitLessons } from "./lesson-session";
 import { isAiConnected } from "./explain";
 import { lessonButton } from "./lesson-ui";
+import { useT } from "@openreel/i18n/react";
 
 /** The finished export's on-disk path, once the export job has completed on desktop. */
 function useExportedPath(): string | null {
@@ -23,6 +24,7 @@ function useExportedPath(): string | null {
  * is connected yet) and Keep learning (opens the Lesson Hub).
  */
 export function LessonFinish(): JSX.Element {
+  const t = useT();
   const path = useExportedPath();
   const aiReady = isAiConnected();
 
@@ -66,30 +68,30 @@ export function LessonFinish(): JSX.Element {
 
         <div className="p-5">
           <h2 id="lesson-finish-title" className="text-lg font-semibold tracking-tight text-fg">
-            You made a video.
+            {t("You made a video.")}
           </h2>
           <p className="mt-1 text-sm leading-relaxed text-fg-2">
-            You placed, cut, trimmed, titled and mixed a clip, then exported it. That is the whole loop.
-            {path ? " Your file is ready." : " Your export is on its way."}
+            {t("You placed, cut, trimmed, titled and mixed a clip, then exported it. That is the whole loop.")}
+            {path ? t(" Your file is ready.") : t(" Your export is on its way.")}
           </p>
 
           <div className="mt-4 flex flex-wrap gap-2">
             <button type="button" className={lessonButton("solid")} onClick={keepLearning}>
-              Keep learning
+              {t("Keep learning")}
             </button>
             <button type="button" className={lessonButton("primary")} onClick={makeAnother}>
-              Make another
+              {t("Make another")}
             </button>
             {!aiReady && (
               <button type="button" className={lessonButton("primary")} onClick={tryAi}>
                 <Sparkles size={13} aria-hidden="true" />
-                Try the AI on this project
+                {t("Try the AI on this project")}
               </button>
             )}
             {path && (
               <button type="button" className={lessonButton("quiet")} onClick={reveal}>
                 <FolderOpen size={13} aria-hidden="true" />
-                Show in Finder
+                {t("Show in Finder")}
               </button>
             )}
           </div>
@@ -97,7 +99,7 @@ export function LessonFinish(): JSX.Element {
 
         <button
           type="button"
-          aria-label="Close"
+          aria-label={t("Close")}
           onClick={exitLessons}
           className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-lg bg-bg/60 text-fg-2 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
         >

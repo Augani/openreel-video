@@ -3,6 +3,7 @@ import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { useCornerPinOverlayStore } from "../../../stores/corner-pin-overlay-store";
 import { CORNER_PIN_LIMITS, cornerPinPercentAt, moveCornerPinCorner } from "../../../services/corner-pin-edit";
+import { useT } from "@openreel/i18n/react";
 
 const NAMES = ["top left", "top right", "bottom right", "bottom left"];
 
@@ -13,6 +14,7 @@ const NAMES = ["top left", "top right", "bottom right", "bottom left"];
  * Arrow keys nudge a focused handle by 0.1% (Shift: 1%).
  */
 export const CornerPinOverlay: React.FC = () => {
+  const t = useT();
   const { clipId, effectId } = useCornerPinOverlayStore();
   const clip = useProjectStore((s) => (clipId ? s.project.timeline.tracks.flatMap((t) => t.clips).find((c) => c.id === clipId) : undefined));
   const playhead = useTimelineStore((s) => s.playheadPosition);
@@ -80,7 +82,7 @@ export const CornerPinOverlay: React.FC = () => {
         />
       ))}
       <span className="pointer-events-none absolute rounded bg-black/65 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white/85" style={{ left: `${points[0].x}%`, top: `calc(${points[0].y}% - 18px)` }}>
-        Corner pin
+        {t("Corner pin")}
       </span>
     </div>
   );

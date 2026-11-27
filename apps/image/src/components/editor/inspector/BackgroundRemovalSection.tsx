@@ -8,12 +8,14 @@ import {
   BackgroundMode,
   DEFAULT_OPTIONS,
 } from '../../../services/background-removal-service';
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   layer: ImageLayer;
 }
 
 export function BackgroundRemovalSection({ layer }: Props) {
+  const t = useT();
   const { project, addAsset, updateLayer } = useProjectStore();
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -68,12 +70,12 @@ export function BackgroundRemovalSection({ layer }: Props) {
   return (
     <div className="space-y-3">
       <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-        Background Removal
+        {t("Background Removal")}
       </h4>
 
       <div className="p-3 space-y-4 bg-secondary/50 rounded-lg">
         <div className="space-y-2">
-          <label className="text-[10px] text-muted-foreground">Mode</label>
+          <label className="text-[10px] text-muted-foreground">{t("Mode")}</label>
           <div className="grid grid-cols-3 gap-1">
             {(['transparent', 'color', 'blur'] as BackgroundMode[]).map((m) => (
               <button
@@ -93,7 +95,7 @@ export function BackgroundRemovalSection({ layer }: Props) {
 
         {mode === 'color' && (
           <div className="flex items-center gap-2">
-            <label className="text-[10px] text-muted-foreground">Background</label>
+            <label className="text-[10px] text-muted-foreground">{t("Background")}</label>
             <input
               type="color"
               value={backgroundColor}
@@ -112,7 +114,7 @@ export function BackgroundRemovalSection({ layer }: Props) {
         {mode === 'blur' && (
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[10px] text-muted-foreground">Blur Amount</label>
+              <label className="text-[10px] text-muted-foreground">{t("Blur Amount")}</label>
               <span className="text-[10px] text-muted-foreground">{blurAmount}px</span>
             </div>
             <Slider
@@ -134,9 +136,9 @@ export function BackgroundRemovalSection({ layer }: Props) {
               />
             </div>
             <p className="text-[10px] text-muted-foreground text-center">
-              {progress < 15 ? 'Loading AI model...' :
-               progress < 90 ? 'Analyzing image...' :
-               'Finalizing...'}
+              {progress < 15 ? t("Loading AI model...") :
+               progress < 90 ? t("Analyzing image...") :
+               t("Finalizing...")}
               {' '}{Math.round(progress)}%
             </p>
           </div>
@@ -150,18 +152,18 @@ export function BackgroundRemovalSection({ layer }: Props) {
           {isProcessing ? (
             <>
               <Loader2 size={16} className="animate-spin" />
-              Processing...
+              {t("Processing...")}
             </>
           ) : (
             <>
               <Wand2 size={16} />
-              Remove Background
+              {t("Remove Background")}
             </>
           )}
         </button>
 
         <p className="text-[9px] text-muted-foreground text-center">
-          AI-powered background removal for any image
+          {t("AI-powered background removal for any image")}
         </p>
       </div>
     </div>

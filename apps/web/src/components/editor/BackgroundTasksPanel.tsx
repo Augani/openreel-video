@@ -3,6 +3,7 @@ import { Popover, PopoverContent, PopoverTrigger, cn } from "@openreel/ui";
 import { Activity } from "@/icons/lucide-compat";
 import { backgroundTasks, summarizeTasks } from "@openreel/core/tasks/task-registry";
 import { startBackgroundTaskSources } from "../../services/background-task-sources";
+import { useT } from "@openreel/i18n/react";
 
 // The list, rows and controls load the first time the popover opens; the status-bar indicator stays tiny.
 const BackgroundTasksList = lazy(() => import("./BackgroundTasksList"));
@@ -11,6 +12,7 @@ const useTasks = () => useSyncExternalStore(backgroundTasks.subscribe, backgroun
 
 /** Status-bar indicator and popover listing every background job (exports, proxies, transcription, imports, analysis, tracking). */
 export const BackgroundTasksIndicator: React.FC<{ className?: string }> = ({ className }) => {
+  const t = useT();
   useEffect(() => startBackgroundTaskSources(), []);
   const tasks = useTasks();
   const summary = summarizeTasks(tasks);
@@ -27,7 +29,7 @@ export const BackgroundTasksIndicator: React.FC<{ className?: string }> = ({ cla
         >
           <Activity size={14} aria-hidden className={cn(busy && "text-accent")} />
           <span className="truncate" data-testid="background-tasks-badge" data-count={summary.active}>
-            {busy || summary.failed > 0 ? summary.label : "Idle"}
+            {busy || summary.failed > 0 ? t(summary.label) : t("Idle")}
           </span>
           {summary.failed > 0 && busy && <span className="h-1.5 w-1.5 rounded-full bg-status-error" aria-hidden />}
           {summary.progress !== null && (
@@ -38,7 +40,7 @@ export const BackgroundTasksIndicator: React.FC<{ className?: string }> = ({ cla
         </button>
       </PopoverTrigger>
       <PopoverContent side="top" align="start" className="w-[400px] max-w-[calc(100vw-24px)] p-0 data-[state=open]:animate-none data-[state=closed]:animate-none" data-testid="background-tasks-panel">
-        <Suspense fallback={<p className="px-3 py-6 text-center text-xs text-fg-muted" role="status">Loading tasks…</p>}>
+        <Suspense fallback={<p className="px-3 py-6 text-center text-xs text-fg-muted" role="status">{t("Loading tasks…")}</p>}>
           <BackgroundTasksList />
         </Suspense>
       </PopoverContent>

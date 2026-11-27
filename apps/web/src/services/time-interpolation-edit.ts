@@ -4,6 +4,7 @@ import { useUIStore } from "../stores/ui-store";
 import { useTimelineStore } from "../stores/timeline-store";
 import { EditingSession } from "./agent/editing-session";
 import { toast } from "../stores/notification-store";
+import { translateNow } from "@openreel/i18n/translate";
 
 /** The video clips a Time Interpolation command applies to: the selection when `clipId` is in it, else the clip alone. */
 export function timeInterpolationTargets(clipId: string): string[] {
@@ -43,7 +44,7 @@ export async function setClipsTimeInterpolation(clipIds: readonly string[], mode
     await session.commitTransaction(transaction, "Set time interpolation");
     return true;
   } catch (error) {
-    toast.error("Time interpolation failed", error instanceof Error ? error.message : "Please try again.");
+    toast.error(translateNow("Time interpolation failed"), error instanceof Error ? error.message : "Please try again.");
     return false;
   }
 }

@@ -24,6 +24,8 @@ import {
   sceneDetectionBlockReason,
   type SceneAnalysis,
 } from "../../services/scene-detection";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 function describeEdits(analysis: SceneAnalysis): string {
   const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -52,6 +54,7 @@ export function SceneDetectionDialog() {
 }
 
 function SceneDetectionSession({ clipId }: { clipId: string }) {
+  const t = useT();
   const id = useId();
   const close = useSceneDetectionDialogStore((state) => state.close);
   const controller = useRef<AbortController | null>(null);
@@ -169,12 +172,11 @@ function SceneDetectionSession({ clipId }: { clipId: string }) {
         );
       if (result.splits === 0 && result.markers === 0 && result.subclips === 0) {
         setPhase("done");
-        setError(
-          "None of the detected cuts fall inside the clip as it is now. Analyse again.",
+        setError(translateNow("None of the detected cuts fall inside the clip as it is now. Analyse again."),
         );
         return;
       }
-      toast.success("Scene edit detection applied", parts.join(", "));
+      toast.success(translateNow("Scene edit detection applied"), parts.join(", "));
       close();
     } catch (caught) {
       if (!mounted.current || run !== runId.current) return;
@@ -202,22 +204,22 @@ function SceneDetectionSession({ clipId }: { clipId: string }) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-sm">
             <Film size={16} className="text-primary" aria-hidden />
-            Scene Edit Detection
+            {t("Scene Edit Detection")}
           </DialogTitle>
           <DialogDescription className="text-xs text-fg-3">
-            Find hard cuts, cross-dissolves and fades to or from black in this clip.
+            {t("Find hard cuts, cross-dissolves and fades to or from black in this clip.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs">
-              <Label htmlFor={`${id}-sensitivity`}>Sensitivity</Label>
+              <Label htmlFor={`${id}-sensitivity`}>{t("Sensitivity")}</Label>
               <span className="tabular-nums text-fg-3">{sensitivity}%</span>
             </div>
             <Slider
               id={`${id}-sensitivity`}
-              aria-label="Sensitivity"
+              aria-label={t("Sensitivity")}
               min={0}
               max={100}
               step={1}
@@ -231,14 +233,14 @@ function SceneDetectionSession({ clipId }: { clipId: string }) {
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs">
-              <Label htmlFor={`${id}-min-length`}>Minimum scene length</Label>
+              <Label htmlFor={`${id}-min-length`}>{t("Minimum scene length")}</Label>
               <span className="tabular-nums text-fg-3">
                 {minLength.toFixed(1)}s
               </span>
             </div>
             <Slider
               id={`${id}-min-length`}
-              aria-label="Minimum scene length"
+              aria-label={t("Minimum scene length")}
               min={0.2}
               max={5}
               step={0.1}
@@ -254,7 +256,7 @@ function SceneDetectionSession({ clipId }: { clipId: string }) {
           <div className="space-y-3 border-t border-border pt-3">
             <div className="flex items-start justify-between gap-3">
               <Label htmlFor={`${id}-dissolves`} className="text-xs">
-                Detect cross-dissolves
+                {t("Detect cross-dissolves")}
               </Label>
               <Switch
                 id={`${id}-dissolves`}
@@ -268,7 +270,7 @@ function SceneDetectionSession({ clipId }: { clipId: string }) {
             </div>
             <div className="flex items-start justify-between gap-3">
               <Label htmlFor={`${id}-fades`} className="text-xs">
-                Detect fades to and from black
+                {t("Detect fades to and from black")}
               </Label>
               <Switch
                 id={`${id}-fades`}
@@ -286,10 +288,10 @@ function SceneDetectionSession({ clipId }: { clipId: string }) {
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-0.5">
                 <Label htmlFor={`${id}-split`} className="text-xs">
-                  Apply a cut at each detected edit
+                  {t("Apply a cut at each detected edit")}
                 </Label>
                 <p className="text-[11px] text-fg-3">
-                  One undo step. Linked audio is split too.
+                  {t("One undo step. Linked audio is split too.")}
                 </p>
               </div>
               <Switch
@@ -302,9 +304,9 @@ function SceneDetectionSession({ clipId }: { clipId: string }) {
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-0.5">
                 <Label htmlFor={`${id}-subclips`} className="text-xs">
-                  Create subclips for each scene
+                  {t("Create subclips for each scene")}
                 </Label>
-                <p className="text-[11px] text-fg-3">Added to the Project panel.</p>
+                <p className="text-[11px] text-fg-3">{t("Added to the Project panel.")}</p>
               </div>
               <Switch
                 id={`${id}-subclips`}
@@ -315,7 +317,7 @@ function SceneDetectionSession({ clipId }: { clipId: string }) {
             </div>
             <div className="flex items-start justify-between gap-3">
               <Label htmlFor={`${id}-markers`} className="text-xs">
-                Add timeline markers
+                {t("Add timeline markers")}
               </Label>
               <Switch
                 id={`${id}-markers`}
@@ -334,18 +336,18 @@ function SceneDetectionSession({ clipId }: { clipId: string }) {
                   className="animate-spin text-primary"
                   aria-hidden
                 />
-                Analysing… {Math.round(progress * 100)}%
+                {t("Analysing…")} {Math.round(progress * 100)}%
               </div>
               <Progress
                 value={Math.round(progress * 100)}
-                aria-label="Scene detection progress"
+                aria-label={t("Scene detection progress")}
               />
             </div>
           )}
 
           {phase === "done" && analysis && !error && (
             <p className="text-xs font-semibold" role="status">
-              {cutCount === 0 ? "No cuts found. Try raising the sensitivity." : summary}
+              {cutCount === 0 ? t("No cuts found. Try raising the sensitivity.") : summary}
             </p>
           )}
 
@@ -363,7 +365,7 @@ function SceneDetectionSession({ clipId }: { clipId: string }) {
               size="sm"
               onClick={handleCancel}
             >
-              Cancel
+              {t("Cancel")}
             </Button>
           ) : (
             <>
@@ -373,7 +375,7 @@ function SceneDetectionSession({ clipId }: { clipId: string }) {
                 onClick={handleClose}
                 disabled={busy}
               >
-                Close
+                {t("Close")}
               </Button>
               <Button
                 variant={phase === "done" && cutCount > 0 ? "outline" : "default"}
@@ -381,7 +383,7 @@ function SceneDetectionSession({ clipId }: { clipId: string }) {
                 onClick={() => void handleAnalyse()}
                 disabled={busy || !!blockReason}
               >
-                {phase === "done" ? "Re-analyse" : "Analyse"}
+                {phase === "done" ? t("Re-analyse") : t("Analyse")}
               </Button>
               {phase !== "idle" && cutCount > 0 && (
                 <Button
@@ -389,7 +391,7 @@ function SceneDetectionSession({ clipId }: { clipId: string }) {
                   onClick={() => void handleApply()}
                   disabled={busy || nothingToDo}
                 >
-                  {phase === "applying" ? "Applying…" : "Apply"}
+                  {phase === "applying" ? t("Applying…") : t("Apply")}
                 </Button>
               )}
             </>

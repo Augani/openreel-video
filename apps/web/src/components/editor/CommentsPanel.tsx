@@ -22,6 +22,7 @@ import {
   setReviewAuthor,
   type ReviewExportKind,
 } from "../../services/review-commands";
+import { useT } from "@openreel/i18n/react";
 
 type Filter = "all" | "open" | "resolved";
 
@@ -37,6 +38,7 @@ const formatWhen = (ms: number | undefined): string => {
 const stop = (event: React.KeyboardEvent) => event.stopPropagation();
 
 function CommentCard({ marker, fps, selected }: { marker: Marker; fps: number; selected: boolean }) {
+  const t = useT();
   const [replying, setReplying] = useState(false);
   const [reply, setReply] = useState("");
   const [editing, setEditing] = useState(false);
@@ -77,7 +79,7 @@ function CommentCard({ marker, fps, selected }: { marker: Marker; fps: number; s
           {formatFrameTimecode(marker.time, fps)}
         </button>
         <span className="truncate text-[12px] font-medium" data-testid="comment-author">
-          {marker.author ?? "Unknown"}
+          {marker.author ?? t("Unknown")}
         </span>
         <span className="ml-auto shrink-0 text-[11px] text-fg-muted">{formatWhen(marker.createdAt)}</span>
       </div>
@@ -85,7 +87,7 @@ function CommentCard({ marker, fps, selected }: { marker: Marker; fps: number; s
       {editing ? (
         <div className="mt-1.5 flex flex-col gap-1.5">
           <Input
-            aria-label="Edit comment"
+            aria-label={t("Edit comment")}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
@@ -97,10 +99,10 @@ function CommentCard({ marker, fps, selected }: { marker: Marker; fps: number; s
           />
           <div className="flex justify-end gap-1">
             <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px]" onClick={() => setEditing(false)}>
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button size="sm" className="h-6 px-2 text-[11px]" onClick={() => void saveEdit()}>
-              Save
+              {t("Save")}
             </Button>
           </div>
         </div>
@@ -111,7 +113,7 @@ function CommentCard({ marker, fps, selected }: { marker: Marker; fps: number; s
       )}
 
       {(marker.replies?.length ?? 0) > 0 && (
-        <ul className="mt-2 flex flex-col gap-1.5 border-l-2 border-border pl-2" aria-label="Replies">
+        <ul className="mt-2 flex flex-col gap-1.5 border-l-2 border-border pl-2" aria-label={t("Replies")}>
           {marker.replies!.map((r) => (
             <li key={r.id} data-testid="comment-reply" className="text-[12px]">
               <span className="font-medium">{r.author}</span>
@@ -125,8 +127,8 @@ function CommentCard({ marker, fps, selected }: { marker: Marker; fps: number; s
       {replying && (
         <div className="mt-2 flex gap-1.5">
           <Input
-            aria-label="Reply"
-            placeholder="Write a reply"
+            aria-label={t("Reply")}
+            placeholder={t("Write a reply")}
             data-testid="comment-reply-input"
             value={reply}
             autoFocus
@@ -139,7 +141,7 @@ function CommentCard({ marker, fps, selected }: { marker: Marker; fps: number; s
             className="h-7 flex-1 text-[12px]"
           />
           <Button size="sm" className="h-7 px-2 text-[11px]" data-testid="comment-reply-send" disabled={!reply.trim()} onClick={() => void sendReply()}>
-            Reply
+            {t("Reply")}
           </Button>
         </div>
       )}
@@ -154,10 +156,10 @@ function CommentCard({ marker, fps, selected }: { marker: Marker; fps: number; s
           onClick={() => void setCommentStatus(marker.id, resolved ? "open" : "resolved")}
         >
           <Check size={11} aria-hidden />
-          {resolved ? "Reopen" : "Resolve"}
+          {resolved ? t("Reopen") : t("Resolve")}
         </Button>
         <Button variant="ghost" size="sm" className="h-6 px-1.5 text-[11px]" data-testid="comment-reply-toggle" onClick={() => setReplying((open) => !open)}>
-          Reply
+          {t("Reply")}
         </Button>
         <Button
           variant="ghost"
@@ -168,7 +170,7 @@ function CommentCard({ marker, fps, selected }: { marker: Marker; fps: number; s
             setEditing(true);
           }}
         >
-          Edit
+          {t("Edit")}
         </Button>
         <Button
           variant="ghost"
@@ -186,6 +188,7 @@ function CommentCard({ marker, fps, selected }: { marker: Marker; fps: number; s
 
 /** Review comments: timecoded, with author, status and replies. Mirrors the markers drawn on the ruler. */
 export function CommentsPanel() {
+  const t = useT();
   const markers = useProjectStore((s) => s.project.timeline.markers);
   const fps = useProjectStore((s) => s.project.settings.frameRate) || 30;
   const playhead = useTimelineStore((s) => s.playheadPosition);
@@ -239,21 +242,21 @@ export function CommentsPanel() {
   );
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col text-fg" aria-label="Comments" data-testid="comments-panel">
+    <section className="flex min-h-0 flex-1 flex-col text-fg" aria-label={t("Comments")} data-testid="comments-panel">
       <header className="flex flex-col gap-2 border-b border-border px-3 py-3">
         <div className="flex items-center justify-between gap-2">
           <h2 className="flex items-center gap-1.5 text-[13px] font-semibold">
             <MessageCircle size={14} aria-hidden />
-            Comments
+            {t("Comments")}
             <span className="rounded-full bg-bg-2 px-1.5 text-[11px] font-normal text-fg-muted" data-testid="comments-count">
-              {summary.open} open / {summary.resolved} resolved
+              {summary.open} {t("open /")} {summary.resolved} {t("resolved")}
             </span>
           </h2>
           <div className="flex gap-0.5">
-            <Button variant="ghost" size="icon-sm" className="h-7 w-7" aria-label="Previous open comment" onClick={() => goToPreviousComment(true)}>
+            <Button variant="ghost" size="icon-sm" className="h-7 w-7" aria-label={t("Previous open comment")} onClick={() => goToPreviousComment(true)}>
               <ChevronLeft size={14} aria-hidden />
             </Button>
-            <Button variant="ghost" size="icon-sm" className="h-7 w-7" aria-label="Next open comment" data-testid="comments-next" onClick={() => goToNextComment(true)}>
+            <Button variant="ghost" size="icon-sm" className="h-7 w-7" aria-label={t("Next open comment")} data-testid="comments-next" onClick={() => goToNextComment(true)}>
               <ChevronRight size={14} aria-hidden />
             </Button>
           </div>
@@ -262,8 +265,8 @@ export function CommentsPanel() {
         <div className="flex flex-col gap-1.5">
           <div className="flex gap-1.5">
             <Input
-              aria-label="Your name"
-              placeholder="Your name"
+              aria-label={t("Your name")}
+              placeholder={t("Your name")}
               data-testid="comment-author-input"
               value={author}
               onChange={(event) => setAuthor(event.target.value)}
@@ -272,13 +275,13 @@ export function CommentsPanel() {
               className="h-7 w-28 text-[12px]"
             />
             <span className="self-center font-mono text-[11px] text-fg-muted" data-testid="comment-at">
-              at {formatFrameTimecode(playhead, fps)}
+              {t("at")} {formatFrameTimecode(playhead, fps)}
             </span>
           </div>
           <div className="flex gap-1.5">
             <Input
-              aria-label="Add a comment at the playhead"
-              placeholder="Add a comment at the playhead"
+              aria-label={t("Add a comment at the playhead")}
+              placeholder={t("Add a comment at the playhead")}
               data-testid="comment-text-input"
               value={text}
               onChange={(event) => setText(event.target.value)}
@@ -292,30 +295,30 @@ export function CommentsPanel() {
               className="h-7 flex-1 text-[12px]"
             />
             <Button size="sm" className="h-7 px-2.5 text-[12px]" data-testid="comment-add" disabled={!text.trim()} onClick={() => void submit()}>
-              Comment
+              {t("Comment")}
             </Button>
           </div>
         </div>
 
         <div className="flex gap-2">
           <Input
-            aria-label="Search comments"
-            placeholder="Search comments"
+            aria-label={t("Search comments")}
+            placeholder={t("Search comments")}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={stop}
             className="h-7 flex-1 text-[12px]"
           />
           <select
-            aria-label="Filter by status"
+            aria-label={t("Filter by status")}
             data-testid="comments-filter"
             className="h-7 rounded-md border border-border bg-bg-2 px-1.5 text-[12px] text-fg outline-none focus-visible:ring-2 focus-visible:ring-ring"
             value={filter}
             onChange={(event) => setFilter(event.target.value as Filter)}
           >
-            <option value="all">All</option>
-            <option value="open">Open</option>
-            <option value="resolved">Resolved</option>
+            <option value="all">{t("All")}</option>
+            <option value="open">{t("Open")}</option>
+            <option value="resolved">{t("Resolved")}</option>
           </select>
         </div>
       </header>
@@ -323,12 +326,12 @@ export function CommentsPanel() {
       <div className="min-h-0 flex-1 overflow-auto">
         {summary.total === 0 ? (
           <p className="px-4 py-8 text-center text-[12px] text-fg-muted" data-testid="comments-empty">
-            No comments yet. Type one above to pin it to the playhead, or import a Frame.io-style CSV.
+            {t("No comments yet. Type one above to pin it to the playhead, or import a Frame.io-style CSV.")}
           </p>
         ) : rows.length === 0 ? (
-          <p className="px-4 py-8 text-center text-[12px] text-fg-muted">No comments match.</p>
+          <p className="px-4 py-8 text-center text-[12px] text-fg-muted">{t("No comments match.")}</p>
         ) : (
-          <ul aria-label="Comment list">
+          <ul aria-label={t("Comment list")}>
             {rows.map((marker) => (
               <CommentCard key={marker.id} marker={marker} fps={fps} selected={selectedId === marker.id} />
             ))}
@@ -345,14 +348,14 @@ export function CommentsPanel() {
           onClick={() => fileRef.current?.click()}
         >
           <Upload size={12} aria-hidden />
-          Import CSV
+          {t("Import CSV")}
         </Button>
         <input
           ref={fileRef}
           type="file"
           accept=".csv,.tsv,.txt,text/csv"
           className="sr-only"
-          aria-label="Import comments CSV"
+          aria-label={t("Import comments CSV")}
           data-testid="comments-import-input"
           onChange={(event) => {
             const file = event.target.files?.[0];
@@ -368,9 +371,9 @@ export function CommentsPanel() {
           data-testid="comments-resolve-all"
           onClick={() => void resolveAllComments()}
         >
-          Resolve all
+          {t("Resolve all")}
         </Button>
-        <span className="ml-auto text-[11px] text-fg-muted">Export</span>
+        <span className="ml-auto text-[11px] text-fg-muted">{t("Export")}</span>
         {exportButton("csv", "CSV", "Frame.io-style: Timecode, Author, Comment, Status, Replies")}
         {exportButton("premiere", "Markers", "Premiere marker CSV with the author in the name")}
         {exportButton("edl", "EDL", "EDL locators")}

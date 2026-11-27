@@ -22,6 +22,7 @@ import {
 } from "../../../services/essential-sound";
 import { InspectorToggle } from "./shell/InspectorControls";
 import { PropertySlider } from "./shell/PropertySlider";
+import { useT } from "@openreel/i18n/react";
 
 interface EssentialSoundSectionProps {
   /** One clip, or every selected clip: the type and presets apply to all of them. */
@@ -93,6 +94,7 @@ const progressLabel = (progress: EssentialProgress | null): string | null => {
 };
 
 export const EssentialSoundSection: React.FC<EssentialSoundSectionProps> = ({ clipIds }) => {
+  const t = useT();
   const project = useProjectStore((state) => state.project);
   const index = useMemo(() => buildClipIndex(project.timeline.tracks), [project]);
   const targets = useMemo(
@@ -194,10 +196,10 @@ export const EssentialSoundSection: React.FC<EssentialSoundSectionProps> = ({ cl
     <div className="space-y-2" data-testid="essential-sound">
       {clipIds.length > 1 && (
         <p className="text-[10px] text-fg-3" data-testid="essential-sound-multi">
-          Applies to all {clipIds.length} selected clips.
+          {t("Applies to all")} {clipIds.length} {t("selected clips.")}
         </p>
       )}
-      <div role="radiogroup" aria-label="Audio type" className="grid grid-cols-2 gap-1.5">
+      <div role="radiogroup" aria-label={t("Audio type")} className="grid grid-cols-2 gap-1.5">
         {AUDIO_TYPES.map((type) => {
           const selected = audioType === type;
           return (
@@ -224,18 +226,18 @@ export const EssentialSoundSection: React.FC<EssentialSoundSectionProps> = ({ cl
 
       {lockedTrack && (
         <p role="alert" data-testid="essential-locked" className="text-[10px] text-status-warning">
-          The track &quot;{lockedTrack}&quot; is locked. Unlock it to use Essential Sound.
+          {t("The track \"")}{lockedTrack}{t("\" is locked. Unlock it to use Essential Sound.")}
         </p>
       )}
 
       {!active && (
-        <p className="text-[10px] text-fg-3">Tag the clip as Dialogue, Music, SFX or Ambience for one-click presets.</p>
+        <p className="text-[10px] text-fg-3">{t("Tag the clip as Dialogue, Music, SFX or Ambience for one-click presets.")}</p>
       )}
 
       {active && audioType && (
         <>
           <p className="text-[10px] text-fg-3" data-testid="essential-hint">
-            {status.inferred ? `Inferred from the track role. ` : ""}
+            {status.inferred ? t("Inferred from the track role. ") : ""}
             {TYPE_HINTS[audioType]}
           </p>
 
@@ -253,10 +255,10 @@ export const EssentialSoundSection: React.FC<EssentialSoundSectionProps> = ({ cl
             }
             className="h-8 w-full rounded-[7px] text-[11px] font-semibold"
           >
-            Apply all presets
+            {t("Apply all presets")}
           </Button>
 
-          <Group title="Loudness" testId="essential-group-loudness">
+          <Group title={t("Loudness")} testId="essential-group-loudness">
             <Row label={`Target ${lufs(target)} LUFS`}>
               <Button
                 type="button"
@@ -266,7 +268,7 @@ export const EssentialSoundSection: React.FC<EssentialSoundSectionProps> = ({ cl
                 onClick={() => apply(audioType, { loudness: true }, true)}
                 className="h-7 rounded-[7px] px-2.5 text-[11px]"
               >
-                {matched ? "Match again" : "Auto-Match"}
+                {matched ? t("Match again") : t("Auto-Match")}
               </Button>
             </Row>
             {matched && (
@@ -283,10 +285,10 @@ export const EssentialSoundSection: React.FC<EssentialSoundSectionProps> = ({ cl
                   onClick={() => apply(audioType, { loudness: false })}
                   className="h-6 px-1.5 text-[10px]"
                 >
-                  Reset loudness
+                  {t("Reset loudness")}
                 </Button>
                 {matched.clamped && (
-                  <p className="text-[10px] text-status-warning">The +12 dB clip gain limit stopped short of the target.</p>
+                  <p className="text-[10px] text-status-warning">{t("The +12 dB clip gain limit stopped short of the target.")}</p>
                 )}
               </>
             )}
@@ -299,7 +301,7 @@ export const EssentialSoundSection: React.FC<EssentialSoundSectionProps> = ({ cl
           </Group>
 
           {audioType === "dialogue" && (
-          <Group title="Repair" testId="essential-group-repair">
+          <Group title={t("Repair")} testId="essential-group-repair">
             {(
               <>
                 <Row label="Reduce noise">
@@ -318,13 +320,13 @@ export const EssentialSoundSection: React.FC<EssentialSoundSectionProps> = ({ cl
                     onChange={(on) => apply(audioType, { repair: on || noiseOn, reduceRumble: on, reduceNoise: noiseOn })}
                   />
                 </Row>
-                <p className="text-[10px] text-fg-3">For hum, clicks and sibilance use Audio repair below.</p>
+                <p className="text-[10px] text-fg-3">{t("For hum, clicks and sibilance use Audio repair below.")}</p>
               </>
             )}
           </Group>
           )}
 
-          <Group title="Clarity" testId="essential-group-clarity">
+          <Group title={t("Clarity")} testId="essential-group-clarity">
             <Row label={audioType === "sfx" ? "Limiter" : "EQ preset"}>
               <InspectorToggle
                 ariaLabel="Clarity preset"
@@ -349,7 +351,7 @@ export const EssentialSoundSection: React.FC<EssentialSoundSectionProps> = ({ cl
           </Group>
 
           {audioType !== "dialogue" && (
-            <Group title="Duck against Dialogue" testId="essential-group-ducking">
+            <Group title={t("Duck against Dialogue")} testId="essential-group-ducking">
               <Row label="Duck under dialogue">
                 <InspectorToggle
                   ariaLabel="Duck against Dialogue"
@@ -415,7 +417,7 @@ export const EssentialSoundSection: React.FC<EssentialSoundSectionProps> = ({ cl
           onClick={() => run(() => clearEssentialSound(clipIds))}
           className="h-7 w-full rounded-[7px] border border-border text-[11px]"
         >
-          Clear Audio Type
+          {t("Clear Audio Type")}
         </Button>
       ) : null}
     </div>

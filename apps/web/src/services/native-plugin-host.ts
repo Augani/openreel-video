@@ -25,6 +25,7 @@ import { useProjectStore } from "../stores/project-store";
 import { useTimelineStore } from "../stores/timeline-store";
 import { toast } from "../stores/notification-store";
 import "./native-plugin-backend";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * Hosted audio plugins from the editor's side: the scanned plugin list, describing a plugin's parameters, adding a plugin to
@@ -118,7 +119,7 @@ export async function addNativePluginToClip(clipId: string, plugin: NativePlugin
   const effectId = `native-plugin-${crypto.randomUUID()}`;
   const action = planAddNativePluginAction(clip, plugin, { actionId: crypto.randomUUID(), effectId });
   if (!action) {
-    toast.warning("Plugins", "This clip already has the maximum number of plugins.");
+    toast.warning(translateNow("Plugins"), "This clip already has the maximum number of plugins.");
     return null;
   }
   await run(action);
@@ -202,7 +203,7 @@ export async function addNativePluginToRack(target: string, plugin: NativePlugin
   const effectId = `native-plugin-${crypto.randomUUID()}`;
   const action = planAddRackPlugin(owner, plugin, { actionId: crypto.randomUUID(), effectId });
   if (!action) {
-    toast.warning("Plugins", "This track, bus or master already has the maximum number of plugins.");
+    toast.warning(translateNow("Plugins"), "This track, bus or master already has the maximum number of plugins.");
     return null;
   }
   await run(action);
@@ -280,7 +281,7 @@ function listenForUiEvents(): void {
     }
     if (event.type === "closed" || event.type === "error") {
       uiSessions.delete(event.sessionId);
-      if (event.type === "error") toast.warning("Plugin window", event.message ?? "The plugin window stopped.");
+      if (event.type === "error") toast.warning(translateNow("Plugin window"), event.message ?? "The plugin window stopped.");
     }
   });
 }
@@ -294,7 +295,7 @@ export async function openNativePluginWindow(clipId: string, effectId: string): 
   const params = readNativePluginParams(effect);
   const result = await plughost.openUi({ pluginId: params.pluginId, title: params.name, ...(params.state ? { state: params.state } : {}), values: params.values });
   if (!result.ok) {
-    toast.warning("Plugin window", result.message);
+    toast.warning(translateNow("Plugin window"), result.message);
     return null;
   }
   uiSessions.set(result.sessionId, { clipId, effectId });
@@ -310,7 +311,7 @@ export async function openRackNativePluginWindow(target: string, effectId: strin
   const params = readNativePluginParams(effect);
   const result = await plughost.openUi({ pluginId: params.pluginId, title: params.name, ...(params.state ? { state: params.state } : {}), values: params.values });
   if (!result.ok) {
-    toast.warning("Plugin window", result.message);
+    toast.warning(translateNow("Plugin window"), result.message);
     return null;
   }
   uiSessions.set(result.sessionId, { rackTarget: target, effectId });

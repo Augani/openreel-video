@@ -1,9 +1,11 @@
 import { useState, useRef } from 'react';
+import { useT } from '@openreel/i18n/react';
 import { Plus, Trash2, Copy, MoreHorizontal, ChevronUp, ChevronDown } from 'lucide-react';
 import { useProjectStore } from '../../../stores/project-store';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@openreel/ui';
 
 export function PagesBar() {
+  const t = useT();
   const {
     project,
     selectedArtboardId,
@@ -60,7 +62,7 @@ export function PagesBar() {
           className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
         >
           {isExpanded ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-          <span>Pages</span>
+          <span>{t("Pages")}</span>
           <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded-full">
             {artboards.length}
           </span>
@@ -71,7 +73,7 @@ export function PagesBar() {
           className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors"
         >
           <Plus size={14} />
-          <span>Add Page</span>
+          <span>{t("Add Page")}</span>
         </button>
       </div>
 
@@ -131,11 +133,11 @@ export function PagesBar() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-40">
                         <DropdownMenuItem onClick={() => handleStartRename(artboard.id)}>
-                          Rename
+                          {t('Rename')}
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleDuplicatePage(artboard.id)}>
                           <Copy size={14} className="mr-2" />
-                          Duplicate
+                          {t('Duplicate')}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => handleDeletePage(artboard.id)}
@@ -143,7 +145,7 @@ export function PagesBar() {
                           className="text-destructive focus:text-destructive"
                         >
                           <Trash2 size={14} className="mr-2" />
-                          Delete
+                          {t('Delete')}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

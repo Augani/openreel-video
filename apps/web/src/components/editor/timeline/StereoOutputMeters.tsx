@@ -7,8 +7,10 @@ import {
   OUTPUT_METER_FLOOR,
   type StereoOutputLevels,
 } from "../../../services/stereo-output-meter";
+import { useT } from "@openreel/i18n/react";
 
 export function StereoOutputMeters() {
+  const t = useT();
   const playing = useTimelineStore((s) => s.playbackState === "playing");
   const [levels, setLevels] = useState<StereoOutputLevels>([
     OUTPUT_METER_FLOOR,
@@ -32,7 +34,7 @@ export function StereoOutputMeters() {
   }, [playing]);
 
   return (
-    <div className="workspace-output-meters" aria-label="Stereo output levels">
+    <div className="workspace-output-meters" aria-label={t("Stereo output levels")}>
       {(["Left", "Right"] as const).map((channel, index) => {
         const db = playing ? levels[index] : OUTPUT_METER_FLOOR;
         const percent = ((db - OUTPUT_METER_FLOOR) / -OUTPUT_METER_FLOOR) * 100;

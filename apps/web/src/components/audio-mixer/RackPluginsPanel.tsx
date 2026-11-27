@@ -21,6 +21,7 @@ import {
 import { getPluginRackPreview, usePluginRackPreviewState } from "../../services/plugin-rack-preview";
 import { liveInsertsSupported, pushLiveValues, readLiveBlockFrames, retryLiveInsert, useLiveInsertState, writeLiveBlockFrames } from "../../services/live-plugin-insert-state";
 import { PropertySlider } from "../editor/inspector/shell/PropertySlider";
+import { useT } from "@openreel/i18n/react";
 
 /**
  * Hosted audio plugins (Audio Unit today, VST3 behind the same protocol) on a track or a submix bus, like the effect slots of
@@ -44,6 +45,7 @@ const useRack = (target: string): { rack: AudioPluginRack | undefined; locked: b
 };
 
 const ParameterRow = ({ target, rack, effect, parameter, disabled }: { target: string; rack: AudioPluginRack; effect: Effect; parameter: NativePluginParameter; disabled: boolean }) => {
+  const t = useT();
   const stored = readNativePluginParams(effect).values[parameter.key];
   const [draft, setDraft] = useState(stored ?? parameter.value);
   const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -81,7 +83,7 @@ const ParameterRow = ({ target, rack, effect, parameter, disabled }: { target: s
         aria-label={`Keyframe ${parameter.name}`}
         aria-pressed={animated}
         data-testid={`rack-plugin-keyframe-${parameter.key}`}
-        title={animated ? "Animated: add or update a keyframe at the playhead" : "Add a keyframe at the playhead"}
+        title={animated ? t("Animated: add or update a keyframe at the playhead") : t("Add a keyframe at the playhead")}
         className="h-6 w-6 shrink-0"
         onClick={() => void keyframeRackNativeParameter(target, effect.id, parameter.key, draft)}
       >
@@ -89,7 +91,7 @@ const ParameterRow = ({ target, rack, effect, parameter, disabled }: { target: s
       </Button>
       {animated && (
         <Button variant="ghost" size="sm" type="button" disabled={disabled} className="h-6 px-1 text-[10px]" aria-label={`Clear ${parameter.name} keyframes`} onClick={() => void clearRackNativeParameterKeyframes(target, effect.id, parameter.key)}>
-          Clear
+          {t("Clear")}
         </Button>
       )}
     </div>
@@ -108,6 +110,7 @@ const PluginCard = ({ target, rack, effect, index, count, locked, plugins, scann
   hostAvailable: boolean;
   bypassReason: string | undefined;
 }) => {
+  const t = useT();
   const params = readNativePluginParams(effect);
   const known = plugins.find((plugin) => plugin.id === params.pluginId);
   const usable = known?.status === "ok";
@@ -142,7 +145,7 @@ const PluginCard = ({ target, rack, effect, index, count, locked, plugins, scann
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate text-[12px] font-medium" data-testid="rack-plugin-name">{params.name}</p>
-          <p className="truncate text-[10px] text-fg-3">{params.vendor || "Unknown vendor"} · {params.format.toUpperCase()}{latency ? ` · latency ${latency} samples (compensated)` : ""}</p>
+          <p className="truncate text-[10px] text-fg-3">{params.vendor || t("Unknown vendor")} · {params.format.toUpperCase()}{latency ? ` · latency ${latency} samples (compensated)` : ""}</p>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           <Button type="button" variant="ghost" size="icon-sm" className="size-5" aria-label={`Move ${params.name} earlier`} disabled={locked || index === 0} onClick={() => void moveRackNativePlugin(target, effect.id, index - 1)}>
@@ -153,13 +156,13 @@ const PluginCard = ({ target, rack, effect, index, count, locked, plugins, scann
           </Button>
           <label className="ml-1 flex items-center gap-1 text-[10px] text-fg-3">
             <input type="checkbox" checked={effect.enabled} disabled={locked} data-testid="rack-plugin-enabled" onChange={(event) => void updateRackNativePlugin(target, effect.id, { enabled: event.target.checked })} />
-            On
+            {t("On")}
           </label>
         </div>
       </div>
       {((missing && effect.enabled) || bypassReason) && (
         <p className="rounded border border-amber-500/40 px-2 py-1 text-[11px]" role="alert" data-testid="rack-plugin-missing">
-          Bypassed: {bypassReason ?? reason} Its settings stay in the project.
+          {t("Bypassed:")} {bypassReason ?? reason} {t("Its settings stay in the project.")}
         </p>
       )}
       {error && <p className="text-[11px] text-destructive" role="alert">{error}</p>}
@@ -177,7 +180,7 @@ const PluginCard = ({ target, rack, effect, index, count, locked, plugins, scann
                 sessionRef.current = await openRackNativePluginWindow(target, effect.id);
               }}
             >
-              Open plugin window
+              {t("Open plugin window")}
             </Button>
             <Button
               size="sm"
@@ -190,7 +193,7 @@ const PluginCard = ({ target, rack, effect, index, count, locked, plugins, scann
                 setDry(!dry);
               }}
             >
-              {dry ? "Hearing dry (preview only)" : "Hear dry"}
+              {dry ? t("Hearing dry (preview only)") : t("Hear dry")}
             </Button>
           </div>
           {shown.map((parameter) => (
@@ -198,13 +201,13 @@ const PluginCard = ({ target, rack, effect, index, count, locked, plugins, scann
           ))}
           {parameters && parameters.length > MAX_SHOWN_PARAMS && (
             <Button size="sm" variant="ghost" className="h-6 text-[11px]" onClick={() => setShowAll((value) => !value)}>
-              {showAll ? "Show fewer parameters" : `Show all ${parameters.length} parameters`}
+              {showAll ? t("Show fewer parameters") : `Show all ${parameters.length} parameters`}
             </Button>
           )}
         </>
       )}
       <Button size="sm" variant="outline" className="w-full text-[11px]" data-testid="rack-plugin-remove" disabled={locked} onClick={() => void removeRackNativePlugin(target, effect.id)}>
-        Remove plugin
+        {t("Remove plugin")}
       </Button>
     </div>
   );
@@ -215,6 +218,7 @@ const PluginCard = ({ target, rack, effect, index, count, locked, plugins, scann
  * Rendered: the preview plays the cached offline render. The export is always the offline render either way.
  */
 const LivePreviewControl = ({ target, rack, locked }: { target: string; rack: AudioPluginRack; locked: boolean }) => {
+  const t = useT();
   const status = useLiveInsertState((state) => Object.entries(state.targets).find(([key]) => key.endsWith(`:${target}`))?.[1]);
   const live = rackIsLive(rack);
   const [blockFrames, setBlockFrames] = useState<number>(() => readLiveBlockFrames());
@@ -224,12 +228,12 @@ const LivePreviewControl = ({ target, rack, locked }: { target: string; rack: Au
       <div className="flex items-center justify-between gap-2">
         <label className="flex items-center gap-1.5 text-[11px] font-medium">
           <input type="checkbox" checked={live} disabled={locked} data-testid="rack-live-toggle" onChange={(event) => void setRackLivePreview(target, event.target.checked)} />
-          Live preview
+          {t("Live preview")}
         </label>
         {live && (
           <select
             className="h-6 rounded-[6px] border border-border bg-bg-1 px-1 text-[10px]"
-            aria-label="Live block size"
+            aria-label={t("Live block size")}
             data-testid="rack-live-block-size"
             value={blockFrames}
             onChange={(event) => {
@@ -246,21 +250,22 @@ const LivePreviewControl = ({ target, rack, locked }: { target: string; rack: Au
       </div>
       <p className="text-[10px] leading-relaxed text-fg-3" role="status" aria-live="polite" data-testid="rack-live-status">
         {!live
-          ? "Rendered: the preview plays a cached render, so a change is heard after it re-renders. The export is always rendered."
+          ? t("Rendered: the preview plays a cached render, so a change is heard after it re-renders. The export is always rendered.")
           : !status || status.phase === "opening"
-            ? "Opening live insert…"
+            ? t("Opening live insert…")
             : status.phase === "live"
               ? `Live: ${status.latencyMs.toFixed(1)} ms latency, compensated on every other track. ${status.underruns === 0 ? "No dropouts." : `${status.underruns} dropout${status.underruns === 1 ? "" : "s"} (played dry, crossfaded).`}`
               : `${status.phase === "unavailable" ? "Not live" : "Live insert stopped"}: ${status.reason ?? "the plugin host is not available"}. The rendered version plays instead.`}
       </p>
       {live && status && status.phase === "failed" && (
-        <Button size="sm" variant="outline" className="h-6 text-[11px]" data-testid="rack-live-retry" onClick={() => retryLiveInsert(target)}>Retry live</Button>
+        <Button size="sm" variant="outline" className="h-6 text-[11px]" data-testid="rack-live-retry" onClick={() => retryLiveInsert(target)}>{t("Retry live")}</Button>
       )}
     </div>
   );
 };
 
 export default function RackPluginsPanel({ target, label }: RackPluginsPanelProps) {
+  const t = useT();
   const { rack, locked } = useRack(target);
   const host = useNativePluginHost();
   const preview = usePluginRackPreviewState();
@@ -287,7 +292,7 @@ export default function RackPluginsPanel({ target, label }: RackPluginsPanelProp
   }, [choice, target, usable]);
 
   if (!host.available && effects.length === 0) {
-    return <p className="text-[11px] leading-relaxed text-fg-3" data-testid="rack-plugins-panel">Audio plugins (Audio Unit) are available in the OpenReel desktop app.</p>;
+    return <p className="text-[11px] leading-relaxed text-fg-3" data-testid="rack-plugins-panel">{t("Audio plugins (Audio Unit) are available in the OpenReel desktop app.")}</p>;
   }
   const bypassed = preview.bypassed[target] ?? {};
 
@@ -295,44 +300,44 @@ export default function RackPluginsPanel({ target, label }: RackPluginsPanelProp
     <div className="space-y-2.5" data-testid="rack-plugins-panel" aria-label={`${label} audio plugins`}>
       <p className="text-[11px] leading-relaxed text-fg-3">
         {target === MASTER_RACK_TARGET
-          ? "Plugins process the whole mix (every track and bus) before the master fader and effects, and before any export loudness normalisation or true-peak limiting. They run"
-          : "Plugins process this track or bus as a whole, before its effects, fader and pan. They run"} in a separate helper process; a plugin that crashes is blocked and never takes the editor down.
+          ? t("Plugins process the whole mix (every track and bus) before the master fader and effects, and before any export loudness normalisation or true-peak limiting. They run")
+          : t("Plugins process this track or bus as a whole, before its effects, fader and pan. They run")} {t("in a separate helper process; a plugin that crashes is blocked and never takes the editor down.")}
       </p>
       {host.available && (
         <>
           <div className="flex gap-1.5">
             <select
               className="h-7 min-w-0 flex-1 rounded-[6px] border border-border bg-bg-1 px-1.5 text-[11px]"
-              aria-label="Plugin"
+              aria-label={t("Plugin")}
               data-testid="rack-plugin-select"
               value={choice}
               onChange={(event) => setChoice(event.target.value)}
               disabled={locked || host.scanning || full}
             >
-              <option value="">{host.scanning ? "Scanning plugins…" : usable.length === 0 ? "No plugins found" : full ? "Rack is full" : "Choose a plugin…"}</option>
+              <option value="">{host.scanning ? t("Scanning plugins…") : usable.length === 0 ? t("No plugins found") : full ? t("Rack is full") : t("Choose a plugin…")}</option>
               {usable.map((plugin) => (
                 <option key={plugin.id} value={plugin.id}>{plugin.name}{plugin.vendor ? ` (${plugin.vendor})` : ""}</option>
               ))}
             </select>
-            <Button size="sm" className="h-7 text-[11px]" data-testid="rack-plugin-add" disabled={locked || full || !choice} onClick={() => void add()}>Add</Button>
-            <Button size="sm" variant="outline" className="h-7 text-[11px]" disabled={host.scanning} onClick={() => void scanNativePlugins(true)}>Rescan</Button>
+            <Button size="sm" className="h-7 text-[11px]" data-testid="rack-plugin-add" disabled={locked || full || !choice} onClick={() => void add()}>{t("Add")}</Button>
+            <Button size="sm" variant="outline" className="h-7 text-[11px]" disabled={host.scanning} onClick={() => void scanNativePlugins(true)}>{t("Rescan")}</Button>
           </div>
           {host.scanning && host.scanProgress && <Progress value={Math.round((host.scanProgress.done / Math.max(1, host.scanProgress.total)) * 100)} className="h-1.5" />}
           {host.helperError && <p className="text-[11px] text-destructive" role="alert">{host.helperError}</p>}
           {blocked.map((plugin) => (
             <div key={plugin.id} className="flex items-center justify-between gap-2 rounded border border-border px-2 py-1 text-[10px]">
               <span className="min-w-0 truncate" title={plugin.statusReason}>{plugin.name}: {plugin.statusReason}</span>
-              <Button size="sm" variant="ghost" className="h-5 px-1.5 text-[10px]" onClick={() => void unblockNativePlugin(plugin.id)}>Unblock</Button>
+              <Button size="sm" variant="ghost" className="h-5 px-1.5 text-[10px]" onClick={() => void unblockNativePlugin(plugin.id)}>{t("Unblock")}</Button>
             </div>
           ))}
         </>
       )}
       {rack && effects.length > 0 && <LivePreviewControl target={target} rack={rack} locked={locked} />}
       {preview.status === "rendering" && !(rack && effects.length > 0 && rackIsLive(rack) && liveInsertsSupported()) && (
-        <p className="rounded-[7px] border border-border bg-bg-1 p-2 text-[11px]" role="status" aria-live="polite" data-testid="rack-plugin-rendering">Rendering plugins… playback is dry until it is ready.</p>
+        <p className="rounded-[7px] border border-border bg-bg-1 p-2 text-[11px]" role="status" aria-live="polite" data-testid="rack-plugin-rendering">{t("Rendering plugins… playback is dry until it is ready.")}</p>
       )}
       {preview.status === "failed" && (
-        <p className="text-[11px] text-destructive" role="alert" data-testid="rack-plugin-render-failed">A plugin failed while rendering: {preview.error}</p>
+        <p className="text-[11px] text-destructive" role="alert" data-testid="rack-plugin-render-failed">{t("A plugin failed while rendering:")} {preview.error}</p>
       )}
       {rack && effects.map((effect, index) => (
         <PluginCard key={effect.id} target={target} rack={rack} effect={effect} index={index} count={effects.length} locked={locked} plugins={host.plugins} scanned={host.scanned} hostAvailable={host.available} bypassReason={bypassed[effect.id]} />

@@ -5,8 +5,10 @@ import { Square } from "@/icons/lucide-compat";
 import { useChatStore } from "../../../stores/chat-store";
 import { useAIConnectionStore } from "../../../stores/ai-connection-store";
 import { isConnectionReady } from "./ai-connection-labels";
+import { useT } from "@openreel/i18n/react";
 
 export function ChatComposer({ text, onTextChange: setText }: { text: string; onTextChange: Dispatch<SetStateAction<string>> }): JSX.Element {
+  const t = useT();
   const status = useChatStore((s) => s.status);
   const send = useChatStore((s) => s.send);
   const stop = useChatStore((s) => s.stop);
@@ -52,26 +54,26 @@ export function ChatComposer({ text, onTextChange: setText }: { text: string; on
       </div>
       <div className="workspace-chat-input">
         <Textarea
-          aria-label="AI edit request"
+          aria-label={t("AI edit request")}
           aria-describedby={hintId}
-          title="Enter to send · Shift+Enter for a new line"
+          title={t("Enter to send · Shift+Enter for a new line")}
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={onKeyDown}
           rows={2}
-          placeholder="Describe an edit… e.g. “make a 9:16 version with captions”"
+          placeholder={t("Describe an edit… e.g. “make a 9:16 version with captions”")}
           className="block w-full resize-none bg-transparent p-0 text-fg outline-none placeholder:text-fg-muted"
         />
         <div className="workspace-chat-input-footer">
           <div className="workspace-chat-context">
-            <span>@Timeline 1</span>
-            <span>Project context</span>
+            <span>{t("@Timeline 1")}</span>
+            <span>{t("Project context")}</span>
           </div>
           {busy ? (
             <Button
               type="button"
-              aria-label="Stop"
-              title="Stop"
+              aria-label={t("Stop")}
+              title={t("Stop")}
               size="icon-sm"
               variant="destructive"
               onClick={stop}
@@ -82,11 +84,11 @@ export function ChatComposer({ text, onTextChange: setText }: { text: string; on
           ) : (
             <Button
               type="button"
-              aria-label="Send"
+              aria-label={t("Send")}
               size="icon-sm"
               onClick={submit}
               disabled={!text.trim() || !connected}
-              title={connected ? "Send" : "Connect a model to send"}
+              title={connected ? t("Send") : t("Connect a model to send")}
               className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-accent p-0 text-accent-fg transition-colors hover:bg-accent/90 disabled:opacity-40 [&_svg]:size-[15px]"
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
@@ -95,7 +97,7 @@ export function ChatComposer({ text, onTextChange: setText }: { text: string; on
         </div>
       </div>
       <div id={hintId} className="sr-only">
-        Enter to send · Shift+Enter for a new line
+        {t("Enter to send · Shift+Enter for a new line")}
       </div>
     </div>
   );

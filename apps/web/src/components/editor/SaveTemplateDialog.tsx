@@ -33,6 +33,7 @@ import {
 import { TEMPLATE_CATEGORIES, type TemplateCategory } from "@openreel/core";
 import { useProjectStore } from "../../stores/project-store";
 import { saveProjectTemplate } from "../../services/project-templates";
+import { useT } from "@openreel/i18n/react";
 
 interface SaveTemplateDialogProps {
   isOpen: boolean;
@@ -48,6 +49,7 @@ export function SaveTemplateDialog({
   isOpen,
   onClose,
 }: SaveTemplateDialogProps) {
+  const t = useT();
   const owner = useProjectStore(
     useShallow((state) => ({
       projectId: state.project.id,
@@ -191,17 +193,16 @@ export function SaveTemplateDialog({
         >
           <DialogHeader className="shrink-0 flex-row items-start gap-3 space-y-0 border-b border-border px-5 py-4 text-left">
             <DialogTitle className="min-w-0 flex-1 text-[15px] font-semibold leading-5">
-              Save as Template
+              {t("Save as Template")}
             </DialogTitle>
             <DialogDescription className="sr-only">
-              Save your current project's editable content as a reusable
-              template.
+              {t("Save your current project's editable content as a reusable template.")}
             </DialogDescription>
             <Button
               variant="ghost"
               size="icon-sm"
               type="button"
-              aria-label="Close dialog"
+              aria-label={t("Close dialog")}
               onClick={close}
               disabled={phase === "saving"}
               className="h-7 w-7 shrink-0 text-fg-muted"
@@ -217,7 +218,7 @@ export function SaveTemplateDialog({
                   className="flex items-center gap-2 rounded-[7px] border-green-500/30 bg-status-success/10 p-3 text-[12px] text-green-400 shadow-none"
                 >
                   <Check size={16} aria-hidden />
-                  Template saved successfully!
+                  {t("Template saved successfully!")}
                 </Card>
               )}
               {error && (
@@ -235,7 +236,7 @@ export function SaveTemplateDialog({
               >
                 <div className="space-y-1.5">
                   <Label htmlFor={`${id}-name`} className={labelClass}>
-                    Template Name
+                    {t("Template Name")}
                   </Label>
                   <Input
                     id={`${id}-name`}
@@ -245,7 +246,7 @@ export function SaveTemplateDialog({
                     onChange={(event) =>
                       setName(event.target.value.slice(0, 50))
                     }
-                    placeholder="My Awesome Template"
+                    placeholder={t("My Awesome Template")}
                     className={inputClass}
                     aria-describedby={`${id}-name-length`}
                   />
@@ -255,7 +256,7 @@ export function SaveTemplateDialog({
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor={`${id}-description`} className={labelClass}>
-                    Description
+                    {t("Description")}
                   </Label>
                   <Textarea
                     id={`${id}-description`}
@@ -266,7 +267,7 @@ export function SaveTemplateDialog({
                     onChange={(event) =>
                       setDescription(event.target.value.slice(0, 500))
                     }
-                    placeholder="Describe what this template is for and how to use it..."
+                    placeholder={t("Describe what this template is for and how to use it...")}
                     className={cn(
                       inputClass,
                       "min-h-[5.75rem] resize-y leading-5",
@@ -275,7 +276,7 @@ export function SaveTemplateDialog({
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor={`${id}-category`} className={labelClass}>
-                    Category
+                    {t("Category")}
                   </Label>
                   <Select
                     value={category}
@@ -298,25 +299,25 @@ export function SaveTemplateDialog({
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor={`${id}-tags`} className={labelClass}>
-                    Tags (comma-separated)
+                    {t("Tags (comma-separated)")}
                   </Label>
                   <Input
                     id={`${id}-tags`}
                     value={tags}
                     onChange={(event) => setTags(event.target.value)}
-                    placeholder="intro, animated, youtube"
+                    placeholder={t("intro, animated, youtube")}
                     className={inputClass}
                   />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor={`${id}-author`} className={labelClass}>
-                    Author Name
+                    {t("Author Name")}
                   </Label>
                   <Input
                     id={`${id}-author`}
                     value={author}
                     onChange={(event) => setAuthor(event.target.value)}
-                    placeholder="Your name or username"
+                    placeholder={t("Your name or username")}
                     className={inputClass}
                   />
                 </div>
@@ -325,7 +326,7 @@ export function SaveTemplateDialog({
                     id={`${id}-location`}
                     className="text-[12px] font-bold text-fg-2"
                   >
-                    Save Location
+                    {t("Save Location")}
                   </Label>
                   <RadioGroup
                     value={location}
@@ -364,8 +365,8 @@ export function SaveTemplateDialog({
                   </RadioGroup>
                   <p className="text-[10px] text-fg-2">
                     {location === "cloud"
-                      ? "Saves your edits to cloud. Original media must be relinked on another device."
-                      : "Saved on this device with the original media."}
+                      ? t("Saves your edits to cloud. Original media must be relinked on another device.")
+                      : t("Saved on this device with the original media.")}
                   </p>
                 </div>
               </fieldset>
@@ -379,7 +380,7 @@ export function SaveTemplateDialog({
               disabled={phase === "saving"}
               className="h-8 rounded-[7px] px-3 text-[12px]"
             >
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button
               type="submit"
@@ -391,7 +392,7 @@ export function SaveTemplateDialog({
               ) : (
                 <Upload size={16} aria-hidden />
               )}
-              {busy ? "Saving..." : "Save Template"}
+              {busy ? t("Saving...") : t("Save Template")}
             </Button>
           </DialogFooter>
         </form>

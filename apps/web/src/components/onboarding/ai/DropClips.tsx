@@ -9,6 +9,7 @@ import {
   type FormatChoice,
 } from "./clips";
 import { loadPracticeFiles, practiceClipsAvailable } from "./start-project";
+import { useT } from "@openreel/i18n/react";
 
 export interface DropClipsProps {
   /** Files and the chosen format are final: create the project and import. Rejects on a hard failure. */
@@ -79,6 +80,7 @@ function ClipThumb({ file, kind }: { file: File; kind: "video" | "audio" | "imag
 }
 
 export default function DropClips({ onSubmit, onBack, progress, error }: DropClipsProps): JSX.Element {
+  const t = useT();
   const uid = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
@@ -151,7 +153,7 @@ export default function DropClips({ onSubmit, onBack, progress, error }: DropCli
     <div className="flex flex-col gap-5">
       <div
         role="group"
-        aria-label="Drop zone for your clips"
+        aria-label={t("Drop zone for your clips")}
         onDragOver={(e) => {
           e.preventDefault();
           setDragging(true);
@@ -166,8 +168,8 @@ export default function DropClips({ onSubmit, onBack, progress, error }: DropCli
           <Upload size={20} aria-hidden="true" />
         </span>
         <div>
-          <div className="text-sm font-semibold text-fg">Drop videos, photos or audio</div>
-          <div className="mt-0.5 text-xs text-fg-3">They stay on this computer. Nothing is uploaded.</div>
+          <div className="text-sm font-semibold text-fg">{t("Drop videos, photos or audio")}</div>
+          <div className="mt-0.5 text-xs text-fg-3">{t("They stay on this computer. Nothing is uploaded.")}</div>
         </div>
         <div className="flex flex-wrap justify-center gap-2">
           <button
@@ -175,7 +177,7 @@ export default function DropClips({ onSubmit, onBack, progress, error }: DropCli
             className="inline-flex h-8 items-center rounded-lg border border-border-strong bg-bg-2 px-3 text-xs font-semibold text-fg hover:bg-bg-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             onClick={() => inputRef.current?.click()}
           >
-            Choose files…
+            {t("Choose files…")}
           </button>
           {practice && (
             <button
@@ -185,7 +187,7 @@ export default function DropClips({ onSubmit, onBack, progress, error }: DropCli
               onClick={() => void usePractice()}
             >
               {loadingPractice && <Loader2 size={12} className="motion-safe:animate-spin" aria-hidden="true" />}
-              Use practice clips instead
+              {t("Use practice clips instead")}
             </button>
           )}
         </div>
@@ -194,7 +196,7 @@ export default function DropClips({ onSubmit, onBack, progress, error }: DropCli
           type="file"
           multiple
           accept={ACCEPT}
-          aria-label="Choose clip files"
+          aria-label={t("Choose clip files")}
           className="sr-only"
           tabIndex={-1}
           onChange={(e) => {
@@ -206,14 +208,14 @@ export default function DropClips({ onSubmit, onBack, progress, error }: DropCli
 
       {rejected.length > 0 && (
         <p role="alert" className="text-xs text-status-error">
-          Skipped {rejected.length} {rejected.length === 1 ? "file" : "files"} that are not video, audio or images:{" "}
+          {t("Skipped")} {rejected.length} {rejected.length === 1 ? t("file") : t("files")} {t("that are not video, audio or images:")}{" "}
           {rejected.slice(0, 3).join(", ")}
           {rejected.length > 3 ? "…" : ""}
         </p>
       )}
 
       {files.length > 0 && (
-        <ul aria-label="Selected clips" className="flex max-h-52 flex-col gap-1.5 overflow-y-auto">
+        <ul aria-label={t("Selected clips")} className="flex max-h-52 flex-col gap-1.5 overflow-y-auto">
           {files.map((file) => {
             const kind = clipKind(file) ?? "video";
             return (
@@ -240,7 +242,7 @@ export default function DropClips({ onSubmit, onBack, progress, error }: DropCli
 
       <fieldset className="border-0 p-0">
         <legend id={`${uid}-format`} className="mb-2 text-xs font-medium text-fg-2">
-          Video format
+          {t("Video format")}
         </legend>
         <div role="radiogroup" aria-labelledby={`${uid}-format`} className="grid grid-cols-3 gap-2">
           {FORMAT_CHOICES.map((f) => {
@@ -260,7 +262,7 @@ export default function DropClips({ onSubmit, onBack, progress, error }: DropCli
                   selected ? "border-accent/60 bg-accent-soft" : "border-border bg-bg-2 hover:border-accent/40"
                 }`}
               >
-                <span className="text-[13px] font-semibold text-fg">{f.label}</span>
+                <span className="text-[13px] font-semibold text-fg">{t(f.label)}</span>
                 <span className="text-xs text-fg-3">{f.dimensions}</span>
               </button>
             );
@@ -285,7 +287,7 @@ export default function DropClips({ onSubmit, onBack, progress, error }: DropCli
             className="rounded text-xs text-fg-2 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
             onClick={onBack}
           >
-            Back
+            {t("Back")}
           </button>
         ) : (
           <span />
@@ -297,7 +299,7 @@ export default function DropClips({ onSubmit, onBack, progress, error }: DropCli
           onClick={() => void submit()}
         >
           {busy && <Loader2 size={14} className="motion-safe:animate-spin" aria-hidden="true" />}
-          Continue
+          {t("Continue")}
         </button>
       </div>
     </div>

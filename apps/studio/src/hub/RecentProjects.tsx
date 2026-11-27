@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { Icon } from "../icons";
 import { listDrafts, type DraftRecord } from "./drafts";
+import { useT } from "@openreel/i18n/react";
 
 export function RecentProjects({ onOpen, onNew }: { onOpen: (id: string) => void; onNew: () => void }) {
+  const t = useT();
   const [drafts, setDrafts] = useState<DraftRecord[]>([]);
 
   useEffect(() => {
@@ -37,7 +39,7 @@ export function RecentProjects({ onOpen, onNew }: { onOpen: (id: string) => void
         className="flex flex-col items-center justify-center rounded-lg border border-dashed border-zinc-800 p-2 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300"
       >
         <Icon name="plus" size={18} />
-        <span className="mt-2 text-xs">New</span>
+        <span className="mt-2 text-xs">{t("New")}</span>
       </button>
     </div>
   );

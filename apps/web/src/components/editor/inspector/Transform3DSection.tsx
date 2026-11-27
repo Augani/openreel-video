@@ -3,6 +3,7 @@ import { Card, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectVa
 
 import { PropertySlider } from "./shell/PropertySlider";
 import { useProjectStore } from "../../../stores/project-store";
+import { useT } from "@openreel/i18n/react";
 
 interface Transform3DSectionProps {
   clipId: string;
@@ -13,6 +14,7 @@ const flatRotation = { x: 0, y: 0, z: 0 };
 export const Transform3DSection: React.FC<Transform3DSectionProps> = ({
   clipId,
 }) => {
+  const t = useT();
   const clip = useProjectStore(state => state.getClip(clipId) ?? state.getTextClip(clipId)
     ?? state.getShapeClip(clipId) ?? state.getSVGClip(clipId) ?? state.getStickerClip(clipId));
   const locked = useProjectStore(state => Boolean(state.project.timeline.tracks.find(track => track.id === clip?.trackId)?.locked));
@@ -63,7 +65,7 @@ export const Transform3DSection: React.FC<Transform3DSectionProps> = ({
   if (!clip) {
     return (
       <span className="text-fg-2 font-normal py-8 text-center text-xs">
-        No clip selected
+        {t("No clip selected")}
       </span>
     );
   }
@@ -116,7 +118,7 @@ export const Transform3DSection: React.FC<Transform3DSectionProps> = ({
 
       <div className="space-y-1">
         <div className="min-w-0 space-y-1.5">
-        <Label htmlFor={styleId} className="block truncate text-[11px] font-medium leading-[1.5] text-text-secondary">Transform Style</Label>
+        <Label htmlFor={styleId} className="block truncate text-[11px] font-medium leading-[1.5] text-text-secondary">{t("Transform Style")}</Label>
         <Select value={transformStyle} disabled={locked} onValueChange={value => {
           if (value === "flat" || value === "preserve-3d") handleTransformStyleChange(value);
         }}>
@@ -125,24 +127,22 @@ export const Transform3DSection: React.FC<Transform3DSectionProps> = ({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="flat">Flat</SelectItem>
-            <SelectItem value="preserve-3d">Preserve 3D</SelectItem>
+            <SelectItem value="flat">{t("Flat")}</SelectItem>
+            <SelectItem value="preserve-3d">{t("Preserve 3D")}</SelectItem>
           </SelectContent>
         </Select>
         </div>
         <span id={`${styleId}-description`} className="text-fg-2 font-normal text-[9px]">
           {transformStyle === "flat" &&
-            "Flattens children into the plane of this element"}
-          {transformStyle === "preserve-3d" && "Children positioned in 3D space"}
+            t("Flattens children into the plane of this element")}
+          {transformStyle === "preserve-3d" && t("Children positioned in 3D space")}
         </span>
       </div>
 
       {(rotate3d.x !== 0 || rotate3d.y !== 0 || rotate3d.z !== 0) && (
         <Card className="min-w-0 rounded-[7px] shadow-none text-fg p-2 border border-primary/20 bg-primary/5">
           <span className="text-fg-2 font-normal text-[9px]">
-            Tip: 3D rotations
-            allow you to rotate layers along X, Y, and Z axes for depth effects.
-            Adjust perspective to control the 3D depth perception.
+            {t("Tip: 3D rotations allow you to rotate layers along X, Y, and Z axes for depth effects. Adjust perspective to control the 3D depth perception.")}
           </span>
         </Card>
       )}

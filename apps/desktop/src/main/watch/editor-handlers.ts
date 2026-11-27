@@ -3,6 +3,7 @@ import path from "node:path";
 import type { WatchExportPresetId } from "../../shared/watch-folders";
 import { WATCH_PRESETS, extensionOf, isWatchPresetId, uniquePath } from "./render";
 import type { FolderContext, IngestOutcome } from "./manager";
+import { nativeT } from "../language-state";
 
 /**
  * The parts of watch folders that run through the editor window: ingest (import into the open project)
@@ -50,11 +51,11 @@ export async function ensureBin(caller: ToolCaller, name: string): Promise<strin
 
 export async function ingestIntoOpenProject(caller: ToolCaller, context: FolderContext): Promise<IngestOutcome> {
   const { folder, file } = context;
-  if (!caller.hasEditor()) return { outcome: "waiting", detail: "Waiting for the editor window" };
+  if (!caller.hasEditor()) return { outcome: "waiting", detail: nativeT("Waiting for the editor window") };
   let binId: string | null | undefined;
   if (folder.bin.trim()) {
     binId = await ensureBin(caller, folder.bin);
-    if (binId === null) return { outcome: "waiting", detail: "Waiting for a project to be open" };
+    if (binId === null) return { outcome: "waiting", detail: nativeT("Waiting for a project to be open") };
   }
   const result = await caller.call("import_media_from_path", {
     paths: [file.path],
@@ -62,7 +63,7 @@ export async function ingestIntoOpenProject(caller: ToolCaller, context: FolderC
     ...(folder.createProxies ? { createProxies: true } : {}),
   });
   if (!result.ok) {
-    if (noProject(result)) return { outcome: "waiting", detail: "Waiting for a project to be open" };
+    if (noProject(result)) return { outcome: "waiting", detail: nativeT("Waiting for a project to be open") };
     throw new Error(failureText(result));
   }
   const imported = (asRecord(result.data).imported as unknown[] | undefined) ?? [];

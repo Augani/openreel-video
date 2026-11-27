@@ -34,6 +34,7 @@ import { useTimelineStore } from "../../stores/timeline-store";
 import { toast } from "../../stores/notification-store";
 import { volumeToDb, formatDb } from "./types";
 import type { SignalLevel, StereoSignalLevels } from "../../services/audio-mixer-meter";
+import { useT } from "@openreel/i18n/react";
 
 const MASTER = "master";
 
@@ -66,6 +67,7 @@ export const OutputSelect = memo(function OutputSelect({
   onChange: (output: string | undefined) => void;
   className?: string;
 }) {
+  const t = useT();
   const current = value && buses.some((b) => b.id === value) ? value : MASTER;
   return (
     <Select value={current} onValueChange={(next) => onChange(next === MASTER ? undefined : next)}>
@@ -77,7 +79,7 @@ export const OutputSelect = memo(function OutputSelect({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value={MASTER}>Master</SelectItem>
+        <SelectItem value={MASTER}>{t("Master")}</SelectItem>
         {buses
           .filter((b) => b.id !== busId)
           .map((b) => {
@@ -128,6 +130,7 @@ export const PeakHoldReadout = memo(function PeakHoldReadout({
   label: string;
   testId: string;
 }) {
+  const t = useT();
   const { peak, reset } = usePeakHold(levels);
   const db = volumeToDb(peak);
   const hot = peak >= 1;
@@ -143,7 +146,7 @@ export const PeakHoldReadout = memo(function PeakHoldReadout({
         hot ? "text-status-error" : "text-fg-muted",
       )}
     >
-      {peak > 0 ? `${formatDb(db)} dB` : "-∞ dB"}
+      {peak > 0 ? `${formatDb(db)} dB` : t("-∞ dB")}
     </button>
   );
 });
@@ -195,6 +198,7 @@ export function AutomationPointsEditor({
   onCommit: (points: AutomationPoint[] | null) => void;
   testId: string;
 }) {
+  const t = useT();
   const playhead = useTimelineStore((s) => s.playheadPosition);
   const list = points ?? [];
   const commit = (next: AutomationPoint[]) =>
@@ -202,7 +206,7 @@ export function AutomationPointsEditor({
   return (
     <div className="flex flex-col gap-2" data-testid={testId}>
       <div className="text-xs font-semibold text-fg">{title}</div>
-      {list.length === 0 && <div className="text-[11px] text-fg-muted">No automation. The level stays at its fader value.</div>}
+      {list.length === 0 && <div className="text-[11px] text-fg-muted">{t("No automation. The level stays at its fader value.")}</div>}
       {list.map((point, index) => (
         <div key={`${index}-${point.time}`} className="flex items-center gap-1" data-testid={`${testId}-point-${index}`}>
           <Input
@@ -253,11 +257,11 @@ export function AutomationPointsEditor({
           data-testid={`${testId}-add`}
           onClick={() => commit([...list, { time: Number(playhead.toFixed(3)), value: list.length ? list[list.length - 1].value : baseLevel }])}
         >
-          Add point at playhead
+          {t("Add point at playhead")}
         </Button>
         {list.length > 0 && (
           <Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => onCommit(null)}>
-            Clear
+            {t("Clear")}
           </Button>
         )}
       </div>
@@ -277,12 +281,13 @@ export const SendsSection = memo(function SendsSection({
   sends: readonly AudioSend[] | undefined;
   buses: readonly AudioBus[];
 }) {
+  const t = useT();
   const list = sends ?? [];
   const free = buses.filter((b) => !list.some((s) => s.busId === b.id));
   const timeline = () => useProjectStore.getState().project.timeline;
   return (
     <div className="flex w-full flex-col gap-1" role="group" aria-label={`${trackName} sends`} data-testid={`sends-${trackId}`}>
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">Sends {list.length}</span>
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">{t("Sends")} {list.length}</span>
       {list.map((send) => {
         const bus = buses.find((b) => b.id === send.busId);
         const name = bus?.name ?? "Missing bus";
@@ -303,7 +308,7 @@ export const SendsSection = memo(function SendsSection({
                 className={cn("h-4 px-1 text-[9px] font-bold", send.preFader ? "text-status-warning" : "text-fg-muted")}
                 aria-pressed={send.preFader}
                 aria-label={`${send.preFader ? "Pre" : "Post"}-fader send from ${trackName} to ${name}; click to switch`}
-                title={send.preFader ? "Pre-fader (ignores the track fader)" : "Post-fader (follows the track fader)"}
+                title={send.preFader ? t("Pre-fader (ignores the track fader)") : t("Post-fader (follows the track fader)")}
                 onClick={() => void commitRoutingPlan(planSetSend(timeline(), trackId, send.id, { preFader: !send.preFader }))}
               >
                 {send.preFader ? "PRE" : "POST"}
@@ -369,11 +374,11 @@ export const SendsSection = memo(function SendsSection({
             className="h-6 w-full gap-1 px-1 text-[11px]"
             disabled={free.length === 0}
             aria-label={`Add send to ${trackName}`}
-            title={buses.length === 0 ? "Add a bus first" : free.length === 0 ? "Already sending to every bus" : undefined}
+            title={buses.length === 0 ? t("Add a bus first") : free.length === 0 ? t("Already sending to every bus") : undefined}
             data-testid={`add-send-${trackId}`}
           >
             <Plus size={11} aria-hidden />
-            Add send
+            {t("Add send")}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">

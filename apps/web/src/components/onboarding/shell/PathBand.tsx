@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState, type Keyboard
 import { GraduationCap, Keyboard, Plug, Sparkles } from "@/icons/lucide-compat";
 import { useOnboardingStore } from "../../../stores/onboarding-store";
 import { useOnboardingGate } from "./useOnboardingGate";
+import { useT } from "@openreel/i18n/react";
 
 // The pro row pulls in keyboard-shortcuts and project-replacement, so it stays out of the welcome chunk
 // and loads on first open of the "I already edit" tile.
@@ -89,6 +90,7 @@ export function PathBand() {
 }
 
 function BandContent({ live }: { live: boolean }) {
+  const t = useT();
   const openSheet = useOnboardingStore((s) => s.openSheet);
   const [proOpen, setProOpen] = useState(false);
   const [rover, setRover] = useState(0);
@@ -159,11 +161,11 @@ function BandContent({ live }: { live: boolean }) {
   return (
     <section
       role="group"
-      aria-label="Choose how to start"
+      aria-label={t("Choose how to start")}
       className="rounded-2xl border border-border bg-bg-1 p-3"
     >
       <h2 className="mb-2 px-1 text-sm font-semibold tracking-tight text-fg">
-        How do you want to start?
+        {t("How do you want to start?")}
       </h2>
       <div className="grid grid-cols-3 gap-2 max-[1099px]:grid-cols-1" data-testid="onboarding-tiles">
         {TILES.map((tile, index) => {
@@ -190,9 +192,9 @@ function BandContent({ live }: { live: boolean }) {
                 <tile.Icon size={16} />
               </span>
               <span className="min-w-0">
-                <span className="block text-sm font-semibold leading-5 text-fg">{tile.title}</span>
+                <span className="block text-sm font-semibold leading-5 text-fg">{t(tile.title)}</span>
                 <span className="block text-xs leading-4 text-fg-3 max-[1099px]:truncate">
-                  {tile.body}
+                  {t(tile.body)}
                 </span>
               </span>
             </button>
@@ -208,13 +210,13 @@ function BandContent({ live }: { live: boolean }) {
         <span className="flex min-w-0 items-center gap-1.5">
           <Plug size={12} aria-hidden className="shrink-0" />
           <span className="truncate">
-            Using Claude Code, Cursor or another agent?{" "}
+            {t("Using Claude Code, Cursor or another agent?")}{" "}
             <button
               type="button"
               onClick={() => useOnboardingStore.getState().showSheet("agent")}
               className="rounded font-medium text-accent outline-none underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-accent"
             >
-              Connect an agent
+              {t("Connect an agent")}
             </button>
           </span>
         </span>
@@ -223,9 +225,9 @@ function BandContent({ live }: { live: boolean }) {
           onClick={dismiss}
           className="flex shrink-0 items-center gap-1.5 rounded text-fg-3 outline-none transition-colors hover:text-fg focus-visible:ring-2 focus-visible:ring-accent motion-reduce:transition-none"
         >
-          Skip setup
+          {t("Skip setup")}
           <kbd className="rounded border border-border bg-bg-2 px-1.5 font-mono text-2xs text-fg-3">
-            Esc
+            {t("Esc")}
           </kbd>
         </button>
       </div>

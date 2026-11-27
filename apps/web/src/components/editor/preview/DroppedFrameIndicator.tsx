@@ -7,6 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@openreel/ui";
+import { useT } from "@openreel/i18n/react";
 import { useEngineStore } from "../../../stores/engine-store";
 import { indicatorView, useDroppedFrameIndicatorPrefs, type IndicatorTone } from "./dropped-frame-indicator-state";
 
@@ -42,6 +43,7 @@ function useDroppedFrames(source: DroppedFrameSource | null): number {
  * restarts with every playback run. Clicking it opens the monitor setting that turns it off (and back on).
  */
 export const DroppedFrameIndicator: React.FC<{ source?: DroppedFrameSource | null }> = ({ source }) => {
+  const t = useT();
   const engineSource = useEngineStore((s) => s.playbackController);
   const effective = source === undefined ? engineSource : source;
   const count = useDroppedFrames(effective);
@@ -55,8 +57,8 @@ export const DroppedFrameIndicator: React.FC<{ source?: DroppedFrameSource | nul
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            aria-label={view.label}
-            title={view.label}
+            aria-label={t(view.label)}
+            title={t(view.label)}
             className="flex h-5 items-center gap-1 rounded-full bg-black/40 px-1.5 text-[10px] font-medium leading-none text-white/90 hover:bg-black/60"
           >
             <span aria-hidden="true" className={`inline-block h-2 w-2 rounded-full ${TONE_CLASS[view.tone]}`} />
@@ -65,11 +67,11 @@ export const DroppedFrameIndicator: React.FC<{ source?: DroppedFrameSource | nul
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuCheckboxItem checked={enabled} onCheckedChange={setEnabled}>
-            Show dropped frame indicator
+            {t("Show dropped frame indicator")}
           </DropdownMenuCheckboxItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem disabled={!effective || count === 0} onSelect={() => effective?.resetDroppedFrames()}>
-            Reset count
+            {t("Reset count")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

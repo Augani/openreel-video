@@ -12,6 +12,7 @@ import { defaultPlanarCorners, usePlanarTrackOverlayStore } from "../../../store
 import { PropertySlider } from "./shell/PropertySlider";
 import { RegionInput } from "./MotionTrackingSection";
 import { MotionTrackQualityStrip } from "./MotionTrackQualityStrip";
+import { useT } from "@openreel/i18n/react";
 
 const IDLE: PlanarTrackState = { isTracking: false, progress: 0, lostFrames: 0, error: null, clipId: null };
 const CORNERS = ["Top left", "Top right", "Bottom right", "Bottom left"];
@@ -34,6 +35,7 @@ export function PlanarTrackingSection({ clipId }: { clipId: string }) {
 }
 
 function PlanarTrackingControls({ clipId }: { clipId: string }) {
+  const t = useT();
   const project = useProjectStore(state => state.project);
   const exporting = useUIStore(state => state.exportState.isExporting);
   const playbackLocked = useTimelineStore(state => Boolean(state.playbackLockedReason));
@@ -106,57 +108,57 @@ function PlanarTrackingControls({ clipId }: { clipId: string }) {
 
   return <div className="min-w-0 space-y-3" data-testid="planar-tracking">
     <Card className="flex items-center gap-2 rounded-md border-primary/30 bg-primary/10 p-2 shadow-none">
-      <Target size={16} className="shrink-0 text-primary" aria-hidden /><div className="min-w-0"><p className="text-xs font-medium">Planar Tracking</p><p className="text-[10px] text-fg-2">Track a flat surface by its four corners and pin a clip to it.</p></div>
+      <Target size={16} className="shrink-0 text-primary" aria-hidden /><div className="min-w-0"><p className="text-xs font-medium">{t("Planar Tracking")}</p><p className="text-[10px] text-fg-2">{t("Track a flat surface by its four corners and pin a clip to it.")}</p></div>
     </Card>
     <fieldset disabled={disabled || state.isTracking} className="min-w-0 space-y-3">
-      <p className="text-[11px] text-fg-2">Drag the corners on the Program monitor onto the surface at frame {frame}, or type them (source pixels, {width} × {height}).</p>
+      <p className="text-[11px] text-fg-2">{t("Drag the corners on the Program monitor onto the surface at frame")} {frame}{t(", or type them (source pixels,")} {width} × {height}).</p>
       <div className="grid grid-cols-2 gap-2">
         {CORNERS.map((name, i) => <div key={name} className="contents">
           <RegionInput label={`${name} X`} value={Math.round(corners[i * 2] * 10) / 10} min={0} max={width} onChange={v => setCorners(c => c.map((n, j) => j === i * 2 ? v : n))} />
           <RegionInput label={`${name} Y`} value={Math.round(corners[i * 2 + 1] * 10) / 10} min={0} max={height} onChange={v => setCorners(c => c.map((n, j) => j === i * 2 + 1 ? v : n))} />
         </div>)}
       </div>
-      <Button type="button" variant="outline" className="h-[30px] w-full text-xs" onClick={() => setCorners(defaultPlanarCorners(width, height))}>Reset corners</Button>
-      <div className="space-y-1.5"><Label className="text-xs">Track</Label>
-        <ToggleGroup type="single" value={range} onValueChange={value => { if (value) setRange(value as PlanarTrackRange); }} aria-label="Planar tracking range" className="grid grid-cols-3 gap-1">
-          <ToggleGroupItem value="clip" className="h-[30px] px-1 text-[11px]">Whole clip</ToggleGroupItem>
-          <ToggleGroupItem value="forward" className="h-[30px] px-1 text-[11px]">Forward ▸</ToggleGroupItem>
-          <ToggleGroupItem value="backward" className="h-[30px] px-1 text-[11px]">◂ Backward</ToggleGroupItem>
+      <Button type="button" variant="outline" className="h-[30px] w-full text-xs" onClick={() => setCorners(defaultPlanarCorners(width, height))}>{t("Reset corners")}</Button>
+      <div className="space-y-1.5"><Label className="text-xs">{t("Track")}</Label>
+        <ToggleGroup type="single" value={range} onValueChange={value => { if (value) setRange(value as PlanarTrackRange); }} aria-label={t("Planar tracking range")} className="grid grid-cols-3 gap-1">
+          <ToggleGroupItem value="clip" className="h-[30px] px-1 text-[11px]">{t("Whole clip")}</ToggleGroupItem>
+          <ToggleGroupItem value="forward" className="h-[30px] px-1 text-[11px]">{t("Forward ▸")}</ToggleGroupItem>
+          <ToggleGroupItem value="backward" className="h-[30px] px-1 text-[11px]">{t("◂ Backward")}</ToggleGroupItem>
         </ToggleGroup>
       </div>
-      <Button type="button" className="h-8 w-full text-xs" onClick={() => void run(range, Boolean(data) && range !== "clip")}><Target size={14} aria-hidden />{data ? "Re-track Surface" : "Start Tracking"}</Button>
+      <Button type="button" className="h-8 w-full text-xs" onClick={() => void run(range, Boolean(data) && range !== "clip")}><Target size={14} aria-hidden />{data ? t("Re-track Surface") : t("Start Tracking")}</Button>
     </fieldset>
     {state.isTracking && <div role="status" className="space-y-2 rounded-md bg-bg-2 p-3" data-testid="planar-track-progress">
-      <div className="flex items-center justify-between gap-2"><p className="text-xs">Tracking in Progress · {Math.round(state.progress)}%</p><Button variant="ghost" size="icon-sm" aria-label="Cancel Planar Tracking" onClick={() => bridge.cancel()}><X size={14} aria-hidden /></Button></div>
-      <Progress value={state.progress} aria-label="Planar tracking progress" />
-      {state.lostFrames > 0 && <p className="text-[11px] text-amber-400">Lost the surface on {state.lostFrames} frame(s)</p>}
+      <div className="flex items-center justify-between gap-2"><p className="text-xs">{t("Tracking in Progress ·")} {Math.round(state.progress)}%</p><Button variant="ghost" size="icon-sm" aria-label={t("Cancel Planar Tracking")} onClick={() => bridge.cancel()}><X size={14} aria-hidden /></Button></div>
+      <Progress value={state.progress} aria-label={t("Planar tracking progress")} />
+      {state.lostFrames > 0 && <p className="text-[11px] text-amber-400">{t("Lost the surface on")} {state.lostFrames} {t("frame(s)")}</p>}
     </div>}
-    {(error || state.error) && <Alert variant="destructive"><AlertTriangle size={14} aria-hidden /><AlertTitle>Tracking Failed</AlertTitle><AlertDescription>{error ?? state.error}</AlertDescription></Alert>}
+    {(error || state.error) && <Alert variant="destructive"><AlertTriangle size={14} aria-hidden /><AlertTitle>{t("Tracking Failed")}</AlertTitle><AlertDescription>{error ?? state.error}</AlertDescription></Alert>}
     {data && !state.isTracking && <div className="space-y-3">
-      <div role="status" className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/10 p-2" data-testid="planar-track-complete"><Check size={14} className="text-primary" aria-hidden /><p className="text-xs">Tracking Complete · {data.keyframes.length} frames{data.lostFrames.length ? ` · ${data.lostFrames.length} low confidence` : ""}</p></div>
+      <div role="status" className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/10 p-2" data-testid="planar-track-complete"><Check size={14} className="text-primary" aria-hidden /><p className="text-xs">{t("Tracking Complete ·")} {data.keyframes.length} {t("frames")}{data.lostFrames.length ? ` · ${data.lostFrames.length} low confidence` : ""}</p></div>
       <MotionTrackQualityStrip data={asQualityData(data)} frameCount={frameCount} selectedFrame={frame} threshold={THRESHOLD} onSelect={next => useTimelineStore.getState().seekTo((source?.startTime ?? 0) + next / fps)} />
       <div className="space-y-2 rounded-md bg-bg-2 p-2">
-        <p className="text-[11px]" data-testid="planar-track-frame-info">Frame {frame}{trackedAt ? ` · ${Math.round(trackedAt.confidence * 100)}% · ${trackedAt.manual ? "set by hand" : trackedAt.exact ? "tracked" : "between samples"}` : ""}</p>
-        <Button type="button" className="h-[30px] w-full text-[11px]" disabled={disabled} onClick={() => void guarded(() => bridge.correctFrame(clipId, frame, corners), "Could not set corners")}>Set corners at this frame</Button>
+        <p className="text-[11px]" data-testid="planar-track-frame-info">{t("Frame")} {frame}{trackedAt ? ` · ${Math.round(trackedAt.confidence * 100)}% · ${trackedAt.manual ? "set by hand" : trackedAt.exact ? "tracked" : "between samples"}` : ""}</p>
+        <Button type="button" className="h-[30px] w-full text-[11px]" disabled={disabled} onClick={() => void guarded(() => bridge.correctFrame(clipId, frame, corners), "Could not set corners")}>{t("Set corners at this frame")}</Button>
         <div className="grid grid-cols-2 gap-1">
-          <Button type="button" variant="outline" className="h-[30px] px-1 text-[11px]" disabled={disabled} onClick={() => void run("forward", true)}>Re-track from here</Button>
-          <Button type="button" variant="outline" className="h-[30px] px-1 text-[11px]" disabled={disabled} onClick={() => void run("backward", true)}>Re-track backward</Button>
+          <Button type="button" variant="outline" className="h-[30px] px-1 text-[11px]" disabled={disabled} onClick={() => void run("forward", true)}>{t("Re-track from here")}</Button>
+          <Button type="button" variant="outline" className="h-[30px] px-1 text-[11px]" disabled={disabled} onClick={() => void run("backward", true)}>{t("Re-track backward")}</Button>
         </div>
       </div>
       <div className="min-w-0 space-y-3">
-        <div className="space-y-1.5"><Label className="text-xs">Apply track to</Label>
-          <ToggleGroup type="single" value={mode} onValueChange={value => { if (value) setModeChoice(value as PlanarApplyMode); }} aria-label="Apply track as" className="grid grid-cols-3 gap-1">
+        <div className="space-y-1.5"><Label className="text-xs">{t("Apply track to")}</Label>
+          <ToggleGroup type="single" value={mode} onValueChange={value => { if (value) setModeChoice(value as PlanarApplyMode); }} aria-label={t("Apply track as")} className="grid grid-cols-3 gap-1">
             {MODES.map(m => <ToggleGroupItem key={m.id} value={m.id} className="h-[30px] px-1 text-[11px]">{m.label}</ToggleGroupItem>)}
           </ToggleGroup>
           <Select value={target} onValueChange={setTargetId} disabled={disabled || !choices.length}>
-            <SelectTrigger aria-label="Corner pin target" className="h-[30px] min-w-0 text-xs"><SelectValue placeholder="No other clip to pin" /></SelectTrigger>
-            <SelectContent>{choices.map(choice => <SelectItem key={choice.id} value={choice.id} disabled={choice.locked}>{choice.label}</SelectItem>)}</SelectContent>
+            <SelectTrigger aria-label={t("Corner pin target")} className="h-[30px] min-w-0 text-xs"><SelectValue placeholder={t("No other clip to pin")} /></SelectTrigger>
+            <SelectContent>{choices.map(choice => <SelectItem key={choice.id} value={choice.id} disabled={choice.locked}>{t(choice.label)}</SelectItem>)}</SelectContent>
           </Select>
           <p className="text-[10px] text-fg-2">{modeInfo.hint}</p>
         </div>
         <PropertySlider label="Path Smoothing" min={0} max={10} step={1} value={smoothing} onChange={setSmoothing} isDisabled={disabled || targetLocked} />
-        <Button type="button" className="h-8 w-full text-xs" disabled={disabled || targetLocked} onClick={() => void guarded(() => applyPlanarTrack(clipId, target, { smoothing, mode }), "Could not apply the track")}>{busy ? "Applying…" : applied && appliedMode === mode ? (mode === "corner-pin" ? "Update Pin" : "Update") : modeInfo.apply}</Button>
-        {applied && <Button type="button" variant="outline" className="h-[30px] w-full text-xs" disabled={disabled || targetLocked} onClick={() => void guarded(() => removePlanarTrack(target), "Could not remove the pin")}>{appliedMode === "corner-pin" ? "Remove Pin" : "Remove Tracking"}</Button>}
+        <Button type="button" className="h-8 w-full text-xs" disabled={disabled || targetLocked} onClick={() => void guarded(() => applyPlanarTrack(clipId, target, { smoothing, mode }), "Could not apply the track")}>{busy ? t("Applying…") : applied && appliedMode === mode ? (mode === "corner-pin" ? t("Update Pin") : t("Update")) : modeInfo.apply}</Button>
+        {applied && <Button type="button" variant="outline" className="h-[30px] w-full text-xs" disabled={disabled || targetLocked} onClick={() => void guarded(() => removePlanarTrack(target), "Could not remove the pin")}>{appliedMode === "corner-pin" ? t("Remove Pin") : t("Remove Tracking")}</Button>}
       </div>
     </div>}
   </div>;

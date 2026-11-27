@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { trackQualityRuns, type TrackingData } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 
 const HEIGHT = 44;
 const LOW = 0.7;
@@ -11,6 +12,7 @@ const LOW = 0.7;
 export function MotionTrackQualityStrip({ data, frameCount, selectedFrame, onSelect, threshold = LOW }: {
   data: TrackingData; frameCount: number; selectedFrame: number; onSelect: (frame: number) => void; threshold?: number;
 }) {
+  const t = useT();
   const total = Math.max(1, frameCount - 1);
   const rows = useMemo(() => {
     const lost = new Set(data.lostFrames), manual = new Set(data.manualFrames ?? []);
@@ -22,10 +24,10 @@ export function MotionTrackQualityStrip({ data, frameCount, selectedFrame, onSel
   const lowCount = rows.filter(row => row.lost).length;
   return <div className="space-y-1.5" data-testid="motion-track-quality">
     <div className="flex items-center justify-between gap-2 text-[10px] text-fg-2">
-      <span>Tracking quality</span>
-      <span data-testid="motion-track-low-count">{lowCount ? `${lowCount} low-confidence frame${lowCount === 1 ? "" : "s"}` : "All frames confident"}</span>
+      <span>{t("Tracking quality")}</span>
+      <span data-testid="motion-track-low-count">{lowCount ? `${lowCount} low-confidence frame${lowCount === 1 ? "" : "s"}` : t("All frames confident")}</span>
     </div>
-    <svg role="slider" tabIndex={0} aria-label="Tracking quality by frame" aria-valuemin={0} aria-valuemax={total} aria-valuenow={selectedFrame}
+    <svg role="slider" tabIndex={0} aria-label={t("Tracking quality by frame")} aria-valuemin={0} aria-valuemax={total} aria-valuenow={selectedFrame}
       viewBox={`0 0 100 ${HEIGHT}`} preserveAspectRatio="none" className="block h-11 w-full cursor-pointer rounded-md bg-bg-2"
       onPointerDown={event => {
         const box = event.currentTarget.getBoundingClientRect();
@@ -42,9 +44,9 @@ export function MotionTrackQualityStrip({ data, frameCount, selectedFrame, onSel
       <rect data-testid="motion-track-playhead" x={x(selectedFrame) - 0.4} width={0.8} y={0} height={HEIGHT} className="fill-fg-1" />
     </svg>
     <div className="flex items-center gap-3 text-[10px] text-fg-2" aria-hidden>
-      <span><i className="mr-1 inline-block size-2 rounded-sm bg-primary" />confidence</span>
-      <span><i className="mr-1 inline-block size-2 rounded-sm bg-red-500/60" />hidden</span>
-      <span><i className="mr-1 inline-block size-2 rounded-sm bg-amber-400/60" />weak</span>
+      <span><i className="mr-1 inline-block size-2 rounded-sm bg-primary" />{t("confidence")}</span>
+      <span><i className="mr-1 inline-block size-2 rounded-sm bg-red-500/60" />{t("hidden")}</span>
+      <span><i className="mr-1 inline-block size-2 rounded-sm bg-amber-400/60" />{t("weak")}</span>
       <span><i className="mr-1 inline-block size-2 rounded-sm bg-sky-400" />hand-set</span>
     </div>
   </div>;

@@ -4,12 +4,14 @@ import { Button } from "@openreel/ui";
 import { useProjectStore } from "../../../stores/project-store";
 import { buildClipIndex } from "../../../utils/clip-index";
 import { openAudioChannelsForSelection, setClipChannelMap } from "../../../services/audio-channels";
+import { useT } from "@openreel/i18n/react";
 
 /**
  * Modify > Audio Channels for the inspector: shows what the clips play from their file and opens the mapping
  * dialog. A multi-selection lists "Mixed" when the clips differ.
  */
 export const AudioChannelsSection: React.FC<{ clipIds: readonly string[] }> = ({ clipIds }) => {
+  const t = useT();
   const project = useProjectStore((state) => state.project);
   const rows = useMemo(() => {
     const index = buildClipIndex(project.timeline.tracks);
@@ -30,12 +32,12 @@ export const AudioChannelsSection: React.FC<{ clipIds: readonly string[] }> = ({
         <span className="min-w-0 truncate text-xs" data-testid="audio-channels-current">{label}</span>
         <div className="flex shrink-0 gap-1">
           {custom && (
-            <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-[11px]" data-testid="audio-channels-reset" onClick={() => { void setClipChannelMap(clipIds, null); }}>Reset</Button>
+            <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-[11px]" data-testid="audio-channels-reset" onClick={() => { void setClipChannelMap(clipIds, null); }}>{t("Reset")}</Button>
           )}
-          <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-[11px]" data-testid="audio-channels-open" onClick={() => openAudioChannelsForSelection(clipIds)}>Modify…</Button>
+          <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-[11px]" data-testid="audio-channels-open" onClick={() => openAudioChannelsForSelection(clipIds)}>{t("Modify…")}</Button>
         </div>
       </div>
-      <p className="text-[11px] text-fg-muted">Choose which source channels the clip plays: left only, swap, mono or 5.1.</p>
+      <p className="text-[11px] text-fg-muted">{t("Choose which source channels the clip plays: left only, swap, mono or 5.1.")}</p>
     </div>
   );
 };

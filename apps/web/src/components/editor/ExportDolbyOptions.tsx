@@ -19,6 +19,7 @@ import {
   isDolbyFormat,
   type AudioExportSettings,
 } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 
 interface ExportDolbyOptionsProps {
   audio: AudioExportSettings;
@@ -32,6 +33,7 @@ interface ExportDolbyOptionsProps {
  * audio formats. 5.1 is raised to 384 kbps by the export (see resolveSequenceAudioSettings), which the list shows.
  */
 export function ExportDolbyOptions({ audio, onChange, surround }: ExportDolbyOptionsProps): React.ReactElement | null {
+  const t = useT();
   if (!isDolbyFormat(audio.format)) return null;
   const codec = audio.format;
   const floor = surround ? 384 : 0;
@@ -41,7 +43,7 @@ export function ExportDolbyOptions({ audio, onChange, surround }: ExportDolbyOpt
     <>
       <div className="space-y-1.5" data-testid="export-dolby-bitrate">
         <Label htmlFor="export-dolby-bitrate-select" className="text-[11px] text-fg-2">
-          {DOLBY_LABEL[codec]} bitrate
+          {DOLBY_LABEL[codec]} {t("bitrate")}
         </Label>
         <Select value={bitrate} onValueChange={(value) => onChange({ ...audio, bitrate: Number(value) })}>
           <SelectTrigger id="export-dolby-bitrate-select" className="h-8 w-full text-xs" data-testid="export-dolby-bitrate-select">
@@ -58,7 +60,7 @@ export function ExportDolbyOptions({ audio, onChange, surround }: ExportDolbyOpt
       </div>
       <div className="space-y-1.5" data-testid="export-dolby-dialnorm">
         <Label htmlFor="export-dolby-dialnorm-input" className="text-[11px] text-fg-2">
-          Dialogue level (dialnorm, dB)
+          {t("Dialogue level (dialnorm, dB)")}
         </Label>
         <Input
           id="export-dolby-dialnorm-input"
@@ -84,7 +86,7 @@ export function ExportDolbyOptions({ audio, onChange, surround }: ExportDolbyOpt
           }}
         />
         <p className="text-[10px] text-fg-muted">
-          Metadata the player uses to level the programme. Auto writes the loudness target when normalising, else {DEFAULT_DIALNORM} (no change).
+          {t("Metadata the player uses to level the programme. Auto writes the loudness target when normalising, else")} {DEFAULT_DIALNORM} {t("(no change).")}
         </p>
       </div>
     </>

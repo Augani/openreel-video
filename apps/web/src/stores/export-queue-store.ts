@@ -44,6 +44,7 @@ import {
   saveQueueState,
   saveSnapshot,
 } from "../services/export-queue/export-queue-storage";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * Export queue (Adobe Media Encoder lite).
@@ -237,7 +238,7 @@ export const useExportQueueStore = create<ExportQueueStore>((set, get) => {
       );
       snapshots.delete(job.id);
       void pruneStorage(() => liveSnapshotIds(get().queue));
-      toast.success("Export finished", `${job.outputName} is ready in the export queue.`);
+      toast.success(translateNow("Export finished"), `${job.outputName} is ready in the export queue.`);
     } catch (error) {
       if (!ownsJob()) {
         // cancel() already settled this job; do not overwrite a retried attempt.
@@ -246,7 +247,7 @@ export const useExportQueueStore = create<ExportQueueStore>((set, get) => {
       } else {
         const message = error instanceof Error ? error.message : "Export failed";
         apply((s) => failExportJob(s, job.id, Date.now(), message), true);
-        toast.error("Export failed", `${job.outputName}: ${message}`);
+        toast.error(translateNow("Export failed"), `${job.outputName}: ${message}`);
       }
     } finally {
       // The pump is single-flight, so a retried attempt cannot start before this run unwound.
@@ -293,12 +294,12 @@ export const useExportQueueStore = create<ExportQueueStore>((set, get) => {
           ? projectForSequence(full, input.sequenceId)
           : full;
       if (!chosen) {
-        toast.info("Nothing to export", "That sequence no longer exists.");
+        toast.info(translateNow("Nothing to export"), "That sequence no longer exists.");
         return null;
       }
       const project = cloneProjectSnapshot(chosen);
       if (!((project.timeline?.duration ?? 0) > 0)) {
-        toast.info("Nothing to export", "Add clips to the timeline first.");
+        toast.info(translateNow("Nothing to export"), "Add clips to the timeline first.");
         return null;
       }
       const settings: VideoExportSettings = {
@@ -353,7 +354,7 @@ export const useExportQueueStore = create<ExportQueueStore>((set, get) => {
       const plan = planStems(project, { mode, ids: wanted ? [...wanted] : undefined });
       if (plan.length === 0) {
         toast.info(
-          "No stems to export",
+          translateNow("No stems to export"),
           mode === "bus"
             ? "Add a bus (or the Dialogue / Music / FX preset) and route tracks into it first."
             : "No unmuted track or clip carries audio.",
@@ -438,7 +439,7 @@ export const useExportQueueStore = create<ExportQueueStore>((set, get) => {
       const ext = jobOutputExt(job);
       const blob = await readBrowserOutput(id, ext);
       if (!blob) {
-        toast.error("File not found", "The exported file is no longer in browser storage. Retry the export.");
+        toast.error(translateNow("File not found"), "The exported file is no longer in browser storage. Retry the export.");
         return;
       }
       const url = URL.createObjectURL(blob);
@@ -495,7 +496,7 @@ export function addDialogExportToQueue(
   });
   if (job) {
     store.setPanelOpen(true);
-    toast.info("Added to export queue", `${job.outputName} will render the project as it is now.`);
+    toast.info(translateNow("Added to export queue"), `${job.outputName} will render the project as it is now.`);
   }
   return job;
 }
@@ -506,7 +507,7 @@ export function addDialogStemsToQueue(input: EnqueueStemsInput): ExportJob | nul
   const job = store.enqueueStems(input);
   if (job) {
     store.setPanelOpen(true);
-    toast.info("Stems added to export queue", `${job.outputName} will render the project as it is now.`);
+    toast.info(translateNow("Stems added to export queue"), `${job.outputName} will render the project as it is now.`);
   }
   return job;
 }

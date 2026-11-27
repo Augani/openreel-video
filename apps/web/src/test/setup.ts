@@ -9,6 +9,9 @@ configure({ asyncUtilTimeout: 5_000 });
 const { loadEngineModules } = await import("../services/lazy-engines");
 await loadEngineModules();
 
+const { loadDictionary } = await import("@openreel/i18n/translate");
+await loadDictionary();
+
 class LocalStorageMock {
   private store = new Map<string, string>();
 

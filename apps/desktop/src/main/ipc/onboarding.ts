@@ -13,6 +13,7 @@ import {
   type PickFilesResult,
 } from "../../shared/onboarding";
 import { withNativeDialog } from "../native-dialog-state";
+import { nativeT } from "../language-state";
 
 /** Env vars whose presence (set and not "0"/"false") marks a perf, e2e, CI or agent-driven launch. */
 export const AUTOMATION_ENV_VARS = [
@@ -112,7 +113,7 @@ async function pickFiles(args: PickFilesArgs, event: IpcMainInvokeEvent): Promis
 async function pickProject(event: IpcMainInvokeEvent): Promise<string | null> {
   const owner = dialogOwner(event);
   const options: OpenDialogOptions = {
-    title: "Open project",
+    title: nativeT("Open project"),
     filters: [{ name: "OpenReel Project", extensions: ["oreel", "json"] }],
     properties: ["openFile"],
   };

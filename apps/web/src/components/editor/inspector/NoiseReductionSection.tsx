@@ -43,6 +43,8 @@ import {
   suggestNoiseReductionPreset,
 } from "./noise-reduction-presets";
 import { PropertySlider } from "./shell/PropertySlider";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 const EMPTY_EFFECTS: Effect[] = [];
 const executorIds = new WeakMap<ActionExecutorLike, number>();
 let nextExecutorId = 0;
@@ -108,6 +110,7 @@ export function NoiseReductionSection({ clipId }: { clipId: string }) {
   );
 }
 function NoiseReductionControls({ scope }: { scope: NoiseReductionScope }) {
+  const t = useT();
   const effects = useProjectStore(
     (state) =>
       findNoiseTarget(state.project, scope.clipId)?.audioEffects ??
@@ -355,7 +358,7 @@ function NoiseReductionControls({ scope }: { scope: NoiseReductionScope }) {
   const applyRecommendation = () => {
     if (!recommendation || !ownsAnalysis(recommendation.owner)) {
       cancel();
-      setError("The audio source changed. Analyze this clip again.");
+      setError(translateNow("The audio source changed. Analyze this clip again."));
       return;
     }
     const next = recommendation;
@@ -414,12 +417,12 @@ function NoiseReductionControls({ scope }: { scope: NoiseReductionScope }) {
                 className={`size-3 shrink-0 transition-transform ${open ? "" : "-rotate-90"}`}
               />
               <Volume2 className="size-3 shrink-0 text-fg-3" />
-              Noise Reduction
+              {t("Noise Reduction")}
             </Button>
           </CollapsibleTrigger>
           <Switch
             className="workspace-switch"
-            aria-label="Enable noise reduction"
+            aria-label={t("Enable noise reduction")}
             checked={enabled}
             disabled={busy}
             onCheckedChange={(checked) => {
@@ -442,11 +445,10 @@ function NoiseReductionControls({ scope }: { scope: NoiseReductionScope }) {
         <CollapsibleContent>
           <div className="space-y-3 border-t border-border px-3 py-3">
             <p className="text-[11px] leading-relaxed text-fg-2">
-              Reduce white noise, wind, hum, room tone, and background music
-              while keeping speech or the wanted audio in front.
+              {t("Reduce white noise, wind, hum, room tone, and background music while keeping speech or the wanted audio in front.")}
             </p>
             <RadioGroup
-              aria-label="Noise reduction preset"
+              aria-label={t("Noise reduction preset")}
               value={activePreset.id}
               disabled={busy}
               onValueChange={(value) =>
@@ -469,10 +471,10 @@ function NoiseReductionControls({ scope }: { scope: NoiseReductionScope }) {
                   />
                   <span className="min-w-0">
                     <span className="block text-[11px] font-medium">
-                      {preset.label}
+                      {t(preset.label)}
                     </span>
                     <span className="mt-1 block text-[10px] font-normal leading-relaxed text-fg-2">
-                      {preset.description}
+                      {t(preset.description)}
                     </span>
                   </span>
                 </Label>
@@ -481,14 +483,14 @@ function NoiseReductionControls({ scope }: { scope: NoiseReductionScope }) {
             <div className="rounded-[7px] border border-border bg-bg-1 p-2.5">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[11px] text-fg-2">
-                  Current mode: {activePreset.label}
+                  {t("Current mode:")} {t(activePreset.label)}
                 </p>
                 <Badge variant="secondary" className="text-[10px]">
-                  {enabled ? "Applied" : "Off"}
+                  {enabled ? t("Applied") : t("Off")}
                 </Badge>
               </div>
               <p className="mt-1 text-[10px] leading-relaxed text-fg-3">
-                {activePreset.description}
+                {t(activePreset.description)}
               </p>
               {message && (
                 <p
@@ -503,28 +505,28 @@ function NoiseReductionControls({ scope }: { scope: NoiseReductionScope }) {
               <Alert className="border-primary/30 bg-primary/5 p-3">
                 <Wand2 className="size-3.5" />
                 <AlertDescription className="space-y-2 text-[11px]">
-                  <p className="font-medium text-fg">Recommendation ready</p>
+                  <p className="font-medium text-fg">{t("Recommendation ready")}</p>
                   <p>
-                    Detected noise best matches{" "}
+                    {t("Detected noise best matches")}{" "}
                     {recommendationPreset.label.toLowerCase()}. Apply{" "}
                     {Math.round(recommendation.config.reduction * 100)}% cleanup
-                    at {recommendation.config.threshold.toFixed(0)} dB.
+                    at {recommendation.config.threshold.toFixed(0)} {t("dB.")}
                     {recommendation.hasLearnedProfile
-                      ? " Save this learned profile on the clip."
-                      : " A custom profile could not be isolated, so this recommendation uses the best preset match for the clip."}
+                      ? t(" Save this learned profile on the clip.")
+                      : t(" A custom profile could not be isolated, so this recommendation uses the best preset match for the clip.")}
                   </p>
                   <Button
                     size="sm"
                     className="w-full text-[11px]"
                     onClick={applyRecommendation}
                   >
-                    Apply Recommended Cleanup
+                    {t("Apply Recommended Cleanup")}
                   </Button>
                 </AlertDescription>
               </Alert>
             )}
             <div className="space-y-2 rounded-[7px] border border-border bg-bg-1 p-2.5">
-              <p className="text-[11px] font-medium">A/B Preview</p>
+              <p className="text-[11px] font-medium">{t("A/B Preview")}</p>
               <Tabs
                 value={previewingOriginal ? "original" : "cleaned"}
                 onValueChange={preview}
@@ -535,19 +537,19 @@ function NoiseReductionControls({ scope }: { scope: NoiseReductionScope }) {
                     disabled={!activeEffect || busy}
                     className="text-[11px]"
                   >
-                    Hear Original
+                    {t("Hear Original")}
                   </TabsTrigger>
                   <TabsTrigger
                     value="cleaned"
                     disabled={!activeEffect || busy}
                     className="text-[11px]"
                   >
-                    Hear Cleaned
+                    {t("Hear Cleaned")}
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
               <p className="text-[10px] leading-relaxed text-fg-3">
-                Preview only. Export still uses the cleaned audio effect chain.
+                {t("Preview only. Export still uses the cleaned audio effect chain.")}
               </p>
             </div>
             <PropertySlider
@@ -608,7 +610,7 @@ function NoiseReductionControls({ scope }: { scope: NoiseReductionScope }) {
                 className="w-full text-[11px]"
                 onClick={cancel}
               >
-                Cancel analysis
+                {t("Cancel analysis")}
               </Button>
             )}
             {progress && busy && (
@@ -623,7 +625,7 @@ function NoiseReductionControls({ scope }: { scope: NoiseReductionScope }) {
                   </span>
                 </div>
                 <Progress
-                  aria-label="Noise analysis progress"
+                  aria-label={t("Noise analysis progress")}
                   value={Math.round(progress.progress * 100)}
                 />
               </div>
@@ -637,10 +639,9 @@ function NoiseReductionControls({ scope }: { scope: NoiseReductionScope }) {
             )}
             {config.profile && !recommendation && state !== "error" && (
               <p className="text-center text-[10px] leading-relaxed text-fg-3">
-                Learned noise profile is active on this clip.
+                {t("Learned noise profile is active on this clip.")}
                 <br />
-                Auto-tuned with {activePreset.label.toLowerCase()} and reused
-                for export cleanup.
+                {t("Auto-tuned with")} {activePreset.label.toLowerCase()} {t("and reused for export cleanup.")}
               </p>
             )}
           </div>

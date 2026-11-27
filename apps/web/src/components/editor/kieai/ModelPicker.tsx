@@ -5,6 +5,7 @@ import {
   IMAGE_MODELS,
   type ImageModelId,
 } from "../../../services/kieai/image-generation";
+import { useT } from "@openreel/i18n/react";
 
 interface ModelInfo {
   id: ImageModelId;
@@ -62,10 +63,11 @@ interface Props {
 }
 
 export function ModelPicker({ onSelect }: Props) {
+  const t = useT();
   return (
     <div className="space-y-3">
       <span className="text-[12px] leading-5 text-fg-2">
-        Select a model to generate a new image from your source.
+        {t("Select a model to generate a new image from your source.")}
       </span>
       <div className="grid grid-cols-1 gap-2">
         {IMAGE_MODEL_OPTIONS.map((m) => (

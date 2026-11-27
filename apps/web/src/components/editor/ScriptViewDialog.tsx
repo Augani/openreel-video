@@ -44,6 +44,8 @@ import { toast } from "../../stores/notification-store";
 import { createProjectSerializer, createStorageEngine } from "@openreel/core";
 import type { ValidationResult } from "@openreel/core/storage/schema-types";
 import { saveCurrentProjectForReplacement } from "../../services/project-replacement";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 SyntaxHighlighter.registerLanguage("json", json);
 
@@ -56,6 +58,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
   isOpen,
   onClose,
 }) => {
+  const t = useT();
   const shadcnFileInput0 = useImportInputRef<HTMLInputElement>(null);
 
   const project = useProjectStore((state) => (isOpen ? state.project : null));
@@ -235,8 +238,8 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
         ).length;
         if (missingCount > 0) {
           toast.warning(
-            `${missingCount} asset${missingCount !== 1 ? "s" : ""} need relinking`,
-            'Go to Assets panel → click "Relink from Folder" to restore missing media.',
+            translateNow(missingCount === 1 ? "{count} asset needs relinking" : "{count} assets need relinking", { count: missingCount }),
+            translateNow('Go to Assets panel → click "Relink from Folder" to restore missing media.'),
           );
         }
       }
@@ -271,10 +274,10 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
               </span>
               <div className="min-w-0 flex-1">
                 <ShadcnDialogTitle className="truncate text-[15px] font-semibold leading-5 text-fg">
-                  {"Project JSON"}
+                  {t("Project JSON")}
                 </ShadcnDialogTitle>
                 <ShadcnDialogDescription className="mt-1 text-[12px] leading-4 text-fg-muted">
-                  {"Export or import project as JSON"}
+                  {t("Export or import project as JSON")}
                 </ShadcnDialogDescription>
               </div>
               <ShadcnDialogClose asChild>
@@ -282,7 +285,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                   variant="ghost"
                   size="icon-sm"
                   type="button"
-                  aria-label="Close dialog"
+                  aria-label={t("Close dialog")}
                   className="size-7 shrink-0 rounded-[7px] p-0 text-fg-muted hover:bg-bg-2 hover:text-fg"
                 >
                   <DialogCloseIcon size={15} aria-hidden />
@@ -300,7 +303,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
             >
               <div className="border-b border-border p-2">
                 <ShadcnRadioGroup
-                  aria-label={"Project JSON mode"}
+                  aria-label={t("Project JSON mode")}
                   value={activeTab}
                   onValueChange={(next) => {
                     if (next)
@@ -327,10 +330,10 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                       <ShadcnRadioGroupItem
                         data-value={option.value}
                         value={option.value}
-                        aria-label={option.label ?? option.value}
+                        aria-label={t(option.label) ?? option.value}
                         className="sr-only"
                       />
-                      {option.label}
+                      {t(option.label)}
                     </RadioLabel>
                   ))}
                 </ShadcnRadioGroup>
@@ -363,19 +366,19 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                               )}
                             </span>
                             <span className="truncate">
-                              {copySuccess ? "Copied!" : "Copy"}
+                              {copySuccess ? t("Copied!") : t("Copy")}
                             </span>
                           </Button>
                           <Button
                             onClick={handleDownload}
                             type="button"
-                            aria-label="Download JSON"
+                            aria-label={t("Download JSON")}
                             className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"
                           >
                             <span className="flex h-4 w-4 shrink-0 items-center justify-center">
                               {<Download size={16} aria-hidden />}
                             </span>
-                            <span className="truncate">{"Download JSON"}</span>
+                            <span className="truncate">{t("Download JSON")}</span>
                           </Button>
                         </div>
 
@@ -401,7 +404,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                       <div className="flex-1 flex flex-col items-center justify-center gap-3 p-8 text-center">
                         <FileCode size={40} className="text-text-muted" />
                         <span className="text-[13px] leading-5 text-fg-2 font-normal">
-                          No project data to export.
+                          {t("No project data to export.")}
                         </span>
                       </div>
                     )}
@@ -433,7 +436,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        aria-label={"Project JSON file"}
+                        aria-label={t("Project JSON file")}
                         disabled={false}
                         onClick={() => shadcnFileInput0.current?.click()}
                         className={uiCn(
@@ -470,10 +473,10 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                         </span>
                         <span className="min-w-0">
                           <span className="block truncate">
-                            {"Drop a JSON file here or click to browse"}
+                            {t("Drop a JSON file here or click to browse")}
                           </span>
                           <span className="mt-0.5 block text-[11px] font-medium leading-4 text-fg-muted">
-                            {"Accepts .json project files"}
+                            {t("Accepts .json project files")}
                           </span>
                         </span>
                       </Button>
@@ -485,8 +488,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                         <div className="flex items-center gap-2">
                           <FileCode size={16} className="text-text-secondary" />
                           <span className="text-fg-2 font-normal flex-1 text-sm">
-                            {importJson.length.toLocaleString()} characters
-                            loaded
+                            {importJson.length.toLocaleString()} {t("characters loaded")}
                           </span>
                           <Button
                             onClick={() => {
@@ -495,10 +497,10 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                               setValidation(null);
                             }}
                             type="button"
-                            aria-label="Clear"
+                            aria-label={t("Clear")}
                             className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"
                           >
-                            <span className="truncate">{"Clear"}</span>
+                            <span className="truncate">{t("Clear")}</span>
                           </Button>
                           <Button
                             onClick={handleValidate}
@@ -513,7 +515,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                             className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"
                           >
                             <span className="truncate">
-                              {isValidating ? "Validating..." : "Re-validate"}
+                              {isValidating ? t("Validating...") : t("Re-validate")}
                             </span>
                           </Button>
                         </div>
@@ -527,7 +529,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                           <Card className="min-w-0 rounded-[7px] shadow-none bg-status-success/10 text-fg p-3 flex items-center gap-2 border border-primary/30">
                             <CheckCircle2 size={16} className="text-primary" />
                             <span className="text-[13px] leading-5 font-normal text-primary">
-                              Valid project JSON — ready to import
+                              {t("Valid project JSON — ready to import")}
                             </span>
                           </Card>
                         )}
@@ -536,7 +538,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                           <Card className="min-w-0 rounded-[7px] shadow-none text-fg p-3 space-y-1 border border-error/30 bg-error/10">
                             <div className="flex items-center gap-2 text-error font-medium text-sm">
                               <AlertCircle size={16} />
-                              Errors
+                              {t("Errors")}
                             </div>
                             <ul className="list-disc list-inside text-xs text-error/80 space-y-0.5">
                               {validation.errors.map((err, i) => (
@@ -550,7 +552,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                           <Card className="min-w-0 rounded-[7px] shadow-none text-fg p-3 space-y-1 border border-warning/30 bg-warning/10">
                             <div className="flex items-center gap-2 text-warning font-medium text-sm">
                               <AlertTriangle size={16} />
-                              Warnings
+                              {t("Warnings")}
                             </div>
                             <ul className="list-disc list-inside text-xs text-warning/80 space-y-0.5">
                               {validation.warnings.map((warning, i) => (
@@ -564,12 +566,11 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                           validation.missingAssets.length > 0 && (
                             <Card className="min-w-0 rounded-[7px] shadow-none bg-bg-2 text-fg p-3 space-y-1 border border-border">
                               <span className="text-fg-2 font-bold block text-sm">
-                                Missing Assets (
+                                {t("Missing Assets (")}
                                 {validation.missingAssets.length})
                               </span>
                               <span className="text-[12px] leading-5 text-fg-2 font-normal block">
-                                These assets will be imported as placeholders
-                                and can be replaced later.
+                                {t("These assets will be imported as placeholders and can be replaced later.")}
                               </span>
                             </Card>
                           )}
@@ -581,7 +582,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                       <Button
                         onClick={handleImport}
                         type="button"
-                        aria-label="Import Project"
+                        aria-label={t("Import Project")}
                         disabled={
                           !validation?.valid || isImporting || isImporting
                         }
@@ -597,7 +598,7 @@ export const ScriptViewDialog: React.FC<ScriptViewDialogProps> = ({
                             {<Upload size={16} aria-hidden />}
                           </span>
                         )}
-                        <span className="truncate">{"Import Project"}</span>
+                        <span className="truncate">{t("Import Project")}</span>
                       </Button>
                     )}
                   </div>

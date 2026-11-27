@@ -3,6 +3,7 @@ import { CaptionSeiError, embedCea608Sei } from "@openreel/core/export/caption-s
 import type { Subtitle } from "@openreel/core";
 import { useProjectStore } from "../stores/project-store";
 import { toast } from "../stores/notification-store";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * File > Embed CEA-608 captions in video...: write the project's captions into the H.264 stream
@@ -32,11 +33,11 @@ export async function embedCaptionsInFile(file: File): Promise<void> {
   const subtitles = project.timeline.subtitles ?? [];
   const track = pickCaptionTrack(subtitles);
   if (!track) {
-    toast.warning("No captions to embed", "Add or generate captions first, then embed them in the exported video.");
+    toast.warning(translateNow("No captions to embed"), "Add or generate captions first, then embed them in the exported video.");
     return;
   }
   if (file.size > MAX_BYTES) {
-    toast.error("File too large to embed", "CEA-608 embedding processes the file in memory and supports files up to 1.5 GB.");
+    toast.error(translateNow("File too large to embed"), "CEA-608 embedding processes the file in memory and supports files up to 1.5 GB.");
     return;
   }
   try {
@@ -57,12 +58,12 @@ export async function embedCaptionsInFile(file: File): Promise<void> {
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     const notes = [...scc.issues.filter((issue) => issue.severity !== "info").map((issue) => issue.message), ...result.warnings];
     toast.success(
-      "CEA-608 captions embedded",
+      translateNow("CEA-608 captions embedded"),
       `${result.framesWithCaptions} of ${result.videoFrames} frames carry caption data (${track.cues} cue${track.cues === 1 ? "" : "s"}). Picture and audio are unchanged.${notes.length ? ` ${notes.join(" ")}` : ""}`,
     );
   } catch (error) {
     toast.error(
-      "Could not embed CEA-608 captions",
+      translateNow("Could not embed CEA-608 captions"),
       error instanceof CaptionSeiError || error instanceof Error ? error.message : "The file could not be processed.",
     );
   }

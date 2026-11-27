@@ -29,12 +29,14 @@ import {
 import { useProjectStore } from "../../../stores/project-store";
 import { applyFootageInterpretation, runOrganize } from "../../../services/project-panel-commands";
 import { actionTargetIds } from "./ProjectPanelMenus";
+import { useT } from "@openreel/i18n/react";
 
 /**
  * Media info for colour plus "Interpret footage": what the file's tags say,
  * what the editor treats the pixels as, and a one-step undoable override.
  */
 export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () => void }> = ({ media, onClose }) => {
+  const t = useT();
   const [choice, setChoice] = React.useState<FootageColorPreset | "tagged">(media.colorInterpretation ?? "tagged");
   const detected = media.metadata.sourceColor;
   const effective = effectiveSourceColor({ ...media, colorInterpretation: choice === "tagged" ? undefined : choice });
@@ -103,43 +105,43 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[calc(100vh-2rem)] max-w-[440px] overflow-y-auto overflow-x-hidden border-border bg-bg-1 text-fg" data-testid="interpret-footage-dialog">
         <DialogHeader>
-          <DialogTitle>Interpret footage</DialogTitle>
+          <DialogTitle>{t("Interpret footage")}</DialogTitle>
           <DialogDescription className="truncate">{media.name}</DialogDescription>
         </DialogHeader>
         <dl className="grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs" data-testid="media-color-info">
-          <dt className="text-fg-3">Tagged as</dt>
+          <dt className="text-fg-3">{t("Tagged as")}</dt>
           <dd data-testid="media-color-detected">{detected ? describeSourceColor(detected) : `${describeSourceColor(DEFAULT_SOURCE_COLOR)} - no colour tags`}</dd>
-          <dt className="text-fg-3">Treated as</dt>
+          <dt className="text-fg-3">{t("Treated as")}</dt>
           <dd data-testid="media-color-effective">{describeSourceColor(effective)}</dd>
-          <dt className="text-fg-3">Input transform</dt>
+          <dt className="text-fg-3">{t("Input transform")}</dt>
           <dd data-testid="media-color-transform">
             {ocioMode
-              ? "OpenColorIO: the clip's OCIO input colour space (Color tab) or the project's default, then the config's looks and view; Interpret footage does not apply"
+              ? t("OpenColorIO: the clip's OCIO input colour space (Color tab) or the project's default, then the config's looks and view; Interpret footage does not apply")
               : acesMode
-              ? "ACES input transform (IDT) to ACEScg, then the ACES output transform, identical in preview and export"
+              ? t("ACES input transform (IDT) to ACEScg, then the ACES output transform, identical in preview and export")
               : willTransform
               ? hdr
-                ? "HDR to SDR working image (tone-mapped), identical in preview and export"
+                ? t("HDR to SDR working image (tone-mapped), identical in preview and export")
                 : cameraLog
-                  ? "Camera log to Rec.709 (built-in formula, highlights rolled off), identical in preview and export"
-                  : "Gamut converted to Rec.709, identical in preview and export"
-              : "None: pixels are used as decoded"}
+                  ? t("Camera log to Rec.709 (built-in formula, highlights rolled off), identical in preview and export")
+                  : t("Gamut converted to Rec.709, identical in preview and export")
+              : t("None: pixels are used as decoded")}
           </dd>
         </dl>
-        <fieldset className="space-y-1" aria-label="Interpret footage as">
+        <fieldset className="space-y-1" aria-label={t("Interpret footage as")}>
           <label className="flex items-center gap-2 text-xs">
             <input type="radio" name="interpret" checked={choice === "tagged"} onChange={() => setChoice("tagged")} data-testid="interpret-tagged" />
-            As tagged{detected ? ` (${describeSourceColor(detected)})` : " (Rec.709)"}
+            {t("As tagged")}{detected ? ` (${describeSourceColor(detected)})` : t(" (Rec.709)")}
           </label>
           {FOOTAGE_COLOR_PRESETS.filter((preset) => !preset.camera).map((preset) => (
             <label key={preset.id} className="flex items-center gap-2 text-xs">
               <input type="radio" name="interpret" checked={choice === preset.id} onChange={() => setChoice(preset.id)} data-testid={`interpret-${preset.id}`} />
-              {preset.label}
+              {t(preset.label)}
             </label>
           ))}
         </fieldset>
         <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-x-3 text-xs">
-          <label htmlFor="interpret-camera" className="text-fg-3">Camera input (log)</label>
+          <label htmlFor="interpret-camera" className="text-fg-3">{t("Camera input (log)")}</label>
           <select
             id="interpret-camera"
             value={cameraLog ? choice : ""}
@@ -147,11 +149,11 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
             className="h-7 w-full min-w-0 rounded border border-border bg-bg-2 px-1"
             data-testid="interpret-camera-select"
           >
-            <option value="" disabled>None (use the option above)</option>
+            <option value="" disabled>{t("None (use the option above)")}</option>
             {Array.from(new Set(CAMERA_FOOTAGE_COLOR_PRESETS.map((preset) => preset.camera?.maker ?? ""))).map((maker) => (
               <optgroup key={maker} label={maker}>
                 {CAMERA_FOOTAGE_COLOR_PRESETS.filter((preset) => (preset.camera?.maker ?? "") === maker).map((preset) => (
-                  <option key={preset.id} value={preset.id}>{preset.label}</option>
+                  <option key={preset.id} value={preset.id}>{t(preset.label)}</option>
                 ))}
               </optgroup>
             ))}
@@ -159,7 +161,7 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
         </div>
         <div className="space-y-1 text-xs" data-testid="interpret-ocio">
           <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-x-3">
-            <label htmlFor="interpret-ocio-file" className="text-fg-3">OCIO config</label>
+            <label htmlFor="interpret-ocio-file" className="text-fg-3">{t("OCIO config")}</label>
             <input
               id="interpret-ocio-file"
               type="file"
@@ -173,7 +175,7 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
           {ocio && (
             <div className="space-y-1" data-testid="interpret-ocio-result">
               <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-x-3">
-                <label htmlFor="interpret-ocio-space" className="text-fg-3">Colour space</label>
+                <label htmlFor="interpret-ocio-space" className="text-fg-3">{t("Colour space")}</label>
                 <select
                   id="interpret-ocio-space"
                   value=""
@@ -181,7 +183,7 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
                   className="h-7 w-full min-w-0 rounded border border-border bg-bg-2 px-1"
                   data-testid="interpret-ocio-select"
                 >
-                  <option value="" disabled>{ocio.mapping.supported.length} supported of {ocio.mapping.supported.length + ocio.mapping.unsupported.length} in {ocio.fileName}</option>
+                  <option value="" disabled>{ocio.mapping.supported.length} {t("supported of")} {ocio.mapping.supported.length + ocio.mapping.unsupported.length} {t("in")} {ocio.fileName}</option>
                   {ocio.mapping.supported.map((space) => (
                     <option key={space.name} value={space.preset}>
                       {space.name} → {FOOTAGE_COLOR_PRESETS.find((p) => p.id === space.preset)?.label ?? space.preset}
@@ -191,7 +193,7 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
               </div>
               {ocio.mapping.unsupported.length > 0 && (
                 <details className="text-[10px] leading-snug text-fg-3" data-testid="interpret-ocio-unsupported">
-                  <summary className="cursor-pointer">{ocio.mapping.unsupported.length} colour spaces are not supported</summary>
+                  <summary className="cursor-pointer">{ocio.mapping.unsupported.length} {t("colour spaces are not supported")}</summary>
                   <ul className="mt-1 space-y-0.5">
                     {ocio.mapping.unsupported.map((space) => (
                       <li key={space.name}><span className="text-fg-2">{space.name}</span>: {space.reason}</li>
@@ -202,12 +204,12 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
             </div>
           )}
           <p className="text-[10px] leading-snug text-fg-3">
-            Reads the colour space list of an .ocio file and applies the matching built-in preset. The config's own transforms and LUTs are not run.
+            {t("Reads the colour space list of an .ocio file and applies the matching built-in preset. The config's own transforms and LUTs are not run.")}
           </p>
         </div>
         {isVideo && (
           <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 text-xs" data-testid="interpret-timing">
-            <label htmlFor="interpret-fps" className="text-fg-3">Frame rate</label>
+            <label htmlFor="interpret-fps" className="text-fg-3">{t("Frame rate")}</label>
             <input
               id="interpret-fps"
               type="number"
@@ -220,10 +222,10 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
               data-testid="interpret-fps"
             />
             {draftError && <p className="col-span-2 text-[10px] text-red-400" data-testid="interpret-error">{draftError}</p>}
-            <label htmlFor="interpret-par" className="text-fg-3">Pixel aspect</label>
+            <label htmlFor="interpret-par" className="text-fg-3">{t("Pixel aspect")}</label>
             <div className="flex min-w-0 items-center gap-2">
               <select
-                aria-label="Pixel aspect preset"
+                aria-label={t("Pixel aspect preset")}
                 value={PIXEL_ASPECT_PRESETS.find((p) => Math.abs(p.value - Number(par)) < 1e-3)?.id ?? ""}
                 onChange={(e) => {
                   const preset = PIXEL_ASPECT_PRESETS.find((p) => p.id === e.target.value);
@@ -235,9 +237,9 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
                 className="h-7 w-full min-w-0 rounded border border-border bg-bg-2 px-1"
                 data-testid="interpret-par-preset"
               >
-                <option value="">Custom</option>
+                <option value="">{t("Custom")}</option>
                 {PIXEL_ASPECT_PRESETS.map((p) => (
-                  <option key={p.id} value={p.id}>{p.label}</option>
+                  <option key={p.id} value={p.id}>{t(p.label)}</option>
                 ))}
               </select>
               <input
@@ -253,12 +255,12 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
               />
             </div>
             {parError && <p className="col-span-2 text-[10px] text-red-400" data-testid="interpret-par-error">{parError}</p>}
-            <dt className="text-fg-3">Display size</dt>
+            <dt className="text-fg-3">{t("Display size")}</dt>
             <dd data-testid="interpret-display-size">
               {display.width} x {display.height}
               {detectedPar !== undefined ? ` (file reports pixel aspect ${Number(detectedPar.toFixed(4))})` : ""}
             </dd>
-            <label htmlFor="interpret-field" className="text-fg-3">Field order</label>
+            <label htmlFor="interpret-field" className="text-fg-3">{t("Field order")}</label>
             <select
               id="interpret-field"
               value={field}
@@ -267,10 +269,10 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
               data-testid="interpret-field"
             >
               {FIELD_ORDERS.map((o) => (
-                <option key={o} value={o}>{o === "progressive" ? "Progressive (none)" : o === "upper" ? "Upper field first" : "Lower field first"}</option>
+                <option key={o} value={o}>{o === "progressive" ? t("Progressive (none)") : o === "upper" ? t("Upper field first") : t("Lower field first")}</option>
               ))}
             </select>
-            <label htmlFor="interpret-deinterlace" className="text-fg-3">Deinterlace</label>
+            <label htmlFor="interpret-deinterlace" className="text-fg-3">{t("Deinterlace")}</label>
             <select
               id="interpret-deinterlace"
               value={deinterlace}
@@ -280,28 +282,24 @@ export const InterpretFootageDialog: React.FC<{ media: MediaItem; onClose: () =>
               data-testid="interpret-deinterlace"
             >
               {DEINTERLACE_MODES.map((m) => (
-                <option key={m} value={m}>{m === "none" ? "None" : m === "blend" ? "Blend" : "Bob"}</option>
+                <option key={m} value={m}>{m === "none" ? t("None") : m === "blend" ? t("Blend") : t("Bob")}</option>
               ))}
             </select>
             <label className="col-span-2 flex items-center gap-2">
               <input type="checkbox" checked={retime} onChange={(e) => setRetime(e.target.checked)} data-testid="interpret-retime" />
-              Apply to clips already on the timeline
+              {t("Apply to clips already on the timeline")}
             </label>
             <p className="col-span-2 text-[10px] leading-snug text-fg-3">
-              A frame rate override conforms the footage: it plays at the interpreted rate, so a 30 fps file read as 24 fps runs 25% longer.
-              Clips of this footage are retimed and later clips on the same track move to follow. Pixel aspect ratio stretches the frame to its
-              display shape; field order with Blend or Bob removes combing from interlaced footage. Both apply to preview, the Program monitor, scopes and export.
+              {t("A frame rate override conforms the footage: it plays at the interpreted rate, so a 30 fps file read as 24 fps runs 25% longer. Clips of this footage are retimed and later clips on the same track move to follow. Pixel aspect ratio stretches the frame to its display shape; field order with Blend or Bob removes combing from interlaced footage. Both apply to preview, the Program monitor, scopes and export.")}
             </p>
           </div>
         )}
         <p className="text-[10px] leading-snug text-fg-3">
-          Use an override when a file is untagged or tagged wrongly (a flat, washed-out clip). On the web build the browser converts tagged
-          HDR and wide-gamut files itself, so only an override changes them there; the desktop app decodes them through ffmpeg and applies the
-          file's own tags.
+          {t("Use an override when a file is untagged or tagged wrongly (a flat, washed-out clip). On the web build the browser converts tagged HDR and wide-gamut files itself, so only an override changes them there; the desktop app decodes them through ffmpeg and applies the file's own tags.")}
         </p>
         <DialogFooter className="sticky bottom-0 -mb-6 bg-bg-1 pb-6 pt-2">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={apply} disabled={!!draftError || !!parError} data-testid="interpret-apply">Apply</Button>
+          <Button variant="secondary" onClick={onClose}>{t("Cancel")}</Button>
+          <Button onClick={apply} disabled={!!draftError || !!parError} data-testid="interpret-apply">{t("Apply")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

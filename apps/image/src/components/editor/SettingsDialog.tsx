@@ -1,16 +1,19 @@
 import { useState } from 'react';
-import { X, Settings, Grid3X3, MousePointer, Save, Palette, Monitor } from 'lucide-react';
+import { X, Settings, Grid3X3, MousePointer, Save, Palette, Monitor, Languages } from 'lucide-react';
 import { useUIStore } from '../../stores/ui-store';
 import { Slider } from '@openreel/ui';
+import { useLanguage, useT } from '@openreel/i18n/react';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
 }
 
-type SettingsTab = 'canvas' | 'snapping' | 'appearance';
+type SettingsTab = 'canvas' | 'snapping' | 'appearance' | 'language';
 
 export function SettingsDialog({ isOpen, onClose }: Props) {
+  const t = useT();
+  const { preference, setPreference } = useLanguage();
   const [activeTab, setActiveTab] = useState<SettingsTab>('canvas');
 
   const {
@@ -33,9 +36,10 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
   if (!isOpen) return null;
 
   const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'canvas', label: 'Canvas', icon: <Grid3X3 size={16} /> },
-    { id: 'snapping', label: 'Snapping', icon: <MousePointer size={16} /> },
-    { id: 'appearance', label: 'Appearance', icon: <Palette size={16} /> },
+    { id: 'canvas', label: t('Canvas'), icon: <Grid3X3 size={16} /> },
+    { id: 'snapping', label: t('Snapping'), icon: <MousePointer size={16} /> },
+    { id: 'appearance', label: t('Appearance'), icon: <Palette size={16} /> },
+    { id: 'language', label: t('Language'), icon: <Languages size={16} /> },
   ];
 
   return (
@@ -45,7 +49,7 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div className="flex items-center gap-3">
             <Settings size={20} className="text-primary" />
-            <h2 className="text-lg font-semibold">Settings</h2>
+            <h2 className="text-lg font-semibold">{t('Settings')}</h2>
           </div>
           <button
             onClick={onClose}
@@ -68,7 +72,7 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
                 }`}
               >
                 {tab.icon}
-                {tab.label}
+                {t(tab.label)}
               </button>
             ))}
           </div>
@@ -76,7 +80,7 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
           <div className="flex-1 p-6 min-h-[300px]">
             {activeTab === 'canvas' && (
               <div className="space-y-6">
-                <h3 className="text-sm font-medium text-foreground mb-4">Canvas Options</h3>
+                <h3 className="text-sm font-medium text-foreground mb-4">{t("Canvas Options")}</h3>
 
                 <div className="space-y-4">
                   <ToggleOption
@@ -102,7 +106,7 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
 
                   <div className="pt-2">
                     <div className="flex items-center justify-between mb-2">
-                      <label className="text-sm text-foreground">Grid Size</label>
+                      <label className="text-sm text-foreground">{t("Grid Size")}</label>
                       <span className="text-sm text-muted-foreground">{gridSize}px</span>
                     </div>
                     <Slider
@@ -119,7 +123,7 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
 
             {activeTab === 'snapping' && (
               <div className="space-y-6">
-                <h3 className="text-sm font-medium text-foreground mb-4">Snap Options</h3>
+                <h3 className="text-sm font-medium text-foreground mb-4">{t("Snap Options")}</h3>
 
                 <div className="space-y-4">
                   <ToggleOption
@@ -146,21 +150,44 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
               </div>
             )}
 
+            {activeTab === 'language' && (
+              <div className="space-y-6">
+                <h3 className="text-sm font-medium text-foreground mb-4">{t('Language')}</h3>
+                <div className="space-y-2">
+                  {([
+                    ['system', t('Follow system')],
+                    ['en', 'English'],
+                    ['zh-CN', '简体中文'],
+                  ] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setPreference(value)}
+                      className="flex w-full items-center justify-between rounded-lg border border-border px-3 py-2 text-left text-sm hover:bg-accent"
+                    >
+                      <span>{label}</span>
+                      {preference === value && <span className="text-primary">✓</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {activeTab === 'appearance' && (
               <div className="space-y-6">
-                <h3 className="text-sm font-medium text-foreground mb-4">Appearance</h3>
+                <h3 className="text-sm font-medium text-foreground mb-4">{t("Appearance")}</h3>
 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
                     <div className="flex items-center gap-3">
                       <Monitor size={18} className="text-muted-foreground" />
                       <div>
-                        <p className="text-sm font-medium">Theme</p>
-                        <p className="text-xs text-muted-foreground">Interface appearance</p>
+                        <p className="text-sm font-medium">{t("Theme")}</p>
+                        <p className="text-xs text-muted-foreground">{t("Interface appearance")}</p>
                       </div>
                     </div>
                     <div className="px-3 py-1.5 text-xs bg-primary/20 text-primary rounded-md">
-                      Dark (System)
+                      {t("Dark (System)")}
                     </div>
                   </div>
 
@@ -168,12 +195,12 @@ export function SettingsDialog({ isOpen, onClose }: Props) {
                     <div className="flex items-center gap-3 mb-3">
                       <Save size={18} className="text-muted-foreground" />
                       <div>
-                        <p className="text-sm font-medium">Auto Save</p>
-                        <p className="text-xs text-muted-foreground">Automatically save projects</p>
+                        <p className="text-sm font-medium">{t("Auto Save")}</p>
+                        <p className="text-xs text-muted-foreground">{t("Automatically save projects")}</p>
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Projects are automatically saved to browser storage every 30 seconds.
+                      {t("Projects are automatically saved to browser storage every 30 seconds.")}
                     </p>
                   </div>
                 </div>

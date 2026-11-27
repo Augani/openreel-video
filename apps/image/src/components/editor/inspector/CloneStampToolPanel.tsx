@@ -1,7 +1,9 @@
 import { useUIStore } from '../../../stores/ui-store';
 import { Stamp, RotateCcw } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 export function CloneStampToolPanel() {
+  const t = useT();
   const { cloneStampSettings, setCloneStampSettings } = useUIStore();
 
   const resetSettings = () => {
@@ -21,31 +23,31 @@ export function CloneStampToolPanel() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Stamp size={16} className="text-muted-foreground" />
-          <h3 className="text-sm font-medium">Clone Stamp</h3>
+          <h3 className="text-sm font-medium">{t("Clone Stamp")}</h3>
         </div>
         <button
           onClick={resetSettings}
           className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-secondary transition-colors"
-          title="Reset"
+          title={t("Reset")}
         >
           <RotateCcw size={14} />
         </button>
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Hold Alt/Option and click to set source point, then paint to clone.
+        {t("Hold Alt/Option and click to set source point, then paint to clone.")}
       </p>
 
       {cloneStampSettings.sourcePoint && (
         <div className="text-xs text-muted-foreground bg-secondary/50 p-2 rounded">
-          Source: ({Math.round(cloneStampSettings.sourcePoint.x)}, {Math.round(cloneStampSettings.sourcePoint.y)})
+          {t("Source: (")}{Math.round(cloneStampSettings.sourcePoint.x)}, {Math.round(cloneStampSettings.sourcePoint.y)})
         </div>
       )}
 
       <div className="space-y-3">
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Size</span>
+            <span className="text-xs text-muted-foreground">{t("Size")}</span>
             <span className="text-xs font-mono text-muted-foreground">{cloneStampSettings.size}px</span>
           </div>
           <input
@@ -65,7 +67,7 @@ export function CloneStampToolPanel() {
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Hardness</span>
+            <span className="text-xs text-muted-foreground">{t("Hardness")}</span>
             <span className="text-xs font-mono text-muted-foreground">{cloneStampSettings.hardness}%</span>
           </div>
           <input
@@ -85,7 +87,7 @@ export function CloneStampToolPanel() {
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Opacity</span>
+            <span className="text-xs text-muted-foreground">{t("Opacity")}</span>
             <span className="text-xs font-mono text-muted-foreground">{Math.round(cloneStampSettings.opacity * 100)}%</span>
           </div>
           <input
@@ -105,7 +107,7 @@ export function CloneStampToolPanel() {
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Flow</span>
+            <span className="text-xs text-muted-foreground">{t("Flow")}</span>
             <span className="text-xs font-mono text-muted-foreground">{Math.round(cloneStampSettings.flow * 100)}%</span>
           </div>
           <input
@@ -131,7 +133,7 @@ export function CloneStampToolPanel() {
               onChange={(e) => setCloneStampSettings({ aligned: e.target.checked })}
               className="w-3.5 h-3.5 rounded border-border"
             />
-            Aligned
+            {t("Aligned")}
           </label>
           <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
             <input
@@ -140,7 +142,7 @@ export function CloneStampToolPanel() {
               onChange={(e) => setCloneStampSettings({ sampleAllLayers: e.target.checked })}
               className="w-3.5 h-3.5 rounded border-border"
             />
-            Sample All Layers
+            {t("Sample All Layers")}
           </label>
         </div>
       </div>

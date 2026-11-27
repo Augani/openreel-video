@@ -7,13 +7,15 @@ import { useUIStore } from "../../../stores/ui-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { SVG_ANIMATION_PRESETS, type GraphicAnimation, type GraphicAnimationType, type SVGClip } from "@openreel/core";
 import { ColorSelector } from "../../../motion/components/primitives";
+import { useT } from "@openreel/i18n/react";
 
 export const SVGSection: React.FC<{ clipId: string }> = ({ clipId }) => {
+  const t = useT();
   const { project, getSVGClipById } = useProjectStore(useShallow(state => ({ project: state.project, getSVGClipById: state.getSVGClipById })));
   const exporting = useUIStore(state => state.exportState.isExporting);
   const operationLocked = useTimelineStore(state => Boolean(state.playbackLockedReason));
   const svgClip = getSVGClipById(clipId);
-  if (!svgClip) return <span className="py-8 text-center text-xs text-fg-2">No SVG clip selected</span>;
+  if (!svgClip) return <span className="py-8 text-center text-xs text-fg-2">{t("No SVG clip selected")}</span>;
   const colorStyle = svgClip.colorStyle ?? { colorMode: "none" as const, tintColor: "#ffffff", tintOpacity: 1 };
   const disabled = exporting || operationLocked || !project.timeline.tracks.some(track => track.id === svgClip.trackId && !track.locked);
   const update = (updates: Parameters<ReturnType<typeof useProjectStore.getState>["updateSVGClip"]>[1]) => {
@@ -36,15 +38,15 @@ export const SVGSection: React.FC<{ clipId: string }> = ({ clipId }) => {
   return <fieldset key={`${project.id}:${clipId}`} disabled={disabled} className="min-w-0 space-y-4 border-0 p-0">
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-fg-2">Mode</span>
-        <ToggleGroup type="single" value={colorStyle.colorMode} aria-label="SVG color mode"
+        <span className="text-xs text-fg-2">{t("Mode")}</span>
+        <ToggleGroup type="single" value={colorStyle.colorMode} aria-label={t("SVG color mode")}
           onValueChange={mode => { if (mode === "none" || mode === "tint" || mode === "replace") updateColor({ colorMode: mode }); }}>
           {(["none", "tint", "replace"] as const).map(mode => <ToggleGroupItem key={mode} value={mode} className="h-[30px] px-2 text-xs capitalize">{mode}</ToggleGroupItem>)}
         </ToggleGroup>
       </div>
       {colorStyle.colorMode !== "none" && <>
         <div className="flex items-center justify-between gap-2">
-          <span className="text-xs text-fg-2">Color</span>
+          <span className="text-xs text-fg-2">{t("Color")}</span>
           <div className="max-w-[170px]"><ColorSelector label="Select color" value={colorStyle.tintColor ?? "#ffffff"} onChange={tintColor => updateColor({ tintColor })} /></div>
         </div>
         <PropertySlider label="Opacity" value={colorStyle.tintOpacity ?? 1} onChange={tintOpacity => updateColor({ tintOpacity })}

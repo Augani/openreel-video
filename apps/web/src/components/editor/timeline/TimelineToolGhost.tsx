@@ -1,5 +1,6 @@
 import React from "react";
 import { useTimelineToolPreview } from "./timeline-tool-preview";
+import { useT } from "@openreel/i18n/react";
 export const TimelineToolGhost = React.memo(function TimelineToolGhost({
   trackId,
   pixelsPerSecond,
@@ -7,6 +8,7 @@ export const TimelineToolGhost = React.memo(function TimelineToolGhost({
   trackId: string;
   pixelsPerSecond: number;
 }) {
+  const t = useT();
   // Only tracks the ghost touches re-render while a gesture streams previews.
   const state = useTimelineToolPreview((value) => {
     const ghost = value.ghost;
@@ -34,7 +36,7 @@ export const TimelineToolGhost = React.memo(function TimelineToolGhost({
             width: Math.max(1, ghost.duration * pixelsPerSecond),
           }}
         >
-          <span>{ghost.label}</span>
+          <span>{t(ghost.label)}</span>
         </div>
       )}
       {neighbors.map((neighbor, index) => (
@@ -48,7 +50,7 @@ export const TimelineToolGhost = React.memo(function TimelineToolGhost({
             width: Math.max(1, neighbor.duration * pixelsPerSecond),
           }}
         >
-          {neighbor.label && <span>{neighbor.label}</span>}
+          {t(neighbor.label ?? "") && <span>{t(neighbor.label ?? "")}</span>}
         </div>
       ))}
     </>

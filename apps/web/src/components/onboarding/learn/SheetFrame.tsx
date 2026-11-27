@@ -1,6 +1,7 @@
 import type { JSX } from "react";
 import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { X } from "../../../icons/lucide-compat";
+import { useT } from "@openreel/i18n/react";
 
 const DRAG: CSSProperties = { WebkitAppRegion: "drag" } as CSSProperties;
 const NO_DRAG: CSSProperties = { WebkitAppRegion: "no-drag" } as CSSProperties;
@@ -21,6 +22,7 @@ interface SheetFrameProps {
  * restore. Opacity-only motion, so it is reduced-motion safe by construction.
  */
 export function SheetFrame({ labelledBy, onClose, children, wide }: SheetFrameProps): JSX.Element {
+  const t = useT();
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -71,7 +73,7 @@ export function SheetFrame({ labelledBy, onClose, children, wide }: SheetFramePr
       <button
         type="button"
         onClick={onClose}
-        aria-label="Close"
+        aria-label={t("Close")}
         style={NO_DRAG}
         className="absolute right-4 top-14 grid h-8 w-8 place-items-center rounded-lg text-fg-2 transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
       >

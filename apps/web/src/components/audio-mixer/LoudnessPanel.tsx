@@ -14,6 +14,8 @@ import { createLiveLoudnessTap } from "../../services/live-loudness-meter";
 import { analyzeTimelineLoudness } from "../../services/loudness";
 import { toast } from "../../stores/notification-store";
 import { describeCompliance, describeVerdict, isSilentCompliance } from "../../services/export-loudness-report";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const formatLufs = (value: number, digits = 1): string =>
   Number.isFinite(value) ? value.toFixed(digits) : "−∞";
@@ -64,6 +66,7 @@ function Readout({
 }
 
 function ComplianceList({ result, testId }: { result: ComplianceResult; testId: string }) {
+  const t = useT();
   return (
     <div className="mt-1.5 rounded-md border border-border bg-bg-2 px-2 py-1.5" data-testid={testId}>
       <p
@@ -85,7 +88,7 @@ function ComplianceList({ result, testId }: { result: ComplianceResult; testId: 
         ))}
       </ul>
       {result.dialogueFallback && (
-        <p className="mt-0.5 text-[10px] text-fg-muted">No dialogue detected, so program loudness was checked.</p>
+        <p className="mt-0.5 text-[10px] text-fg-muted">{t("No dialogue detected, so program loudness was checked.")}</p>
       )}
     </div>
   );
@@ -119,6 +122,7 @@ function LevelBar({ label, lufs }: { label: string; lufs: number }) {
  * readouts while audio plays, plus an offline whole-timeline analysis.
  */
 export const LoudnessPanel = memo(function LoudnessPanel({ visible }: { visible: boolean }) {
+  const t = useT();
   const projectId = useProjectStore((s) => s.project.id);
   const [live, setLive] = useState<LoudnessSnapshot>(EMPTY_SNAPSHOT);
   const tapRef = useRef<ReturnType<typeof createLiveLoudnessTap> | null>(null);
@@ -170,7 +174,7 @@ export const LoudnessPanel = memo(function LoudnessPanel({ visible }: { visible:
       await analyzeTimelineLoudness();
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
-      toast.error("Loudness analysis failed", err instanceof Error ? err.message : "Try again.");
+      toast.error(translateNow("Loudness analysis failed"), err instanceof Error ? err.message : "Try again.");
     }
   }, []);
 
@@ -186,13 +190,13 @@ export const LoudnessPanel = memo(function LoudnessPanel({ visible }: { visible:
   return (
     <section
       className="mt-3 rounded-lg border border-border bg-bg-1 p-3"
-      aria-label="Loudness meter"
+      aria-label={t("Loudness meter")}
       data-testid="loudness-panel"
     >
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="text-xs font-semibold text-fg-2">Loudness (LUFS, BS.1770-4)</h3>
-        <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px]" onClick={resetLive} aria-label="Reset live loudness meter">
-          Reset
+        <h3 className="text-xs font-semibold text-fg-2">{t("Loudness (LUFS, BS.1770-4)")}</h3>
+        <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px]" onClick={resetLive} aria-label={t("Reset live loudness meter")}>
+          {t("Reset")}
         </Button>
       </div>
 
@@ -217,23 +221,23 @@ export const LoudnessPanel = memo(function LoudnessPanel({ visible }: { visible:
 
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" className="h-7 px-3 text-xs" onClick={analyze} disabled={running} data-testid="loudness-analyze">
-          {running ? "Analyzing…" : "Analyze timeline"}
+          {running ? t("Analyzing…") : t("Analyze timeline")}
         </Button>
         {running && (
           <Button variant="outline" size="sm" className="h-7 px-3 text-xs" onClick={() => useLoudnessStore.getState().cancel()}>
-            Cancel
+            {t("Cancel")}
           </Button>
         )}
         <label className="ml-auto flex items-center gap-1.5 text-[11px] text-fg-muted">
-          Compare to
+          {t("Compare to")}
           <Select value={targetId} onValueChange={setTargetId}>
-            <SelectTrigger aria-label="Loudness target preset" className="h-7 w-[196px] text-xs">
+            <SelectTrigger aria-label={t("Loudness target preset")} className="h-7 w-[196px] text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {LOUDNESS_PRESETS.map((p) => (
                 <SelectItem key={p.id} value={p.id} className="text-xs">
-                  {p.label}
+                  {t(p.label)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -244,7 +248,7 @@ export const LoudnessPanel = memo(function LoudnessPanel({ visible }: { visible:
       {running && (
         <div className="mt-2 flex items-center gap-2" data-testid="loudness-progress">
           <Progress
-            aria-label="Loudness analysis progress"
+            aria-label={t("Loudness analysis progress")}
             value={Math.round(progress * 100)}
             className="h-1.5 flex-1 bg-bg-3"
           />
@@ -279,25 +283,24 @@ export const LoudnessPanel = memo(function LoudnessPanel({ visible }: { visible:
           </div>
           <p className="mt-1.5 text-[11px] text-fg-muted" data-testid="loudness-delta">
             {delta === null
-              ? "No audible program material was found in the timeline."
+              ? t("No audible program material was found in the timeline.")
               : `${delta >= 0 ? "+" : "−"}${Math.abs(delta).toFixed(1)} LU ${dialogueGated ? "(dialogue) " : ""}vs ${preset.targetLufs} LUFS target${
                   fresh.truePeak > preset.truePeakCeilingDb ? ` · peaks exceed ${preset.truePeakCeilingDb} dBTP` : ""
                 }`}
-            {stale ? " · timeline edited since this analysis, re-analyze to update" : ""}
+            {stale ? t(" · timeline edited since this analysis, re-analyze to update") : ""}
           </p>
           {compliance && <ComplianceList result={compliance} testId="loudness-compliance" />}
         </div>
       ) : (
         !running && (
           <p className="mt-2 text-[11px] text-fg-muted">
-            Analyze renders the whole timeline mix offline (as an export would) and measures integrated loudness, loudness
-            range and true peak.
+            {t("Analyze renders the whole timeline mix offline (as an export would) and measures integrated loudness, loudness range and true peak.")}
           </p>
         )
       )}
       {exportReport?.compliance && (
         <div className="mt-3" data-testid="loudness-export-report">
-          <h4 className="text-[11px] font-semibold text-fg-2">Last export</h4>
+          <h4 className="text-[11px] font-semibold text-fg-2">{t("Last export")}</h4>
           <ComplianceList result={exportReport.compliance} testId="loudness-export-compliance" />
         </div>
       )}

@@ -24,6 +24,7 @@ import { useProjectStore } from "../stores/project-store";
 import { toast } from "../stores/notification-store";
 import { rememberNativePath } from "./native-decode";
 import { projectManager } from "./project-manager";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * Desktop (Electron) side of ingest: native-ffmpeg proxies built by the main process's background queue,
@@ -260,7 +261,7 @@ async function submitBatch(batch: Array<{ mediaId: string; name: string; srcPath
     patchState((s) => ({ jobs: { ...s.jobs, ...Object.fromEntries(jobs.map((job) => [job.mediaId, job])) } }));
   } catch (error) {
     patchState((s) => ({ jobs: Object.fromEntries(Object.entries(s.jobs).filter(([id]) => !batch.some((entry) => entry.mediaId === id))) }));
-    toast.error("Could not queue proxies", error instanceof Error ? error.message : undefined);
+    toast.error(translateNow("Could not queue proxies"), error instanceof Error ? error.message : undefined);
   }
 }
 
@@ -338,7 +339,7 @@ export async function queueDesktopCopies(mediaIds: readonly string[], options: {
     }
   } catch (error) {
     patchState((s) => ({ copyJobs: Object.fromEntries(Object.entries(s.copyJobs).filter(([id]) => !batch.some((entry) => entry.mediaId === id))) }));
-    toast.error("Could not queue the copy", error instanceof Error ? error.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, "") : undefined);
+    toast.error(translateNow("Could not queue the copy"), error instanceof Error ? error.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, "") : undefined);
     out.skipped.push(...batch.map((entry) => ({ name: entry.name, reason: "Could not be queued." })));
   }
   return out;
@@ -388,7 +389,7 @@ async function finalizeJob(job: OpenReelProxyJob): Promise<void> {
       ...(result.previewPath ? { previewPath: result.previewPath } : {}),
     };
     if (!(await organize({ label: "Create proxy", itemPatches: { [item.id]: { proxy: ref } } }))) {
-      toast.warning("Proxy not linked", `${item.name}: the project rejected the change.`);
+      toast.warning(translateNow("Proxy not linked"), `${item.name}: the project rejected the change.`);
       return;
     }
   }
@@ -429,7 +430,7 @@ async function finalizeCopyJob(job: OpenReelProxyJob): Promise<void> {
   drop();
   if (Object.keys(useDesktopIngestStore.getState().copyJobs).length === 0) {
     const report = useDesktopIngestStore.getState().lastCopy;
-    if (report?.copied.length) toast.success("Media copied to the project", `${report.copied.length} file${report.copied.length === 1 ? "" : "s"} verified by ${describeChecksum(report.copied[0].algorithm)}. The originals were not touched.`);
+    if (report?.copied.length) toast.success(translateNow("Media copied to the project"), `${report.copied.length} file${report.copied.length === 1 ? "" : "s"} verified by ${describeChecksum(report.copied[0].algorithm)}. The originals were not touched.`);
   }
 }
 
@@ -561,8 +562,8 @@ export async function copyMediaToProject(mediaIds: readonly string[]): Promise<D
     }
   }
   patchState({ lastCopy: report });
-  if (report.copied.length) toast.success("Media copied to the project", `${report.copied.length} file${report.copied.length === 1 ? "" : "s"} verified by ${describeChecksum(report.copied[0].algorithm)}. The originals were not touched.`);
-  else if (report.skipped.length) toast.warning("Nothing copied", report.skipped[0].reason);
+  if (report.copied.length) toast.success(translateNow("Media copied to the project"), `${report.copied.length} file${report.copied.length === 1 ? "" : "s"} verified by ${describeChecksum(report.copied[0].algorithm)}. The originals were not touched.`);
+  else if (report.skipped.length) toast.warning(translateNow("Nothing copied"), report.skipped[0].reason);
   return report;
 }
 
@@ -662,7 +663,7 @@ export async function relinkFromFolder(kind: "full" | "proxy", presetFolder?: st
   try {
     compiled = pattern ? compileProxyPattern(pattern) : null;
   } catch (error) {
-    toast.error("Check the proxy name pattern", error instanceof Error ? error.message : undefined);
+    toast.error(translateNow("Check the proxy name pattern"), error instanceof Error ? error.message : undefined);
     return null;
   }
   const scan = await api.scanFolder({ root: folder, names: targets.map((item) => item.sourceFile?.name ?? item.name), mode: kind === "full" ? "media" : "proxy", ...(pattern ? { proxyPattern: pattern } : {}) });
@@ -732,7 +733,7 @@ export async function relinkFromFolder(kind: "full" | "proxy", presetFolder?: st
   patchState({ lastRelink: report });
   const summary = [`${report.linked.length} ${kind === "proxy" ? "attached" : "relinked"}`, report.mismatched.length ? `${report.mismatched.length} mismatched` : "", report.ambiguous.length ? `${report.ambiguous.length} ambiguous` : "", report.notFound.length ? `${report.notFound.length} not found` : "", report.failed.length ? `${report.failed.length} failed` : ""].filter(Boolean).join(" · ");
   if (report.linked.length) toast.success(kind === "full" ? "Media relinked" : "Proxies relinked", summary);
-  else toast.warning("Nothing relinked", `${summary}${scan.truncated ? " · search stopped at its limit" : ""}`);
+  else toast.warning(translateNow("Nothing relinked"), `${summary}${scan.truncated ? " · search stopped at its limit" : ""}`);
   return report;
 }
 

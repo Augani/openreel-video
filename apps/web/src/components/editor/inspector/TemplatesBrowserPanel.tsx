@@ -45,6 +45,7 @@ import {
   templateEditorOwner,
 } from "../../../services/project-templates";
 import { lazyWithRetry } from "./lazy-retry";
+import { useT } from "@openreel/i18n/react";
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   "social-media": Share,
@@ -74,6 +75,7 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
   onApply,
   isApplying = false,
 }) => {
+  const t = useT();
 
   return (
     <Card
@@ -107,20 +109,20 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
               </span>
               {template.id.startsWith("builtin-") && (
                 <span className="px-1.5 py-0.5 text-[8px] bg-status-info/20 text-status-info rounded shrink-0">
-                  Built-in
+                  {t("Built-in")}
                 </span>
               )}
               {template.source === "cloud" && (
                 <span className="px-1.5 py-0.5 text-[8px] bg-primary/20 text-primary rounded flex items-center gap-1 shrink-0">
                   <Cloud size={8} />
-                  Cloud
+                  {t("Cloud")}
                 </span>
               )}
             </div>
             <div className="flex items-center gap-3 mt-1">
               <div className="flex items-center gap-1 text-[9px] text-fg-3">
                 <Layers size={10} />
-                <span>{template.placeholderCount} placeholders</span>
+                <span>{template.placeholderCount} {t("placeholders")}</span>
               </div>
               <div className="flex items-center gap-1 text-[9px] text-fg-3">
                 <Clock size={10} />
@@ -137,7 +139,7 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
             onApply();
           }}
           type="button"
-          aria-label="Use This Template"
+          aria-label={t("Use This Template")}
           disabled={isApplying}
           className="inline-flex min-w-0 items-center justify-center gap-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 mt-3 w-full py-1.5 text-[10px] font-medium bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
         >
@@ -147,7 +149,7 @@ const TemplateCard: React.FC<TemplateCardProps> = ({
               className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent opacity-80"
             />
           ) : null}
-          <span className="truncate">{"Use This Template"}</span>
+          <span className="truncate">{t("Use This Template")}</span>
         </Button>
       )}
     </Card>
@@ -161,6 +163,7 @@ interface TemplatesBrowserPanelProps {
 export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
   onTemplateApplied,
 }) => {
+  const t = useT();
   const getTemplateEngine = useEngineStore((state) => state.getTemplateEngine);
 
   const [selectedCategory, setSelectedCategory] = useState<
@@ -362,13 +365,13 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
           onClick={handleBackToTemplates}
           type="button"
           disabled={isApplying}
-          aria-label="Back to Templates"
+          aria-label={t("Back to Templates")}
           className="min-w-0 justify-center rounded-[7px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 bg-transparent hover:bg-bg-2 flex items-center gap-1.5 text-[10px] text-fg-3 hover:text-fg transition-colors"
         >
           <span className="flex h-4 w-4 shrink-0 items-center justify-center">
             {<ChevronLeft size={12} />}
           </span>
-          <span className="truncate">{"Back to Templates"}</span>
+          <span className="truncate">{t("Back to Templates")}</span>
         </Button>
 
         <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
@@ -378,7 +381,7 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
               {loadedTemplate.name}
             </span>
             <span className="text-fg-2 font-normal block text-[9px]">
-              Configure template variables
+              {t("Configure template variables")}
             </span>
           </div>
         </div>
@@ -410,16 +413,16 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
       <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
         <FolderOpen size={16} className="text-primary shrink-0" />
         <div className="min-w-0 flex-1">
-          <span className="text-[11px] font-medium text-fg">Templates</span>
+          <span className="text-[11px] font-medium text-fg">{t("Templates")}</span>
           <span className="text-fg-2 font-normal block text-[9px]">
-            Start with a pre-made project
+            {t("Start with a pre-made project")}
           </span>
         </div>
       </div>
 
       <ToggleGroup
         type="single"
-        aria-label="Template category"
+        aria-label={t("Template category")}
         value={selectedCategory}
         onValueChange={(value) => {
           if (value) setSelectedCategory(value as typeof selectedCategory);
@@ -463,7 +466,7 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
               className="mx-auto mb-2 text-fg-3 opacity-50"
             />
             <span className="text-fg-2 font-normal block text-[10px]">
-              No templates in this category
+              {t("No templates in this category")}
             </span>
           </div>
         ) : (
@@ -487,19 +490,19 @@ export const TemplatesBrowserPanel: React.FC<TemplatesBrowserPanelProps> = ({
             setIsSaveDialogOpen(true);
           }}
           type="button"
-          aria-label="Save Current Project as Template"
+          aria-label={t("Save Current Project as Template")}
           disabled={isApplying}
           className="min-w-0 font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 hover:bg-bg-2 w-full flex items-center justify-center gap-2 py-2 text-[10px] text-fg-2 hover:text-fg bg-bg-2 rounded-lg transition-colors"
         >
           <span className="flex h-4 w-4 shrink-0 items-center justify-center">
             {<Plus size={12} />}
           </span>
-          <span className="truncate">{"Save Current Project as Template"}</span>
+          <span className="truncate">{t("Save Current Project as Template")}</span>
         </Button>
       </div>
 
       <span className="text-fg-2 font-normal block text-center text-[9px]">
-        {templates.length} templates available
+        {templates.length} {t("templates available")}
       </span>
 
       {saveDialogSession > 0 && (

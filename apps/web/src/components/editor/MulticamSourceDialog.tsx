@@ -30,6 +30,7 @@ import { useTimelineStore } from "../../stores/timeline-store";
 import { useUIStore } from "../../stores/ui-store";
 import { analyzeAudioOffsets, createMulticamSourceCommand } from "../../services/multicam-controller";
 import { formatFrameTimecode, parseFrameTimecode } from "../../utils/frame-timecode";
+import { useT } from "@openreel/i18n/react";
 
 type Method = Exclude<MulticamSyncMethod, "manual">;
 const METHODS: { id: Method; label: string; hint: string }[] = [
@@ -63,6 +64,7 @@ function timelineInPoint(project: Project, mediaId: string): number | undefined 
 }
 
 export function MulticamSourceDialog() {
+  const t = useT();
   const open = useEditorWorkspaceStore((state) => state.multicamSourceOpen);
   const setOpen = useEditorWorkspaceStore((state) => state.setMulticamSourceOpen);
   const project = useProjectStore((state) => state.project);
@@ -175,22 +177,22 @@ export function MulticamSourceDialog() {
         className="flex max-h-[90dvh] w-[95vw] max-w-xl flex-col gap-0 overflow-hidden rounded-xl border-border bg-bg-1 p-0 text-fg"
       >
         <DialogHeader className="shrink-0 border-b border-border px-5 py-4 text-left sm:text-left">
-          <DialogTitle className="text-[15px] font-semibold">Create multi-camera source</DialogTitle>
+          <DialogTitle className="text-[15px] font-semibold">{t("Create multi-camera source")}</DialogTitle>
           <DialogDescription className="text-[12px] leading-5 text-fg-2">
-            Sync two to {MAX_MULTICAM_ANGLES} camera clips, then cut between them live with the number keys.
+            {t("Sync two to")} {MAX_MULTICAM_ANGLES} {t("camera clips, then cut between them live with the number keys.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="min-h-0 space-y-4 overflow-y-auto px-5 py-4">
           <div className="space-y-1.5">
-            <Label htmlFor="multicam-name" className="text-[11px] text-fg-2">Name</Label>
-            <Input id="multicam-name" value={name} placeholder="Multicam 1" onChange={(event) => setName(event.target.value)} className="h-8 text-[12px]" />
+            <Label htmlFor="multicam-name" className="text-[11px] text-fg-2">{t("Name")}</Label>
+            <Input id="multicam-name" value={name} placeholder={t("Multicam 1")} onChange={(event) => setName(event.target.value)} className="h-8 text-[12px]" />
           </div>
 
           <fieldset className="space-y-1.5">
-            <legend className="text-[11px] text-fg-2">Angles ({selected.length}/{MAX_MULTICAM_ANGLES}) · the first is the sync reference</legend>
+            <legend className="text-[11px] text-fg-2">{t("Angles (")}{selected.length}/{MAX_MULTICAM_ANGLES}{t(") · the first is the sync reference")}</legend>
             {videos.length === 0 ? (
-              <p className="text-[12px] text-fg-3">Import video clips first.</p>
+              <p className="text-[12px] text-fg-3">{t("Import video clips first.")}</p>
             ) : (
               <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-border p-1.5" data-testid="multicam-angle-list">
                 {videos.map((video) => {
@@ -212,8 +214,8 @@ export function MulticamSourceDialog() {
           </fieldset>
 
           <fieldset className="space-y-1.5">
-            <legend className="text-[11px] text-fg-2">Synchronize by</legend>
-            <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Sync method">
+            <legend className="text-[11px] text-fg-2">{t("Synchronize by")}</legend>
+            <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t("Sync method")}>
               {METHODS.map((entry) => (
                 <button
                   key={entry.id}
@@ -230,7 +232,7 @@ export function MulticamSourceDialog() {
                     method === entry.id ? "border-accent bg-accent/15 text-fg" : "border-border text-fg-2 hover:bg-bg-2",
                   )}
                 >
-                  {entry.label}
+                  {t(entry.label)}
                 </button>
               ))}
             </div>
@@ -258,7 +260,7 @@ export function MulticamSourceDialog() {
           {method === "audio" && selected.length >= 2 && (
             <div className="flex items-center gap-2">
               <Button type="button" size="sm" variant="secondary" data-testid="multicam-analyze" disabled={busy !== null} onClick={() => void analyze()}>
-                {analysisValid ? "Re-analyze audio" : "Analyze audio"}
+                {analysisValid ? t("Re-analyze audio") : t("Analyze audio")}
               </Button>
               {busy && <span role="status" className="text-[11px] text-fg-3">{busy}</span>}
             </div>
@@ -269,9 +271,9 @@ export function MulticamSourceDialog() {
               <thead>
                 <tr className="text-left text-fg-3">
                   <th className="w-6 font-medium">#</th>
-                  <th className="font-medium">Angle</th>
-                  <th className="text-right font-medium">Offset</th>
-                  {method === "audio" && <th className="text-right font-medium">Match</th>}
+                  <th className="font-medium">{t("Angle")}</th>
+                  <th className="text-right font-medium">{t("Offset")}</th>
+                  {method === "audio" && <th className="text-right font-medium">{t("Match")}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -294,7 +296,7 @@ export function MulticamSourceDialog() {
           )}
           {method === "audio" && analysisValid && lowest < LOW_CONFIDENCE && (
             <p className="text-[11px] text-status-error" role="alert">
-              One angle matched weakly. Check that the cameras recorded the same sound, or pick another sync method.
+              {t("One angle matched weakly. Check that the cameras recorded the same sound, or pick another sync method.")}
             </p>
           )}
           {!preview.ok && selected.length >= 2 && !needsAnalysis && (
@@ -302,16 +304,16 @@ export function MulticamSourceDialog() {
           )}
 
           <fieldset className="space-y-1.5">
-            <legend className="text-[11px] text-fg-2">Audio</legend>
+            <legend className="text-[11px] text-fg-2">{t("Audio")}</legend>
             <div className="flex flex-wrap items-center gap-2 text-[12px]">
               <label className="flex items-center gap-1.5">
-                <Checkbox checked={audioFixed} aria-label="Use a fixed audio angle" onCheckedChange={(value) => setAudioFixed(value === true)} />
-                Fixed audio angle
+                <Checkbox checked={audioFixed} aria-label={t("Use a fixed audio angle")} onCheckedChange={(value) => setAudioFixed(value === true)} />
+                {t("Fixed audio angle")}
               </label>
               {audioFixed && (
                 <Select value={selected.includes(fixedMedia) ? fixedMedia : selected[0] || ""} onValueChange={setFixedMedia}>
-                  <SelectTrigger aria-label="Audio angle" className="h-7 w-[200px] px-2 text-[11px]">
-                    <SelectValue placeholder="Choose angle" />
+                  <SelectTrigger aria-label={t("Audio angle")} className="h-7 w-[200px] px-2 text-[11px]">
+                    <SelectValue placeholder={t("Choose angle")} />
                   </SelectTrigger>
                   <SelectContent>
                     {selected.map((id, index) => (
@@ -322,19 +324,19 @@ export function MulticamSourceDialog() {
                   </SelectContent>
                 </Select>
               )}
-              {!audioFixed && <span className="text-fg-3">Audio follows the active video angle.</span>}
+              {!audioFixed && <span className="text-fg-3">{t("Audio follows the active video angle.")}</span>}
             </div>
           </fieldset>
 
           <label className="flex items-center gap-1.5 text-[12px]">
-            <Checkbox checked={place} aria-label="Place on the timeline at the playhead" onCheckedChange={(value) => setPlace(value === true)} />
-            Place on the timeline at the playhead
+            <Checkbox checked={place} aria-label={t("Place on the timeline at the playhead")} onCheckedChange={(value) => setPlace(value === true)} />
+            {t("Place on the timeline at the playhead")}
           </label>
           {error && <p className="text-[12px] text-status-error" role="alert" data-testid="multicam-error">{error}</p>}
         </div>
 
         <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border px-5 py-3">
-          <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>Cancel</Button>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>{t("Cancel")}</Button>
           <Button
             type="button"
             size="sm"
@@ -342,7 +344,7 @@ export function MulticamSourceDialog() {
             disabled={busy !== null || !preview.ok || needsAnalysis}
             onClick={() => void create()}
           >
-            Create source
+            {t("Create source")}
           </Button>
         </div>
       </DialogContent>

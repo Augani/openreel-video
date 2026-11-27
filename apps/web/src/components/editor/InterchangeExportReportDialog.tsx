@@ -14,6 +14,8 @@ import {
   formatExportReport,
   useInterchangeExportReportStore,
 } from "../../services/timeline-interchange";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 interface FeatureGroup {
   readonly key: string;
@@ -35,6 +37,7 @@ function groupByFeature(items: readonly ReportItem[]): FeatureGroup[] {
 
 /** Shown after an interchange export: every feature that was dropped or approximated, per clip. */
 export function InterchangeExportReportDialog() {
+  const t = useT();
   const view = useInterchangeExportReportStore((s) => s.view);
   const setView = useInterchangeExportReportStore((s) => s.setView);
   const groups = useMemo(() => (view ? groupByFeature(view.report.items) : []), [view]);
@@ -43,8 +46,8 @@ export function InterchangeExportReportDialog() {
   const copy = () => {
     void navigator.clipboard
       .writeText(formatExportReport(view))
-      .then(() => toast.success("Report copied"))
-      .catch(() => toast.error("Could not copy the report"));
+      .then(() => toast.success(translateNow("Report copied")))
+      .catch(() => toast.error(translateNow("Could not copy the report")));
   };
   return (
     <Dialog open onOpenChange={(open) => !open && setView(null)}>
@@ -54,17 +57,17 @@ export function InterchangeExportReportDialog() {
         data-testid="interchange-export-report"
       >
         <DialogHeader className="border-b border-border px-5 py-4 text-left">
-          <DialogTitle className="text-[15px] font-semibold text-fg">Export report</DialogTitle>
+          <DialogTitle className="text-[15px] font-semibold text-fg">{t("Export report")}</DialogTitle>
           <DialogDescription id="interchange-report-desc" className="text-[12px] text-fg-muted">
-            {view.label} · {view.filenames.join(", ")}
+            {t(view.label)} · {view.filenames.join(", ")}
           </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 space-y-3 overflow-y-auto p-5 text-[13px]">
           <p data-testid="interchange-report-summary">
-            <span data-testid="report-dropped-count" className="font-medium">{report.dropped}</span> dropped,{" "}
+            <span data-testid="report-dropped-count" className="font-medium">{report.dropped}</span> {t("dropped,")}{" "}
             <span data-testid="report-approximated-count" className="font-medium">{report.approximated}</span> approximated.
             <span className="block text-[12px] text-fg-muted">
-              The file was saved. These parts of the project could not be carried into this format.
+              {t("The file was saved. These parts of the project could not be carried into this format.")}
             </span>
           </p>
           <ul className="space-y-2">
@@ -107,9 +110,9 @@ export function InterchangeExportReportDialog() {
         </div>
         <DialogFooter className="border-t border-border px-5 py-3">
           <Button variant="ghost" onClick={copy}>
-            Copy report
+            {t("Copy report")}
           </Button>
-          <Button onClick={() => setView(null)}>Done</Button>
+          <Button onClick={() => setView(null)}>{t("Done")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

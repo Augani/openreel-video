@@ -7,6 +7,7 @@ import { openTimelineImport, useTimelineImportStore } from "../../../services/ti
 import { chooseOnboardingWorkspace, isOnboardingWorkspace, ONBOARDING_WORKSPACES } from "../../../services/workspace-apply";
 import { useOnboardingStore } from "../../../stores/onboarding-store";
 import { describePresetDiff, KEYMAP_CHOICES } from "./preset-caption";
+import { useT } from "@openreel/i18n/react";
 
 export interface ProRowProps {
   /** Go to the editor route (the welcome screen's `navigate("editor")`). */
@@ -31,6 +32,7 @@ const actionClass =
  * sequence dialog. Everything here works before the editor exists. Rendered inline by the welcome screen.
  */
 export function ProRow({ onOpenEditor, autoFocus = false, className }: ProRowProps) {
+  const t = useT();
   const labelId = useId();
   const keysId = useId();
   const workspaceId = useId();
@@ -113,12 +115,12 @@ export function ProRow({ onOpenEditor, autoFocus = false, className }: ProRowPro
   return (
     <div role="group" aria-labelledby={labelId} className={className ?? "flex flex-col gap-4 rounded-xl border border-border bg-bg-2/60 p-4"}>
       <p id={labelId} className="text-sm font-semibold tracking-tight text-fg">
-        Set it up your way.
+        {t("Set it up your way.")}
       </p>
 
       <div className="flex flex-col gap-2">
         <span id={keysId} className="text-2xs font-semibold uppercase tracking-wider text-fg-3">
-          Keys
+          {t("Keys")}
         </span>
         <ToggleGroup
           type="single"
@@ -135,7 +137,7 @@ export function ProRow({ onOpenEditor, autoFocus = false, className }: ProRowPro
               aria-label={`${choice.label} keys`}
               className={chipClass}
             >
-              {choice.label}
+              {t(choice.label)}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
@@ -154,7 +156,7 @@ export function ProRow({ onOpenEditor, autoFocus = false, className }: ProRowPro
                     onClick={() => setShowAll((open) => !open)}
                     className="rounded font-medium text-accent underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   >
-                    {showAll ? "Hide" : "See all"}
+                    {showAll ? t("Hide") : t("See all")}
                   </button>
                 </>
               )}
@@ -168,12 +170,12 @@ export function ProRow({ onOpenEditor, autoFocus = false, className }: ProRowPro
                   <li key={change.id} className="flex items-center justify-between gap-3 px-3 py-1.5">
                     <span className="min-w-0 truncate text-fg-2">
                       {change.name}
-                      {change.displaced && <span className="text-fg-3"> (moved to make room)</span>}
+                      {change.displaced && <span className="text-fg-3"> {t("(moved to make room)")}</span>}
                     </span>
                     <span className="shrink-0 text-fg-3">
                       <kbd className="text-2xs">{change.fromLabel}</kbd>
                       <span aria-hidden> → </span>
-                      <span className="sr-only"> to </span>
+                      <span className="sr-only"> {t("to")} </span>
                       <kbd className="text-2xs text-fg">{change.toLabel}</kbd>
                     </span>
                   </li>
@@ -186,7 +188,7 @@ export function ProRow({ onOpenEditor, autoFocus = false, className }: ProRowPro
 
       <div className="flex flex-col gap-2">
         <span id={workspaceId} className="text-2xs font-semibold uppercase tracking-wider text-fg-3">
-          Workspace
+          {t("Workspace")}
         </span>
         <ToggleGroup
           type="single"
@@ -206,15 +208,15 @@ export function ProRow({ onOpenEditor, autoFocus = false, className }: ProRowPro
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={importTimeline} className={actionClass}>
           <FileUp size={14} aria-hidden />
-          Import timeline (XML, AAF, FCPXML, OTIO)…
+          {t("Import timeline (XML, AAF, FCPXML, OTIO)…")}
         </button>
         <button type="button" onClick={openProject} disabled={busy} className={actionClass}>
           <FolderOpen size={14} aria-hidden />
-          Open project…
+          {t("Open project…")}
         </button>
         <button type="button" onClick={openCustomSequence} className={actionClass}>
           <SlidersHorizontal size={14} aria-hidden />
-          Custom sequence…
+          {t("Custom sequence…")}
         </button>
       </div>
 

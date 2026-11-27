@@ -4,6 +4,7 @@ import type { Layer } from '../../../types/project';
 import type { GradientMapStop } from '../../../types/adjustments';
 import { DEFAULT_GRADIENT_MAP } from '../../../types/adjustments';
 import { Paintbrush, RotateCcw, Plus, X } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   layer: Layer;
@@ -18,6 +19,7 @@ const GRADIENT_PRESETS = [
 ];
 
 export function GradientMapSection({ layer }: Props) {
+  const t = useT();
   const { updateLayer } = useProjectStore();
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -89,7 +91,7 @@ export function GradientMapSection({ layer }: Props) {
       >
         <div className="flex items-center gap-2">
           <Paintbrush size={14} className="text-muted-foreground" />
-          <span className="text-xs font-medium">Gradient Map</span>
+          <span className="text-xs font-medium">{t("Gradient Map")}</span>
           {gradientMap.enabled && (
             <span className="w-1.5 h-1.5 rounded-full bg-primary" />
           )}
@@ -122,7 +124,7 @@ export function GradientMapSection({ layer }: Props) {
             <button
               onClick={resetGradientMap}
               className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-secondary transition-colors"
-              title="Reset"
+              title={t("Reset")}
             >
               <RotateCcw size={12} />
             </button>
@@ -172,7 +174,7 @@ export function GradientMapSection({ layer }: Props) {
             onClick={addStop}
             className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
           >
-            <Plus size={10} /> Add Stop
+            <Plus size={10} /> {t("Add Stop")}
           </button>
 
           <div className="flex gap-4 pt-1 border-t border-border/50">
@@ -183,7 +185,7 @@ export function GradientMapSection({ layer }: Props) {
                 onChange={(e) => handleReverseChange(e.target.checked)}
                 className="w-3 h-3 rounded border-border"
               />
-              Reverse
+              {t("Reverse")}
             </label>
             <label className="flex items-center gap-2 text-[10px] text-muted-foreground">
               <input
@@ -192,7 +194,7 @@ export function GradientMapSection({ layer }: Props) {
                 onChange={(e) => handleDitherChange(e.target.checked)}
                 className="w-3 h-3 rounded border-border"
               />
-              Dither
+              {t("Dither")}
             </label>
           </div>
         </div>

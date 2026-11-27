@@ -28,6 +28,7 @@
     "@openreel/agent": "workspace:*",
     "@openreel/collab": "workspace:*",
     "@openreel/core": "workspace:*",
+    "@openreel/i18n": "workspace:*",
     "@openreel/ui": "workspace:*",
     "@types/react-syntax-highlighter": "^15.5.13",
     "brotli-dec-wasm": "2.3.2",

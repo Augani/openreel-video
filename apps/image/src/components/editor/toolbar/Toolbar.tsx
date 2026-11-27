@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useT } from '@openreel/i18n/react';
 import {
   MousePointer2,
   Hand,
@@ -142,6 +143,7 @@ function ToolGroupButton({
   activeTool: Tool;
   onSelectTool: (tool: Tool) => void;
 }) {
+  const t = useT();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -223,7 +225,7 @@ function ToolGroupButton({
                 }`}
               >
                 <ToolIcon size={16} />
-                <span className="flex-1 text-left">{tool.label}</span>
+                <span className="flex-1 text-left">{t(tool.label)}</span>
                 {tool.shortcut && (
                   <span className="text-xs text-muted-foreground/60">{tool.shortcut}</span>
                 )}
@@ -237,6 +239,7 @@ function ToolGroupButton({
 }
 
 export function Toolbar() {
+  const t = useT();
   const {
     activeTool,
     setActiveTool,
@@ -272,7 +275,7 @@ export function Toolbar() {
       <button
         onClick={() => setCurrentView('welcome')}
         className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-        title="Home"
+        title={t("Home")}
       >
         <Home size={18} />
       </button>
@@ -282,7 +285,7 @@ export function Toolbar() {
       <button
         onClick={togglePanelCollapsed}
         className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-        title="Toggle left panel"
+        title={t("Toggle left panel")}
       >
         <PanelLeftClose size={18} />
       </button>
@@ -319,7 +322,7 @@ export function Toolbar() {
           onClick={handleUndo}
           disabled={!canUndo()}
           className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          title="Undo (Ctrl+Z)"
+          title={t("Undo (Ctrl+Z)")}
         >
           <Undo2 size={18} />
         </button>
@@ -327,7 +330,7 @@ export function Toolbar() {
           onClick={handleRedo}
           disabled={!canRedo()}
           className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          title="Redo (Ctrl+Shift+Z)"
+          title={t("Redo (Ctrl+Shift+Z)")}
         >
           <Redo2 size={18} />
         </button>
@@ -342,7 +345,7 @@ export function Toolbar() {
       <button
         onClick={handleSaveProject}
         className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-        title="Save Project (Ctrl+S)"
+        title={t("Save Project (Ctrl+S)")}
       >
         <Save size={18} />
       </button>
@@ -352,13 +355,13 @@ export function Toolbar() {
         className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 active:scale-[0.98] transition-all"
       >
         <Download size={16} />
-        Export
+        {t("Export")}
       </button>
 
       <button
         onClick={toggleInspectorCollapsed}
         className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-        title="Toggle right panel"
+        title={t("Toggle right panel")}
       >
         <PanelRightClose size={18} />
       </button>

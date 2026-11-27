@@ -13,6 +13,7 @@ import {
   useLivePreviewActivity,
 } from "../panels/effect-previews/EffectLivePreview";
 import { emphasisPreviewDef, type PreviewTextSource } from "../panels/effect-previews/kind-defs";
+import { useT } from "@openreel/i18n/react";
 
 const formatTime = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
@@ -221,6 +222,7 @@ const ValueText: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 export const EmphasisAnimationSection: React.FC<
   EmphasisAnimationSectionProps
 > = ({ clipId }) => {
+  const t = useT();
   const { project, updateClipEmphasisAnimation } = useProjectStore();
   const getTitleEngine = useEngineStore((state) => state.getTitleEngine);
   const getGraphicsEngine = useEngineStore((state) => state.getGraphicsEngine);
@@ -342,16 +344,16 @@ export const EmphasisAnimationSection: React.FC<
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2">
-        <Button onClick={() => handleTypeChange("none")} type="button" aria-label="None" className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 px-2.5 text-[12px]", (currentAnimation.type === "none" ? "bg-accent text-accent-fg hover:bg-accent/90" : "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"), `py-2 rounded-lg text-[10px] font-medium transition-all ${
+        <Button onClick={() => handleTypeChange("none")} type="button" aria-label={t("None")} className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 px-2.5 text-[12px]", (currentAnimation.type === "none" ? "bg-accent text-accent-fg hover:bg-accent/90" : "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"), `py-2 rounded-lg text-[10px] font-medium transition-all ${
             currentAnimation.type === "none"
               ? "bg-primary text-white"
               : "bg-bg-2 border border-border text-fg-2 hover:text-fg"
           }`)}>
-          <span className="truncate">{"None"}</span>
+          <span className="truncate">{t("None")}</span>
         </Button>
-        <Button onClick={handleReset} type="button" aria-label="Reset" className="min-w-0 outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 hover:bg-bg-3 py-2 rounded-lg text-[10px] font-medium bg-bg-2 border border-border text-fg-2 hover:text-fg transition-all flex items-center justify-center gap-1">
+        <Button onClick={handleReset} type="button" aria-label={t("Reset")} className="min-w-0 outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 hover:bg-bg-3 py-2 rounded-lg text-[10px] font-medium bg-bg-2 border border-border text-fg-2 hover:text-fg transition-all flex items-center justify-center gap-1">
           <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<RotateCcw size={10} />}</span>
-          <span className="truncate">{"Reset"}</span>
+          <span className="truncate">{t("Reset")}</span>
         </Button>
       </div>
 
@@ -383,14 +385,14 @@ export const EmphasisAnimationSection: React.FC<
           <div className="pt-3 border-t border-border space-y-3">
             {selectedAnimation && (
               <span className="text-fg-2 font-normal text-[10px] italic">
-                {selectedAnimation.description}
+                {t(selectedAnimation.description)}
               </span>
             )}
 
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-fg-2 font-normal text-[10px]">
-                  Speed
+                  {t("Speed")}
                 </span>
                 <ValueText>
                   {currentAnimation.speed.toFixed(1)}x
@@ -411,7 +413,7 @@ export const EmphasisAnimationSection: React.FC<
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-fg-2 font-normal text-[10px]">
-                  Intensity
+                  {t("Intensity")}
                 </span>
                 <ValueText>
                   {Math.round(currentAnimation.intensity * 100)}%
@@ -433,7 +435,7 @@ export const EmphasisAnimationSection: React.FC<
 
             <div className="flex items-center justify-between">
               <span className="text-fg-2 font-normal text-[10px]">
-                Loop Animation
+                {t("Loop Animation")}
               </span>
               <InspectorToggle
                 ariaLabel="Loop Animation"
@@ -449,17 +451,17 @@ export const EmphasisAnimationSection: React.FC<
             <div className="flex items-center gap-2 text-primary">
               <Clock size={12} />
               <span className="text-[10px] font-medium text-primary">
-                Timing
+                {t("Timing")}
               </span>
               <span className="text-fg-2 font-normal ml-auto text-[9px]">
-                Clip: {formatTime(clipDuration)}
+                {t("Clip:")} {formatTime(clipDuration)}
               </span>
             </div>
 
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-fg-2 font-normal text-[10px]">
-                  Start Time
+                  {t("Start Time")}
                 </span>
                 <ValueText>
                   {formatTime(currentAnimation.startTime ?? 0)}
@@ -482,12 +484,12 @@ export const EmphasisAnimationSection: React.FC<
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-fg-2 font-normal text-[10px]">
-                  Duration
+                  {t("Duration")}
                 </span>
                 <ValueText>
                   {currentAnimation.animationDuration
                     ? formatTime(currentAnimation.animationDuration)
-                    : "Full clip"}
+                    : t("Full clip")}
                 </ValueText>
               </div>
               <Slider
@@ -515,8 +517,8 @@ export const EmphasisAnimationSection: React.FC<
                       startTime: 0,
                       animationDuration: undefined,
                     })
-                  } type="button" aria-label="Reset to full clip" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-transparent hover:bg-bg-2 hover:text-fg text-primary hover:underline">
-                  <span className="truncate">{"Reset to full clip"}</span>
+                  } type="button" aria-label={t("Reset to full clip")} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-transparent hover:bg-bg-2 hover:text-fg text-primary hover:underline">
+                  <span className="truncate">{t("Reset to full clip")}</span>
                 </Button>
                 <span className="text-[12px] leading-5 text-fg-2 font-normal">
                   {formatTime(clipDuration - (currentAnimation.startTime ?? 0))}
@@ -530,14 +532,14 @@ export const EmphasisAnimationSection: React.FC<
             <div className="flex items-center gap-2 text-primary">
               <Target size={12} />
               <span className="text-[10px] font-medium text-primary">
-                Focus Zoom Settings
+                {t("Focus Zoom Settings")}
               </span>
             </div>
 
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                   <span className="text-fg-2 font-normal text-[10px]">
-                    Zoom Scale
+                    {t("Zoom Scale")}
                   </span>
                   <ValueText>
                     {(currentAnimation.zoomScale || 1.5).toFixed(1)}x
@@ -560,7 +562,7 @@ export const EmphasisAnimationSection: React.FC<
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-fg-2 font-normal text-[10px]">
-                    Hold Duration
+                    {t("Hold Duration")}
                   </span>
                   <ValueText>
                     {((currentAnimation.holdDuration || 0.3) * 100).toFixed(0)}%
@@ -582,12 +584,12 @@ export const EmphasisAnimationSection: React.FC<
 
               <div className="space-y-2">
                 <span className="text-fg-2 font-normal text-[10px]">
-                  Focus Point
+                  {t("Focus Point")}
                 </span>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <span className="text-fg-2 font-normal text-[9px]">
-                      X Position
+                      {t("X Position")}
                     </span>
                     <Slider
                       ariaLabel="Focus Point X"
@@ -607,7 +609,7 @@ export const EmphasisAnimationSection: React.FC<
                   </div>
                   <div className="space-y-1">
                     <span className="text-fg-2 font-normal text-[9px]">
-                      Y Position
+                      {t("Y Position")}
                     </span>
                     <Slider
                       ariaLabel="Focus Point Y"
@@ -649,7 +651,7 @@ export const EmphasisAnimationSection: React.FC<
                           ? "bg-primary text-white"
                         : "bg-bg-2 border border-border text-fg-3 hover:text-fg"
                       }`)}>
-                      {preset.label}
+                      {t(preset.label)}
                     </Button>
                   ))}
                 </div>
@@ -663,8 +665,7 @@ export const EmphasisAnimationSection: React.FC<
         <div className="flex items-center gap-2 text-fg-3">
           <Zap size={10} />
           <span className="text-fg-2 font-normal text-[9px]">
-            Emphasis animations play while the clip is visible (not during
-            entry/exit)
+            {t("Emphasis animations play while the clip is visible (not during entry/exit)")}
           </span>
         </div>
       </div>

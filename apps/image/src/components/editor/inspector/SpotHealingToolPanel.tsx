@@ -1,7 +1,9 @@
 import { useUIStore } from '../../../stores/ui-store';
 import { Bandage, RotateCcw } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 export function SpotHealingToolPanel() {
+  const t = useT();
   const { spotHealingSettings, setSpotHealingSettings } = useUIStore();
 
   const resetSettings = () => {
@@ -17,25 +19,25 @@ export function SpotHealingToolPanel() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Bandage size={16} className="text-muted-foreground" />
-          <h3 className="text-sm font-medium">Spot Healing Brush</h3>
+          <h3 className="text-sm font-medium">{t("Spot Healing Brush")}</h3>
         </div>
         <button
           onClick={resetSettings}
           className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-secondary transition-colors"
-          title="Reset"
+          title={t("Reset")}
         >
           <RotateCcw size={14} />
         </button>
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Paint over blemishes or imperfections to automatically remove them.
+        {t("Paint over blemishes or imperfections to automatically remove them.")}
       </p>
 
       <div className="space-y-3">
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Size</span>
+            <span className="text-xs text-muted-foreground">{t("Size")}</span>
             <span className="text-xs font-mono text-muted-foreground">{spotHealingSettings.size}px</span>
           </div>
           <input
@@ -54,7 +56,7 @@ export function SpotHealingToolPanel() {
         </div>
 
         <div>
-          <span className="text-xs text-muted-foreground mb-1.5 block">Type</span>
+          <span className="text-xs text-muted-foreground mb-1.5 block">{t("Type")}</span>
           <div className="flex flex-col gap-1">
             {([
               { id: 'content-aware', label: 'Content-Aware' },
@@ -70,7 +72,7 @@ export function SpotHealingToolPanel() {
                     : 'bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary'
                 }`}
               >
-                {option.label}
+                {t(option.label)}
               </button>
             ))}
           </div>
@@ -84,7 +86,7 @@ export function SpotHealingToolPanel() {
               onChange={(e) => setSpotHealingSettings({ sampleAllLayers: e.target.checked })}
               className="w-3.5 h-3.5 rounded border-border"
             />
-            Sample All Layers
+            {t("Sample All Layers")}
           </label>
         </div>
       </div>

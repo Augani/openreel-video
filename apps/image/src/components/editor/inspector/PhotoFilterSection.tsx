@@ -5,6 +5,7 @@ import type { PhotoFilterAdjustment } from '../../../types/adjustments';
 import { DEFAULT_PHOTO_FILTER } from '../../../types/adjustments';
 import { PHOTO_FILTER_COLORS } from '../../../adjustments/photo-filter';
 import { SunDim, RotateCcw } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   layer: Layer;
@@ -21,6 +22,7 @@ const FILTER_OPTIONS = [
 type FilterType = typeof FILTER_OPTIONS[number]['id'];
 
 export function PhotoFilterSection({ layer }: Props) {
+  const t = useT();
   const { updateLayer } = useProjectStore();
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -90,7 +92,7 @@ export function PhotoFilterSection({ layer }: Props) {
       >
         <div className="flex items-center gap-2">
           <SunDim size={14} className="text-muted-foreground" />
-          <span className="text-xs font-medium">Photo Filter</span>
+          <span className="text-xs font-medium">{t("Photo Filter")}</span>
           {photoFilter.enabled && (
             <span className="w-1.5 h-1.5 rounded-full bg-primary" />
           )}
@@ -115,20 +117,20 @@ export function PhotoFilterSection({ layer }: Props) {
               className="text-[10px] bg-secondary border-none rounded px-2 py-1 text-foreground flex-1"
             >
               {FILTER_OPTIONS.map((option) => (
-                <option key={option.id} value={option.id}>{option.label}</option>
+                <option key={option.id} value={option.id}>{t(option.label)}</option>
               ))}
             </select>
             <button
               onClick={resetPhotoFilter}
               className="p-1 ml-2 text-muted-foreground hover:text-foreground rounded hover:bg-secondary transition-colors"
-              title="Reset"
+              title={t("Reset")}
             >
               <RotateCcw size={12} />
             </button>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground">Color</span>
+            <span className="text-[10px] text-muted-foreground">{t("Color")}</span>
             <input
               type="color"
               value={photoFilter.color}
@@ -140,7 +142,7 @@ export function PhotoFilterSection({ layer }: Props) {
 
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] text-muted-foreground">Density</span>
+              <span className="text-[10px] text-muted-foreground">{t("Density")}</span>
               <span className="text-[10px] font-mono text-muted-foreground">{photoFilter.density}%</span>
             </div>
             <input
@@ -170,7 +172,7 @@ export function PhotoFilterSection({ layer }: Props) {
               onChange={(e) => handlePreserveLuminosityChange(e.target.checked)}
               className="w-3 h-3 rounded border-border"
             />
-            Preserve Luminosity
+            {t("Preserve Luminosity")}
           </label>
         </div>
       )}

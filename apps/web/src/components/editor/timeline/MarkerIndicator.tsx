@@ -13,6 +13,7 @@ import {
 } from "@openreel/ui";
 import { Flag, X } from "@/icons/lucide-compat";
 import type { Marker } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 import { MARKER_COLORS } from "../../../services/marker-commands";
 import { OPEN_COMMENT_COLOR, RESOLVED_COMMENT_COLOR } from "../../../services/review-commands";
 
@@ -73,6 +74,7 @@ export const MarkerIndicator: React.FC<MarkerIndicatorProps> = ({
   onRemove,
   onUpdate,
 }) => {
+  const t = useT();
   const [isHovered, setIsHovered] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
   const [editedLabel, setEditedLabel] = React.useState(marker.label);
@@ -167,7 +169,7 @@ export const MarkerIndicator: React.FC<MarkerIndicatorProps> = ({
   const menu = (
     <ContextMenuContent className="min-w-[160px]" data-testid="marker-context-menu">
       <ContextMenuItem onSelect={() => onEdit?.(marker.id)} disabled={!onEdit}>
-        Edit marker
+        {t("Edit marker")}
       </ContextMenuItem>
       {isComment && (
         <ContextMenuItem
@@ -180,11 +182,11 @@ export const MarkerIndicator: React.FC<MarkerIndicatorProps> = ({
           disabled={!onUpdate}
           data-testid="marker-toggle-resolved"
         >
-          {resolvedComment ? "Reopen comment" : "Resolve comment"}
+          {t(resolvedComment ? "Reopen comment" : "Resolve comment")}
         </ContextMenuItem>
       )}
       <ContextMenuSub>
-        <ContextMenuSubTrigger disabled={!onUpdate}>Change colour</ContextMenuSubTrigger>
+        <ContextMenuSubTrigger disabled={!onUpdate}>{t("Change colour")}</ContextMenuSubTrigger>
         <ContextMenuSubContent>
           {MARKER_COLORS.map((color) => (
             <ContextMenuItem
@@ -193,14 +195,14 @@ export const MarkerIndicator: React.FC<MarkerIndicatorProps> = ({
               className="gap-2"
             >
               <span className="h-3 w-3 rounded-full border border-border" style={{ backgroundColor: color.value }} />
-              {color.name}
+              {t(color.name)}
             </ContextMenuItem>
           ))}
         </ContextMenuSubContent>
       </ContextMenuSub>
       <ContextMenuSeparator />
       <ContextMenuItem onSelect={() => onRemove?.(marker.id)} disabled={!onRemove}>
-        Delete marker
+        {t("Delete marker")}
       </ContextMenuItem>
     </ContextMenuContent>
   );
@@ -233,14 +235,14 @@ export const MarkerIndicator: React.FC<MarkerIndicatorProps> = ({
                 />
                 <div
                   data-testid="marker-handle-start"
-                  aria-label="Resize marker start"
+                  aria-label={t("Resize marker start")}
                   className="absolute left-0 top-0 h-full w-[6px] cursor-ew-resize"
                   onMouseDown={beginDrag("start")}
                   onDoubleClick={(event) => event.stopPropagation()}
                 />
                 <div
                   data-testid="marker-handle-end"
-                  aria-label="Resize marker end"
+                  aria-label={t("Resize marker end")}
                   className="absolute right-0 top-0 h-full w-[6px] cursor-ew-resize"
                   onMouseDown={beginDrag("end")}
                   onDoubleClick={(event) => event.stopPropagation()}
@@ -303,7 +305,7 @@ export const MarkerIndicator: React.FC<MarkerIndicatorProps> = ({
             <Flag size={10} />
             {isEditing ? (
               <Input
-                aria-label="Marker label"
+                aria-label={t("Marker label")}
                 className="h-7 w-[92px] text-xs"
                 value={editedLabel}
                 onChange={(event) => setEditedLabel(event.target.value)}
@@ -319,7 +321,7 @@ export const MarkerIndicator: React.FC<MarkerIndicatorProps> = ({
               <span>{marker.label}</span>
             )}
             {isHovered && onRemove && (
-              <Button variant="ghost" size="icon-sm" onClick={handleRemove} type="button" aria-label="Remove marker" title="Remove marker" className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg ml-1">
+              <Button variant="ghost" size="icon-sm" onClick={handleRemove} type="button" aria-label={t("Remove marker")} title={t("Remove marker")} className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent text-fg-muted hover:bg-bg-2 hover:text-fg ml-1">
                 {<X size={10} aria-hidden />}
               </Button>
             )}

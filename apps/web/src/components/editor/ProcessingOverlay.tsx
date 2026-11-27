@@ -7,6 +7,7 @@ import {
   PROCESSING_TYPE_LABELS,
   type ProcessingTask,
 } from "../../services/processing-manager";
+import { useT } from "@openreel/i18n/react";
 
 const TaskItem = React.memo(function TaskItem({
   task,
@@ -109,6 +110,7 @@ const TaskItem = React.memo(function TaskItem({
 });
 
 export const ProcessingOverlay: React.FC = () => {
+  const t = useT();
   const tasks = useProcessingStore((state) => state.tasks);
   const isProcessing = useProcessingStore((state) => state.isProcessing);
   const taskList = Array.from(tasks.values());
@@ -128,7 +130,7 @@ export const ProcessingOverlay: React.FC = () => {
   return (
     <div
       role="region"
-      aria-label="Processing Effects"
+      aria-label={t("Processing Effects")}
       aria-busy
       className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50"
     >
@@ -143,11 +145,10 @@ export const ProcessingOverlay: React.FC = () => {
           </div>
           <div>
             <h3 className="text-[12px] leading-4 text-fg-2 font-bold block">
-              Processing Effects
+              {t("Processing Effects")}
             </h3>
             <span className="text-[12px] leading-5 text-fg-2 font-normal block">
-              {activeTasks.length} task{activeTasks.length !== 1 ? "s" : ""} in
-              progress
+              {activeTasks.length} {t("task")}{activeTasks.length !== 1 ? "s" : ""} {t("in progress")}
             </span>
           </div>
         </div>
@@ -155,14 +156,14 @@ export const ProcessingOverlay: React.FC = () => {
         <div className="mb-4">
           <div className="flex items-center justify-between mb-1">
             <span className="text-fg-2 font-normal text-[10px]">
-              Overall Progress
+              {t("Overall Progress")}
             </span>
             <span className="text-fg-2 font-normal text-[10px] font-mono">
               {progress}%
             </span>
           </div>
           <Progress
-            aria-label="Overall progress"
+            aria-label={t("Overall progress")}
             value={progress}
             max={100}
             className="h-1.5 bg-bg-3 [&>div]:rounded-full [&>div]:bg-accent"
@@ -178,7 +179,7 @@ export const ProcessingOverlay: React.FC = () => {
         </div>
 
         <span className="text-fg-2 font-normal block text-center mt-4 text-[10px]">
-          Please wait while effects are being applied...
+          {t("Please wait while effects are being applied...")}
         </span>
       </Card>
     </div>

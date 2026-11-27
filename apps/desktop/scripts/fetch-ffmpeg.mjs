@@ -9,8 +9,9 @@
 // immutable, GPL-clean, statically-linked source covering every platform:
 //   - darwin-arm64: OSXExperts (osxexperts.net) — ffmpeg-static's arm64 is
 //     built --enable-nonfree and is NOT redistributable, so it is not used.
-//   - darwin-x64 / linux-x64 / win32-x64: eugeneware/ffmpeg-static b6.1.1
-//     (verified GPL, no --enable-nonfree).
+//   - darwin-x64 / linux-x64 / linux-arm64 / win32-x64: eugeneware/ffmpeg-static
+//     b6.1.1 (verified GPL, no --enable-nonfree). The Linux arm64 asset is a
+//     static johnvansickle build hosted on the same release.
 // Binaries are gitignored; this script + MANIFEST.json pin exactly what is used.
 //
 // Usage:
@@ -76,6 +77,17 @@ const SLOTS = {
     ffmpegVersion: "6.1.1",
     source: "ffmpeg-static b6.1.1, GPL static",
   },
+  "linux-arm64": {
+    url: `${FS_BASE}/ffmpeg-linux-arm64`,
+    format: "raw",
+    artifactSha256:
+      "6bb182d0d75d23028db82e9e4f723ca69b853d055698486e6984ddb2c06fb8ce",
+    binSha256:
+      "6bb182d0d75d23028db82e9e4f723ca69b853d055698486e6984ddb2c06fb8ce",
+    bin: "ffmpeg",
+    ffmpegVersion: "7.0.2",
+    source: "ffmpeg-static b6.1.1 (johnvansickle), GPL static",
+  },
   "win32-x64": {
     url: `${FS_BASE}/ffmpeg-win32-x64`,
     format: "raw",
@@ -92,7 +104,7 @@ const SLOTS = {
 const HOST_SLOTS = {
   darwin: ["darwin-arm64", "darwin-x64"],
   win32: ["win32-x64"],
-  linux: ["linux-x64"],
+  linux: process.arch === "arm64" ? ["linux-arm64"] : ["linux-x64"],
 };
 
 // ffmpeg sets its license state to "nonfree, unredistributable" only when built

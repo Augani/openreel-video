@@ -1,6 +1,7 @@
 import type { CaptionFormatIssue } from "@openreel/core";
 import { useProjectStore } from "../stores/project-store";
 import { toast } from "../stores/notification-store";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * Caption files brought in from the Project panel (picker or drop) and File > Import captions...:
@@ -48,7 +49,7 @@ export async function importCaptionFiles(files: readonly File[]): Promise<number
     });
     const notes = summariseImportNotes(outcome.errors, outcome.issues);
     if (!outcome.success) {
-      toast.error(`Could not import ${file.name}`, [outcome.message, notes.text].filter(Boolean).join("\n"));
+      toast.error(translateNow("Could not import {name}", { name: file.name }), [outcome.message, notes.text].filter(Boolean).join("\n"));
       continue;
     }
     total += outcome.added ?? 0;

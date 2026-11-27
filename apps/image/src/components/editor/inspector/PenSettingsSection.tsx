@@ -1,7 +1,9 @@
 import { useUIStore } from '../../../stores/ui-store';
 import { Pencil } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 export function PenSettingsSection() {
+  const t = useT();
   const { penSettings, setPenSettings } = useUIStore();
 
   return (
@@ -9,14 +11,14 @@ export function PenSettingsSection() {
       <div className="flex items-center gap-2">
         <Pencil size={16} className="text-primary" />
         <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          Pen Settings
+          {t("Pen Settings")}
         </h4>
       </div>
 
       <div className="space-y-3 p-3 bg-secondary/30 rounded-lg border border-border/50">
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <label className="text-[11px] text-foreground font-medium">Color</label>
+            <label className="text-[11px] text-foreground font-medium">{t("Color")}</label>
             <input
               type="color"
               value={penSettings.color}
@@ -28,7 +30,7 @@ export function PenSettingsSection() {
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <label className="text-[11px] text-foreground font-medium">Width</label>
+            <label className="text-[11px] text-foreground font-medium">{t("Width")}</label>
             <span className="text-[11px] font-mono text-muted-foreground">{penSettings.width}px</span>
           </div>
           <input
@@ -49,7 +51,7 @@ export function PenSettingsSection() {
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <label className="text-[11px] text-foreground font-medium">Opacity</label>
+            <label className="text-[11px] text-foreground font-medium">{t("Opacity")}</label>
             <span className="text-[11px] font-mono text-muted-foreground">{Math.round(penSettings.opacity * 100)}%</span>
           </div>
           <input
@@ -71,7 +73,7 @@ export function PenSettingsSection() {
       </div>
 
       <p className="text-[10px] text-muted-foreground">
-        Click and drag on the canvas to draw
+        {t("Click and drag on the canvas to draw")}
       </p>
     </div>
   );

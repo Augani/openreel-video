@@ -2,6 +2,7 @@ import type { JSX } from "react";
 import { Button, Collapsible, CollapsibleTrigger, CollapsibleContent } from "@openreel/ui";
 import { ChevronRight } from "lucide-react";
 import { CircleAlert, X } from "@/icons/lucide-compat";
+import { useT } from "@openreel/i18n/react";
 
 type ChatErrorAction = "ai-editor" | "new-chat" | null;
 
@@ -150,6 +151,7 @@ export function ChatErrorCard({
   readonly onOpenSettings: (tab: "ai-editor") => void;
   readonly onNewChat: () => void;
 }): JSX.Element {
+  const t = useT();
   const presentation = formatChatError(error);
 
   return (
@@ -171,8 +173,8 @@ export function ChatErrorCard({
         </div>
         <Button
           type="button"
-          aria-label="Dismiss error"
-          title="Dismiss error"
+          aria-label={t("Dismiss error")}
+          title={t("Dismiss error")}
           size="icon-sm"
           variant="ghost"
           onClick={onDismiss}
@@ -183,7 +185,7 @@ export function ChatErrorCard({
       {presentation.details && (
         <Collapsible className="mt-2 rounded-lg bg-bg-2/70 px-2.5 py-2">
           <CollapsibleTrigger asChild><Button type="button" variant="ghost" size="sm" className="group flex h-auto w-full select-none items-center justify-between gap-2 whitespace-normal p-0 text-left text-[10px] font-medium leading-[inherit] text-fg-muted hover:bg-transparent hover:text-fg-2 [&_svg]:size-3">
-            <span className="min-w-0">Technical details</span><ChevronRight size={12} aria-hidden className="shrink-0 transition-transform group-data-[state=open]:rotate-90" />
+            <span className="min-w-0">{t("Technical details")}</span><ChevronRight size={12} aria-hidden className="shrink-0 transition-transform group-data-[state=open]:rotate-90" />
           </Button></CollapsibleTrigger>
           <CollapsibleContent><pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed text-fg-muted">
             {presentation.details}
@@ -202,7 +204,7 @@ export function ChatErrorCard({
             else if (action) onOpenSettings(action);
           }}
           className="mt-2.5 h-7 w-full rounded-[7px] border border-border bg-bg-2 px-2.5 text-[12px] font-semibold text-fg-2 hover:bg-bg-3 hover:text-fg"
-        >{presentation.actionLabel ?? "Fix issue"}</Button>
+        >{presentation.actionLabel ?? t("Fix issue")}</Button>
       )}
     </div>
   );

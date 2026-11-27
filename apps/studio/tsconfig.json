@@ -15,6 +15,8 @@
       "@openreel/core/*": ["../../packages/core/src/*"],
       "@openreel/fxpkg": ["../../packages/fxpkg/src/index.ts"],
       "@openreel/fxpkg/*": ["../../packages/fxpkg/src/*"],
+      "@openreel/i18n": ["../../packages/i18n/src/index.ts"],
+      "@openreel/i18n/*": ["../../packages/i18n/src/*"],
       "@openreel/ui": ["../../packages/ui/src/index.ts"],
       "@openreel/ui/*": ["../../packages/ui/src/*"]
     }

@@ -24,6 +24,7 @@ import {
 } from "../utils/linked-caption-edit";
 import { EditingSession } from "./agent/editing-session";
 import { editGraphicSelection, selectionHasGraphics } from "./graphic-commands";
+import { translateNow } from "@openreel/i18n/translate";
 
 const LINKED_TRACK_LOCKED =
   "Unlock the linked audio or video track, or turn off Linked selection.";
@@ -38,7 +39,7 @@ export function editableTimelineIds(
     isLinked(),
   );
   if (selection.blocked && notify)
-    toast.warning("Linked track is locked", LINKED_TRACK_LOCKED);
+    toast.warning(translateNow("Linked track is locked"), LINKED_TRACK_LOCKED);
   return selection.ids;
 }
 
@@ -98,7 +99,7 @@ export async function editTimelineSelection(
     return true;
   } catch (error) {
     toast.error(
-      "Timeline edit failed",
+      translateNow("Timeline edit failed"),
       error instanceof Error ? error.message : "Please try again.",
     );
     return false;

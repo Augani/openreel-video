@@ -15,6 +15,8 @@ import { MobileToolDock } from "./MobileToolDock";
 import { MobileToolsSheet } from "./MobileToolsSheet";
 import type { MobileToolId } from "./mobile-tools";
 import "./mobile-tools.css";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 type CompactPanel = "timeline" | "media" | "inspector" | "chat";
 const inspectorSections: Partial<Record<MobileToolId, string>> = {
@@ -28,6 +30,7 @@ const assetSections: Partial<Record<MobileToolId, AssetSection>> = {
 };
 
 export function MobileEditorTools({ onPanel }: { onPanel: (panel: CompactPanel) => void }) {
+  const t = useT();
   const project = useProjectStore(s => s.project);
   const selection = useUIStore(s => s.selectedItems);
   const exporting = useUIStore(s => s.exportState.isExporting);
@@ -135,7 +138,7 @@ export function MobileEditorTools({ onPanel }: { onPanel: (panel: CompactPanel) 
     try {
       const edited = await editTimelineSelection(currentIds, operation, timeline.playheadPosition);
       if (edited && operation === "delete") useUIStore.getState().clearSelection();
-    } catch (error) { toast.error("Could not edit clips", error instanceof Error ? error.message : "Try again."); }
+    } catch (error) { toast.error(translateNow("Could not edit clips"), error instanceof Error ? error.message : "Try again."); }
     finally { busyRef.current = false; setBusy(false); }
   };
   const replaceSource = async (file?: File) => {
@@ -150,7 +153,7 @@ export function MobileEditorTools({ onPanel }: { onPanel: (panel: CompactPanel) 
       const result = await current.replaceMediaAsset(replacement.mediaId, file);
       if (!result.success) throw new Error(result.error?.message ?? "Try another media file.");
       setReplacement(null);
-    } catch (error) { toast.error("Could not replace media", error instanceof Error ? error.message : "Try again."); }
+    } catch (error) { toast.error(translateNow("Could not replace media"), error instanceof Error ? error.message : "Try again."); }
     finally { busyRef.current = false; setBusy(false); }
   };
   return <>
@@ -159,10 +162,10 @@ export function MobileEditorTools({ onPanel }: { onPanel: (panel: CompactPanel) 
     <MobileToolsSheet open={toolsOpen} onOpenChange={setToolsOpen} onTool={onTool} unavailable={unavailable} recent={recent}/>
     <Dialog open={replacement !== null} onOpenChange={open => { if (!open && !busyRef.current) setReplacement(null); }}>
       <DialogContent>
-        <DialogTitle>Replace source media</DialogTitle>
-        <DialogDescription>Every clip that uses {replacement?.name} will use the new file ({replacement?.uses} {replacement?.uses === 1 ? "clip" : "clips"}).</DialogDescription>
-        <Input ref={replacementInput} aria-label="Replacement media file" type="file" accept={replacement?.accept} className="hidden" onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; void replaceSource(file); }}/>
-        <Button disabled={busy} onClick={() => replacementInput.current?.click()}>{busy ? "Replacing…" : "Choose replacement"}</Button>
+        <DialogTitle>{t("Replace source media")}</DialogTitle>
+        <DialogDescription>{t("Every clip that uses")} {replacement?.name} {t("will use the new file (")}{replacement?.uses} {replacement?.uses === 1 ? t("clip") : t("clips")}).</DialogDescription>
+        <Input ref={replacementInput} aria-label={t("Replacement media file")} type="file" accept={replacement?.accept} className="hidden" onChange={event => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; void replaceSource(file); }}/>
+        <Button disabled={busy} onClick={() => replacementInput.current?.click()}>{busy ? t("Replacing…") : t("Choose replacement")}</Button>
       </DialogContent>
     </Dialog>
   </>;

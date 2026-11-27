@@ -18,11 +18,13 @@ import {
 import { CategoryTabs } from "./CategoryTabs";
 import { TemplateCard } from "./TemplateCard";
 import { TemplatePreviewModal } from "./TemplatePreviewModal";
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   onTemplateApplied?: () => void;
 }
 export function TemplateGallery({ onTemplateApplied }: Props) {
+  const t = useT();
   const getEngine = useEngineStore((state) => state.getTemplateEngine);
   const [entries, setEntries] = useState<TemplateCatalogEntry[]>([]);
   const [loading, setLoading] = useState(true),
@@ -184,13 +186,13 @@ export function TemplateGallery({ onTemplateApplied }: Props) {
           className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-fg-3"
         />
         <Input
-          aria-label="Search templates"
+          aria-label={t("Search templates")}
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);
             setPage(0);
           }}
-          placeholder="Search templates..."
+          placeholder={t("Search templates...")}
           className="h-10 w-full rounded-xl border-border bg-bg-2 pl-11 text-fg"
         />
       </div>
@@ -214,7 +216,7 @@ export function TemplateGallery({ onTemplateApplied }: Props) {
             onClick={() => setRefresh((value) => value + 1)}
             className="mt-2 h-8 text-xs"
           >
-            Retry loading templates
+            {t("Retry loading templates")}
           </Button>
         </Alert>
       )}
@@ -224,16 +226,16 @@ export function TemplateGallery({ onTemplateApplied }: Props) {
           className="flex items-center justify-center gap-3 py-20 text-sm text-fg-3"
         >
           <Loader2 size={24} aria-hidden className="animate-spin" />
-          Loading templates...
+          {t("Loading templates...")}
         </p>
       ) : !filtered.length ? (
         <div className="flex flex-col items-center justify-center py-16">
           <Layers size={24} aria-hidden className="mb-4 text-fg-3" />
           <p className="mb-1 text-base font-medium text-fg">
-            No templates found
+            {t("No templates found")}
           </p>
           <p className="text-sm text-fg-3">
-            Try adjusting your search or filter
+            {t("Try adjusting your search or filter")}
           </p>
         </div>
       ) : (
@@ -258,7 +260,7 @@ export function TemplateGallery({ onTemplateApplied }: Props) {
             disabled={activePage === 0}
             onClick={() => setPage(activePage - 1)}
           >
-            Previous templates
+            {t("Previous templates")}
           </Button>
           <span>
             {activePage + 1} / {pages}
@@ -269,7 +271,7 @@ export function TemplateGallery({ onTemplateApplied }: Props) {
             disabled={activePage + 1 >= pages}
             onClick={() => setPage(activePage + 1)}
           >
-            Next templates
+            {t("Next templates")}
           </Button>
         </div>
       )}

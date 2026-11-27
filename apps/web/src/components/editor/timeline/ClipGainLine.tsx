@@ -14,6 +14,7 @@ import {
 } from "@openreel/core";
 import { commitClipGainPoints, clipGainPoints } from "../../../services/clip-gain-edit";
 import { dbToFraction, formatGainDb, fractionToDb } from "./clip-gain-geometry";
+import { useT } from "@openreel/i18n/react";
 
 /** Pixels of pointer travel before a press on the line becomes a drag instead of a click. */
 const DRAG_SLOP = 3;
@@ -89,6 +90,7 @@ function valueOnCurve(vertices: readonly AutomationPoint[], time: number): numbe
 }
 
 function ClipGainLineImpl({ clip, width, height, locked, music = false, onCommit = defaultCommit }: ClipGainLineProps) {
+  const t = useT();
   const stored = clipGainPoints(clip);
   const [draft, setDraftState] = useState<AutomationPoint[] | null>(null);
   // The latest preview, readable synchronously when the pointer is released.
@@ -301,7 +303,7 @@ function ClipGainLineImpl({ clip, width, height, locked, music = false, onCommit
     >
       <svg
         ref={svgRef}
-        aria-label="Clip gain"
+        aria-label={t("Clip gain")}
         className="absolute left-0 top-0"
         width="100%"
         height={height}

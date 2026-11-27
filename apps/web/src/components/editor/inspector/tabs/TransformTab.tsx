@@ -16,6 +16,7 @@ import {
   InlineSlider,
   NumberField,
 } from "../shell/InspectorControls";
+import { useT } from "@openreel/i18n/react";
 
 interface TransformTabClip {
   id: string;
@@ -60,6 +61,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
   handleTransformChange,
   afterPrimary,
 }) => {
+  const t = useT();
   const usesNormalizedPosition =
     clipType === "text" ||
     clipType === "shape" ||
@@ -100,7 +102,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
       {showTransformControls && (
         <>
           <InspectorSection
-            title={showVideoControls ? "Advanced transform" : "Transform"}
+            title={showVideoControls ? t("Advanced transform") : t("Transform")}
             sectionId={showVideoControls ? "transform-advanced" : "transform"}
             defaultOpen={!showVideoControls}
           >
@@ -132,9 +134,9 @@ export const TransformTab: React.FC<TransformTabProps> = ({
               />
               <div className="flex items-center gap-2">
                 <span className="w-[90px] flex-none text-[11px] font-medium text-fg-muted">
-                  {usesNormalizedPosition ? "Canvas pixels" : "Offset pixels"}
+                  {usesNormalizedPosition ? t("Canvas pixels") : t("Offset pixels")}
                 </span>
-                <div className="grid flex-1 grid-cols-4 gap-1" role="group" aria-label="Nudge position by one pixel">
+                <div className="grid flex-1 grid-cols-4 gap-1" role="group" aria-label={t("Nudge position by one pixel")}>
                   {([
                     ["Nudge left 1 pixel", ArrowLeft, -1, 0],
                     ["Nudge up 1 pixel", ArrowUp, 0, -1],
@@ -157,7 +159,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
 
               <div className="flex items-center">
                 <span className="w-[90px] flex-none text-[13px] font-medium text-fg-3">
-                  Scale
+                  {t("Scale")}
                 </span>
                 <InlineSlider
                   ariaLabel="Scale"
@@ -177,11 +179,11 @@ export const TransformTab: React.FC<TransformTabProps> = ({
 
               <div className="flex items-center">
                 <span className="w-[90px] flex-none text-[13px] font-medium text-fg-3">
-                  Rotation
+                  {t("Rotation")}
                 </span>
                 <div className="flex flex-1 items-center justify-between rounded-[7px] border border-border px-[10px] py-[7px] focus-within:border-accent">
                   <Input
-                    aria-label="Advanced rotation"
+                    aria-label={t("Advanced rotation")}
                     type="text"
                     inputMode="decimal"
                     value={`${Math.round(transform.rotation)}°`}
@@ -198,7 +200,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                   <div className="flex flex-none flex-col">
                     <ShadcnButton variant="ghost" size="sm"
                       type="button"
-                      aria-label="Increase rotation"
+                      aria-label={t("Increase rotation")}
                       className="h-auto w-auto rounded-none p-0 [&_svg]:size-[11px]"
                       onClick={() =>
                         handleTransformChange({
@@ -220,7 +222,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                     </ShadcnButton>
                     <ShadcnButton variant="ghost" size="sm"
                       type="button"
-                      aria-label="Decrease rotation"
+                      aria-label={t("Decrease rotation")}
                       className="h-auto w-auto rounded-none p-0 [&_svg]:size-[11px]"
                       onClick={() =>
                         handleTransformChange({
@@ -278,7 +280,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
 
               <div className="flex items-center">
                 <span className="w-[90px] flex-none text-[13px] font-medium text-fg-3">
-                  Opacity
+                  {t("Opacity")}
                 </span>
                 <InlineSlider
                   ariaLabel="Opacity"
@@ -296,7 +298,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
 
               <div className="flex items-center">
                 <span className="w-[90px] flex-none text-[13px] font-medium text-fg-3">
-                  Radius
+                  {t("Radius")}
                 </span>
                 <InlineSlider
                   ariaLabel="Radius"
@@ -316,7 +318,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                 <div className="space-y-2 border-t border-border pt-3">
                   <span className="font-normal text-[11px] text-fg-3"
                   >
-                    Fit Mode
+                    {t("Fit Mode")}
                   </span>
                   <div className="grid grid-cols-3 gap-1.5">
                     {(["contain", "cover", "stretch"] as FitMode[]).map(
@@ -334,9 +336,9 @@ export const TransformTab: React.FC<TransformTabProps> = ({
                                 : "bg-bg-2 border border-border text-fg-3 hover:text-fg"
                             }`)}>
                             {mode === "contain"
-                              ? "Fit"
+                              ? t("Fit")
                               : mode === "cover"
-                                ? "Fill"
+                                ? t("Fill")
                                 : mode}
                           </ShadcnButton>
                         );
@@ -356,7 +358,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
         !selectedClip.mediaId.startsWith("shape-") &&
         !selectedClip.mediaId.startsWith("svg-") &&
         !selectedClip.mediaId.startsWith("sticker-") && (
-          <InspectorSection title="Crop" sectionId="crop" defaultOpen={false}>
+          <InspectorSection title={t("Crop")} sectionId="crop" defaultOpen={false}>
             <CropSection clip={selectedClip as Clip} />
           </InspectorSection>
         )}
@@ -368,7 +370,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
         clipType === "svg" ||
         clipType === "sticker") && (
         <InspectorSection
-          title="Alignment"
+          title={t("Alignment")}
           sectionId="alignment"
           defaultOpen={false}
         >
@@ -388,7 +390,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({
         clipType === "shape" ||
         clipType === "svg" ||
         clipType === "sticker") && (
-        <InspectorSection title="Advanced blending" sectionId="blending"><BlendingSection clipId={clipId} /></InspectorSection>
+        <InspectorSection title={t("Advanced blending")} sectionId="blending"><BlendingSection clipId={clipId} /></InspectorSection>
       )}
 
       {(clipType === "video" ||
@@ -410,6 +412,6 @@ export const TransformTab: React.FC<TransformTabProps> = ({
   return showVideoControls ? <>
     <PrimaryVideoProperties clipId={clipId} transform={transform} onTransformChange={handleTransformChange} />
     {afterPrimary}
-    <InspectorSection title="Crop & stabilize" sectionId="crop-stabilize" sectionIds={["transform-advanced","crop","alignment","blending","transform-3d"]}>{advancedControls}</InspectorSection>
+    <InspectorSection title={t("Crop & stabilize")} sectionId="crop-stabilize" sectionIds={["transform-advanced","crop","alignment","blending","transform-3d"]}>{advancedControls}</InspectorSection>
   </> : advancedControls;
 };

@@ -3,8 +3,10 @@ import { useScene } from "./store";
 import { PreviewEngine, type PerfSample, type Quality } from "./preview/PreviewEngine";
 import { VideoSource } from "./preview/VideoSource";
 import { SampleClipSelector } from "./SampleClipSelector";
+import { useT } from "@openreel/i18n/react";
 
 export function Preview({ onPerf }: { onPerf?: (p: PerfSample) => void }) {
+  const t = useT();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<PreviewEngine | null>(null);
   const { state } = useScene();
@@ -47,7 +49,7 @@ export function Preview({ onPerf }: { onPerf?: (p: PerfSample) => void }) {
           onClick={() => setShowMask((v) => !v)}
           className={`rounded border px-2 py-1 ${showMask ? "border-blue-500 text-white" : "border-zinc-800 text-zinc-400"}`}
         >
-          Mask
+          {t("Mask")}
         </button>
         {(["perf", "balanced", "full"] as Quality[]).map((q) => (
           <button

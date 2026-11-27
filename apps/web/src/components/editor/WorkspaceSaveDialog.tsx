@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input } from "@openreel/ui";
 import { toast } from "../../stores/notification-store";
 import { BUILT_IN_WORKSPACES, MAX_WORKSPACE_NAME, normalizeWorkspaceName, useWorkspaceLayoutStore } from "../../stores/workspace-layout-store";
+import { useT } from "@openreel/i18n/react";
 
 /** Name the current dock layout and keep it as a workspace (Window > Workspaces > Save as new workspace). */
 export function WorkspaceSaveDialog() {
+  const t = useT();
   const open = useWorkspaceLayoutStore((s) => s.saveDialogOpen);
   const setOpen = useWorkspaceLayoutStore((s) => s.setSaveDialogOpen);
   const userWorkspaces = useWorkspaceLayoutStore((s) => s.userWorkspaces);
@@ -30,9 +32,9 @@ export function WorkspaceSaveDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-w-sm" aria-describedby="workspace-save-hint">
         <DialogHeader>
-          <DialogTitle>Save workspace</DialogTitle>
+          <DialogTitle>{t("Save workspace")}</DialogTitle>
           <DialogDescription id="workspace-save-hint">
-            Keeps the panel sizes, timeline height and open browser section so you can come back to this layout.
+            {t("Keeps the panel sizes, timeline height and open browser section so you can come back to this layout.")}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -44,16 +46,16 @@ export function WorkspaceSaveDialog() {
         >
           <Input
             autoFocus
-            aria-label="Workspace name"
-            placeholder="Workspace name"
+            aria-label={t("Workspace name")}
+            placeholder={t("Workspace name")}
             maxLength={MAX_WORKSPACE_NAME}
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
-          {error ? <p role="alert" className="text-xs text-status-error">{error}</p> : overwrites ? <p className="text-xs text-fg-muted">A workspace with this name exists and will be replaced.</p> : null}
+          {error ? <p role="alert" className="text-xs text-status-error">{error}</p> : overwrites ? <p className="text-xs text-fg-muted">{t("A workspace with this name exists and will be replaced.")}</p> : null}
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button type="submit" disabled={!clean || builtInClash}>{overwrites ? "Replace" : "Save"}</Button>
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>{t("Cancel")}</Button>
+            <Button type="submit" disabled={!clean || builtInClash}>{overwrites ? t("Replace") : t("Save")}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

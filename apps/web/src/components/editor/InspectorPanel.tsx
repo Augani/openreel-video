@@ -63,6 +63,8 @@ import { resetClipTransform } from "../../services/reset-clip-transform";
 import { selectedGraphicInstance } from "../../services/graphic-commands";
 import { linkedInstanceOfBakedClip } from "@openreel/core";
 import { lazyWithRetry } from "./inspector/lazy-retry";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const SubtitleInspector = lazyWithRetry(() =>
   import("./inspector/SubtitleInspector").then((module) => ({ default: module.SubtitleInspector })),
@@ -76,35 +78,39 @@ const chromaKeyEngine = new ChromaKeyEngine({ width: 1920, height: 1080 });
 
 const Section = InspectorSection;
 
-const EmptyState: React.FC = () => (
-  <div className="workspace-inspector-empty">
-    <h2>Nothing selected</h2>
-    <p>Select a clip, title or transition to edit it here.</p>
-    <div className="workspace-shortcuts">
-      <h3>KEYBOARD SHORTCUTS</h3>
-      {[
-        ["Play / pause", "Space"],
-        ["Shuttle", "J K L"],
-        ["Mark in / out", "I O"],
-        ["Blade tool", "B"],
-        ["Selection tool", "V"],
-        ["Add marker", "M"],
-        ["Undo", "⌘ Z"],
-      ].map(([label, key]) => (
-        <div key={label}>
-          <span>{label}</span>
-          <kbd>{key}</kbd>
-        </div>
-      ))}
+const EmptyState: React.FC = () => {
+  const t = useT();
+  return (
+    <div className="workspace-inspector-empty">
+      <h2>{t("Nothing selected")}</h2>
+      <p>{t("Select a clip, title or transition to edit it here.")}</p>
+      <div className="workspace-shortcuts">
+        <h3>{t("KEYBOARD SHORTCUTS")}</h3>
+        {[
+          ["Play / pause", "Space"],
+          ["Shuttle", "J K L"],
+          ["Mark in / out", "I O"],
+          ["Blade tool", "B"],
+          ["Selection tool", "V"],
+          ["Add marker", "M"],
+          ["Undo", "⌘ Z"],
+        ].map(([label, key]) => (
+          <div key={label}>
+            <span>{t(label)}</span>
+            <kbd>{key}</kbd>
+          </div>
+        ))}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 interface InspectorPanelBodyProps {
   selectedItems: SelectionItem[];
 }
 
 const InspectorPanelBody = React.memo(function InspectorPanelBody({ selectedItems }: InspectorPanelBodyProps) {
+  const t = useT();
   // Stores
   const {
     getClip,
@@ -556,7 +562,7 @@ const InspectorPanelBody = React.memo(function InspectorPanelBody({ selectedItem
           setAudioEnhanced(true);
           setTimeout(() => setAudioEnhanced(false), 2000);
           toast.success(
-            "Noise cleanup applied",
+            translateNow("Noise cleanup applied"),
             "Fine-tune or switch presets in Background Noise Removal.",
           );
 
@@ -567,7 +573,7 @@ const InspectorPanelBody = React.memo(function InspectorPanelBody({ selectedItem
     } catch (error) {
       console.error("Failed to enhance audio:", error);
       toast.error(
-        "Could not clean up audio",
+        translateNow("Could not clean up audio"),
         error instanceof Error
           ? error.message
           : "Noise cleanup could not be applied to this clip.",
@@ -636,24 +642,24 @@ const InspectorPanelBody = React.memo(function InspectorPanelBody({ selectedItem
         if (result.success) {
           if (result.errors.length > 0) {
             toast.warning(
-              "Captions imported with warnings",
+              translateNow("Captions imported with warnings"),
               `${result.errors.length} subtitle segment(s) were skipped.`,
             );
           } else {
             toast.success(
-              "Captions imported",
+              translateNow("Captions imported"),
               "Each cue is now an editable text clip on the Captions track.",
             );
           }
         } else {
           toast.error(
-            "Caption import failed",
+            translateNow("Caption import failed"),
             result.errors[0] || "No valid captions found.",
           );
         }
       } catch {
         toast.error(
-          "Caption import failed",
+          translateNow("Caption import failed"),
           "Could not read the selected subtitle file.",
         );
       } finally {
@@ -832,7 +838,7 @@ const InspectorPanelBody = React.memo(function InspectorPanelBody({ selectedItem
       const template = getEditingTemplate(templateId);
       if (!template) {
         toast.error(
-          "Recipe unavailable",
+          translateNow("Recipe unavailable"),
           "This recipe definition is no longer available.",
         );
         return;
@@ -849,14 +855,14 @@ const InspectorPanelBody = React.memo(function InspectorPanelBody({ selectedItem
 
       if (!updated) {
         toast.error(
-          "Could not update recipe",
+          translateNow("Could not update recipe"),
           "The recipe controls could not be saved for this clip.",
         );
         return;
       }
 
       toast.success(
-        "Recipe updated",
+        translateNow("Recipe updated"),
         `${template.name} was updated on this clip.`,
       );
     },
@@ -998,7 +1004,7 @@ const InspectorPanelBody = React.memo(function InspectorPanelBody({ selectedItem
       data-clip-type={clipType ?? undefined}
       className="w-full min-w-0 bg-bg-1 flex flex-col h-full overflow-hidden"
     >
-      {selectedTransition ? <h2 className="workspace-transition-heading">Transition</h2> : selectedClip && (
+      {selectedTransition ? <h2 className="workspace-transition-heading">{t("Transition")}</h2> : selectedClip && (
         <WorkspaceTabs
           label="Inspector sections"
           value={visibleInspectorTab}
@@ -1050,10 +1056,10 @@ const InspectorPanelBody = React.memo(function InspectorPanelBody({ selectedItem
               />
             )}
           <div hidden={!selectedClip || visibleInspectorTab !== "ai"}>
-            <Section title="Multi-Camera Editing" sectionId="multicam">
+            <Section title={t("Multi-Camera Editing")} sectionId="multicam">
               <InspectorTabErrorBoundary>
                 <React.Suspense
-                  fallback={<p role="status">Loading camera tools…</p>}
+                  fallback={<p role="status">{t("Loading camera tools…")}</p>}
                 >
                   <MultiCameraPanel key={project.id} />
                 </React.Suspense>

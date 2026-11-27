@@ -5,6 +5,7 @@ import { useTimelineStore } from "../stores/timeline-store";
 import { getLinkedTimelineSelection } from "../utils/linked-timeline-selection";
 import { EditingSession } from "./agent/editing-session";
 import { toast } from "../stores/notification-store";
+import { translateNow } from "@openreel/i18n/translate";
 
 export type ClipSpeedChange =
   | { speed: number }
@@ -57,7 +58,7 @@ export async function editClipSpeed(projectId: string, clipId: string, changes: 
     return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Please try again.";
-    toast.error("Speed edit failed", message.includes("project changed while") ? "The project changed before the speed edit finished. Please try again." : message);
+    toast.error(translateNow("Speed edit failed"), message.includes("project changed while") ? "The project changed before the speed edit finished. Please try again." : message);
     return false;
   }
 }

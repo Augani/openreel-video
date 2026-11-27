@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Icon } from "../icons";
 import { validatePublishable } from "./validate";
 import { publish, type SubmitInput } from "./submit";
+import { useT } from "@openreel/i18n/react";
 
 export function PublishDialog({
   input,
@@ -10,6 +11,7 @@ export function PublishDialog({
   input: Omit<SubmitInput, "description" | "tags" | "license" | "visibility">;
   onClose: (submittedId?: string) => void;
 }) {
+  const t = useT();
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState("");
   const [license, setLicense] = useState("MIT");
@@ -44,8 +46,8 @@ export function PublishDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => onClose()}>
       <div onClick={(e) => e.stopPropagation()} className="w-[440px] rounded-lg border border-zinc-800 bg-zinc-950 p-5">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-sm font-medium text-white">Publish "{input.name}"</h3>
-          <button type="button" onClick={() => onClose()} aria-label="Close" className="text-zinc-500 hover:text-zinc-300">
+          <h3 className="text-sm font-medium text-white">{t("Publish \"")}{input.name}"</h3>
+          <button type="button" onClick={() => onClose()} aria-label={t("Close")} className="text-zinc-500 hover:text-zinc-300">
             <Icon name="x" size={14} />
           </button>
         </div>
@@ -54,8 +56,8 @@ export function PublishDialog({
           <Field label="Kind"><span className="capitalize">{input.kind}</span></Field>
           <Field label="Visibility">
             <select value={visibility} onChange={(e) => setVisibility(e.target.value as "public" | "unlisted")} className="rounded border border-zinc-800 bg-zinc-900 px-2 py-1">
-              <option value="public">Public</option>
-              <option value="unlisted">Unlisted</option>
+              <option value="public">{t("Public")}</option>
+              <option value="unlisted">{t("Unlisted")}</option>
             </select>
           </Field>
           <Field label="Description">
@@ -68,7 +70,7 @@ export function PublishDialog({
             <select value={license} onChange={(e) => setLicense(e.target.value)} className="rounded border border-zinc-800 bg-zinc-900 px-2 py-1">
               <option>MIT</option>
               <option>CC-BY-4.0</option>
-              <option>All Rights Reserved</option>
+              <option>{t("All Rights Reserved")}</option>
             </select>
           </Field>
           {error && (
@@ -77,9 +79,9 @@ export function PublishDialog({
         </div>
 
         <div className="mt-5 flex justify-end gap-2">
-          <button type="button" onClick={() => onClose()} className="rounded border border-zinc-800 px-3 py-1 text-xs text-zinc-300 hover:border-zinc-700">Cancel</button>
+          <button type="button" onClick={() => onClose()} className="rounded border border-zinc-800 px-3 py-1 text-xs text-zinc-300 hover:border-zinc-700">{t("Cancel")}</button>
           <button type="button" disabled={busy} onClick={handlePublish} className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-500 disabled:opacity-50">
-            {busy ? "Publishing…" : "Publish"}
+            {busy ? t("Publishing…") : t("Publish")}
           </button>
         </div>
       </div>

@@ -11,6 +11,7 @@ import {
   type ExportQuality,
   type ExportOptions,
 } from '../../services/export-service';
+import { useT } from "@openreel/i18n/react";
 
 interface ExportDialogProps {
   open: boolean;
@@ -141,6 +142,7 @@ const PLATFORM_PRESETS: PlatformPreset[] = [
 type SizeMode = 'scale' | 'custom' | 'dpi';
 
 export function ExportDialog({ open, onClose }: ExportDialogProps) {
+  const t = useT();
   const { project, selectedArtboardId } = useProjectStore();
   const { showNotification } = useUIStore();
 
@@ -309,7 +311,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
     <Dialog
       open={open}
       onClose={onClose}
-      title="Export Image"
+      title={t("Export Image")}
       description="Choose format and quality settings"
       maxWidth="md"
     >
@@ -317,14 +319,14 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
         <div>
           <div className="flex items-center justify-between mb-3">
             <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Quick Presets
+              {t("Quick Presets")}
             </label>
             {selectedPreset && (
               <button
                 onClick={clearPreset}
                 className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
               >
-                Clear
+                {t("Clear")}
               </button>
             )}
           </div>
@@ -344,7 +346,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                 >
                   <Icon size={16} className={`mx-auto mb-1 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
                   <span className="block text-[10px] font-medium truncate">{preset.name}</span>
-                  <span className="block text-[8px] text-muted-foreground truncate">{preset.description}</span>
+                  <span className="block text-[8px] text-muted-foreground truncate">{t(preset.description)}</span>
                 </button>
               );
             })}
@@ -353,7 +355,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
 
         <div>
           <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
-            Format
+            {t("Format")}
           </label>
           <div className="grid grid-cols-3 gap-2">
             {FORMATS.map((f) => (
@@ -370,7 +372,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                   <FileImage size={16} className={format === f.id ? 'text-primary' : 'text-muted-foreground'} />
                   <span className="font-medium text-sm">{f.name}</span>
                 </div>
-                <p className="text-[11px] text-muted-foreground">{f.description}</p>
+                <p className="text-[11px] text-muted-foreground">{t(f.description)}</p>
               </button>
             ))}
           </div>
@@ -379,7 +381,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
         {currentFormat.supportsQuality && (
           <div>
             <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
-              Quality
+              {t("Quality")}
             </label>
             <div className="grid grid-cols-4 gap-2">
               {QUALITY_PRESETS.map((q) => (
@@ -402,7 +404,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
 
         <div>
           <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
-            Size
+            {t("Size")}
           </label>
           <div className="flex gap-2 mb-3">
             <button
@@ -413,7 +415,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                   : 'border-border hover:border-muted-foreground/50 hover:bg-secondary/50'
               }`}
             >
-              Scale
+              {t("Scale")}
             </button>
             <button
               onClick={() => setSizeMode('custom')}
@@ -423,7 +425,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                   : 'border-border hover:border-muted-foreground/50 hover:bg-secondary/50'
               }`}
             >
-              Custom
+              {t("Custom")}
             </button>
             <button
               onClick={() => setSizeMode('dpi')}
@@ -434,7 +436,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
               }`}
             >
               <Printer size={14} />
-              Print
+              {t("Print")}
             </button>
           </div>
 
@@ -450,7 +452,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                       : 'border-border hover:border-muted-foreground/50 hover:bg-secondary/50'
                   }`}
                 >
-                  {s.label}
+                  {t(s.label)}
                 </button>
               ))}
             </div>
@@ -459,7 +461,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
           {sizeMode === 'custom' && (
             <div className="flex items-center gap-2">
               <div className="flex-1">
-                <label className="block text-[10px] text-muted-foreground mb-1">Width (px)</label>
+                <label className="block text-[10px] text-muted-foreground mb-1">{t("Width (px)")}</label>
                 <input
                   type="number"
                   value={customWidth}
@@ -474,12 +476,12 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                 className={`mt-5 p-2 rounded-lg transition-colors ${
                   lockAspectRatio ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground'
                 }`}
-                title={lockAspectRatio ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
+                title={lockAspectRatio ? t("Unlock aspect ratio") : t("Lock aspect ratio")}
               >
                 {lockAspectRatio ? <Link2 size={16} /> : <Link2Off size={16} />}
               </button>
               <div className="flex-1">
-                <label className="block text-[10px] text-muted-foreground mb-1">Height (px)</label>
+                <label className="block text-[10px] text-muted-foreground mb-1">{t("Height (px)")}</label>
                 <input
                   type="number"
                   value={customHeight}
@@ -506,15 +508,15 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                     }`}
                   >
                     <span className="block text-sm font-medium">{d.value}</span>
-                    <span className="block text-[9px] text-muted-foreground">{d.description}</span>
+                    <span className="block text-[9px] text-muted-foreground">{t(d.description)}</span>
                   </button>
                 ))}
               </div>
               {printDimensions && (
                 <div className="p-3 bg-secondary/30 rounded-lg text-xs text-muted-foreground">
-                  <p>Print size at {dpi} DPI:</p>
+                  <p>{t("Print size at")} {dpi} DPI:</p>
                   <p className="font-medium text-foreground mt-1">
-                    {printDimensions.inches.width}" × {printDimensions.inches.height}" ({printDimensions.cm.width} × {printDimensions.cm.height} cm)
+                    {printDimensions.inches.width}" × {printDimensions.inches.height}" ({printDimensions.cm.width} × {printDimensions.cm.height} {t("cm)")}
                   </p>
                 </div>
               )}
@@ -525,7 +527,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
         {currentFormat.supportsTransparency && (
           <div>
             <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
-              Background
+              {t("Background")}
             </label>
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -536,7 +538,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                     : 'border-border hover:border-muted-foreground/50 hover:bg-secondary/50'
                 }`}
               >
-                Include Background
+                {t("Include Background")}
               </button>
               <button
                 onClick={() => setBackground('transparent')}
@@ -546,7 +548,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                     : 'border-border hover:border-muted-foreground/50 hover:bg-secondary/50'
                 }`}
               >
-                Transparent
+                {t("Transparent")}
               </button>
             </div>
           </div>
@@ -561,20 +563,20 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
                 onChange={(e) => setExportAll(e.target.checked)}
                 className="w-4 h-4 rounded border-border bg-background text-primary focus:ring-primary/50"
               />
-              <span className="text-sm">Export all artboards ({project.artboards.length})</span>
+              <span className="text-sm">{t("Export all artboards (")}{project.artboards.length})</span>
             </label>
           </div>
         )}
 
         <div className="p-4 bg-secondary/50 rounded-lg space-y-2">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Dimensions</span>
+            <span className="text-muted-foreground">{t("Dimensions")}</span>
             <span className="font-medium">
               {dimensions?.width} × {dimensions?.height} px
             </span>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Estimated size</span>
+            <span className="text-muted-foreground">{t("Estimated size")}</span>
             <span className="font-medium">{estimatedSize}</span>
           </div>
         </div>
@@ -601,7 +603,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
           disabled={isExporting}
           className="px-4 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
         >
-          Cancel
+          {t("Cancel")}
         </button>
         <button
           onClick={handleExport}
@@ -611,12 +613,12 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
           {isExporting ? (
             <>
               <Loader2 size={16} className="animate-spin" />
-              Exporting...
+              {t("Exporting...")}
             </>
           ) : (
             <>
               <Download size={16} />
-              Export
+              {t("Export")}
             </>
           )}
         </button>

@@ -2,6 +2,7 @@ import React, { useSyncExternalStore } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@openreel/ui";
 import { getMorphCutRegistry } from "@openreel/core/video/morph-cut/registry";
 import { MORPH_CUT_QUALITIES, morphCutQualityOf, type MorphCutQuality } from "@openreel/core/video/morph-cut/types";
+import { useT } from "@openreel/i18n/react";
 
 const QUALITY_LABEL: Record<MorphCutQuality, string> = { low: "Low (fast)", medium: "Medium", high: "High (detailed)" };
 
@@ -36,15 +37,16 @@ export const MorphCutControls: React.FC<{
   params: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
 }> = ({ transitionId, params, onChange }) => {
+  const t = useT();
   const state = useMorphCutState(transitionId);
   const quality = morphCutQualityOf(params);
   const analysing = state.status === "analysing";
   return (
     <div className="space-y-2" data-testid="morph-cut-controls">
       <div className="space-y-1">
-        <span className="text-fg-2 font-normal text-[10px]">Analysis detail</span>
+        <span className="text-fg-2 font-normal text-[10px]">{t("Analysis detail")}</span>
         <Select value={quality} onValueChange={(value) => onChange("quality", value)}>
-          <SelectTrigger aria-label="Morph Cut analysis detail" icon={<span aria-hidden="true">▾</span>}>
+          <SelectTrigger aria-label={t("Morph Cut analysis detail")} icon={<span aria-hidden="true">▾</span>}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -57,7 +59,7 @@ export const MorphCutControls: React.FC<{
         </Select>
       </div>
       <p className="text-fg-2 text-[10px] leading-snug" role="status" aria-live="polite" data-testid="morph-cut-status" data-status={state.status}>
-        {transitionId ? morphCutStatusLine(state) : "Add the transition, then it analyses in the background."}
+        {transitionId ? morphCutStatusLine(state) : t("Add the transition, then it analyses in the background.")}
       </p>
       {analysing && transitionId && (
         <button
@@ -68,7 +70,7 @@ export const MorphCutControls: React.FC<{
             void import("@openreel/core/video/morph-cut/analyse-job").then((m) => m.cancelMorphCutAnalysis(transitionId));
           }}
         >
-          Cancel analysis
+          {t("Cancel analysis")}
         </button>
       )}
       {state.status === "cancelled" && transitionId && (
@@ -83,7 +85,7 @@ export const MorphCutControls: React.FC<{
             });
           }}
         >
-          Analyse again
+          {t("Analyse again")}
         </button>
       )}
       {analysing && (
@@ -92,7 +94,7 @@ export const MorphCutControls: React.FC<{
         </div>
       )}
       <p className="text-fg-2 text-[10px] leading-snug">
-        Best for jump cuts in one continuous shot (a talking head). It matches the last frame of the outgoing clip to the first frame of the incoming clip; shots that differ too much stay a cross dissolve.
+        {t("Best for jump cuts in one continuous shot (a talking head). It matches the last frame of the outgoing clip to the first frame of the incoming clip; shots that differ too much stay a cross dissolve.")}
       </p>
     </div>
   );

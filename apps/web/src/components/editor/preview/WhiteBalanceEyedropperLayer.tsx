@@ -13,6 +13,8 @@ import {
   WHITE_BALANCE_PICK_MESSAGES,
   type WhiteBalancePickResult,
 } from "../../../services/white-balance-eyedropper";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * White Balance eyedropper over the Program monitor. Crosshair cursor, a
@@ -53,6 +55,7 @@ function toCanvasPoint(
 const fmt = (value: number): string => `${value > 0 ? "+" : ""}${Math.round(value)}`;
 
 export const WhiteBalanceEyedropperLayer: React.FC = () => {
+  const t = useT();
   const pick = useColorMonitorStore((state) => state.whiteBalancePick);
   const size = useColorMonitorStore((state) => state.whiteBalanceSize);
   const setPick = useColorMonitorStore((state) => state.setWhiteBalancePick);
@@ -200,16 +203,16 @@ export const WhiteBalanceEyedropperLayer: React.FC = () => {
           result.solution.clamped ? " (limited to the slider range)" : ""
         }`;
         if (result.farFromNeutral) {
-          toast.warning("White balance set from a coloured area", `${message}. That area was far from neutral; undo and pick a grey or white surface for a truer result.`);
+          toast.warning(translateNow("White balance set from a coloured area"), `${message}. That area was far from neutral; undo and pick a grey or white surface for a truer result.`);
         } else {
-          toast.success("White balance set", message);
+          toast.success(translateNow("White balance set"), message);
         }
       } else if (result.reason === "unusable-sample" || result.reason === "outside-clip") {
         // Stay armed so the user can pick a better spot.
-        toast.warning("White balance", WHITE_BALANCE_PICK_MESSAGES[result.reason]);
+        toast.warning(translateNow("White balance"), WHITE_BALANCE_PICK_MESSAGES[result.reason]);
       } else {
         setPick(null);
-        toast.warning("White balance", WHITE_BALANCE_PICK_MESSAGES[result.reason]);
+        toast.warning(translateNow("White balance"), WHITE_BALANCE_PICK_MESSAGES[result.reason]);
       }
     })();
   };
@@ -224,7 +227,7 @@ export const WhiteBalanceEyedropperLayer: React.FC = () => {
       data-testid="wb-eyedropper-layer"
       data-input-frame={inputMode ? (snapshotReady ? "ready" : "pending") : "live"}
       role="application"
-      aria-label={`White balance eyedropper. Click a neutral area of the Program monitor to set Temperature and Tint. Escape cancels.`}
+      aria-label={t("White balance eyedropper. Click a neutral area of the Program monitor to set Temperature and Tint. Escape cancels.")}
       className="absolute inset-0 z-40 cursor-crosshair rounded-[10px] ring-2 ring-accent"
       onPointerMove={onMove}
       onPointerLeave={() => {
@@ -242,7 +245,7 @@ export const WhiteBalanceEyedropperLayer: React.FC = () => {
         style={{ visibility: "hidden" }}
       />
       <div className="pointer-events-none absolute left-2 top-2 rounded bg-black/70 px-2 py-1 text-[10px] font-medium text-white/90">
-        White balance: click a neutral grey or white area. Esc cancels.
+        {t("White balance: click a neutral grey or white area. Esc cancels.")}
       </div>
       {hover ? (
         <>
@@ -268,23 +271,23 @@ export const WhiteBalanceEyedropperLayer: React.FC = () => {
               style={{ background: swatch }}
             />
             {hover.preparing ? (
-              <span className="text-white/70">Preparing frame...</span>
+              <span className="text-white/70">{t("Preparing frame...")}</span>
             ) : hover.result.ok ? (
               <span className={hover.result.farFromNeutral ? "text-amber-300" : undefined}>
-                Temp {fmt(hover.result.solution.temperature)} · Tint {fmt(hover.result.solution.tint)}
-                {hover.result.solution.clamped ? " (limit)" : ""}
-                {hover.result.farFromNeutral ? " · not neutral" : ""}
+                {t("Temp")} {fmt(hover.result.solution.temperature)} {t("· Tint")} {fmt(hover.result.solution.tint)}
+                {hover.result.solution.clamped ? t(" (limit)") : ""}
+                {hover.result.farFromNeutral ? t(" · not neutral") : ""}
               </span>
             ) : (
               <span className="text-white/70">
-                {hover.result.reason === "unusable-sample" ? "Clipped: pick another area" : "Cannot pick here"}
+                {hover.result.reason === "unusable-sample" ? t("Clipped: pick another area") : t("Cannot pick here")}
               </span>
             )}
           </div>
         </>
       ) : null}
       <span className="sr-only" aria-live="polite">
-        {usable ? "Neutral sample ready" : ""}
+        {usable ? t("Neutral sample ready") : ""}
       </span>
     </div>
   );

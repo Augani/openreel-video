@@ -1,4 +1,5 @@
 import { X, Keyboard } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 interface ShortcutItem {
   keys: string[];
@@ -78,6 +79,7 @@ interface Props {
 }
 
 export function KeyboardShortcutsPanel({ isOpen, onClose }: Props) {
+  const t = useT();
   if (!isOpen) return null;
 
   return (
@@ -87,7 +89,7 @@ export function KeyboardShortcutsPanel({ isOpen, onClose }: Props) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div className="flex items-center gap-3">
             <Keyboard size={20} className="text-primary" />
-            <h2 className="text-lg font-semibold">Keyboard Shortcuts</h2>
+            <h2 className="text-lg font-semibold">{t("Keyboard Shortcuts")}</h2>
           </div>
           <button
             onClick={onClose}
@@ -101,7 +103,7 @@ export function KeyboardShortcutsPanel({ isOpen, onClose }: Props) {
           <div className="grid grid-cols-2 gap-6">
             {SHORTCUT_GROUPS.map((group) => (
               <div key={group.title} className="space-y-3">
-                <h3 className="text-sm font-medium text-foreground">{group.title}</h3>
+                <h3 className="text-sm font-medium text-foreground">{t(group.title)}</h3>
                 <div className="space-y-1.5">
                   {group.shortcuts.map((shortcut, index) => (
                     <div
@@ -109,7 +111,7 @@ export function KeyboardShortcutsPanel({ isOpen, onClose }: Props) {
                       className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-accent/50 transition-colors"
                     >
                       <span className="text-sm text-muted-foreground">
-                        {shortcut.description}
+                        {t(shortcut.description)}
                       </span>
                       <div className="flex items-center gap-1">
                         {shortcut.keys.map((key, keyIndex) => (
@@ -130,7 +132,7 @@ export function KeyboardShortcutsPanel({ isOpen, onClose }: Props) {
 
           <div className="mt-6 pt-4 border-t border-border">
             <p className="text-xs text-muted-foreground text-center">
-              Press <kbd className="px-1.5 py-0.5 bg-secondary border border-border rounded text-[10px]">?</kbd> to toggle this panel
+              {t("Press")} <kbd className="px-1.5 py-0.5 bg-secondary border border-border rounded text-[10px]">?</kbd> {t("to toggle this panel")}
             </p>
           </div>
         </div>

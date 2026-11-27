@@ -22,6 +22,8 @@ import {
 import { toast } from "../../../stores/notification-store";
 import { useProcessingStore } from "../../../services/processing-manager";
 import { ColorSelector } from "../../../motion/components/primitives";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 interface BackgroundRemovalSectionProps {
   clipId: string;
@@ -53,6 +55,7 @@ const PRESET_COLORS = [
 export const BackgroundRemovalSection: React.FC<
   BackgroundRemovalSectionProps
 > = ({ clipId, onSettingsChange }) => {
+  const t = useT();
   const [settings, setSettings] = useState<BackgroundRemovalSettings>(
     DEFAULT_BACKGROUND_SETTINGS,
   );
@@ -122,7 +125,7 @@ export const BackgroundRemovalSection: React.FC<
       updateSettings({ enabled: true });
       completeTask(taskId);
       toast.success(
-        "Background Removal Ready",
+        translateNow("Background Removal Ready"),
         "Effect will be applied during playback",
       );
     } catch (error) {
@@ -130,7 +133,7 @@ export const BackgroundRemovalSection: React.FC<
         taskId,
         error instanceof Error ? error.message : "Unknown error",
       );
-      toast.error("Processing Failed", "Could not enable background removal");
+      toast.error(translateNow("Processing Failed"), "Could not enable background removal");
     } finally {
       setIsProcessing(false);
     }
@@ -148,7 +151,7 @@ export const BackgroundRemovalSection: React.FC<
   const handleToggleEnabled = useCallback(() => {
     if (settings.enabled) {
       updateSettings({ enabled: false });
-      toast.info("Background Removal Disabled");
+      toast.info(translateNow("Background Removal Disabled"));
     } else {
       processBackgroundRemoval();
     }
@@ -163,7 +166,7 @@ export const BackgroundRemovalSection: React.FC<
             ) : undefined) ? <span className="flex h-4 w-4 shrink-0 items-center justify-center">{isInitializing || isProcessing ? (
               <Loader2 size={12} className="animate-spin" />
             ) : undefined}</span> : null}
-          <span className="truncate">{settings.enabled ? "On" : "Off"}</span>
+          <span className="truncate">{settings.enabled ? t("On") : t("Off")}</span>
         </Button>
       </div>
 
@@ -171,7 +174,7 @@ export const BackgroundRemovalSection: React.FC<
         <Card className="min-w-0 rounded-[7px] border shadow-none border-transparent bg-bg-2 text-fg p-3 space-y-3">
           <div>
             <span className="text-fg-2 font-normal mb-2 block text-[10px]">
-              Background Mode
+              {t("Background Mode")}
             </span>
             <div className="grid grid-cols-4 gap-1">
               {BACKGROUND_MODES.map((mode) => {
@@ -184,7 +187,7 @@ export const BackgroundRemovalSection: React.FC<
                     }`)}>
                     <ModeIcon size={14} />
                     <span className="text-fg font-normal text-[9px]">
-                      {mode.label}
+                      {t(mode.label)}
                     </span>
                   </Button>
                 );
@@ -207,7 +210,7 @@ export const BackgroundRemovalSection: React.FC<
           {settings.mode === "color" && (
             <div>
               <span className="text-fg-2 font-normal mb-2 block text-[10px]">
-                Background Color
+                {t("Background Color")}
               </span>
               <div className="grid grid-cols-8 gap-1 mb-2">
                 {PRESET_COLORS.map((color) => (
@@ -229,7 +232,7 @@ export const BackgroundRemovalSection: React.FC<
           {settings.mode === "image" && (
             <div>
               <span className="text-fg-2 font-normal mb-2 block text-[10px]">
-                Background Image
+                {t("Background Image")}
               </span>
               <Button onClick={() => {
                   const input = document.createElement("input");
@@ -247,13 +250,13 @@ export const BackgroundRemovalSection: React.FC<
                     }
                   };
                   input.click();
-                }} type="button" aria-label="Choose Image" className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg w-full justify-center">
+                }} type="button" aria-label={t("Choose Image")} className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg w-full justify-center">
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<ImageIcon size={14} />}</span>
-                <span className="truncate">{"Choose Image"}</span>
+                <span className="truncate">{t("Choose Image")}</span>
               </Button>
               {settings.backgroundImageUrl && (
                 <span className="text-fg-2 font-normal mt-2 truncate text-[9px]">
-                  Image loaded
+                  {t("Image loaded")}
                 </span>
               )}
             </div>
@@ -282,8 +285,7 @@ export const BackgroundRemovalSection: React.FC<
           <div className="flex items-start gap-2 p-2 bg-primary/10 rounded border border-primary/20">
             <Info size={14} className="text-primary flex-shrink-0 mt-0.5" />
             <span className="text-fg-2 font-normal text-[9px]">
-              Background removal is processed in real-time. For best results,
-              export your video after previewing.
+              {t("Background removal is processed in real-time. For best results, export your video after previewing.")}
             </span>
           </div>
         </Card>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { translateNow } from "@openreel/i18n/translate";
 import {
   RotateCcw,
   Clock,
@@ -22,6 +23,7 @@ import {
   ScrollArea,
 } from "@openreel/ui";
 import type { AutoSaveMetadata } from "../../services/auto-save";
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   saves: AutoSaveMetadata[];
@@ -39,21 +41,26 @@ function formatDate(timestamp: number): string {
   try {
     return dateFormatter.format(timestamp);
   } catch {
-    return "Unknown date";
+    return translateNow("Unknown date");
   }
 }
 function formatTimeAgo(timestamp: number, now: number): string {
   const seconds = Math.max(0, Math.floor((now - timestamp) / 1000));
-  if (!Number.isFinite(seconds)) return "at an unknown time";
-  if (seconds < 60) return "just now";
+  if (!Number.isFinite(seconds)) return translateNow("at an unknown time");
+  if (seconds < 60) return translateNow("just now");
   const amount =
     seconds < 3600
       ? Math.floor(seconds / 60)
       : seconds < 86400
         ? Math.floor(seconds / 3600)
         : Math.floor(seconds / 86400);
-  const unit = seconds < 3600 ? "minute" : seconds < 86400 ? "hour" : "day";
-  return `${amount} ${unit}${amount === 1 ? "" : "s"} ago`;
+  if (seconds < 3600) {
+    return translateNow(amount === 1 ? "{amount} minute ago" : "{amount} minutes ago", { amount });
+  }
+  if (seconds < 86400) {
+    return translateNow(amount === 1 ? "{amount} hour ago" : "{amount} hours ago", { amount });
+  }
+  return translateNow(amount === 1 ? "{amount} day ago" : "{amount} days ago", { amount });
 }
 export function RecoveryDialog({
   saves,
@@ -61,6 +68,7 @@ export function RecoveryDialog({
   onDismiss,
   onClearAll,
 }: Props) {
+  const t = useT();
   const [older, setOlder] = useState(false),
     [page, setPage] = useState(0);
   const [selected, setSelected] = useState<string | null>(null),
@@ -93,15 +101,13 @@ export function RecoveryDialog({
     setError("");
     try {
       if ((await onRecover(id)) === false && mounted.current) {
-        setError(
-          "Could not recover this save. Your current project is still available. Try again or choose another save.",
+        setError(translateNow("Could not recover this save. Your current project is still available. Try again or choose another save."),
         );
         setSelected(null);
       }
     } catch {
       if (mounted.current) {
-        setError(
-          "Could not recover this save. Try again or choose another save.",
+        setError(translateNow("Could not recover this save. Try again or choose another save."),
         );
         setSelected(null);
       }
@@ -119,7 +125,7 @@ export function RecoveryDialog({
       if (mounted.current) onDismiss();
     } catch {
       if (mounted.current)
-        setError("Could not clear saved projects. Try again.");
+        setError(translateNow("Could not clear saved projects. Try again."));
     } finally {
       operation.current = null;
       if (mounted.current) setClearing(false);
@@ -151,17 +157,17 @@ export function RecoveryDialog({
           />
           <div className="min-w-0 flex-1">
             <DialogTitle className="text-[15px] font-semibold leading-5 text-fg">
-              Recover Your Work
+              {t("Recover Your Work")}
             </DialogTitle>
             <DialogDescription className="mt-1 text-xs leading-4 text-fg-muted">
-              We found an unsaved project
+              {t("We found an unsaved project")}
             </DialogDescription>
           </div>
           <Button
             variant="ghost"
             size="icon-sm"
             type="button"
-            aria-label="Close dialog"
+            aria-label={t("Close dialog")}
             disabled={busy}
             onClick={dismiss}
             className="h-7 w-7 shrink-0 max-sm:h-11 max-sm:w-11"
@@ -178,7 +184,7 @@ export function RecoveryDialog({
           <Button
             variant="ghost"
             type="button"
-            aria-label={`Recover ${latest.projectName}`}
+            aria-label={t("Recover {name}", { name: latest.projectName })}
             disabled={busy}
             onClick={() => void recover(latest.id)}
             className="group block h-auto w-full min-w-0 whitespace-normal rounded-xl border border-border bg-bg-2 p-4 text-left hover:border-primary/50 hover:bg-bg-3 disabled:opacity-70"
@@ -191,7 +197,7 @@ export function RecoveryDialog({
             </span>
             <span className="flex flex-wrap items-center gap-2 text-sm text-fg-3">
               <Clock size={16} aria-hidden className="shrink-0" />
-              <span>Last saved {formatTimeAgo(latest.timestamp, now)}</span>
+              <span>{t("Last saved")} {formatTimeAgo(latest.timestamp, now)}</span>
               <span aria-hidden className="opacity-50">
                 •
               </span>
@@ -220,8 +226,12 @@ export function RecoveryDialog({
                       className={older ? "rotate-180" : ""}
                     />
                     <span className="truncate">
-                      {previous.length} older{" "}
-                      {previous.length === 1 ? "save" : "saves"} available
+                      {t(
+                        previous.length === 1
+                          ? "{count} older save available"
+                          : "{count} older saves available",
+                        { count: previous.length },
+                      )}
                     </span>
                   </Button>
                 </CollapsibleTrigger>
@@ -230,8 +240,8 @@ export function RecoveryDialog({
                     variant="ghost"
                     size="icon-sm"
                     type="button"
-                    aria-label="Clear all saved projects"
-                    title="Clear all saved projects"
+                    aria-label={t("Clear all saved projects")}
+                    title={t("Clear all saved projects")}
                     disabled={busy}
                     onClick={() => void clear()}
                     className="shrink-0 text-fg-3 hover:bg-red-500/10 hover:text-red-400"
@@ -260,7 +270,7 @@ export function RecoveryDialog({
                         variant="ghost"
                         key={save.id}
                         type="button"
-                        aria-label={`Recover ${save.projectName}`}
+                        aria-label={t("Recover {name}", { name: save.projectName })}
                         disabled={busy}
                         onClick={() => void recover(save.id)}
                         className="group block h-auto w-full min-w-0 whitespace-normal rounded-lg border border-border bg-bg-2 p-3 text-left hover:bg-bg-3 disabled:opacity-70"
@@ -290,7 +300,7 @@ export function RecoveryDialog({
                       disabled={busy || activePage === 0}
                       onClick={() => setPage(activePage - 1)}
                     >
-                      Previous saves
+                      {t("Previous saves")}
                     </Button>
                     <span>
                       {activePage + 1} / {pages}
@@ -301,7 +311,7 @@ export function RecoveryDialog({
                       disabled={busy || activePage + 1 >= pages}
                       onClick={() => setPage(activePage + 1)}
                     >
-                      Next saves
+                      {t("Next saves")}
                     </Button>
                   </div>
                 )}
@@ -317,7 +327,7 @@ export function RecoveryDialog({
             onClick={dismiss}
             className="h-8 flex-1 px-3 text-xs max-sm:min-h-11"
           >
-            Start Fresh
+            {t("Start Fresh")}
           </Button>
           <Button
             type="button"
@@ -328,7 +338,7 @@ export function RecoveryDialog({
             {selected === latest.id && (
               <Loader2 size={14} aria-hidden className="animate-spin" />
             )}
-            {selected === latest.id ? "Recovering..." : "Recover Project"}
+            {selected === latest.id ? t("Recovering...") : t("Recover Project")}
           </Button>
         </DialogFooter>
       </DialogContent>

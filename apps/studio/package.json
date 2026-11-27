@@ -17,6 +17,7 @@
     "@mediapipe/tasks-vision": "^0.10.35",
     "@openreel/core": "workspace:*",
     "@openreel/fxpkg": "workspace:*",
+    "@openreel/i18n": "workspace:*",
     "@openreel/ui": "workspace:*",
     "clsx": "^2.1.1",
     "idb": "^8.0.3",

@@ -6,6 +6,7 @@ import { Slider } from '@openreel/ui';
 import { GradientPicker } from '../../ui/GradientPicker';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@openreel/ui';
 import { ChevronDown, Link, Unlink } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 const DASH_PATTERNS: { value: StrokeDashType; label: string; preview: string }[] = [
   { value: 'solid', label: 'Solid', preview: '━━━━━━' },
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export function ShapeSection({ layer }: Props) {
+  const t = useT();
   const { updateLayer } = useProjectStore();
   const [isFillOpen, setIsFillOpen] = useState(true);
   const [isStrokeOpen, setIsStrokeOpen] = useState(false);
@@ -69,13 +71,13 @@ export function ShapeSection({ layer }: Props) {
   return (
     <div className="space-y-3">
       <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-        Shape
+        {t("Shape")}
       </h4>
 
       <Collapsible open={isFillOpen} onOpenChange={setIsFillOpen}>
         <CollapsibleTrigger asChild>
           <button className="w-full flex items-center justify-between p-2 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors">
-            <span className="text-xs font-medium">Fill</span>
+            <span className="text-xs font-medium">{t("Fill")}</span>
             <div className="flex items-center gap-2">
               <div
                 className="w-5 h-5 rounded border border-input"
@@ -103,7 +105,7 @@ export function ShapeSection({ layer }: Props) {
                     : 'bg-secondary text-secondary-foreground hover:bg-accent'
                 }`}
               >
-                Solid
+                {t("Solid")}
               </button>
               <button
                 onClick={() => handleFillTypeChange('gradient')}
@@ -113,7 +115,7 @@ export function ShapeSection({ layer }: Props) {
                     : 'bg-secondary text-secondary-foreground hover:bg-accent'
                 }`}
               >
-                Gradient
+                {t("Gradient")}
               </button>
               <button
                 onClick={() => handleFillTypeChange('noise')}
@@ -123,7 +125,7 @@ export function ShapeSection({ layer }: Props) {
                     : 'bg-secondary text-secondary-foreground hover:bg-accent'
                 }`}
               >
-                Noise
+                {t("Noise")}
               </button>
             </div>
 
@@ -136,7 +138,7 @@ export function ShapeSection({ layer }: Props) {
                       layer.shapeStyle.fill ? '' : 'bg-background'
                     }`}
                     style={{ backgroundColor: layer.shapeStyle.fill ?? undefined }}
-                    title={layer.shapeStyle.fill ? 'Remove fill' : 'Add fill'}
+                    title={layer.shapeStyle.fill ? t("Remove fill") : t("Add fill")}
                   >
                     {!layer.shapeStyle.fill && (
                       <span className="text-xs text-muted-foreground">∅</span>
@@ -172,7 +174,7 @@ export function ShapeSection({ layer }: Props) {
             {layer.shapeStyle.fillType === 'noise' && (
               <div className="space-y-3">
                 <div>
-                  <label className="block text-[10px] text-muted-foreground mb-1.5">Base Color</label>
+                  <label className="block text-[10px] text-muted-foreground mb-1.5">{t("Base Color")}</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="color"
@@ -189,7 +191,7 @@ export function ShapeSection({ layer }: Props) {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[10px] text-muted-foreground mb-1.5">Noise Color</label>
+                  <label className="block text-[10px] text-muted-foreground mb-1.5">{t("Noise Color")}</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="color"
@@ -207,7 +209,7 @@ export function ShapeSection({ layer }: Props) {
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-[10px] text-muted-foreground">Density</label>
+                    <label className="text-[10px] text-muted-foreground">{t("Density")}</label>
                     <span className="text-[10px] text-muted-foreground">{Math.round((layer.shapeStyle.noise?.density ?? 0.5) * 100)}%</span>
                   </div>
                   <Slider
@@ -220,7 +222,7 @@ export function ShapeSection({ layer }: Props) {
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-[10px] text-muted-foreground">Grain Size</label>
+                    <label className="text-[10px] text-muted-foreground">{t("Grain Size")}</label>
                     <span className="text-[10px] text-muted-foreground">{layer.shapeStyle.noise?.size ?? 2}px</span>
                   </div>
                   <Slider
@@ -236,7 +238,7 @@ export function ShapeSection({ layer }: Props) {
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-[10px] text-muted-foreground">Opacity</label>
+                <label className="text-[10px] text-muted-foreground">{t("Opacity")}</label>
                 <span className="text-[10px] text-muted-foreground">{Math.round(layer.shapeStyle.fillOpacity * 100)}%</span>
               </div>
               <Slider
@@ -254,7 +256,7 @@ export function ShapeSection({ layer }: Props) {
       <Collapsible open={isStrokeOpen} onOpenChange={setIsStrokeOpen}>
         <CollapsibleTrigger asChild>
           <button className="w-full flex items-center justify-between p-2 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors">
-            <span className="text-xs font-medium">Stroke</span>
+            <span className="text-xs font-medium">{t("Stroke")}</span>
             <div className="flex items-center gap-2">
               <div
                 className="w-5 h-5 rounded border-2"
@@ -273,7 +275,7 @@ export function ShapeSection({ layer }: Props) {
                   layer.shapeStyle.stroke ? '' : 'border-input bg-background'
                 }`}
                 style={{ borderColor: layer.shapeStyle.stroke ?? undefined }}
-                title={layer.shapeStyle.stroke ? 'Remove stroke' : 'Add stroke'}
+                title={layer.shapeStyle.stroke ? t("Remove stroke") : t("Add stroke")}
               >
                 {!layer.shapeStyle.stroke && (
                   <span className="text-xs text-muted-foreground">∅</span>
@@ -301,7 +303,7 @@ export function ShapeSection({ layer }: Props) {
               <>
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-[10px] text-muted-foreground">Width</label>
+                    <label className="text-[10px] text-muted-foreground">{t("Width")}</label>
                     <span className="text-[10px] text-muted-foreground">{layer.shapeStyle.strokeWidth}px</span>
                   </div>
                   <Slider
@@ -315,7 +317,7 @@ export function ShapeSection({ layer }: Props) {
 
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-[10px] text-muted-foreground">Opacity</label>
+                    <label className="text-[10px] text-muted-foreground">{t("Opacity")}</label>
                     <span className="text-[10px] text-muted-foreground">{Math.round(layer.shapeStyle.strokeOpacity * 100)}%</span>
                   </div>
                   <Slider
@@ -328,7 +330,7 @@ export function ShapeSection({ layer }: Props) {
                 </div>
 
                 <div>
-                  <label className="text-[10px] text-muted-foreground mb-1.5 block">Dash Pattern</label>
+                  <label className="text-[10px] text-muted-foreground mb-1.5 block">{t("Dash Pattern")}</label>
                   <div className="grid grid-cols-1 gap-1">
                     {DASH_PATTERNS.map((pattern) => (
                       <button
@@ -340,7 +342,7 @@ export function ShapeSection({ layer }: Props) {
                             : 'bg-secondary text-secondary-foreground hover:bg-accent'
                         }`}
                       >
-                        <span>{pattern.label}</span>
+                        <span>{t(pattern.label)}</span>
                         <span className="font-mono text-[10px] opacity-70">{pattern.preview}</span>
                       </button>
                     ))}
@@ -355,7 +357,7 @@ export function ShapeSection({ layer }: Props) {
       {layer.shapeType === 'rectangle' && (
         <div className="p-3 space-y-3 bg-secondary/50 rounded-lg">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-medium">Corner Radius</label>
+            <label className="text-xs font-medium">{t("Corner Radius")}</label>
             <button
               onClick={() => {
                 const currentRadius = layer.shapeStyle.cornerRadius ?? 0;
@@ -377,17 +379,17 @@ export function ShapeSection({ layer }: Props) {
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-secondary text-secondary-foreground hover:bg-accent'
               }`}
-              title={layer.shapeStyle.individualCorners ? 'Link corners' : 'Unlink corners'}
+              title={layer.shapeStyle.individualCorners ? t("Link corners") : t("Unlink corners")}
             >
               {layer.shapeStyle.individualCorners ? <Unlink size={12} /> : <Link size={12} />}
-              {layer.shapeStyle.individualCorners ? 'Individual' : 'Uniform'}
+              {layer.shapeStyle.individualCorners ? t("Individual") : t("Uniform")}
             </button>
           </div>
 
           {!layer.shapeStyle.individualCorners ? (
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-[10px] text-muted-foreground">All Corners</label>
+                <label className="text-[10px] text-muted-foreground">{t("All Corners")}</label>
                 <span className="text-[10px] text-muted-foreground">{layer.shapeStyle.cornerRadius}px</span>
               </div>
               <Slider
@@ -402,7 +404,7 @@ export function ShapeSection({ layer }: Props) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-[10px] text-muted-foreground">Top Left</label>
+                  <label className="text-[10px] text-muted-foreground">{t("Top Left")}</label>
                   <span className="text-[10px] text-muted-foreground">{layer.shapeStyle.corners?.topLeft ?? 0}px</span>
                 </div>
                 <Slider
@@ -419,7 +421,7 @@ export function ShapeSection({ layer }: Props) {
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-[10px] text-muted-foreground">Top Right</label>
+                  <label className="text-[10px] text-muted-foreground">{t("Top Right")}</label>
                   <span className="text-[10px] text-muted-foreground">{layer.shapeStyle.corners?.topRight ?? 0}px</span>
                 </div>
                 <Slider
@@ -436,7 +438,7 @@ export function ShapeSection({ layer }: Props) {
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-[10px] text-muted-foreground">Bottom Left</label>
+                  <label className="text-[10px] text-muted-foreground">{t("Bottom Left")}</label>
                   <span className="text-[10px] text-muted-foreground">{layer.shapeStyle.corners?.bottomLeft ?? 0}px</span>
                 </div>
                 <Slider
@@ -453,7 +455,7 @@ export function ShapeSection({ layer }: Props) {
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-[10px] text-muted-foreground">Bottom Right</label>
+                  <label className="text-[10px] text-muted-foreground">{t("Bottom Right")}</label>
                   <span className="text-[10px] text-muted-foreground">{layer.shapeStyle.corners?.bottomRight ?? 0}px</span>
                 </div>
                 <Slider
@@ -476,7 +478,7 @@ export function ShapeSection({ layer }: Props) {
       {layer.shapeType === 'polygon' && (
         <div className="p-3 space-y-2 bg-secondary/50 rounded-lg">
           <div className="flex items-center justify-between mb-1">
-            <label className="text-[10px] text-muted-foreground">Sides</label>
+            <label className="text-[10px] text-muted-foreground">{t("Sides")}</label>
             <span className="text-[10px] text-muted-foreground">{layer.sides ?? 6}</span>
           </div>
           <Slider
@@ -493,7 +495,7 @@ export function ShapeSection({ layer }: Props) {
         <div className="p-3 space-y-3 bg-secondary/50 rounded-lg">
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-[10px] text-muted-foreground">Points</label>
+              <label className="text-[10px] text-muted-foreground">{t("Points")}</label>
               <span className="text-[10px] text-muted-foreground">{layer.sides ?? 5}</span>
             </div>
             <Slider
@@ -506,7 +508,7 @@ export function ShapeSection({ layer }: Props) {
           </div>
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-[10px] text-muted-foreground">Inner Radius</label>
+              <label className="text-[10px] text-muted-foreground">{t("Inner Radius")}</label>
               <span className="text-[10px] text-muted-foreground">{Math.round((layer.innerRadius ?? 0.4) * 100)}%</span>
             </div>
             <Slider

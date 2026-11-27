@@ -10,6 +10,7 @@ import {
 import { useProjectStore } from "../stores/project-store";
 import { useEditorWorkspaceStore } from "../stores/editor-workspace-store";
 import { toast } from "../stores/notification-store";
+import { translateNow } from "@openreel/i18n/translate";
 
 export const EXPORT_LABELS: Record<InterchangeFormat, string> = {
   xmeml: "Timeline XML (Premiere/Resolve)",
@@ -108,10 +109,10 @@ async function exportTimelineInterchangeNow(format: InterchangeFormat, sequenceI
         report: result.report,
       });
     } else {
-      toast.success(`${EXPORT_LABELS[format]} exported`, `${names}. Nothing was dropped.`);
+      toast.success(translateNow("{format} exported", { format: translateNow(EXPORT_LABELS[format]) }), translateNow("{names}. Nothing was dropped.", { names }));
     }
   } catch (error) {
-    toast.error("Could not export the timeline", error instanceof Error ? error.message : undefined);
+    toast.error(translateNow("Could not export the timeline"), error instanceof Error ? error.message : undefined);
   }
 }
 
@@ -193,7 +194,7 @@ export async function openTimelineFileForImport(file: File): Promise<void> {
     const buffer = await file.arrayBuffer();
     useTimelineImportStore.getState().setPreview(await previewTimelineFile(file.name, new Uint8Array(buffer)));
   } catch (error) {
-    toast.error("Could not read the timeline file", error instanceof Error ? error.message : undefined);
+    toast.error(translateNow("Could not read the timeline file"), error instanceof Error ? error.message : undefined);
   }
 }
 

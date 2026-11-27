@@ -10,6 +10,8 @@ import { useUIStore } from "../../../stores/ui-store";
 import { createCaptionSearch } from "../../../utils/caption-search";
 import { formatFrameTimecode } from "../../../utils/frame-timecode";
 import { toast } from "../../../stores/notification-store";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 interface CaptionEditorPanelProps {
   maxWordsPerLine: number;
@@ -22,6 +24,7 @@ export const CaptionEditorPanel: React.FC<CaptionEditorPanelProps> = ({
   onMaxWordsPerLineChange,
   renderPanel,
 }) => {
+  const t = useT();
   const project = useProjectStore((state) => state.project);
   const getAllTextClips = useProjectStore((state) => state.getAllTextClips);
   const updateTextContent = useProjectStore((state) => state.updateTextContent);
@@ -197,7 +200,7 @@ export const CaptionEditorPanel: React.FC<CaptionEditorPanelProps> = ({
         const result = await useProjectStore.getState().reorderTrack(track.id, 0);
         if (!result.success) throw new Error(result.error?.message || "Could not move the caption track.");
       }
-    } catch (cause) { toast.error("Caption placement failed", cause instanceof Error ? cause.message : "Please try again."); }
+    } catch (cause) { toast.error(translateNow("Caption placement failed"), cause instanceof Error ? cause.message : "Please try again."); }
     finally {
       if (useProjectStore.getState().project.id === projectId) store.endHistoryGroup();
       movingRef.current = false; setMovingTracks(false);
@@ -206,9 +209,9 @@ export const CaptionEditorPanel: React.FC<CaptionEditorPanelProps> = ({
 
   const content = (
     <div className="space-y-3">
-      {subtitles.length > 0 && <section aria-label="Subtitles" className="space-y-2 rounded-lg border border-border bg-bg-1 p-3">
-        <h3 className="text-xs font-semibold text-fg">Subtitles</h3>
-        <p className="text-[10px] text-fg-3">Select a subtitle to edit its text, timing and style.</p>
+      {subtitles.length > 0 && <section aria-label={t("Subtitles")} className="space-y-2 rounded-lg border border-border bg-bg-1 p-3">
+        <h3 className="text-xs font-semibold text-fg">{t("Subtitles")}</h3>
+        <p className="text-[10px] text-fg-3">{t("Select a subtitle to edit its text, timing and style.")}</p>
         <div className="max-h-72 space-y-1 overflow-y-auto">
           {visibleSubtitles.map((subtitle, index) => <Button key={subtitle.id} type="button" variant="outline"
             aria-label={`Edit subtitle ${currentSubtitlePage * 50 + index + 1}`} disabled={disabled}
@@ -221,52 +224,52 @@ export const CaptionEditorPanel: React.FC<CaptionEditorPanelProps> = ({
             <span className="truncate">{subtitle.text}</span>
           </Button>)}
         </div>
-        {subtitlePageCount > 1 && <div className="flex items-center justify-between gap-2 text-[11px] text-fg-2" aria-label="Subtitle pages">
-          <Button type="button" variant="ghost" size="sm" aria-label="Previous subtitle page" disabled={currentSubtitlePage === 0}
-            onClick={() => setSubtitlePage(currentSubtitlePage - 1)}>Previous</Button>
-          <span>{currentSubtitlePage + 1} / {subtitlePageCount} · {subtitles.length} subtitles</span>
-          <Button type="button" variant="ghost" size="sm" aria-label="Next subtitle page" disabled={currentSubtitlePage + 1 >= subtitlePageCount}
-            onClick={() => setSubtitlePage(currentSubtitlePage + 1)}>Next</Button>
+        {subtitlePageCount > 1 && <div className="flex items-center justify-between gap-2 text-[11px] text-fg-2" aria-label={t("Subtitle pages")}>
+          <Button type="button" variant="ghost" size="sm" aria-label={t("Previous subtitle page")} disabled={currentSubtitlePage === 0}
+            onClick={() => setSubtitlePage(currentSubtitlePage - 1)}>{t("Previous")}</Button>
+          <span>{currentSubtitlePage + 1} / {subtitlePageCount} · {subtitles.length} {t("subtitles")}</span>
+          <Button type="button" variant="ghost" size="sm" aria-label={t("Next subtitle page")} disabled={currentSubtitlePage + 1 >= subtitlePageCount}
+            onClick={() => setSubtitlePage(currentSubtitlePage + 1)}>{t("Next")}</Button>
         </div>}
       </section>}
-      {coveredCaptionTracks.length > 0 && <section aria-label="Caption visibility" className="space-y-2 rounded-lg border border-accent/30 bg-accent/5 p-3">
-        <p className="text-xs leading-relaxed text-fg-2">Caption tracks are behind video. Bring them to the front so they are visible in your export.</p>
+      {coveredCaptionTracks.length > 0 && <section aria-label={t("Caption visibility")} className="space-y-2 rounded-lg border border-accent/30 bg-accent/5 p-3">
+        <p className="text-xs leading-relaxed text-fg-2">{t("Caption tracks are behind video. Bring them to the front so they are visible in your export.")}</p>
         <Button onClick={() => void bringCaptionTracksForward()} type="button" aria-label={(movingTracks ? "Moving captions…" : "Bring caption tracks to front").trim() || undefined} disabled={(disabled || coveredCaptionTracks.every((track) => track.locked))} className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg min-h-10 w-full justify-center">
-          <span className="truncate">{movingTracks ? "Moving captions…" : "Bring caption tracks to front"}</span>
+          <span className="truncate">{movingTracks ? t("Moving captions…") : t("Bring caption tracks to front")}</span>
         </Button>
-        {coveredCaptionTracks.some((track) => track.locked) && <p className="text-[10px] text-fg-3">Unlock caption tracks to change their layer order.</p>}
+        {coveredCaptionTracks.some((track) => track.locked) && <p className="text-[10px] text-fg-3">{t("Unlock caption tracks to change their layer order.")}</p>}
       </section>}
-      {captions.length > 0 && <section aria-label="Find and replace captions" className="space-y-2 rounded-lg border border-border bg-bg-1 p-3">
-        <h3 className="text-xs font-semibold text-fg">Find and replace</h3>
-        <Input aria-label="Find caption text" placeholder="Find words in captions" value={findText}
+      {captions.length > 0 && <section aria-label={t("Find and replace captions")} className="space-y-2 rounded-lg border border-border bg-bg-1 p-3">
+        <h3 className="text-xs font-semibold text-fg">{t("Find and replace")}</h3>
+        <Input aria-label={t("Find caption text")} placeholder={t("Find words in captions")} value={findText}
           onChange={(event) => { setFindText(event.currentTarget.value); setPage(0); setResultMessage(""); }}
           className="inline-block h-auto min-h-10 w-full rounded border border-border bg-bg-2 px-2 py-0 text-xs text-fg outline-none focus:border-accent md:text-xs" />
-        <Input aria-label="Replace caption text with" placeholder="Replace with" value={replacement} onChange={(event) => setReplacement(event.currentTarget.value)}
+        <Input aria-label={t("Replace caption text with")} placeholder={t("Replace with")} value={replacement} onChange={(event) => setReplacement(event.currentTarget.value)}
           className="inline-block h-auto min-h-10 w-full rounded border border-border bg-bg-2 px-2 py-0 text-xs text-fg outline-none focus:border-accent md:text-xs" />
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-fg-2">
-          <label className="flex min-h-8 items-center gap-1.5"><Checkbox aria-label="Match case" className="size-3.5 [&_svg]:size-3" checked={matchCase} onCheckedChange={(checked) => { setMatchCase(checked === true); setPage(0); }} />Match case</label>
-          <label className="flex min-h-8 items-center gap-1.5"><Checkbox aria-label="Whole words" className="size-3.5 [&_svg]:size-3" checked={wholeWords} onCheckedChange={(checked) => { setWholeWords(checked === true); setPage(0); }} />Whole words</label>
+          <label className="flex min-h-8 items-center gap-1.5"><Checkbox aria-label={t("Match case")} className="size-3.5 [&_svg]:size-3" checked={matchCase} onCheckedChange={(checked) => { setMatchCase(checked === true); setPage(0); }} />{t("Match case")}</label>
+          <label className="flex min-h-8 items-center gap-1.5"><Checkbox aria-label={t("Whole words")} className="size-3.5 [&_svg]:size-3" checked={wholeWords} onCheckedChange={(checked) => { setWholeWords(checked === true); setPage(0); }} />{t("Whole words")}</label>
         </div>
-        <p className="text-[11px] text-fg-3">{matchCount} matches in {matched.length} editable captions · {selectedCount ? "selected captions" : "all captions"}</p>
+        <p className="text-[11px] text-fg-3">{matchCount} {t("matches in")} {matched.length} {t("editable captions ·")} {selectedCount ? t("selected captions") : t("all captions")}</p>
         <Button onClick={replaceMatches} type="button" aria-label={(selectedCount ? "Replace in selected captions" : "Replace in all captions").trim() || undefined} disabled={(disabled || matchCount === 0)} className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg min-h-10 w-full justify-center">
-          <span className="truncate">{selectedCount ? "Replace in selected captions" : "Replace in all captions"}</span>
+          <span className="truncate">{selectedCount ? t("Replace in selected captions") : t("Replace in all captions")}</span>
         </Button>
-        {findText && <ShadcnButton variant="ghost" size="sm" type="button" onClick={() => { setFindText(""); setPage(0); }} className="h-auto min-h-8 p-0 text-xs font-normal text-accent hover:bg-transparent">Clear search</ShadcnButton>}
-        <p className="text-[10px] leading-relaxed text-fg-3">Timing and styling stay the same. Locked tracks are skipped.</p>
+        {findText && <ShadcnButton variant="ghost" size="sm" type="button" onClick={() => { setFindText(""); setPage(0); }} className="h-auto min-h-8 p-0 text-xs font-normal text-accent hover:bg-transparent">{t("Clear search")}</ShadcnButton>}
+        <p className="text-[10px] leading-relaxed text-fg-3">{t("Timing and styling stay the same. Locked tracks are skipped.")}</p>
         {resultMessage && <p role="status" className="text-[11px] text-accent">{resultMessage}</p>}
       </section>}
       <Card className="min-w-0 rounded-[7px] shadow-none bg-bg-2 text-fg p-3 space-y-2 border border-border">
         <div className="flex items-center justify-between gap-3">
           <div>
             <span className="font-bold block text-[11px] text-fg">
-              {captions.length > 0 ? "Single-line captions" : "Words per caption"}
+              {captions.length > 0 ? t("Single-line captions") : t("Words per caption")}
             </span>
             <span className="text-fg-2 font-normal block text-[9px]">
-              {captions.length > 0 ? "Split each cue into timed clips for vertical video." : "New captions break into timed clips of this length."}
+              {captions.length > 0 ? t("Split each cue into timed clips for vertical video.") : t("New captions break into timed clips of this length.")}
             </span>
           </div>
           <Select value={String(maxWordsPerLine)} onValueChange={value => onMaxWordsPerLineChange(Number(value))}>
-            <SelectTrigger aria-label="Maximum words per caption" className="h-7 w-[84px] rounded-[5px] bg-bg-2 px-2 py-1 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-label={t("Maximum words per caption")} className="h-7 w-[84px] rounded-[5px] bg-bg-2 px-2 py-1 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>{Array.from({ length: 10 }, (_, index) => <SelectItem key={index + 2} value={String(index + 2)}>{index + 2}</SelectItem>)}</SelectContent>
           </Select>
         </div>
@@ -284,7 +287,7 @@ export const CaptionEditorPanel: React.FC<CaptionEditorPanelProps> = ({
 
       {captions.length === 0 && subtitles.length === 0 ? (
         <span className="text-fg-2 font-normal block py-3 text-center text-[10px]">
-          Import SRT/VTT or transcribe the selected clip to create editable caption text.
+          {t("Import SRT/VTT or transcribe the selected clip to create editable caption text.")}
         </span>
       ) : captions.length > 0 ? (
         <>
@@ -294,10 +297,10 @@ export const CaptionEditorPanel: React.FC<CaptionEditorPanelProps> = ({
               onClick={toggleAll}
               className="h-auto p-0 text-[10px] font-semibold leading-[inherit] text-accent hover:bg-transparent hover:underline"
             >
-              {allSelected ? "Clear selection" : findText ? "Select matching" : "Select all"}
+              {allSelected ? t("Clear selection") : findText ? t("Select matching") : t("Select all")}
             </ShadcnButton>
             <span className="text-fg-2 font-normal text-[9px]">
-              {captions.length} editable text clip{captions.length === 1 ? "" : "s"}
+              {captions.length} {t("editable text clip")}{captions.length === 1 ? "" : "s"}
             </span>
           </div>
           <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
@@ -344,16 +347,16 @@ export const CaptionEditorPanel: React.FC<CaptionEditorPanelProps> = ({
                     onBlur={() => commitDraft(caption.id)}
                     className="inline-block min-h-0 w-full resize-y rounded-md border border-border bg-bg-1 px-2 py-1.5 text-[11px] leading-relaxed text-fg outline-none focus:border-accent"
                   />
-                  {locked && <p className="text-[10px] text-fg-3">Track locked</p>}
+                  {locked && <p className="text-[10px] text-fg-3">{t("Track locked")}</p>}
                 </Card>
               );
             })}
           </div>
-          {filtered.length === 0 && <p className="text-xs text-fg-3">No captions match this search.</p>}
-          {pageCount > 1 && <div className="flex items-center justify-between gap-2 text-[11px] text-fg-2" aria-label="Caption pages">
-            <ShadcnButton variant="ghost" size="sm" type="button" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)} className="h-auto min-h-10 px-2 py-0 text-[length:inherit] font-normal leading-[inherit] text-accent hover:bg-transparent disabled:opacity-40">Previous</ShadcnButton>
-            <span>{currentPage + 1} / {pageCount} · {filtered.length} captions</span>
-            <ShadcnButton variant="ghost" size="sm" type="button" disabled={currentPage + 1 >= pageCount} onClick={() => setPage(currentPage + 1)} className="h-auto min-h-10 px-2 py-0 text-[length:inherit] font-normal leading-[inherit] text-accent hover:bg-transparent disabled:opacity-40">Next</ShadcnButton>
+          {filtered.length === 0 && <p className="text-xs text-fg-3">{t("No captions match this search.")}</p>}
+          {pageCount > 1 && <div className="flex items-center justify-between gap-2 text-[11px] text-fg-2" aria-label={t("Caption pages")}>
+            <ShadcnButton variant="ghost" size="sm" type="button" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)} className="h-auto min-h-10 px-2 py-0 text-[length:inherit] font-normal leading-[inherit] text-accent hover:bg-transparent disabled:opacity-40">{t("Previous")}</ShadcnButton>
+            <span>{currentPage + 1} / {pageCount} · {filtered.length} {t("captions")}</span>
+            <ShadcnButton variant="ghost" size="sm" type="button" disabled={currentPage + 1 >= pageCount} onClick={() => setPage(currentPage + 1)} className="h-auto min-h-10 px-2 py-0 text-[length:inherit] font-normal leading-[inherit] text-accent hover:bg-transparent disabled:opacity-40">{t("Next")}</ShadcnButton>
           </div>}
         </>
       ) : null}

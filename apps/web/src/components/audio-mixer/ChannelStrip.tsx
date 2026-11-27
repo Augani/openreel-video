@@ -19,6 +19,7 @@ import { setSurroundPan } from "../../services/surround-audio";
 import { MixerLevelMeters } from "./MixerLevelMeters";
 import { OutputSelect, PeakHoldReadout, SendsSection, assignTrackOutput } from "./routing-ui";
 import { AudioRackSection } from "./AudioRackSection";
+import { useT } from "@openreel/i18n/react";
 
 interface ChannelStripProps {
   channel: ChannelStripState;
@@ -186,6 +187,7 @@ export const ChannelStrip = memo(
     buses = NO_BUSES,
     surround = false,
   }: ChannelStripProps) {
+    const t = useT();
     const handleVolumeChange = useCallback(
       (volume: number) => {
         onVolumeChange(channel.trackId, volume);
@@ -293,7 +295,7 @@ export const ChannelStrip = memo(
 
         {/* Output assignment and sends (Audio Track Mixer routing) */}
         <div className="flex w-full flex-col gap-1">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">Output</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">{t("Output")}</span>
           <OutputSelect
             value={channel.output}
             buses={buses}
@@ -353,7 +355,7 @@ export const ChannelStrip = memo(
           <Button
             aria-label={`Solo Safe ${channel.trackName}`}
             aria-pressed={channel.soloSafe === true}
-            title={channel.soloSafe === true ? "Solo Safe on: this track keeps playing while other tracks are soloed" : "Solo Safe: keep this track playing while other tracks are soloed"}
+            title={channel.soloSafe === true ? t("Solo Safe on: this track keeps playing while other tracks are soloed") : t("Solo Safe: keep this track playing while other tracks are soloed")}
             data-testid={`solo-safe-${channel.trackId}`}
             onClick={handleSoloSafeClick}
             type="button"

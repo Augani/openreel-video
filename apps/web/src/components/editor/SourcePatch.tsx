@@ -19,6 +19,7 @@ import {
   useEditorWorkspaceStore,
   type TargetKind,
 } from "../../stores/editor-workspace-store";
+import { useT } from "@openreel/i18n/react";
 
 /**
  * Premiere-style source patch indicators for the Source monitor: which timeline
@@ -42,6 +43,7 @@ function PatchSelect({
   label: string;
   tracks: Track[];
 }) {
+  const t = useT();
   const patched = useEditorWorkspaceStore((state) => state.targetTracks[kind]);
   const setSourcePatch = useEditorWorkspaceStore((state) => state.setSourcePatch);
   const value = patched && tracks.some((track) => track.id === patched) ? patched : AUTO;
@@ -68,11 +70,11 @@ function PatchSelect({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={AUTO}>Auto</SelectItem>
+          <SelectItem value={AUTO}>{t("Auto")}</SelectItem>
           {tracks.map((track) => (
             <SelectItem key={track.id} value={track.id} disabled={track.locked}>
               {track.name}
-              {track.locked ? " (locked)" : ""}
+              {track.locked ? t(" (locked)") : ""}
             </SelectItem>
           ))}
         </SelectContent>
@@ -90,6 +92,7 @@ function ChannelPatch({
   label: string;
   tracks: Track[];
 }) {
+  const t = useT();
   const patched = useEditorWorkspaceStore((state) => (channel === 0 ? state.targetTracks.audio : state.channelPatches[channel]));
   const enabled = useEditorWorkspaceStore((state) => !state.disabledChannels.includes(channel));
   const setChannelPatch = useEditorWorkspaceStore((state) => state.setChannelPatch);
@@ -116,11 +119,11 @@ function ChannelPatch({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={AUTO}>Auto</SelectItem>
+          <SelectItem value={AUTO}>{t("Auto")}</SelectItem>
           {tracks.map((track) => (
             <SelectItem key={track.id} value={track.id} disabled={track.locked}>
               {track.name}
-              {track.locked ? " (locked)" : ""}
+              {track.locked ? t(" (locked)") : ""}
             </SelectItem>
           ))}
         </SelectContent>
@@ -138,6 +141,7 @@ export function SourcePatch({
   hasAudio: boolean;
   media?: MediaItem | null;
 }) {
+  const t = useT();
   const tracks = useProjectStore((state) => state.project.timeline.tracks);
   const videoTracks = tracks.filter((t) => t.type === "video" || t.type === "image");
   const audioTracks = tracks.filter((t) => t.type === "audio");
@@ -146,18 +150,18 @@ export function SourcePatch({
   if (!hasVideo && !hasAudio) return null;
   if (groups.length > 1 && media) {
     return (
-      <div className="flex w-full flex-col gap-1.5" role="group" aria-label="Source patch" data-testid="source-patch" data-multichannel={groups.length}>
+      <div className="flex w-full flex-col gap-1.5" role="group" aria-label={t("Source patch")} data-testid="source-patch" data-multichannel={groups.length}>
         <div className="flex items-center gap-3">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-3">Patch</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-3">{t("Patch")}</span>
           {hasVideo && <PatchSelect kind="video" label="Patch source video to track" tracks={videoTracks} />}
           <button
             type="button"
             data-testid="source-patch-channels"
             onClick={() => openSourceChannelsFor([media.id])}
             className="rounded border border-border px-2 py-0.5 text-[11px] text-fg-2 hover:border-border-strong"
-            title="Modify > Audio Channels: how this source's channels group into audio clips"
+            title={t("Modify > Audio Channels: how this source's channels group into audio clips")}
           >
-            {groups.length} audio clips
+            {groups.length} {t("audio clips")}
           </button>
         </div>
         <div className="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-2 xl:grid-cols-4" data-testid="source-patch-channels-grid">
@@ -169,8 +173,8 @@ export function SourcePatch({
     );
   }
   return (
-    <div className="flex items-center gap-3" role="group" aria-label="Source patch" data-testid="source-patch">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-3">Patch</span>
+    <div className="flex items-center gap-3" role="group" aria-label={t("Source patch")} data-testid="source-patch">
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-3">{t("Patch")}</span>
       {hasVideo && <PatchSelect kind="video" label="Patch source video to track" tracks={videoTracks} />}
       {hasAudio && <PatchSelect kind="audio" label="Patch source audio to track" tracks={audioTracks} />}
       {hasAudio && media && (
@@ -179,9 +183,9 @@ export function SourcePatch({
           data-testid="source-patch-channels"
           onClick={() => openSourceChannelsFor([media.id])}
           className="rounded border border-border px-2 py-0.5 text-[11px] text-fg-2 hover:border-border-strong"
-          title="Modify > Audio Channels: how this source's channels group into audio clips"
+          title={t("Modify > Audio Channels: how this source's channels group into audio clips")}
         >
-          Channels
+          {t("Channels")}
         </button>
       )}
     </div>

@@ -17,6 +17,7 @@ import { commitSequenceEdit } from "./sequence-commands";
 import { ensureProjectFonts } from "./project-fonts";
 import { selectGraphic } from "./graphic-selection";
 import { selectedLinkedInstance, type LinkedCommandResult } from "./linked-comp-commands";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * Render and Replace: render the composition's layers (alone) to a media file with
@@ -75,7 +76,7 @@ async function renderToBlob(
 
 export async function renderAndReplaceCommand(instanceId: string): Promise<LinkedCommandResult> {
   const fail = (message: string): LinkedCommandResult => {
-    toast.warning("Render and Replace", message);
+    toast.warning(translateNow("Render and Replace"), message);
     return { ok: false, message };
   };
   const store = useProjectStore.getState();
@@ -91,7 +92,7 @@ export async function renderAndReplaceCommand(instanceId: string): Promise<Linke
   if (!source.ok) return fail(source.message);
 
   const baked = bakeSettings(project.settings.width, project.settings.height, project.settings.frameRate, source.range);
-  toast.info("Rendering composition", `"${instance.name}" is being rendered…`);
+  toast.info(translateNow("Rendering composition"), `"${instance.name}" is being rendered…`);
   let blob: Blob;
   try {
     await ensureProjectFonts(source.project);
@@ -116,7 +117,7 @@ export async function renderAndReplaceCommand(instanceId: string): Promise<Linke
   if (!result.ok) return fail(result.message);
   selectGraphic(instanceId);
   toast.success(
-    "Composition rendered",
+    translateNow("Composition rendered"),
     baked.alpha ? "Restore Unrendered brings the live layers back." : "Rendered without transparency in the browser. Restore Unrendered brings the live layers back.",
   );
   return { ok: true, project: result.project, instanceId };
@@ -127,7 +128,7 @@ export async function renderSelectedLinkedComposition(): Promise<boolean> {
   const project = useProjectStore.getState().getFullProject();
   const instance = selectedLinkedInstance(project, useUIStore.getState().getSelectedClipIds());
   if (!instance) {
-    toast.info("Render and Replace", "Select a linked composition on the timeline first.");
+    toast.info(translateNow("Render and Replace"), "Select a linked composition on the timeline first.");
     return false;
   }
   return (await renderAndReplaceCommand(instance.id)).ok;

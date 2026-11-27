@@ -16,6 +16,7 @@ import { LabelChip, MediaItemContextMenu } from "./ProjectPanelMenus";
 import { BinContextMenu, BinNameEditor, useBinDropTarget } from "./BinViews";
 import { writeBinDrag, writeMediaDrag } from "./dnd";
 import type { ProjectPanelData } from "./useProjectPanelData";
+import { useT } from "@openreel/i18n/react";
 
 export const LIST_ROW_HEIGHT = 26;
 const HEADER_HEIGHT = 26;
@@ -98,6 +99,7 @@ const BinRow: React.FC<{ bin: MediaBin; top: number; width: number; columns: Med
   columns,
   itemCount,
 }) => {
+  const t = useT();
   const renaming = useProjectPanelStore((s) => s.renamingBinId === bin.id);
   const selected = useProjectPanelStore((s) => s.selectedBinIds.includes(bin.id));
   const drop = useBinDropTarget(bin.id);
@@ -131,9 +133,9 @@ const BinRow: React.FC<{ bin: MediaBin; top: number; width: number; columns: Med
             ) : column.id === "label" ? (
               bin.label ? <LabelChip label={bin.label} /> : null
             ) : column.id === "type" ? (
-              "Bin"
+              t("Bin")
             ) : column.id === "duration" && itemCount > 0 ? (
-              <span className="text-fg-3">{itemCount} {itemCount === 1 ? "item" : "items"}</span>
+              <span className="text-fg-3">{itemCount} {itemCount === 1 ? t("item") : t("items")}</span>
             ) : null}
           </div>
         ))}
@@ -154,6 +156,7 @@ export const MediaListView: React.FC<MediaListViewProps> = ({
   onDelete,
   onDragStart,
 }) => {
+  const t = useT();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewHeight, setViewHeight] = useState(400);
@@ -269,7 +272,7 @@ export const MediaListView: React.FC<MediaListViewProps> = ({
       ref={scrollRef}
       onScroll={onScroll}
       role="grid"
-      aria-label="Project media list"
+      aria-label={t("Project media list")}
       aria-rowcount={rows.length}
       data-testid="media-list"
       className={`relative min-h-0 flex-1 overflow-auto bg-bg-1 ${rootDrop.isOver ? "ring-1 ring-inset ring-accent/60" : ""}`}
@@ -294,7 +297,7 @@ export const MediaListView: React.FC<MediaListViewProps> = ({
                 className={`flex shrink-0 items-center gap-1 px-2 text-left hover:text-fg ${active ? "text-accent" : ""} ${column.numeric ? "justify-start" : ""}`}
                 style={{ width: column.width }}
               >
-                <span className="truncate">{column.title}</span>
+                <span className="truncate">{t(column.title)}</span>
                 {active && (sort!.direction === "asc" ? <ArrowUp size={10} aria-hidden /> : <ArrowDown size={10} aria-hidden />)}
               </button>
             );

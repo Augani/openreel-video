@@ -19,6 +19,7 @@ import {
   watchNativePluginRenders,
 } from "../../../services/native-plugin-host";
 import { PropertySlider } from "./shell/PropertySlider";
+import { useT } from "@openreel/i18n/react";
 
 interface NativePluginsSectionProps {
   clipId: string;
@@ -27,6 +28,7 @@ interface NativePluginsSectionProps {
 const MAX_SHOWN_PARAMS = 12;
 
 const ParameterRow: React.FC<{ clipId: string; effect: Effect; parameter: NativePluginParameter; disabled: boolean }> = ({ clipId, effect, parameter, disabled }) => {
+  const t = useT();
   const stored = readNativePluginParams(effect).values[parameter.key];
   const [draft, setDraft] = useState(stored ?? parameter.value);
   const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -63,7 +65,7 @@ const ParameterRow: React.FC<{ clipId: string; effect: Effect; parameter: Native
         aria-label={`Keyframe ${parameter.name}`}
         aria-pressed={animated}
         data-testid={`native-plugin-keyframe-${parameter.key}`}
-        title={animated ? "Animated: add or update a keyframe at the playhead" : "Add a keyframe at the playhead"}
+        title={animated ? t("Animated: add or update a keyframe at the playhead") : t("Add a keyframe at the playhead")}
         className="h-6 w-6 shrink-0"
         onClick={() => keyframeNativePluginParameter(clipId, effect.id, parameter.key, draft)}
       >
@@ -74,6 +76,7 @@ const ParameterRow: React.FC<{ clipId: string; effect: Effect; parameter: Native
 };
 
 const PluginCard: React.FC<{ clipId: string; effect: Effect; locked: boolean; plugins: readonly NativePluginDescriptor[]; scanned: boolean; hostAvailable: boolean }> = ({ clipId, effect, locked, plugins, scanned, hostAvailable }) => {
+  const t = useT();
   const params = readNativePluginParams(effect);
   const clip = useProjectStore((state) => state.getClip(clipId));
   const known = plugins.find((plugin) => plugin.id === params.pluginId);
@@ -109,7 +112,7 @@ const PluginCard: React.FC<{ clipId: string; effect: Effect; locked: boolean; pl
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate text-[12px] font-medium" data-testid="native-plugin-name">{params.name}</p>
-          <p className="truncate text-[10px] text-fg-3">{params.vendor || "Unknown vendor"} · {params.format.toUpperCase()}{latency ? ` · latency ${latency} samples (compensated)` : ""}</p>
+          <p className="truncate text-[10px] text-fg-3">{params.vendor || t("Unknown vendor")} · {params.format.toUpperCase()}{latency ? ` · latency ${latency} samples (compensated)` : ""}</p>
         </div>
         <label className="flex items-center gap-1 text-[10px] text-fg-3">
           <input
@@ -119,12 +122,12 @@ const PluginCard: React.FC<{ clipId: string; effect: Effect; locked: boolean; pl
             data-testid="native-plugin-enabled"
             onChange={(event) => void updateNativePlugin(clipId, effect.id, { enabled: event.target.checked })}
           />
-          On
+          {t("On")}
         </label>
       </div>
       {missing && effect.enabled && (
         <p className="rounded border border-amber-500/40 px-2 py-1 text-[11px]" role="alert" data-testid="native-plugin-missing">
-          Missing: {reason} It plays bypassed; its settings stay in the project.
+          {t("Missing:")} {reason} {t("It plays bypassed; its settings stay in the project.")}
         </p>
       )}
       {error && <p className="text-[11px] text-destructive" role="alert">{error}</p>}
@@ -142,7 +145,7 @@ const PluginCard: React.FC<{ clipId: string; effect: Effect; locked: boolean; pl
                 sessionRef.current = await openNativePluginWindow(clipId, effect.id);
               }}
             >
-              Open plugin window
+              {t("Open plugin window")}
             </Button>
             <Button
               size="sm"
@@ -152,7 +155,7 @@ const PluginCard: React.FC<{ clipId: string; effect: Effect; locked: boolean; pl
               aria-pressed={bypassed}
               onClick={() => setNativePluginPreviewBypass(clipId, effect.id, !bypassed)}
             >
-              {bypassed ? "Hearing dry (preview only)" : "Hear dry"}
+              {bypassed ? t("Hearing dry (preview only)") : t("Hear dry")}
             </Button>
           </div>
           {shown.map((parameter) => (
@@ -160,13 +163,13 @@ const PluginCard: React.FC<{ clipId: string; effect: Effect; locked: boolean; pl
           ))}
           {parameters && parameters.length > MAX_SHOWN_PARAMS && (
             <Button size="sm" variant="ghost" className="h-6 text-[11px]" onClick={() => setShowAll((value) => !value)}>
-              {showAll ? "Show fewer parameters" : `Show all ${parameters.length} parameters`}
+              {showAll ? t("Show fewer parameters") : `Show all ${parameters.length} parameters`}
             </Button>
           )}
         </>
       )}
       <Button size="sm" variant="outline" className="w-full text-[11px]" data-testid="native-plugin-remove" disabled={locked} onClick={() => void removeNativePluginFromClip(clipId, effect.id)}>
-        Remove plugin
+        {t("Remove plugin")}
       </Button>
     </div>
   );
@@ -178,6 +181,7 @@ const PluginCard: React.FC<{ clipId: string; effect: Effect; locked: boolean; pl
  * Parameters are keyframable through the ordinary clip keyframes, and the plugin's state is saved with the project.
  */
 export const NativePluginsSection: React.FC<NativePluginsSectionProps> = ({ clipId }) => {
+  const t = useT();
   const clip = useProjectStore((state) => state.getClip(clipId));
   const locked = useProjectStore((state) => state.project.timeline.tracks.find((track) => track.clips.some((c) => c.id === clipId))?.locked ?? false);
   const host = useNativePluginHost();
@@ -206,7 +210,7 @@ export const NativePluginsSection: React.FC<NativePluginsSectionProps> = ({ clip
 
   if (!clip) return null;
   if (!host.available && effects.length === 0) {
-    return <p className="text-[11px] leading-relaxed text-fg-3" data-testid="native-plugin-section">Audio plugins (Audio Unit) are available in the OpenReel desktop app.</p>;
+    return <p className="text-[11px] leading-relaxed text-fg-3" data-testid="native-plugin-section">{t("Audio plugins (Audio Unit) are available in the OpenReel desktop app.")}</p>;
   }
   const rendering = host.render.state === "running";
 
@@ -215,48 +219,48 @@ export const NativePluginsSection: React.FC<NativePluginsSectionProps> = ({ clip
       {host.available && (
         <>
           <p className="text-[11px] leading-relaxed text-fg-3">
-            Audio Units run in a separate helper process. A plugin that crashes or hangs is blocked and never takes the editor down.
+            {t("Audio Units run in a separate helper process. A plugin that crashes or hangs is blocked and never takes the editor down.")}
           </p>
           <div className="flex gap-1.5">
             <select
               className="h-7 min-w-0 flex-1 rounded-[6px] border border-border bg-bg-1 px-1.5 text-[11px]"
-              aria-label="Plugin"
+              aria-label={t("Plugin")}
               data-testid="native-plugin-select"
               value={choice}
               onChange={(event) => setChoice(event.target.value)}
               disabled={locked || host.scanning}
             >
-              <option value="">{host.scanning ? "Scanning plugins…" : usable.length === 0 ? "No plugins found" : "Choose a plugin…"}</option>
+              <option value="">{host.scanning ? t("Scanning plugins…") : usable.length === 0 ? t("No plugins found") : t("Choose a plugin…")}</option>
               {usable.map((plugin) => (
                 <option key={plugin.id} value={plugin.id}>{plugin.name}{plugin.vendor ? ` (${plugin.vendor})` : ""}</option>
               ))}
             </select>
-            <Button size="sm" className="h-7 text-[11px]" data-testid="native-plugin-add" disabled={locked || !choice} onClick={() => void add()}>Add</Button>
-            <Button size="sm" variant="outline" className="h-7 text-[11px]" data-testid="native-plugin-rescan" disabled={host.scanning} onClick={() => void scanNativePlugins(true)}>Rescan</Button>
+            <Button size="sm" className="h-7 text-[11px]" data-testid="native-plugin-add" disabled={locked || !choice} onClick={() => void add()}>{t("Add")}</Button>
+            <Button size="sm" variant="outline" className="h-7 text-[11px]" data-testid="native-plugin-rescan" disabled={host.scanning} onClick={() => void scanNativePlugins(true)}>{t("Rescan")}</Button>
           </div>
           {host.scanning && host.scanProgress && <Progress value={Math.round((host.scanProgress.done / Math.max(1, host.scanProgress.total)) * 100)} className="h-1.5" />}
           {host.helperError && <p className="text-[11px] text-destructive" role="alert" data-testid="native-plugin-helper-error">{host.helperError}</p>}
           {host.scanned && !host.scanning && (
             <p className="text-[10px] text-fg-3" data-testid="native-plugin-scan-summary">
-              {usable.length} usable{blocked.length ? ` · ${blocked.length} blocked` : ""}{unsupported.length ? ` · ${unsupported.length} found but not hostable in this build` : ""}
+              {usable.length} {t("usable")}{blocked.length ? ` · ${blocked.length} blocked` : ""}{unsupported.length ? ` · ${unsupported.length} found but not hostable in this build` : ""}
             </p>
           )}
           {blocked.map((plugin) => (
             <div key={plugin.id} className="flex items-center justify-between gap-2 rounded border border-border px-2 py-1 text-[10px]" data-testid="native-plugin-blocked">
               <span className="min-w-0 truncate" title={plugin.statusReason}>{plugin.name}: {plugin.statusReason}</span>
-              <Button size="sm" variant="ghost" className="h-5 px-1.5 text-[10px]" onClick={() => void unblockNativePlugin(plugin.id)}>Unblock</Button>
+              <Button size="sm" variant="ghost" className="h-5 px-1.5 text-[10px]" onClick={() => void unblockNativePlugin(plugin.id)}>{t("Unblock")}</Button>
             </div>
           ))}
         </>
       )}
       {rendering && (
         <div className="space-y-1 rounded-[7px] border border-border bg-bg-1 p-2" role="status" aria-live="polite" data-testid="native-plugin-progress">
-          <p className="text-[11px]">Rendering plugins… {Math.round(host.render.fraction * 100)}%</p>
+          <p className="text-[11px]">{t("Rendering plugins…")} {Math.round(host.render.fraction * 100)}%</p>
           <Progress value={Math.round(host.render.fraction * 100)} className="h-1.5" />
         </div>
       )}
       {host.render.state === "failed" && (
-        <p className="text-[11px] text-destructive" role="alert" data-testid="native-plugin-render-failed">A plugin failed while rendering: {host.render.error}</p>
+        <p className="text-[11px] text-destructive" role="alert" data-testid="native-plugin-render-failed">{t("A plugin failed while rendering:")} {host.render.error}</p>
       )}
       {effects.map((effect) => (
         <PluginCard key={effect.id} clipId={clipId} effect={effect} locked={locked} plugins={host.plugins} scanned={host.scanned} hostAvailable={host.available} />

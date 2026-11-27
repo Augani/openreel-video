@@ -1,9 +1,11 @@
 import { cn } from "@openreel/ui";
 import { useProjectStore } from "../../stores/project-store";
 import { useSourceMonitorStore, type MonitorTab } from "../../stores/source-monitor-store";
+import { useT } from "@openreel/i18n/react";
 
 /** Program / Source switch shown in both monitors' headers. */
 export function MonitorTabs({ active }: { active: MonitorTab }) {
+  const t = useT();
   const setTab = useSourceMonitorStore((s) => s.setTab);
   const hasMulticam = useProjectStore((s) => (s.project.multicamSources?.length ?? 0) > 0);
   const tab = (id: MonitorTab, label: string) => (
@@ -19,11 +21,11 @@ export function MonitorTabs({ active }: { active: MonitorTab }) {
         active === id ? "bg-bg-2 font-semibold text-fg" : "font-normal text-fg-3 hover:text-fg-2",
       )}
     >
-      {label}
+      {t(label)}
     </button>
   );
   return (
-    <div role="tablist" aria-label="Monitor" className="-ml-1.5 flex items-center gap-0.5">
+    <div role="tablist" aria-label={t("Monitor")} className="-ml-1.5 flex items-center gap-0.5">
       {tab("program", "Program")}
       {tab("source", "Source")}
       {(hasMulticam || active === "multicam") && tab("multicam", "Multicam")}

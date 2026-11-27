@@ -57,6 +57,8 @@ import {
   type ClipRecipeStep,
 } from "../../../services/clip-recipes";
 import { toast } from "../../../stores/notification-store";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 const recipes = [
   {
     id: "silence",
@@ -125,6 +127,7 @@ export function useSilencePreview(clipId: string | undefined): number | null {
 }
 
 export function WorkspaceRecipesPanel() {
+  const t = useT();
   const [tab, setTab] = useState("featured");
   const [active, setActive] = useState<string | null>(null);
   const [silenceActivity, setSilenceActivity] =
@@ -217,7 +220,7 @@ export function WorkspaceRecipesPanel() {
               onClick={() => setShowClipLibrary(false)}
             >
               <ChevronLeft size={13} />
-              My recipes
+              {t("My recipes")}
             </Button>
             <RecipesTab />
           </>
@@ -232,16 +235,16 @@ export function WorkspaceRecipesPanel() {
                     onClick={() => setActive(null)}
                   >
                     <ChevronLeft size={13} />
-                    All recipes
+                    {t("All recipes")}
                   </Button>
                   <h3>{recipes.find((r) => r.id === active)?.name}</h3>
                   {active !== "beats" && (
                     <Select value={clipId ?? ""} onValueChange={setTarget}>
                       <SelectTrigger
-                        aria-label="Recipe source clip"
+                        aria-label={t("Recipe source clip")}
                         className="h-8 my-3 text-xs"
                       >
-                        <SelectValue placeholder="Select a source clip" />
+                        <SelectValue placeholder={t("Select a source clip")} />
                       </SelectTrigger>
                       <SelectContent>
                         {clips.map((c) => (
@@ -276,33 +279,29 @@ export function WorkspaceRecipesPanel() {
                     )
                   ) : (
                     <p className="text-xs text-fg-muted">
-                      Add a video or audio clip to the timeline to run this
-                      recipe.
+                      {t("Add a video or audio clip to the timeline to run this recipe.")}
                     </p>
                   )}
                 </>
               ) : tab === "community" ? (
                 <div className="workspace-recipes-note">
                   <SlidersHorizontal size={22} />
-                  <strong>Bring your own recipes</strong>
+                  <strong>{t("Bring your own recipes")}</strong>
                   <p>
-                    Open the clip recipe library to apply and customize all
-                    built-in looks. Project packages preserve their settings
-                    when you share.
+                    {t("Open the clip recipe library to apply and customize all built-in looks. Project packages preserve their settings when you share.")}
                   </p>
                   <Button variant="secondary" onClick={browseClipLibrary}>
-                    Browse clip recipes
+                    {t("Browse clip recipes")}
                   </Button>
                 </div>
               ) : tab === "my" ? (
                 <>
                   <p className="workspace-recipe-intro">
-                    Record recent clip adjustments and apply them to another
-                    selected clip.
+                    {t("Record recent clip adjustments and apply them to another selected clip.")}
                   </p>
                   {savedRecipes.length === 0 && (
                     <p className="workspace-recipe-intro">
-                      Your saved recipes will appear here.
+                      {t("Your saved recipes will appear here.")}
                     </p>
                   )}
                   {savedRecipes.map((recipe) => (
@@ -315,7 +314,7 @@ export function WorkspaceRecipesPanel() {
                       </p>
                       <footer>
                         <small>
-                          {recipe.steps.length} steps · Saved locally
+                          {recipe.steps.length} {t("steps · Saved locally")}
                         </small>
                         <Button
                           variant="secondary"
@@ -326,7 +325,7 @@ export function WorkspaceRecipesPanel() {
                             );
                             if (!selectedClip) {
                               toast.warning(
-                                "Select a clip",
+                                translateNow("Select a clip"),
                                 "Choose the clip that should receive this recipe.",
                               );
                               return;
@@ -334,10 +333,10 @@ export function WorkspaceRecipesPanel() {
                             setApplying(true);
                             try {
                               await applyClipRecipe(recipe, selectedClip.id);
-                              toast.success("Recipe applied", recipe.name);
+                              toast.success(translateNow("Recipe applied"), recipe.name);
                             } catch (error) {
                               toast.error(
-                                "Recipe could not be applied",
+                                translateNow("Recipe could not be applied"),
                                 error instanceof Error
                                   ? error.message
                                   : "Try again.",
@@ -347,7 +346,7 @@ export function WorkspaceRecipesPanel() {
                             }
                           }}
                         >
-                          Run
+                          {t("Run")}
                         </Button>
                       </footer>
                     </article>
@@ -358,14 +357,13 @@ export function WorkspaceRecipesPanel() {
                     onClick={browseClipLibrary}
                   >
                     <SlidersHorizontal size={13} />
-                    Browse built-in clip recipes
+                    {t("Browse built-in clip recipes")}
                   </Button>
                 </>
               ) : (
                 <>
                   <p className="workspace-recipe-intro">
-                    Multi-step edits you can run on any timeline. Every step
-                    lands on the undo stack.
+                    {t("Multi-step edits you can run on any timeline. Every step lands on the undo stack.")}
                   </p>
                   {recipes.map((r) => (
                     <article
@@ -380,7 +378,7 @@ export function WorkspaceRecipesPanel() {
                         </span>
                         <div>
                           <h3>{r.name}</h3>
-                          <p>{r.description}</p>
+                          <p>{t(r.description)}</p>
                           {r.id === "silence" && silenceCount !== null && (
                             <p
                               className="mt-1.5 text-[11px] font-medium text-accent"
@@ -403,9 +401,9 @@ export function WorkspaceRecipesPanel() {
                             role="status"
                             title={silenceActivity.message}
                           >
-                            <span>Step {silenceActivity.stage} of 4</span>
+                            <span>{t("Step")} {silenceActivity.stage} {t("of 4")}</span>
                             <Progress
-                              aria-label="Remove silences progress"
+                              aria-label={t("Remove silences progress")}
                               value={silenceActivity.progress}
                             />
                           </span>
@@ -420,9 +418,9 @@ export function WorkspaceRecipesPanel() {
                           >
                             {r.id === "silence" && active === "silence"
                               ? silenceActivity?.status === "done"
-                                ? "Done"
-                                : "Close"
-                              : "Run"}
+                                ? t("Done")
+                                : t("Close")
+                              : t("Run")}
                           </Button>
                         )}
                       </footer>
@@ -444,7 +442,7 @@ export function WorkspaceRecipesPanel() {
                                 }}
                               >
                                 <SelectTrigger
-                                  aria-label="Recipe source clip"
+                                  aria-label={t("Recipe source clip")}
                                   className="h-8 my-3 text-xs"
                                 >
                                   <SelectValue />
@@ -471,8 +469,7 @@ export function WorkspaceRecipesPanel() {
                             </>
                           ) : (
                             <p className="pt-3 text-xs text-fg-muted">
-                              Add a video or audio clip to the timeline to run
-                              this recipe.
+                              {t("Add a video or audio clip to the timeline to run this recipe.")}
                             </p>
                           )}
                         </div>
@@ -491,14 +488,14 @@ export function WorkspaceRecipesPanel() {
               <Button
                 variant="outline"
                 disabled={!recentSteps.length}
-                title="Record up to six recent transform, blend, color, volume or fade adjustments on one clip. Cuts and imported media cannot be rebound to another clip."
+                title={t("Record up to six recent transform, blend, color, volume or fade adjustments on one clip. Cuts and imported media cannot be rebound to another clip.")}
                 onClick={() => {
                   setSavingSteps(recentSteps);
                   setRecipeName("My recipe");
                 }}
               >
-                Save my last {recentSteps.length || ""}{" "}
-                {recentSteps.length === 1 ? "edit" : "edits"} as a recipe
+                {t("Save my last")} {recentSteps.length || ""}{" "}
+                {recentSteps.length === 1 ? t("edit") : t("edits")} {t("as a recipe")}
               </Button>
             </div>
           )}
@@ -511,19 +508,19 @@ export function WorkspaceRecipesPanel() {
       >
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Save a clip recipe</DialogTitle>
+            <DialogTitle>{t("Save a clip recipe")}</DialogTitle>
             <DialogDescription>
-              These adjustments will be available in My recipes on this device.
+              {t("These adjustments will be available in My recipes on this device.")}
             </DialogDescription>
           </DialogHeader>
           <Input
-            aria-label="Recipe name"
+            aria-label={t("Recipe name")}
             value={recipeName}
             onChange={(event) => setRecipeName(event.target.value)}
           />
           <ol className="text-xs list-decimal pl-5 space-y-1">
             {savingSteps?.map((step, index) => (
-              <li key={index}>{step.description}</li>
+              <li key={index}>{t(step.description)}</li>
             ))}
           </ol>
           <DialogFooter>
@@ -535,7 +532,7 @@ export function WorkspaceRecipesPanel() {
                 setTab("my");
               }}
             >
-              Save recipe
+              {t("Save recipe")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -2,6 +2,7 @@ import type { CSSProperties, MouseEvent } from "react";
 import { Button } from "@openreel/ui";
 import { Lock, LockOpen, Move } from "lucide-react";
 import type { HandlePosition } from "./types";
+import { useT } from "@openreel/i18n/react";
 
 const handles: { position: HandlePosition; label: string; className: string }[] = [
   { position: "nw", label: "top left", className: "left-0 top-0 h-4 w-4 cursor-nw-resize" },
@@ -24,6 +25,7 @@ export function PreviewTransformControls({ kind, aspectLocked, onToggleAspect, o
   moveStyle?: CSSProperties;
   showBorder?: boolean;
 }) {
+  const t = useT();
   const AspectIcon = aspectLocked ? Lock : LockOpen;
   return <>
     {showBorder && <div className="workspace-transform-border absolute inset-0 pointer-events-none" />}
@@ -36,9 +38,9 @@ export function PreviewTransformControls({ kind, aspectLocked, onToggleAspect, o
       onClick={onFocusCanvas}
     ><Move aria-hidden="true" /></Button>
     <Button variant="ghost" size="sm"
-      aria-label={aspectLocked ? "Unlock aspect ratio" : "Lock aspect ratio"}
+      aria-label={aspectLocked ? t("Unlock aspect ratio") : t("Lock aspect ratio")}
       aria-pressed={aspectLocked}
-      title={aspectLocked ? "Aspect ratio locked" : "Aspect ratio free"}
+      title={aspectLocked ? t("Aspect ratio locked") : t("Aspect ratio free")}
       className="workspace-transform-aspect absolute -top-8 left-1/2 -translate-x-1/2 pointer-events-auto"
       onClick={onToggleAspect}
     ><AspectIcon aria-hidden="true" /></Button>

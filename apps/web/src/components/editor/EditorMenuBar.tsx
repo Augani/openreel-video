@@ -46,6 +46,7 @@ import { useOnboardingStore } from "../../stores/onboarding-store";
 import { openAudioChannelsForSelection } from "../../services/audio-channels";
 import { runEnhanceSpeechCommand } from "../../services/enhance-speech";
 import { canResetClipTransform, resetClipTransform } from "../../services/reset-clip-transform";
+import { useT } from "@openreel/i18n/react";
 
 // Reset Transform enablement is a boolean derived from the selection and the project. Reading it
 // as a snapshot keeps the menu bar out of the render that a timeline click triggers: it re-renders
@@ -66,6 +67,7 @@ function readCanResetSelectedTransform(): boolean {
 import { exportTimelineInterchange, openTimelineImport, useInterchangeExportPickerStore } from "../../services/timeline-interchange";
 import { useWorkspaceLayoutStore, layoutsEqual } from "../../stores/workspace-layout-store";
 import { getQuickExportPresets, type QuickExportPresetId } from "../../services/quick-export-presets";
+import { translateNow } from "@openreel/i18n/translate";
 
 const AboutDialog = lazy(() => import("./AboutDialog").then((m) => ({ default: m.AboutDialog })));
 
@@ -81,6 +83,7 @@ export function EditorMenuBar({
   onQuickExport?: (preset: QuickExportPresetId) => void;
 }) {
   const { navigate } = useRouter();
+  const t = useT();
   const includeMarkers = useInterchangeExportPickerStore((s) => s.includeMarkers);
   const [compactPath, setCompactPath] = useState<string[]>([]);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -113,205 +116,205 @@ export function EditorMenuBar({
   };
   const menus: Record<string, Entry[]> = {
     File: [
-      { label: "New project…", action: () => navigate("new"), shortcut: "⌘N" },
+      { label: t("New project…"), action: () => navigate("new"), shortcut: "⌘N" },
       {
-        label: "Open project…",
+        label: t("Open project…"),
         action: () => {
           void openEditorProject().then((opened) => {
             if (opened) navigate("editor");
           }).catch((error: unknown) => {
-            toast.error("Could not open project", error instanceof Error ? error.message : "Your current project is still open. Please try again.");
+            toast.error(translateNow("Could not open project"), error instanceof Error ? error.message : "Your current project is still open. Please try again.");
           });
         },
       },
       {
-        label: "Import media…",
+        label: t("Import media…"),
         action: openMediaImport,
         shortcut: "⌘I",
       },
       {
-        label: "Record screen or camera…",
+        label: t("Record screen or camera…"),
         action: () => ui().openModal("recorder"),
       },
       null,
-      { label: "Save project…", action: command("file.save"), shortcut: "⌘S" },
-      { label: "Save project as…", description: "Write the project to a new file and keep working in it", action: command("file.saveAs"), shortcut: "⇧⌘S" },
-      { label: "Save version…", description: "Keep a named snapshot you can restore later", action: section("versions") },
-      { label: "Export…", action: onExport, shortcut: "⌘E", disabled: exporting || applying || playbackLocked },
+      { label: t("Save project…"), action: command("file.save"), shortcut: "⌘S" },
+      { label: t("Save project as…"), description: t("Write the project to a new file and keep working in it"), action: command("file.saveAs"), shortcut: "⇧⌘S" },
+      { label: t("Save version…"), description: t("Keep a named snapshot you can restore later"), action: section("versions") },
+      { label: t("Export…"), action: onExport, shortcut: "⌘E", disabled: exporting || applying || playbackLocked },
       ...(onQuickExport ? [{
-        label: "Quick export",
+        label: t("Quick export"),
         disabled: !hasContent || exporting || applying || playbackLocked,
         children: getQuickExportPresets(projectSettings).map(preset => ({
-          label: preset.label,
-          description: preset.description,
+          label: t(preset.label),
+          description: preset.description ? t(preset.description, preset.kind === "video" ? { width: preset.settings.width, height: preset.settings.height, fps: preset.settings.frameRate } : undefined) : undefined,
           action: () => onQuickExport(preset.id),
         })),
       }] : []),
-      ...(window.openreel?.projectManager ? [{ label: "Project Manager…", description: "Collect or consolidate the project and its media into a new folder", disabled: exporting || applying, action: () => useProjectManagerStore.getState().setOpen(true) }] : []),
-      { label: "Collaborate…", description: "Edit this project live with other people", action: command("collab.open"), shortcut: "⇧⌘J" },
-      { label: "Compress video…", action: onCompress },
-      { label: "Import captions…", description: "SRT, WebVTT, SBV, TTML / DFXP / iTT, SCC, MCC or EBU-STL as caption cues (one undo step); anything a format carries that OpenReel cannot show is listed", disabled: exporting || applying || playbackLocked, action: () => { void import("../../services/caption-file-import").then((module) => module.openCaptionImport()); } },
-      { label: "Embed CEA-608 captions…", description: "Write the captions into an exported MP4 / MOV video stream (H.264 SEI), no re-encode", disabled: exporting || applying || playbackLocked, action: () => { void import("../../services/caption-sei").then((module) => module.openCea608Embed()); } },
+      ...(window.openreel?.projectManager ? [{ label: t("Project Manager…"), description: t("Collect or consolidate the project and its media into a new folder"), disabled: exporting || applying, action: () => useProjectManagerStore.getState().setOpen(true) }] : []),
+      { label: t("Collaborate…"), description: t("Edit this project live with other people"), action: command("collab.open"), shortcut: "⇧⌘J" },
+      { label: t("Compress video…"), action: onCompress },
+      { label: t("Import captions…"), description: t("SRT, WebVTT, SBV, TTML / DFXP / iTT, SCC, MCC or EBU-STL as caption cues (one undo step); anything a format carries that OpenReel cannot show is listed"), disabled: exporting || applying || playbackLocked, action: () => { void import("../../services/caption-file-import").then((module) => module.openCaptionImport()); } },
+      { label: t("Embed CEA-608 captions…"), description: t("Write the captions into an exported MP4 / MOV video stream (H.264 SEI), no re-encode"), disabled: exporting || applying || playbackLocked, action: () => { void import("../../services/caption-sei").then((module) => module.openCea608Embed()); } },
       {
-        label: "Export timeline",
-        heading: "Hand off to another editor",
+        label: t("Export timeline"),
+        heading: t("Hand off to another editor"),
         disabled: !hasContent || exporting || applying || playbackLocked,
         children: [
-          { label: "Timeline XML (Premiere/Resolve)", description: "Final Cut Pro 7 XML (xmeml v5)", action: () => exportTimelineInterchange("xmeml") },
-          { label: "FCPXML (Final Cut)", description: "Final Cut Pro X, FCPXML 1.10", action: () => exportTimelineInterchange("fcpxml") },
-          { label: "EDL", description: "CMX3600, one file per video track", action: () => exportTimelineInterchange("edl") },
-          { label: "OpenTimelineIO", description: "OTIO JSON (Resolve, Avid, Premiere plugins)", action: () => exportTimelineInterchange("otio") },
-          { label: "AAF (Avid/Premiere/Resolve)", description: "Edit only: tracks, speed, dissolves, levels, markers. Media is linked by path, not embedded", action: () => exportTimelineInterchange("aaf") },
-          { label: includeMarkers ? "Include markers: on" : "Include markers: off", description: "Click to toggle whether exported timelines carry the project's markers", action: () => useInterchangeExportPickerStore.getState().setIncludeMarkers(!includeMarkers) },
-          { label: "Choose sequence…", description: "Export any sequence, not only the active one", action: () => useInterchangeExportPickerStore.getState().setOpen(true) },
+          { label: t("Timeline XML (Premiere/Resolve)"), description: t("Final Cut Pro 7 XML (xmeml v5)"), action: () => exportTimelineInterchange("xmeml") },
+          { label: t("FCPXML (Final Cut)"), description: t("Final Cut Pro X, FCPXML 1.10"), action: () => exportTimelineInterchange("fcpxml") },
+          { label: t("EDL"), description: t("CMX3600, one file per video track"), action: () => exportTimelineInterchange("edl") },
+          { label: t("OpenTimelineIO"), description: t("OTIO JSON (Resolve, Avid, Premiere plugins)"), action: () => exportTimelineInterchange("otio") },
+          { label: t("AAF (Avid/Premiere/Resolve)"), description: t("Edit only: tracks, speed, dissolves, levels, markers. Media is linked by path, not embedded"), action: () => exportTimelineInterchange("aaf") },
+          { label: includeMarkers ? t("Include markers: on") : t("Include markers: off"), description: t("Click to toggle whether exported timelines carry the project's markers"), action: () => useInterchangeExportPickerStore.getState().setIncludeMarkers(!includeMarkers) },
+          { label: t("Choose sequence…"), description: t("Export any sequence, not only the active one"), action: () => useInterchangeExportPickerStore.getState().setOpen(true) },
         ],
       },
       {
-        label: "Import timeline",
-        heading: "Bring in a sequence",
+        label: t("Import timeline"),
+        heading: t("Bring in a sequence"),
         disabled: exporting || applying || playbackLocked,
         children: [
-          { label: "Timeline XML…", description: "Premiere/Resolve XML, FCPXML, OpenTimelineIO (.otio) or EDL", action: () => openTimelineImport("xml") },
-          { label: "Premiere project (.prproj)…", description: "Sequences, clips, speed, motion, markers and dissolves; media is relinked to the bin by file name, the rest becomes offline placeholders", action: () => openTimelineImport("prproj") },
-          { label: "AAF…", description: "Avid / Premiere / Resolve AAF; media is relinked to the bin by file name", action: () => openTimelineImport("aaf") },
+          { label: t("Timeline XML…"), description: t("Premiere/Resolve XML, FCPXML, OpenTimelineIO (.otio) or EDL"), action: () => openTimelineImport("xml") },
+          { label: t("Premiere project (.prproj)…"), description: t("Sequences, clips, speed, motion, markers and dissolves; media is relinked to the bin by file name, the rest becomes offline placeholders"), action: () => openTimelineImport("prproj") },
+          { label: t("AAF…"), description: t("Avid / Premiere / Resolve AAF; media is relinked to the bin by file name"), action: () => openTimelineImport("aaf") },
         ],
       },
       null,
       {
-        label: "Settings & API keys…",
+        label: t("Settings & API keys…"),
         action: () => useSettingsStore.getState().openSettings(),
       },
-      { label: "Back to home", action: () => navigate("welcome") },
+      { label: t("Back to home"), action: () => navigate("welcome") },
     ],
     Edit: [
       {
-        label: "Undo",
+        label: t("Undo"),
         action: () => {
           void useProjectStore.getState().undo();
         },
         shortcut: "⌘Z",
       },
       {
-        label: "Redo",
+        label: t("Redo"),
         action: () => {
           void useProjectStore.getState().redo();
         },
         shortcut: "⇧⌘Z",
       },
       null,
-      { label: "Cut", action: command("editing.cut"), shortcut: "⌘X" },
-      { label: "Copy", action: command("editing.copy"), shortcut: "⌘C" },
-      { label: "Paste", action: command("editing.paste"), shortcut: "⌘V" },
+      { label: t("Cut"), action: command("editing.cut"), shortcut: "⌘X" },
+      { label: t("Copy"), action: command("editing.copy"), shortcut: "⌘C" },
+      { label: t("Paste"), action: command("editing.paste"), shortcut: "⌘V" },
       {
-        label: "Duplicate",
+        label: t("Duplicate"),
         action: command("editing.duplicate"),
         shortcut: "⌘D",
       },
-      { label: "Delete", action: command("editing.delete"), shortcut: "⌫" },
+      { label: t("Delete"), action: command("editing.delete"), shortcut: "⌫" },
       null,
       {
-        label: "Select all",
+        label: t("Select all"),
         action: command("selection.selectAll"),
         shortcut: "⌘A",
       },
       {
-        label: "Find a tool or effect…",
+        label: t("Find a tool or effect…"),
         action: () => ui().openModal("search"),
         shortcut: keyboardShortcuts.formatSearchPaletteHint(),
       },
     ],
     Clip: [
       {
-        label: "Split at playhead",
+        label: t("Split at playhead"),
         action: command("editing.split"),
         shortcut: "S",
       },
       {
-        label: "Trim start to playhead",
+        label: t("Trim start to playhead"),
         action: command("editing.trimStart"),
         shortcut: "Q",
       },
       {
-        label: "Trim end to playhead",
+        label: t("Trim end to playhead"),
         action: command("editing.trimEnd"),
         shortcut: "W",
       },
       {
-        label: "Ripple delete",
+        label: t("Ripple delete"),
         action: command("editing.rippleDelete"),
         shortcut: "⇧⌫",
       },
       null,
-      { label: "Insert selected media", action: command("editing.insert"), shortcut: "," },
-      { label: "Overwrite with selected media", action: command("editing.overwrite"), shortcut: "." },
-      { label: "Replace clip from Source monitor", action: command("editing.replaceEdit"), shortcut: "⇧G" },
-      { label: "Fit to Fill from Source monitor", action: command("editing.fitToFill"), shortcut: "⌥⇧F" },
-      { label: "Lift In/Out range", action: command("editing.lift"), shortcut: ";" },
-      { label: "Extract In/Out range", action: command("editing.extract"), shortcut: "'" },
-      { label: "Add edit to all tracks", action: command("editing.addEditAllTracks"), shortcut: "⇧⌘K" },
-      { label: "Add edit to targeted tracks", action: command("editing.addEdit"), shortcut: "⇧K" },
-      { label: "Group", action: command("editing.group"), shortcut: "⌘G" },
-      { label: "Ungroup", action: command("editing.ungroup"), shortcut: "⇧⌘G" },
-      { label: "Apply default transition", action: command("editing.applyDefaultTransition"), shortcut: "⇧⌘D" },
-      { label: "Paste insert", action: command("editing.pasteInsert"), shortcut: "⇧⌘V" },
-      { label: "Toggle track target", action: command("tracks.toggleTarget"), shortcut: "⇧T" },
-      { label: "Toggle sync lock", action: command("tracks.toggleSyncLock"), shortcut: "⇧Y" },
-      { label: "Extend edit to playhead", action: command("editing.extendEdit"), shortcut: "E" },
-      { label: "Extend video edit to playhead", action: command("editing.extendEditVideo"), shortcut: "⇧E" },
-      { label: "Extend audio edit to playhead", action: command("editing.extendEditAudio"), shortcut: "⌥E" },
-      { label: "J-cut (audio leads)", action: command("editing.jCut"), shortcut: "⌥J" },
-      { label: "L-cut (audio trails)", action: command("editing.lCut"), shortcut: "⌥L" },
-      { label: "Match frame", action: command("editing.matchFrame"), shortcut: "F" },
-      { label: "Reverse match frame", action: command("editing.reverseMatchFrame"), shortcut: "⇧F" },
+      { label: t("Insert selected media"), action: command("editing.insert"), shortcut: "," },
+      { label: t("Overwrite with selected media"), action: command("editing.overwrite"), shortcut: "." },
+      { label: t("Replace clip from Source monitor"), action: command("editing.replaceEdit"), shortcut: "⇧G" },
+      { label: t("Fit to Fill from Source monitor"), action: command("editing.fitToFill"), shortcut: "⌥⇧F" },
+      { label: t("Lift In/Out range"), action: command("editing.lift"), shortcut: ";" },
+      { label: t("Extract In/Out range"), action: command("editing.extract"), shortcut: "'" },
+      { label: t("Add edit to all tracks"), action: command("editing.addEditAllTracks"), shortcut: "⇧⌘K" },
+      { label: t("Add edit to targeted tracks"), action: command("editing.addEdit"), shortcut: "⇧K" },
+      { label: t("Group"), action: command("editing.group"), shortcut: "⌘G" },
+      { label: t("Ungroup"), action: command("editing.ungroup"), shortcut: "⇧⌘G" },
+      { label: t("Apply default transition"), action: command("editing.applyDefaultTransition"), shortcut: "⇧⌘D" },
+      { label: t("Paste insert"), action: command("editing.pasteInsert"), shortcut: "⇧⌘V" },
+      { label: t("Toggle track target"), action: command("tracks.toggleTarget"), shortcut: "⇧T" },
+      { label: t("Toggle sync lock"), action: command("tracks.toggleSyncLock"), shortcut: "⇧Y" },
+      { label: t("Extend edit to playhead"), action: command("editing.extendEdit"), shortcut: "E" },
+      { label: t("Extend video edit to playhead"), action: command("editing.extendEditVideo"), shortcut: "⇧E" },
+      { label: t("Extend audio edit to playhead"), action: command("editing.extendEditAudio"), shortcut: "⌥E" },
+      { label: t("J-cut (audio leads)"), action: command("editing.jCut"), shortcut: "⌥J" },
+      { label: t("L-cut (audio trails)"), action: command("editing.lCut"), shortcut: "⌥L" },
+      { label: t("Match frame"), action: command("editing.matchFrame"), shortcut: "F" },
+      { label: t("Reverse match frame"), action: command("editing.reverseMatchFrame"), shortcut: "⇧F" },
       null,
-      { label: "Audio channels…", description: "Map source channels: left only, swap, mono, stereo, 5.1", action: () => { if (!openAudioChannelsForSelection()) toast.info("Select a clip with audio", "Audio channels applies to the selected clips."); } },
-      { label: "Audio: Enhance Speech", description: "Remove noise and room reverb from the selected dialogue, on this device", disabled: exporting || applying || playbackLocked,
-        action: () => { const ids = useUIStore.getState().getSelectedClipIds(); if (ids.length === 0) toast.info("Select a clip with audio", "Enhance Speech applies to the selected dialogue clips."); else void runEnhanceSpeechCommand(ids); } },
-      { label: "Audio: Reduce Reverb", description: "Remove the late reverb tail from the selected dialogue, on this device", disabled: exporting || applying || playbackLocked,
-        action: () => { const ids = useUIStore.getState().getSelectedClipIds(); if (ids.length === 0) toast.info("Select a clip with audio", "Reduce Reverb applies to the selected dialogue clips."); else void import("../../services/reduce-reverb").then((module) => module.runReduceReverbCommand(ids)); } },
-      { label: "Speed/Duration…", description: "Speed, duration, reverse and pitch for the selected clips, with ripple", action: command("editing.speedDuration"), shortcut: "⌥⌘R" },
+      { label: t("Audio channels…"), description: t("Map source channels: left only, swap, mono, stereo, 5.1"), action: () => { if (!openAudioChannelsForSelection()) toast.info(translateNow("Select a clip with audio"), "Audio channels applies to the selected clips."); } },
+      { label: t("Audio: Enhance Speech"), description: t("Remove noise and room reverb from the selected dialogue, on this device"), disabled: exporting || applying || playbackLocked,
+        action: () => { const ids = useUIStore.getState().getSelectedClipIds(); if (ids.length === 0) toast.info(translateNow("Select a clip with audio"), "Enhance Speech applies to the selected dialogue clips."); else void runEnhanceSpeechCommand(ids); } },
+      { label: t("Audio: Reduce Reverb"), description: t("Remove the late reverb tail from the selected dialogue, on this device"), disabled: exporting || applying || playbackLocked,
+        action: () => { const ids = useUIStore.getState().getSelectedClipIds(); if (ids.length === 0) toast.info(translateNow("Select a clip with audio"), "Reduce Reverb applies to the selected dialogue clips."); else void import("../../services/reduce-reverb").then((module) => module.runReduceReverbCommand(ids)); } },
+      { label: t("Speed/Duration…"), description: t("Speed, duration, reverse and pitch for the selected clips, with ripple"), action: command("editing.speedDuration"), shortcut: "⌥⌘R" },
       null,
-      { label: "Replace with linked composition", action: command("linked.replace"), shortcut: "⌥⌘L" },
-      { label: "Open linked composition", action: command("linked.open"), shortcut: "⌥⌘O" },
-      { label: "Render and replace", action: command("linked.render"), shortcut: "⇧⌥⌘R" },
-      { label: "Restore unrendered", action: command("linked.restore"), shortcut: "⇧⌥⌘U" },
+      { label: t("Replace with linked composition"), action: command("linked.replace"), shortcut: "⌥⌘L" },
+      { label: t("Open linked composition"), action: command("linked.open"), shortcut: "⌥⌘O" },
+      { label: t("Render and replace"), action: command("linked.render"), shortcut: "⇧⌥⌘R" },
+      { label: t("Restore unrendered"), action: command("linked.restore"), shortcut: "⇧⌥⌘U" },
       null,
-      { label: "Reset clip transform", disabled: !canReset || exporting || applying || playbackLocked,
+      { label: t("Reset clip transform"), disabled: !canReset || exporting || applying || playbackLocked,
         action: () => { const ids = useUIStore.getState().getSelectedClipIds(); if (ids.length === 1) void resetClipTransform(ids[0]); } },
-      { label: "Add text", action: command("tools.addText") },
-      { label: "Keyframe editor", action: () => ui().toggleKeyframeEditor() },
+      { label: t("Add text"), action: command("tools.addText") },
+      { label: t("Keyframe editor"), action: () => ui().toggleKeyframeEditor() },
     ],
     Sequence: [
-      { label: "Project settings", action: section("settings") },
-      { label: "Create multi-camera source…", action: () => useEditorWorkspaceStore.getState().setMulticamSourceOpen(true) },
-      { label: "Multi-camera monitor", action: () => useSourceMonitorStore.getState().setTab("multicam") },
-      { label: "Flatten multi-camera", action: () => { void flattenMulticamCommand(); } },
-      { label: "Multi-camera editing…", action: () => useEditorWorkspaceStore.getState().setMultiCameraOpen(true) },
+      { label: t("Project settings"), action: section("settings") },
+      { label: t("Create multi-camera source…"), action: () => useEditorWorkspaceStore.getState().setMulticamSourceOpen(true) },
+      { label: t("Multi-camera monitor"), action: () => useSourceMonitorStore.getState().setTab("multicam") },
+      { label: t("Flatten multi-camera"), action: () => { void flattenMulticamCommand(); } },
+      { label: t("Multi-camera editing…"), action: () => useEditorWorkspaceStore.getState().setMultiCameraOpen(true) },
       {
-        label: "Add video track",
+        label: t("Add video track"),
         action: () => {
           void useProjectStore.getState().addTrack("video");
         },
       },
       {
-        label: "Add audio track",
+        label: t("Add audio track"),
         action: () => {
           void useProjectStore.getState().addTrack("audio");
         },
       },
       {
-        label: "Fit timeline",
+        label: t("Fit timeline"),
         action: command("timeline.fitTimeline"),
         shortcut: "⇧Z",
       },
-      { label: "Toggle snapping", action: command("timeline.toggleSnap") },
+      { label: t("Toggle snapping"), action: command("timeline.toggleSnap") },
       null,
-      { label: "Render Effects In to Out", action: command("sequence.renderEffectsInToOut") },
-      { label: "Render In to Out", action: command("sequence.renderInToOut"), shortcut: "↵" },
-      { label: "Delete render files", action: () => { void renderCacheService.deleteRenderFiles(); } },
+      { label: t("Render Effects In to Out"), action: command("sequence.renderEffectsInToOut") },
+      { label: t("Render In to Out"), action: command("sequence.renderInToOut"), shortcut: "↵" },
+      { label: t("Delete render files"), action: () => { void renderCacheService.deleteRenderFiles(); } },
       null,
       {
-        label: "Loop playback",
+        label: t("Loop playback"),
         action: () => {
           const s = useTimelineStore.getState();
           s.setLoopEnabled(!s.loopEnabled);
@@ -319,64 +322,64 @@ export function EditorMenuBar({
       },
     ],
     Effects: [
-      { label: "Video effects", action: section("effects") },
-      { label: "Transitions", action: section("transitions") },
-      { label: "Audio mixer", action: () => ui().togglePanel("audioMixer") },
-      { label: "Recipes", action: section("recipes") },
-      { label: "Markers", action: section("markers") },
-      { label: "Media Browser", action: section("browser") },
-      { label: "Metadata", action: section("metadata") },
-      { label: "Review comments", action: section("comments") },
-      { label: "Version history", action: section("versions") },
-      { label: "Project templates", action: section("templates") },
+      { label: t("Video effects"), action: section("effects") },
+      { label: t("Transitions"), action: section("transitions") },
+      { label: t("Audio mixer"), action: () => ui().togglePanel("audioMixer") },
+      { label: t("Recipes"), action: section("recipes") },
+      { label: t("Markers"), action: section("markers") },
+      { label: t("Media Browser"), action: section("browser") },
+      { label: t("Metadata"), action: section("metadata") },
+      { label: t("Review comments"), action: section("comments") },
+      { label: t("Version history"), action: section("versions") },
+      { label: t("Project templates"), action: section("templates") },
       null,
-      { label: "Manage plugins…", description: "Install effect plugins (.orplugin)", action: () => usePluginManagerStore.getState().setOpen(true) },
+      { label: t("Manage plugins…"), description: t("Install effect plugins (.orplugin)"), action: () => usePluginManagerStore.getState().setOpen(true) },
     ],
     View: [
       {
-        label: "AI assist",
+        label: t("AI assist"),
         action: () => ui().setPanelVisible("agentChat", true),
       },
-      { label: "Action history", action: () => ui().openModal("history") },
+      { label: t("Action history"), action: () => ui().openModal("history") },
       {
-        label: "Project JSON / comments",
+        label: t("Project JSON / comments"),
         action: () => ui().openModal("scriptView"),
       },
       {
-        label: "Maximize timeline",
+        label: t("Maximize timeline"),
         action: () => ui().toggleTimelineMaximized(),
       },
       {
-        label: "Keyboard shortcuts",
+        label: t("Keyboard shortcuts"),
         action: command("view.showShortcuts"),
         shortcut: "?",
       },
     ],
     Window: [
       {
-        label: "Workspaces",
-        heading: "Switch layout",
+        label: t("Workspaces"),
+        heading: t("Switch layout"),
         children: workspaces.map((w) => ({
-          label: `${w.id === activeWorkspaceId ? "✓ " : ""}${w.name}${w.id === activeWorkspaceId && layoutChanged ? " (modified)" : ""}`,
+          label: `${w.id === activeWorkspaceId ? "✓ " : ""}${w.name}${w.id === activeWorkspaceId && layoutChanged ? t(" (modified)") : ""}`,
           action: () => { useWorkspaceLayoutStore.getState().applyWorkspace(w.id); },
         })),
       },
-      { label: "Save as new workspace…", action: () => useWorkspaceLayoutStore.getState().setSaveDialogOpen(true) },
+      { label: t("Save as new workspace…"), action: () => useWorkspaceLayoutStore.getState().setSaveDialogOpen(true) },
       {
-        label: "Reset workspace",
-        description: activeWorkspace ? `Back to the saved ${activeWorkspace.name} layout` : undefined,
+        label: t("Reset workspace"),
+        description: activeWorkspace ? t("Back to the saved {name} layout", { name: activeWorkspace.name }) : undefined,
         disabled: !layoutChanged,
         action: () => useWorkspaceLayoutStore.getState().resetActiveWorkspace(),
       },
       {
-        label: "Update saved workspace",
+        label: t("Update saved workspace"),
         disabled: !layoutChanged || !!activeWorkspace?.builtIn,
         action: () => { if (activeWorkspace) useWorkspaceLayoutStore.getState().updateWorkspace(activeWorkspace.id); },
       },
       ...(userWorkspaces.length
         ? [{
-            label: "Delete workspace",
-            heading: "Delete a saved workspace",
+            label: t("Delete workspace"),
+            heading: t("Delete a saved workspace"),
             children: userWorkspaces.map((w) => ({
               label: w.name,
               action: () => { useWorkspaceLayoutStore.getState().deleteWorkspace(w.id); },
@@ -384,37 +387,37 @@ export function EditorMenuBar({
           }]
         : []),
       null,
-      { label: "Maximize timeline", action: () => ui().toggleTimelineMaximized() },
+      { label: t("Maximize timeline"), action: () => ui().toggleTimelineMaximized() },
     ],
     Help: [
       {
-        label: "Keyboard shortcuts",
+        label: t("Keyboard shortcuts"),
         action: command("view.showShortcuts"),
         shortcut: "?",
       },
-      { label: "Editor tour", action: launchEditorTour },
-      { label: "Animation & effects tour", action: launchMoGraphTour },
+      { label: t("Editor tour"), action: launchEditorTour },
+      { label: t("Animation & effects tour"), action: launchMoGraphTour },
       // The lessons sheet is hosted by the desktop shell only; the web build has no host for it.
       ...(window.openreel?.platform === "desktop"
-        ? [{ label: "Learn OpenReel…", action: () => useOnboardingStore.getState().showSheet("lessons") }]
+        ? [{ label: t("Learn OpenReel…"), action: () => useOnboardingStore.getState().showSheet("lessons") }]
         : []),
-      { label: "Documentation", action: () => { window.open(DOCS_URL, "_blank", "noopener,noreferrer"); } },
-      { label: "Report an issue", action: () => { window.open(ISSUES_URL, "_blank", "noopener,noreferrer"); } },
+      { label: t("Documentation"), action: () => { window.open(DOCS_URL, "_blank", "noopener,noreferrer"); } },
+      { label: t("Report an issue"), action: () => { window.open(ISSUES_URL, "_blank", "noopener,noreferrer"); } },
       null,
-      { label: "About OpenReel", action: () => setAboutOpen(true) },
+      { label: t("About OpenReel"), action: () => setAboutOpen(true) },
       ...(window.openreel?.platform === "desktop"
         ? [
             null,
             {
-              label: "Welcome & Setup…",
+              label: t("Welcome & Setup…"),
               action: () => {
                 useOnboardingStore.getState().reopenBand();
                 window.location.hash = "#/welcome";
               },
             },
-            { label: "Connect an AI Agent…", action: () => useOnboardingStore.getState().showSheet("agent") },
+            { label: t("Connect an AI Agent…"), action: () => useOnboardingStore.getState().showSheet("agent") },
             {
-              label: "Reset onboarding",
+              label: t("Reset onboarding"),
               action: () => {
                 useOnboardingStore.getState().reset();
                 window.location.hash = "#/welcome";
@@ -432,29 +435,29 @@ export function EditorMenuBar({
   return (
     <>
       <Menubar
-        aria-label="Application menu"
+        aria-label={t("Application menu")}
         className="workspace-menu h-auto space-x-0 border-0 rounded-none bg-transparent p-0 shadow-none"
       >
         {Object.entries(menus).map(([label, entries]) => (
           <MenubarMenu key={label}>
             <MenubarTrigger className="workspace-menu-trigger font-normal">
-              {label}
+              {t(label)}
             </MenubarTrigger>
             <MenubarContent className="min-w-56">
               {entries.map((entry, i) =>
                 entry && "children" in entry ? (
                   <MenubarSub key={entry.label}>
-                    <MenubarSubTrigger disabled={entry.disabled}>{entry.label}</MenubarSubTrigger>
+                    <MenubarSubTrigger disabled={entry.disabled}>{t(entry.label)}</MenubarSubTrigger>
                     <MenubarSubContent className="min-w-64">
-                      <div className="px-2 py-1 text-xs text-fg-muted">{entry.heading ?? "Entire timeline"}</div>
+                      <div className="px-2 py-1 text-xs text-fg-muted">{entry.heading ?? t("Entire timeline")}</div>
                       {entry.children.map(child => <MenubarItem key={child.label} onSelect={child.action} className="flex-col items-start">
-                        <span>{child.label}</span><span className="text-xs text-fg-muted">{child.description}</span>
+                        <span>{t(child.label)}</span><span className="text-xs text-fg-muted">{t(child.description ?? "")}</span>
                       </MenubarItem>)}
                     </MenubarSubContent>
                   </MenubarSub>
                 ) : entry ? (
                   <MenubarItem key={entry.label} onSelect={entry.action} disabled={entry.disabled}>
-                    {entry.label}
+                    {t(entry.label)}
                     {entry.shortcut && (
                       <MenubarShortcut>{entry.shortcut}</MenubarShortcut>
                     )}
@@ -473,7 +476,7 @@ export function EditorMenuBar({
             variant="ghost"
             size="icon-sm"
             className="workspace-compact-menu"
-            aria-label="Application menu"
+            aria-label={t("Application menu")}
           >
             <Menu size={17} />
           </Button>
@@ -484,22 +487,22 @@ export function EditorMenuBar({
           {compactPath.length === 0 ? Object.keys(menus).map(label => (
             <DropdownMenuItem key={label} className="min-h-11" onSelect={event => { event.preventDefault(); setCompactPath([label]); }}
               onKeyDown={event => { if (event.key === "ArrowRight") { event.preventDefault(); setCompactPath([label]); } }}>
-              {label}<ChevronRight className="ml-auto" />
+              {t(label)}<ChevronRight className="ml-auto" />
             </DropdownMenuItem>
           )) : <>
             <DropdownMenuItem className="min-h-11" onSelect={event => { event.preventDefault(); setCompactPath(path => path.slice(0, -1)); }}>
-              <ArrowLeft />Back to {compactPath.length > 1 ? compactPath[0] : "application menu"}
+              <ArrowLeft />{t("Back to {name}", { name: t(compactPath.length > 1 ? compactPath[0] : "application menu") })}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuLabel>{compactPath.at(-1)}{compactPath.length > 1 ? ` · ${compactParent && "children" in compactParent && compactParent.heading ? compactParent.heading : "Entire timeline"}` : ""}</DropdownMenuLabel>
+            <DropdownMenuLabel>{t(compactPath.at(-1) ?? "")}{compactPath.length > 1 ? ` · ${compactParent && "children" in compactParent && compactParent.heading ? compactParent.heading : t("Entire timeline")}` : ""}</DropdownMenuLabel>
             {compactEntries.map((entry, index) => entry ? (
               <DropdownMenuItem key={entry.label} disabled={entry.disabled}
                 className={`min-h-11 ${"children" in entry || !entry.description ? "" : "flex-col items-start"}`}
                 onSelect={event => { if ("children" in entry) { event.preventDefault(); setCompactPath(path => [...path, entry.label]); } else entry.action(); }}
                 onKeyDown={event => { if ("children" in entry && event.key === "ArrowRight") { event.preventDefault(); setCompactPath(path => [...path, entry.label]); } }}>
-                <span>{entry.label}</span>
+                <span>{t(entry.label)}</span>
                 {"children" in entry ? <ChevronRight className="ml-auto" /> : <>
-                  {entry.description && <span className="text-xs text-fg-muted">{entry.description}</span>}
+                  {t(entry.description ?? "") && <span className="text-xs text-fg-muted">{t(entry.description ?? "")}</span>}
                   {entry.shortcut && <DropdownMenuShortcut>{entry.shortcut}</DropdownMenuShortcut>}
                 </>}
               </DropdownMenuItem>

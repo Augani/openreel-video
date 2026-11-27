@@ -27,6 +27,8 @@ import { PropertySlider } from "./shell/PropertySlider";
 import { InspectorToggle } from "./shell/InspectorControls";
 import { useProjectStore } from "../../../stores/project-store";
 import type { AudioDuckingSettings } from "../../../stores/project";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 interface AudioDuckingSectionProps {
   clipId: string;
@@ -152,6 +154,7 @@ const DuckingSlider: React.FC<DuckingSliderProps> = ({
 export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
   clipId,
 }) => {
+  const t = useT();
   const project = useProjectStore((state) => state.project);
   const setClipAudioDucking = useProjectStore(
     (state) => state.setClipAudioDucking,
@@ -246,7 +249,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
     );
 
     if (!sourceTrack) {
-      setErrorMessage("Select a valid trigger source track.");
+      setErrorMessage(translateNow("Select a valid trigger source track."));
       return;
     }
 
@@ -293,7 +296,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
     const cleared = clearClipAudioDucking(audioTargetClip?.id ?? clipId);
 
     if (!cleared) {
-      setErrorMessage("Failed to remove ducking from this clip.");
+      setErrorMessage(translateNow("Failed to remove ducking from this clip."));
       return;
     }
 
@@ -309,10 +312,10 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
         <VolumeX size={16} className="text-primary" aria-hidden />
         <div className="flex flex-1 flex-col gap-0.5">
           <span className="text-fg font-bold block text-[11px]">
-            Audio Ducking
+            {t("Audio Ducking")}
           </span>
           <span className="text-fg-2 font-normal block text-[9px]">
-            Auto-lower music when speech plays
+            {t("Auto-lower music when speech plays")}
           </span>
         </div>
       </Card>
@@ -326,7 +329,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
             }`}
           />
           <span className="text-[12px] leading-5 text-fg font-bold">
-            {showControls ? "Ducking Enabled" : "Ducking Disabled"}
+            {showControls ? t("Ducking Enabled") : t("Ducking Disabled")}
           </span>
         </div>
         <InspectorToggle
@@ -342,7 +345,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
             <span className="text-[12px] leading-5 text-fg-2 font-bold flex items-center gap-2"
             >
               <Mic size={12} aria-hidden />
-              Trigger Source (Voice Track)
+              {t("Trigger Source (Voice Track)")}
             </span>
             {availableSourceTracks.length > 0 ? (
               <div className="space-y-1">
@@ -371,7 +374,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                   aria-hidden
                 />
                 <span className="text-fg-2 font-normal text-[10px]">
-                  Add another audio or video track with speech to use as trigger
+                  {t("Add another audio or video track with speech to use as trigger")}
                 </span>
               </Card>
             )}
@@ -383,7 +386,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                 <span className="text-[12px] leading-5 text-fg-2 font-bold flex items-center gap-2"
                 >
                   <Music size={12} aria-hidden />
-                  Ducking Presets
+                  {t("Ducking Presets")}
                 </span>
                 <div className="grid grid-cols-2 gap-1">
                   {PRESET_CONFIGS.map((preset) => (
@@ -418,13 +421,13 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                 />
               </div>
 
-              <Button onClick={() => setShowAdvanced(!showAdvanced)} type="button" aria-label="Timing Controls" className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg w-full justify-start">
+              <Button onClick={() => setShowAdvanced(!showAdvanced)} type="button" aria-label={t("Timing Controls")} className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg w-full justify-start">
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center">{showAdvanced ? (
                     <ChevronDown size={12} aria-hidden />
                   ) : (
                     <ChevronRight size={12} aria-hidden />
                   )}</span>
-                <span className="truncate">{"Timing Controls"}</span>
+                <span className="truncate">{t("Timing Controls")}</span>
               </Button>
 
               {showAdvanced && (
@@ -471,7 +474,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                     ) : (
                       <VolumeX size={14} aria-hidden />
                     )}</span>}
-                  <span className="truncate">{isApplying ? "Analyzing..." : "Apply Ducking"}</span>
+                  <span className="truncate">{isApplying ? t("Analyzing...") : t("Apply Ducking")}</span>
                 </Button>
               ) : (
                 <div className="space-y-2">
@@ -479,7 +482,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                   >
                     <Check size={12} className="text-green-400" aria-hidden />
                     <span className="font-normal text-[10px] text-green-400">
-                      Ducking Applied
+                      {t("Ducking Applied")}
                     </span>
                   </Card>
                   <div className="grid grid-cols-2 gap-2">
@@ -489,10 +492,10 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
                           className={isApplying ? "animate-spin" : undefined}
                           aria-hidden
                         />}</span>}
-                      <span className="truncate">{isApplying ? "Updating..." : "Update"}</span>
+                      <span className="truncate">{isApplying ? t("Updating...") : t("Update")}</span>
                     </Button>
-                    <Button onClick={handleRemoveDucking} type="button" aria-label="Remove" disabled={(isApplying)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 hover:bg-bg-3 hover:text-fg text-red-400">
-                      <span className="truncate">{"Remove"}</span>
+                    <Button onClick={handleRemoveDucking} type="button" aria-label={t("Remove")} disabled={(isApplying)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 hover:bg-bg-3 hover:text-fg text-red-400">
+                      <span className="truncate">{t("Remove")}</span>
                     </Button>
                   </div>
                 </div>
@@ -514,7 +517,7 @@ export const AudioDuckingSection: React.FC<AudioDuckingSectionProps> = ({
 
       <div className="pt-2 border-t border-border">
         <span className="text-fg-2 font-normal block text-[9px] text-center">
-          Automatically reduces music volume when voice is detected
+          {t("Automatically reduces music volume when voice is detected")}
         </span>
       </div>
     </div>

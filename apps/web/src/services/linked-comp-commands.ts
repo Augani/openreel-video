@@ -24,6 +24,7 @@ import { toast } from "../stores/notification-store";
 import { commitSequenceEdit } from "./sequence-commands";
 import { selectGraphic } from "./graphic-selection";
 import { getLinkedCompTransport } from "./linked-comp-bridge";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * Linked composition commands. Each computes the next project with the pure
@@ -90,8 +91,8 @@ export async function replaceSelectionWithLinkedComposition(name?: string): Prom
   );
   if (result.ok) {
     if (result.instanceId) selectGraphic(result.instanceId);
-    if (result.warnings?.length) toast.info("Linked composition", result.warnings[0]);
-    else toast.success("Linked composition created", "Open it from the Clip menu to edit it in its own window; the timeline updates as you edit.");
+    if (result.warnings?.length) toast.info(translateNow("Linked composition"), result.warnings[0]);
+    else toast.success(translateNow("Linked composition created"), "Open it from the Clip menu to edit it in its own window; the timeline updates as you edit.");
   }
   return result;
 }
@@ -138,11 +139,11 @@ export const restoreUnrenderedCommand = async (instanceId: string): Promise<Link
 export async function openLinkedCompositionWindow(compositionId: string): Promise<boolean> {
   const project = useProjectStore.getState().getFullProject();
   if (!getLinkedComposition(project, compositionId)) {
-    toast.warning("Open composition", "That composition no longer exists.");
+    toast.warning(translateNow("Open composition"), "That composition no longer exists.");
     return false;
   }
   const opened = await getLinkedCompTransport().open(compositionId);
-  if (!opened.ok) toast.warning("Open composition", opened.message ?? "The composition window could not be opened.");
+  if (!opened.ok) toast.warning(translateNow("Open composition"), opened.message ?? "The composition window could not be opened.");
   return opened.ok;
 }
 
@@ -151,7 +152,7 @@ export async function openSelectedLinkedComposition(): Promise<boolean> {
   const project = useProjectStore.getState().getFullProject();
   const instance = selectedLinkedInstance(project, useUIStore.getState().getSelectedClipIds());
   if (!instance?.linkedCompositionId) {
-    toast.info("Open Linked Composition", "Select a linked composition on the timeline first.");
+    toast.info(translateNow("Open Linked Composition"), "Select a linked composition on the timeline first.");
     return false;
   }
   return openLinkedCompositionWindow(instance.linkedCompositionId);
@@ -167,7 +168,7 @@ export async function restoreSelectedLinkedComposition(): Promise<boolean> {
   const project = useProjectStore.getState().getFullProject();
   const instance = selectedLinkedInstance(project, useUIStore.getState().getSelectedClipIds());
   if (!instance?.bake) {
-    toast.info("Restore Unrendered", "Select a rendered linked composition first.");
+    toast.info(translateNow("Restore Unrendered"), "Select a rendered linked composition first.");
     return false;
   }
   return (await restoreUnrenderedCommand(instance.id)).ok;

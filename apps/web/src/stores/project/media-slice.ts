@@ -38,6 +38,7 @@ async function nativeSourceOf(file: Blob): Promise<MediaItem["nativeSource"] | u
 }
 
 import { useProjectPanelStore } from "../project-panel-store";
+import { translateNow } from "@openreel/i18n/translate";
 
 /** The bin an import should land in: the Project panel's current bin, if it still exists. */
 function importBinId(project: { bins?: readonly { id: string }[] }): string | undefined {
@@ -105,12 +106,12 @@ export function createMediaSlice(set: Set, get: Get): MediaSlice {
             await saveMediaBlob(rawProject.id, newRawItem.id, newRawItem.blob as Blob, newRawItem.metadata);
           } catch (err) {
             console.error("[ProjectStore] Failed to persist media blob:", err);
-            toast.warning("Media could not be saved in browser storage", `Keep the original ${file.name} so you can relink it after reloading.`);
+            toast.warning(translateNow("Media could not be saved in browser storage"), `Keep the original ${file.name} so you can relink it after reloading.`);
           }
           return { success: true, actionId: newRawItem.id };
         } catch (error) {
           const message = error instanceof Error ? error.message : "Could not import the RAW file.";
-          toast.error("Camera RAW not imported", message);
+          toast.error(translateNow("Camera RAW not imported"), message);
           return { success: false, error: { code: "DECODE_ERROR" as const, message } };
         }
       }
@@ -284,7 +285,7 @@ export function createMediaSlice(set: Set, get: Get): MediaSlice {
         } catch (err) {
           console.error("[ProjectStore] Failed to persist media blob:", err);
           toast.warning(
-            "Media could not be saved in browser storage",
+            translateNow("Media could not be saved in browser storage"),
             `Keep the original ${file.name} so you can relink it after reloading.`,
           );
         }
@@ -557,7 +558,7 @@ export function createMediaSlice(set: Set, get: Get): MediaSlice {
         } catch (error) {
           console.error("[ProjectStore] Failed to persist replacement media:", error);
           toast.warning(
-            "Replacement media could not be saved in browser storage",
+            translateNow("Replacement media could not be saved in browser storage"),
             `Keep the original ${file.name} so you can relink it after reloading.`,
           );
         }

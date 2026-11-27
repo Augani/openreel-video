@@ -27,6 +27,8 @@ import { currentLookDef, gradeSignature, hasGrade, memoLookDef, settingsToClipGr
 import { useClipLookScene } from "./useClipLookScene";
 import type { ColorGradingSettings } from "../../../../bridges/effects-bridge";
 import { presetSummary } from "./look-labels";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 /**
  * The card renders what `applyFilterPreset` leaves on the clip: the preset's effects (the very units and order it
@@ -54,6 +56,7 @@ interface FilterLooksPanelProps {
 }
 
 const Panel: React.FC<FilterLooksPanelProps> = ({ clipId, embedded = false, compare = false }) => {
+  const t = useT();
   const selectedClipIds = useUIStore((state) => state.getSelectedClipIds());
   const project = useProjectStore((state) => state.project);
 
@@ -108,9 +111,9 @@ const Panel: React.FC<FilterLooksPanelProps> = ({ clipId, embedded = false, comp
       try {
         const result = await applyFilterPreset(project.id, targetClipId, preset);
         setSelection({ ...result, scope });
-        toast.success("Filter Applied", `${preset.name} preset applied`);
+        toast.success(translateNow("Filter Applied"), `${preset.name} preset applied`);
       } catch (error) {
-        toast.error("Filter not applied", error instanceof Error ? error.message : "Please try again.");
+        toast.error(translateNow("Filter not applied"), error instanceof Error ? error.message : "Please try again.");
       } finally {
         changingPreset.current = false;
         setBusy(false);
@@ -126,9 +129,9 @@ const Panel: React.FC<FilterLooksPanelProps> = ({ clipId, embedded = false, comp
     try {
       await clearFilterEffects(project.id, targetClipId);
       setSelection(null);
-      toast.info("Effects Cleared");
+      toast.info(translateNow("Effects Cleared"));
     } catch (error) {
-      toast.error("Effects not removed", error instanceof Error ? error.message : "Please try again.");
+      toast.error(translateNow("Effects not removed"), error instanceof Error ? error.message : "Please try again.");
     } finally {
       changingPreset.current = false;
       setBusy(false);
@@ -141,7 +144,7 @@ const Panel: React.FC<FilterLooksPanelProps> = ({ clipId, embedded = false, comp
       try {
         await setFilterPresetIntensity(project.id, targetClipId, applied, value);
       } catch (error) {
-        toast.error("Filter intensity not changed", error instanceof Error ? error.message : "Please try again.");
+        toast.error(translateNow("Filter intensity not changed"), error instanceof Error ? error.message : "Please try again.");
       }
     },
     [targetClipId, project.id, applied],
@@ -151,7 +154,7 @@ const Panel: React.FC<FilterLooksPanelProps> = ({ clipId, embedded = false, comp
     return (
       <div className="p-4 text-center">
         <Palette size={24} className="mx-auto mb-2 text-fg-3" />
-        <span className="text-[12px] leading-5 text-fg-2 font-normal">Select a video or image clip to apply filters</span>
+        <span className="text-[12px] leading-5 text-fg-2 font-normal">{t("Select a video or image clip to apply filters")}</span>
       </div>
     );
   }
@@ -162,13 +165,13 @@ const Panel: React.FC<FilterLooksPanelProps> = ({ clipId, embedded = false, comp
         <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 p-2">
           <Palette size={16} className="text-primary" />
           <div className="flex flex-col gap-0.5">
-            <span className="block text-[12px] font-medium leading-5 text-fg">Looks</span>
-            <span className="block text-[9px] font-normal text-fg-2">One-click color grades, shown on your footage</span>
+            <span className="block text-[12px] font-medium leading-5 text-fg">{t("Looks")}</span>
+            <span className="block text-[9px] font-normal text-fg-2">{t("One-click color grades, shown on your footage")}</span>
           </div>
         </div>
       )}
 
-      <div role="tablist" aria-label="Look categories" className="flex flex-wrap gap-1">
+      <div role="tablist" aria-label={t("Look categories")} className="flex flex-wrap gap-1">
         {FILTER_CATEGORIES.map((category, index) => {
           const active = selectedCategory === category.id;
           return (
@@ -233,16 +236,16 @@ const Panel: React.FC<FilterLooksPanelProps> = ({ clipId, embedded = false, comp
             onClick={handleClearEffects}
             disabled={busy || !!targetTrack?.locked}
             type="button"
-            aria-label="Remove All Effects"
+            aria-label={t("Remove All Effects")}
             className="inline-flex h-7 w-full min-w-0 items-center justify-center gap-1.5 rounded-lg bg-red-500/10 px-2.5 py-2 text-[10px] font-semibold text-red-400 outline-none transition-colors hover:bg-status-error/90 hover:text-red-300 focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
           >
-            <span className="truncate">Remove All Effects</span>
+            <span className="truncate">{t("Remove All Effects")}</span>
           </Button>
         </Card>
       )}
 
       <span className="block text-center text-[9px] font-normal text-fg-2">
-        {FILTER_PRESETS.length} looks in {FILTER_CATEGORIES.length} categories
+        {FILTER_PRESETS.length} {t("looks in")} {FILTER_CATEGORIES.length} {t("categories")}
       </span>
     </div>
   );

@@ -21,6 +21,7 @@ import { hashString } from "../../../../../packages/core/src/render-cache/segmen
 import { probeMediaFile, type MediaProbe } from "../ingest/probe-media";
 import { runFfmpeg } from "../ingest/proxy-runner";
 import { buildConsolidateArgs, presetCodecArgs, proxyCodecArgs } from "./ffmpeg-args";
+import { nativeT } from "../language-state";
 
 export type ProjectManagerPhase = "scanning" | "running" | "finalizing" | "done" | "error" | "cancelled";
 
@@ -334,7 +335,7 @@ export function startProjectManagerJob(input: RunInput, emit: (event: ProjectMan
       if (cacheInfo) {
         steps.push({
           weight: Math.max(1, cacheInfo.bytes),
-          label: "Render files",
+          label: nativeT("Render files"),
           run: async () => {
             // Stored under the NEW project's cache key, so the copy finds them when it is opened.
             const newKey = `p${hashString(newProjectId)}`;

@@ -14,6 +14,7 @@ import { formatFrameTimecode } from "../../../utils/frame-timecode";
 import { resolvePlaybackLoop } from "../../../utils/playback-loop";
 import { editingFrameStepSeconds } from "../editing-frame-rate";
 import { markPreviewRange } from "../preview/preview-range-actions";
+import { useT } from "@openreel/i18n/react";
 
 function useRangeOwner() {
   return useProjectStore(
@@ -46,6 +47,7 @@ export function TimelineRangeActions({
   duration: number;
   frameRate: number;
 }) {
+  const t = useT();
   const owner = useRangeOwner();
   const locked = useTimelineStore((state) =>
     Boolean(state.playbackLockedReason),
@@ -77,11 +79,11 @@ export function TimelineRangeActions({
             variant="ghost"
             type="button"
             className="workspace-timeline-range-summary"
-            aria-label="Preview range controls"
-            title="Set preview In and Out points"
+            aria-label={t("Preview range controls")}
+            title={t("Set preview In and Out points")}
           >
             <span>
-              In {inTime} · Out {outTime}
+              {t("In")} {inTime} {t("· Out")} {outTime}
             </span>
           </Button>
         </PopoverTrigger>
@@ -89,19 +91,19 @@ export function TimelineRangeActions({
           side="top"
           align="start"
           className="workspace-timeline-range-popover"
-          aria-label="Preview range"
+          aria-label={t("Preview range")}
         >
-          <p>Preview range</p>
+          <p>{t("Preview range")}</p>
           <Button
             variant="ghost"
             type="button"
             disabled={disabled}
-            aria-label="Mark In point"
-            title="Mark In at playhead (I)"
+            aria-label={t("Mark In point")}
+            title={t("Mark In at playhead (I)")}
             onClick={() => mark("in")}
           >
             <span>
-              Mark In <kbd>I</kbd>
+              {t("Mark In")} <kbd>I</kbd>
             </span>
             <time>{inTime}</time>
           </Button>
@@ -109,12 +111,12 @@ export function TimelineRangeActions({
             variant="ghost"
             type="button"
             disabled={disabled}
-            aria-label="Mark Out point"
-            title="Mark Out at playhead (O)"
+            aria-label={t("Mark Out point")}
+            title={t("Mark Out at playhead (O)")}
             onClick={() => mark("out")}
           >
             <span>
-              Mark Out <kbd>O</kbd>
+              {t("Mark Out")} <kbd>O</kbd>
             </span>
             <time>{outTime}</time>
           </Button>
@@ -122,13 +124,13 @@ export function TimelineRangeActions({
             variant="secondary"
             type="button"
             disabled={!marked || locked || exporting}
-            aria-label="Clear preview range"
+            aria-label={t("Clear preview range")}
             onClick={() => {
               if (isCurrentOwner(owner) && !editsLocked())
                 useTimelineStore.getState().clearLoopRange();
             }}
           >
-            Clear range
+            {t("Clear range")}
           </Button>
         </PopoverContent>
       </Popover>
@@ -145,6 +147,7 @@ export function TimelineRange({
   frameRate: number;
   pixelsPerSecond: number;
 }) {
+  const t = useT();
   const owner = useRangeOwner();
   const start = useTimelineStore((state) => state.loopStart);
   const end = useTimelineStore((state) => state.loopEnd);
@@ -250,7 +253,7 @@ export function TimelineRange({
           key={edge}
           className="workspace-timeline-range-slider"
           data-range-edge={edge}
-          aria-label={edge === "in" ? "Range In point" : "Range Out point"}
+          aria-label={edge === "in" ? t("Range In point") : t("Range Out point")}
           aria-valuetext={formatFrameTimecode(
             edge === "in" ? range.start : range.end,
             frameRate,

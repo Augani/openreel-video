@@ -1,11 +1,13 @@
 import { useProjectStore } from '../../../stores/project-store';
 import type { Artboard, CanvasBackground } from '../../../types/project';
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   artboard: Artboard;
 }
 
 export function ArtboardSection({ artboard }: Props) {
+  const t = useT();
   const { updateArtboard } = useProjectStore();
 
   const handleSizeChange = (key: 'width' | 'height', value: number) => {
@@ -51,7 +53,7 @@ export function ArtboardSection({ artboard }: Props) {
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-[10px] text-muted-foreground mb-1">Name</label>
+        <label className="block text-[10px] text-muted-foreground mb-1">{t("Name")}</label>
         <input
           type="text"
           value={artboard.name}
@@ -62,7 +64,7 @@ export function ArtboardSection({ artboard }: Props) {
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-[10px] text-muted-foreground mb-1">Width</label>
+          <label className="block text-[10px] text-muted-foreground mb-1">{t("Width")}</label>
           <input
             type="number"
             value={artboard.size.width}
@@ -73,7 +75,7 @@ export function ArtboardSection({ artboard }: Props) {
           />
         </div>
         <div>
-          <label className="block text-[10px] text-muted-foreground mb-1">Height</label>
+          <label className="block text-[10px] text-muted-foreground mb-1">{t("Height")}</label>
           <input
             type="number"
             value={artboard.size.height}
@@ -86,15 +88,15 @@ export function ArtboardSection({ artboard }: Props) {
       </div>
 
       <div>
-        <label className="block text-[10px] text-muted-foreground mb-1">Background</label>
+        <label className="block text-[10px] text-muted-foreground mb-1">{t("Background")}</label>
         <select
           value={artboard.background.type}
           onChange={(e) => handleBackgroundTypeChange(e.target.value as CanvasBackground['type'])}
           className="w-full px-2 py-1.5 text-xs bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-primary mb-2"
         >
-          <option value="color">Solid Color</option>
-          <option value="transparent">Transparent</option>
-          <option value="gradient">Gradient</option>
+          <option value="color">{t("Solid Color")}</option>
+          <option value="transparent">{t("Transparent")}</option>
+          <option value="gradient">{t("Gradient")}</option>
         </select>
 
         {artboard.background.type === 'color' && (
@@ -126,7 +128,7 @@ export function ArtboardSection({ artboard }: Props) {
               }}
             />
             <p className="text-[10px] text-muted-foreground mt-2 text-center">
-              Transparency pattern
+              {t("Transparency pattern")}
             </p>
           </div>
         )}

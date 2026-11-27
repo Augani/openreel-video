@@ -9,6 +9,7 @@ import { loadAudioBuffer } from "../../../utils/load-audio-buffer";
 import { audioBufferToWhisperSamples } from "../../../utils/whisper-audio";
 import { DEFAULT_WHISPER_MODEL, WHISPER_MODELS, isWhisperModelKey, type WhisperModelKey } from "../../../workers/whisper-models";
 import { isDesktopRenderer } from "../../../workers/whisper-threads";
+import { translateNow } from "@openreel/i18n/translate";
 
 export const CAPTION_STYLE_PRESETS = [
   "pop-words",
@@ -341,7 +342,7 @@ export function useAutoCaptions({ clipId, clipIds, sourceTrackId, sourceLabel, m
       model: selectedModel, sourceTrackId, sourceLabel };
     if (!sourceIsCurrent(owner)) {
       busyRef.current = false;
-      setError("The source clip changed. Generate captions again.");
+      setError(translateNow("The source clip changed. Generate captions again."));
       return;
     }
     ownerRef.current = owner;
@@ -471,9 +472,9 @@ export function useAutoCaptions({ clipId, clipIds, sourceTrackId, sourceLabel, m
     if (!owner || segments.length === 0 || busyRef.current) return;
     const ui = useUIStore.getState(), timeline = useTimelineStore.getState();
     if (ui.exportState.isExporting || timeline.playbackLockedReason) return;
-    if (!sourceIsCurrent(owner)) { setError("The source clip changed. Generate captions again before adding them."); return; }
+    if (!sourceIsCurrent(owner)) { setError(translateNow("The source clip changed. Generate captions again before adding them.")); return; }
     if (owner.sources.some(({ clip }) => useProjectStore.getState().project.timeline.tracks.find(track => track.clips.some(item => item.id === clip.id))?.locked)) {
-      setError("Unlock the source track before adding captions."); return;
+      setError(translateNow("Unlock the source track before adding captions.")); return;
     }
     busyRef.current = true; setIsAdding(true); setError(null); timeline.pause();
     const style = SUBTITLE_STYLE_PRESETS[selectedStyle === "pop-words" ? "modern" : selectedStyle] ?? SUBTITLE_STYLE_PRESETS.default;

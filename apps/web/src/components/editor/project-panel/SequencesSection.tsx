@@ -14,6 +14,7 @@ import {
   sequenceContentDuration,
   type Sequence,
 } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 import { useProjectStore } from "../../../stores/project-store";
 import { useProjectPanelStore } from "../../../stores/project-panel-store";
 import { formatFrameTimecode } from "../../../utils/frame-timecode";
@@ -67,6 +68,7 @@ const RowNameEditor: React.FC<{ sequence: Sequence; onDone: () => void }> = ({ s
  * onto a bin files it.
  */
 export const SequencesSection: React.FC<{ data: ProjectPanelData; trailing?: React.ReactNode }> = ({ data, trailing }) => {
+  const t = useT();
   const { sequences: storedSequences, activeSequenceId, openSequenceIds, timeline, settings, compounds } = useProjectStore(
     useShallow((s) => ({
       sequences: s.project.sequences,
@@ -104,18 +106,18 @@ export const SequencesSection: React.FC<{ data: ProjectPanelData; trailing?: Rea
         <button
           type="button"
           aria-expanded={!collapsed}
-          aria-label={collapsed ? "Expand sequences" : "Collapse sequences"}
+          aria-label={collapsed ? t("Expand sequences") : t("Collapse sequences")}
           onClick={() => setUserCollapsed(!collapsed)}
           className="flex items-center gap-1 hover:text-fg"
         >
           <ChevronRight size={11} aria-hidden className={collapsed ? "" : "rotate-90"} />
-          Sequences
+          {t("Sequences")}
           <span className="font-normal normal-case text-fg-3">{rows.length}</span>
         </button>
         {trailing && <div className="ml-auto min-w-0">{trailing}</div>}
         <button
           type="button"
-          aria-label="New sequence"
+          aria-label={t("New sequence")}
           data-testid="sequence-panel-new"
           onClick={() => void newSequence()}
           className={`${trailing ? "" : "ml-auto "}flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] hover:bg-bg-2 hover:text-fg`}
@@ -124,7 +126,7 @@ export const SequencesSection: React.FC<{ data: ProjectPanelData; trailing?: Rea
         </button>
       </div>
       {!collapsed && (
-        <ul className="mt-0.5 flex flex-col gap-px" aria-label="Sequences">
+        <ul className="mt-0.5 flex flex-col gap-px" aria-label={t("Sequences")}>
           {rows.map((sequence) => {
             const active = sequence.id === project.activeSequenceId;
             const instances = countSequenceInstances(project, sequence.id);
@@ -176,11 +178,11 @@ export const SequencesSection: React.FC<{ data: ProjectPanelData; trailing?: Rea
                     </div>
                   </ContextMenuTrigger>
                   <ContextMenuContent className="w-[200px] [&_[role=menuitem]]:gap-2 [&_[role=menuitem]]:text-xs" data-testid="sequence-row-menu">
-                    <ContextMenuItem onSelect={() => void openSequence(sequence.id)}><Layers size={13} aria-hidden />Open in timeline</ContextMenuItem>
-                    <ContextMenuItem onSelect={() => setRenamingId(sequence.id)}><Edit3 size={13} aria-hidden />Rename</ContextMenuItem>
-                    <ContextMenuItem onSelect={() => void duplicateSequenceCommand(sequence.id)}><Copy size={13} aria-hidden />Duplicate</ContextMenuItem>
+                    <ContextMenuItem onSelect={() => void openSequence(sequence.id)}><Layers size={13} aria-hidden />{t("Open in timeline")}</ContextMenuItem>
+                    <ContextMenuItem onSelect={() => setRenamingId(sequence.id)}><Edit3 size={13} aria-hidden />{t("Rename")}</ContextMenuItem>
+                    <ContextMenuItem onSelect={() => void duplicateSequenceCommand(sequence.id)}><Copy size={13} aria-hidden />{t("Duplicate")}</ContextMenuItem>
                     <ContextMenuSeparator />
-                    <ContextMenuItem disabled={(project.sequences?.length ?? 0) <= 1} onSelect={() => void deleteSequenceCommand(sequence.id)}><Trash2 size={13} aria-hidden />Delete</ContextMenuItem>
+                    <ContextMenuItem disabled={(project.sequences?.length ?? 0) <= 1} onSelect={() => void deleteSequenceCommand(sequence.id)}><Trash2 size={13} aria-hidden />{t("Delete")}</ContextMenuItem>
                   </ContextMenuContent>
                 </ContextMenu>
               </li>

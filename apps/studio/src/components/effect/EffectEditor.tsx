@@ -4,6 +4,7 @@ import { CATS, TYPE_COLOR } from "../../icons";
 import { FIRE_GRAPH, GRAPH_PERF, PALETTE, type Graph, type GraphNode, type PaletteGroupData, type Perf } from "../../data";
 import { FireScene } from "./FireScene";
 import { cn } from "../../lib/cn";
+import { useT } from "@openreel/i18n/react";
 
 const NODE_HEADER_H = 28;
 const NODE_ROW_H = 20;
@@ -20,6 +21,7 @@ function getPortY(node: GraphNode, side: "in" | "out", portId: string): number {
 
 /* ── Sidebar ──────────────────────────────────────────────────── */
 function PaletteGroup({ group, query }: { group: PaletteGroupData; query: string }) {
+  const t = useT();
   const cat = CATS[group.cat];
   const [open, setOpen] = useState(true);
   const items = query ? group.items.filter((it) => it.id.toLowerCase().includes(query.toLowerCase())) : group.items;
@@ -29,7 +31,7 @@ function PaletteGroup({ group, query }: { group: PaletteGroupData; query: string
       <button onClick={() => setOpen((o) => !o)} className="flex w-full select-none items-center justify-between px-2.5 py-1.5 hover:bg-hover">
         <span className="flex items-center gap-2 text-[11px] font-medium">
           <span className="h-2 w-2 rounded-sm" style={{ background: cat.color }} />
-          {cat.label}
+          {t(cat.label)}
         </span>
         <span className="flex items-center gap-2">
           <span className="font-mono text-[10px] text-text-tertiary">{items.length}</span>
@@ -59,6 +61,7 @@ function PaletteGroup({ group, query }: { group: PaletteGroupData; query: string
 }
 
 function AssetsPanel() {
+  const t = useT();
   const sprites = [
     { name: "fire_a.png", size: "512×512", used: true, bytes: "84 KB" },
     { name: "fire_b.png", size: "512×512", used: false, bytes: "76 KB" },
@@ -68,7 +71,7 @@ function AssetsPanel() {
   return (
     <div className="flex flex-col gap-3 overflow-auto p-2.5">
       <div>
-        <div className={cn(PANEL_TITLE, "mb-2")}>Sprites · 4</div>
+        <div className={cn(PANEL_TITLE, "mb-2")}>{t("Sprites · 4")}</div>
         <div className="flex flex-col gap-1">
           {sprites.map((s) => (
             <div
@@ -86,22 +89,22 @@ function AssetsPanel() {
                 <div className="font-mono text-[11px] text-text-primary">{s.name}</div>
                 <div className="font-mono text-[9px] text-text-tertiary">{s.size} · {s.bytes}</div>
               </div>
-              {s.used && <span className="text-[9px] uppercase tracking-[0.06em] text-accent">in use</span>}
+              {s.used && <span className="text-[9px] uppercase tracking-[0.06em] text-accent">{t("in use")}</span>}
             </div>
           ))}
         </div>
         <button className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded border border-dashed border-border bg-transparent px-2 py-1 text-[10px] text-text-secondary hover:bg-hover hover:text-text-primary">
-          <Icon name="upload" size={11} /> Add sprite
+          <Icon name="upload" size={11} /> {t("Add sprite")}
         </button>
       </div>
       <div>
-        <div className={cn(PANEL_TITLE, "mb-1.5")}>Bundle size</div>
+        <div className={cn(PANEL_TITLE, "mb-1.5")}>{t("Bundle size")}</div>
         <div className="relative h-2 overflow-hidden rounded-sm bg-inputbg">
           <div className="absolute inset-0 w-[37%] bg-accent" />
         </div>
         <div className="mt-1 flex justify-between font-mono text-[9px] text-text-tertiary">
           <span>189 KB</span>
-          <span>cap 50.0 MB</span>
+          <span>{t("cap 50.0 MB")}</span>
         </div>
       </div>
     </div>
@@ -126,6 +129,7 @@ function OutlinePanel() {
 }
 
 function Sidebar() {
+  const t = useT();
   const [tab, setTab] = useState<"nodes" | "assets" | "layers">("nodes");
   const [q, setQ] = useState("");
   const tabs: { id: typeof tab; label: string }[] = [
@@ -136,16 +140,16 @@ function Sidebar() {
   return (
     <aside className="flex min-h-0 flex-col overflow-hidden bg-panel">
       <div className="flex border-b border-border-subtle">
-        {tabs.map((t) => (
+        {tabs.map((tabItem) => (
           <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
+            key={tabItem.id}
+            onClick={() => setTab(tabItem.id)}
             className={cn(
               "flex-1 border-0 border-b border-transparent bg-transparent px-1 py-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-text-tertiary hover:text-text-primary",
-              tab === t.id && "border-b-accent text-text-primary",
+              tab === tabItem.id && "border-b-accent text-text-primary",
             )}
           >
-            {t.label}
+            {t(tabItem.label)}
           </button>
         ))}
       </div>
@@ -154,7 +158,7 @@ function Sidebar() {
           <div className="border-b border-border-subtle px-2 pb-1.5 pt-2">
             <div className="relative">
               <Icon name="search" size={12} className="absolute left-[7px] top-1/2 -translate-y-1/2 text-text-tertiary" />
-              <input className={cn(INPUT, "pl-[26px]")} placeholder="Search nodes…" value={q} onChange={(e) => setQ(e.target.value)} />
+              <input className={cn(INPUT, "pl-[26px]")} placeholder={t("Search nodes…")} value={q} onChange={(e) => setQ(e.target.value)} />
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-auto">
@@ -172,6 +176,7 @@ function Sidebar() {
 
 /* ── Node ─────────────────────────────────────────────────────── */
 function NodeView({ node, selected, onSelect }: { node: GraphNode; selected: boolean; onSelect: (id: string | null) => void }) {
+  const t = useT();
   const cat = CATS[node.cat];
   const rowCount = Math.max(node.inputs.length, node.outputs.length);
   return (
@@ -216,7 +221,7 @@ function NodeView({ node, selected, onSelect }: { node: GraphNode; selected: boo
             {node.rows.map((r, i) => (
               <div className="node__row" key={`r${i}`}>
                 <span className={cn("overflow-hidden text-ellipsis whitespace-nowrap", r.muted ? "text-text-tertiary" : "text-text-secondary")}>
-                  {r.label}
+                  {t(r.label)}
                 </span>
                 {r.value !== undefined && r.slider === undefined && !r.swatch && <span className="node__value">{r.value}</span>}
                 {r.slider !== undefined && (
@@ -266,6 +271,7 @@ function Wires({ graph, selectedNodeId }: { graph: Graph; selectedNodeId: string
 }
 
 function GraphCanvas({ graph, selectedNodeId, onSelect, perf }: { graph: Graph; selectedNodeId: string | null; onSelect: (id: string | null) => void; perf: Perf }) {
+  const t = useT();
   const [tool, setTool] = useState<"select" | "pan">("select");
   const [zoom, setZoom] = useState(0.58);
   const [pan, setPan] = useState({ x: 4, y: 24 });
@@ -275,52 +281,52 @@ function GraphCanvas({ graph, selectedNodeId, onSelect, perf }: { graph: Graph; 
     <section className="relative flex min-h-0 flex-col overflow-hidden bg-panel">
       <div className="absolute left-2.5 top-2.5 z-[5] flex items-center gap-1 rounded-md border border-border bg-elev1 p-[3px] shadow-float">
         <div className="flex items-center gap-0.5">
-          <button onClick={() => setTool("select")} title="Select" className={cn("grid h-[22px] w-[22px] place-items-center rounded-sm text-text-secondary hover:bg-hover hover:text-text-primary", tool === "select" && "bg-accent/15 text-accent")}>
+          <button onClick={() => setTool("select")} title={t("Select")} className={cn("grid h-[22px] w-[22px] place-items-center rounded-sm text-text-secondary hover:bg-hover hover:text-text-primary", tool === "select" && "bg-accent/15 text-accent")}>
             <Icon name="mouse" size={13} />
           </button>
-          <button onClick={() => setTool("pan")} title="Pan" className={cn("grid h-[22px] w-[22px] place-items-center rounded-sm text-text-secondary hover:bg-hover hover:text-text-primary", tool === "pan" && "bg-accent/15 text-accent")}>
+          <button onClick={() => setTool("pan")} title={t("Pan")} className={cn("grid h-[22px] w-[22px] place-items-center rounded-sm text-text-secondary hover:bg-hover hover:text-text-primary", tool === "pan" && "bg-accent/15 text-accent")}>
             <Icon name="hand" size={13} />
           </button>
         </div>
         <div className="mx-1 h-3.5 w-px bg-border" />
         <div className="flex items-center gap-0.5">
-          <button onClick={() => setZoom((z) => Math.max(0.3, z - 0.1))} title="Zoom out" className="grid h-[22px] w-[22px] place-items-center rounded-sm text-text-secondary hover:bg-hover hover:text-text-primary">
+          <button onClick={() => setZoom((z) => Math.max(0.3, z - 0.1))} title={t("Zoom out")} className="grid h-[22px] w-[22px] place-items-center rounded-sm text-text-secondary hover:bg-hover hover:text-text-primary">
             <Icon name="zoomOut" size={13} />
           </button>
           <span className="w-9 text-center font-mono text-[10px] text-text-tertiary">{Math.round(zoom * 100)}%</span>
-          <button onClick={() => setZoom((z) => Math.min(2, z + 0.1))} title="Zoom in" className="grid h-[22px] w-[22px] place-items-center rounded-sm text-text-secondary hover:bg-hover hover:text-text-primary">
+          <button onClick={() => setZoom((z) => Math.min(2, z + 0.1))} title={t("Zoom in")} className="grid h-[22px] w-[22px] place-items-center rounded-sm text-text-secondary hover:bg-hover hover:text-text-primary">
             <Icon name="zoomIn" size={13} />
           </button>
-          <button onClick={() => { setZoom(0.58); setPan({ x: 4, y: 24 }); }} title="Fit" className="grid h-[22px] w-[22px] place-items-center rounded-sm text-text-secondary hover:bg-hover hover:text-text-primary">
+          <button onClick={() => { setZoom(0.58); setPan({ x: 4, y: 24 }); }} title={t("Fit")} className="grid h-[22px] w-[22px] place-items-center rounded-sm text-text-secondary hover:bg-hover hover:text-text-primary">
             <Icon name="fit" size={13} />
           </button>
         </div>
         <div className="mx-1 h-3.5 w-px bg-border" />
         <div className="flex items-center gap-0.5">
-          <button title="Snap to grid" className="grid h-[22px] w-[22px] place-items-center rounded-sm text-text-secondary hover:bg-hover hover:text-text-primary"><Icon name="grid" size={13} /></button>
-          <button title="Auto-layout" className="grid h-[22px] w-[22px] place-items-center rounded-sm text-text-secondary hover:bg-hover hover:text-text-primary"><Icon name="git" size={13} /></button>
-          <button title="Validate" className="grid h-[22px] w-[22px] place-items-center rounded-sm text-text-secondary hover:bg-hover hover:text-text-primary"><Icon name="check" size={13} /></button>
+          <button title={t("Snap to grid")} className="grid h-[22px] w-[22px] place-items-center rounded-sm text-text-secondary hover:bg-hover hover:text-text-primary"><Icon name="grid" size={13} /></button>
+          <button title={t("Auto-layout")} className="grid h-[22px] w-[22px] place-items-center rounded-sm text-text-secondary hover:bg-hover hover:text-text-primary"><Icon name="git" size={13} /></button>
+          <button title={t("Validate")} className="grid h-[22px] w-[22px] place-items-center rounded-sm text-text-secondary hover:bg-hover hover:text-text-primary"><Icon name="check" size={13} /></button>
         </div>
       </div>
 
       <div className="absolute bottom-2.5 left-2.5 z-[5] w-[200px] rounded-md border border-border bg-elev1 px-2.5 py-2 font-mono text-[10px] shadow-float">
         <div className="mb-1.5 flex items-center justify-between text-[9px] uppercase tracking-[0.08em] text-text-tertiary">
-          <span>Performance · sample · portrait_close_up</span>
-          <span className="text-ok">● live</span>
+          <span>{t("Performance · sample · portrait_close_up")}</span>
+          <span className="text-ok">{t("● live")}</span>
         </div>
         <div className="flex items-center justify-between py-px text-text-secondary">
-          <span>frame total</span>
+          <span>{t("frame total")}</span>
           <span className="text-text-primary">{frameTotal.toFixed(1)} / 16 ms</span>
         </div>
         <div className="mt-0.5 h-1 overflow-hidden rounded-sm bg-inputbg">
           <div className="h-full bg-accent" style={{ width: `${Math.min(100, (frameTotal / 16) * 100)}%` }} />
         </div>
         <div className="h-1.5" />
-        <div className="flex items-center justify-between py-px text-text-secondary"><span>· gpu passes</span><span className="text-text-primary">{perf.gpu}ms · {perf.passes}p</span></div>
-        <div className="flex items-center justify-between py-px text-text-secondary"><span>· detection</span><span className="text-text-primary">{perf.detection}ms</span></div>
-        <div className="flex items-center justify-between py-px text-text-secondary"><span>· particles</span><span className="text-text-primary">{perf.particles}</span></div>
-        <div className="flex items-center justify-between py-px text-text-secondary"><span>· texture mem</span><span className="text-text-primary">{perf.mem} MB</span></div>
-        <div className="flex items-center justify-between py-px text-text-secondary"><span>· determinism</span><span className="text-ok">PASS</span></div>
+        <div className="flex items-center justify-between py-px text-text-secondary"><span>{t("· gpu passes")}</span><span className="text-text-primary">{perf.gpu}{t("ms ·")} {perf.passes}p</span></div>
+        <div className="flex items-center justify-between py-px text-text-secondary"><span>{t("· detection")}</span><span className="text-text-primary">{perf.detection}ms</span></div>
+        <div className="flex items-center justify-between py-px text-text-secondary"><span>{t("· particles")}</span><span className="text-text-primary">{perf.particles}</span></div>
+        <div className="flex items-center justify-between py-px text-text-secondary"><span>{t("· texture mem")}</span><span className="text-text-primary">{perf.mem} MB</span></div>
+        <div className="flex items-center justify-between py-px text-text-secondary"><span>{t("· determinism")}</span><span className="text-ok">PASS</span></div>
       </div>
 
       <div className="canvas-viewport relative flex-1 overflow-hidden" onClick={() => onSelect(null)}>
@@ -358,6 +364,7 @@ function GraphCanvas({ graph, selectedNodeId, onSelect, perf }: { graph: Graph; 
 
 /* ── Inspector ────────────────────────────────────────────────── */
 function Inspector({ graph, selectedId }: { graph: Graph; selectedId: string | null }) {
+  const t = useT();
   const node = graph.nodes.find((n) => n.id === selectedId) ?? graph.nodes.find((n) => n.id === "emit")!;
   const cat = CATS[node.cat];
   return (
@@ -369,13 +376,13 @@ function Inspector({ graph, selectedId }: { graph: Graph; selectedId: string | n
           </span>
           <span className="text-[13px] font-semibold text-text-primary">{node.kind}</span>
         </div>
-        <div className="font-mono text-[10px] text-text-tertiary">#{node.id} · {cat.label} · ABI 1.2</div>
+        <div className="font-mono text-[10px] text-text-tertiary">#{node.id} · {t(cat.label)} · ABI 1.2</div>
       </div>
 
       <div className="flex-1 overflow-auto">
         {node.kind === "ParticleEmitter" ? (
           <>
-            <InspectorGroup title="Emission">
+            <InspectorGroup title={t("Emission")}>
               <Field label="rate">
                 <input type="range" className="or-slider" defaultValue={20} />
                 <span className="binding ml-0 min-w-[64px]"><BindingText>200 <span className="text-text-tertiary">/s</span></BindingText></span>
@@ -392,7 +399,7 @@ function Inspector({ graph, selectedId }: { graph: Graph; selectedId: string | n
               </Field>
             </InspectorGroup>
 
-            <InspectorGroup title="Initial state">
+            <InspectorGroup title={t("Initial state")}>
               <Field label="velocity">
                 <input className={INPUT} defaultValue="0" />
                 <input className={INPUT} defaultValue="−200" />
@@ -409,17 +416,17 @@ function Inspector({ graph, selectedId }: { graph: Graph; selectedId: string | n
               </Field>
             </InspectorGroup>
 
-            <InspectorGroup title="Bindings · 2 incoming">
+            <InspectorGroup title={t("Bindings · 2 incoming")}>
               <div className="flex flex-col gap-1">
-                <div className="binding"><span className="h-[7px] w-[7px] rounded-full" style={{ background: "var(--type-vec)" }} /><BindingText>spawn ← MaskEdgeEmitter.pts</BindingText></div>
-                <div className="binding"><span className="h-[7px] w-[7px] rounded-full" style={{ background: "var(--type-float)" }} /><BindingText>rate ← (default · 200)</BindingText></div>
+                <div className="binding"><span className="h-[7px] w-[7px] rounded-full" style={{ background: "var(--type-vec)" }} /><BindingText>{t("spawn ← MaskEdgeEmitter.pts")}</BindingText></div>
+                <div className="binding"><span className="h-[7px] w-[7px] rounded-full" style={{ background: "var(--type-float)" }} /><BindingText>{t("rate ← (default · 200)")}</BindingText></div>
               </div>
             </InspectorGroup>
 
-            <InspectorGroup title="Compiles to">
+            <InspectorGroup title={t("Compiles to")}>
               <div className="rounded border border-border-subtle bg-inputbg p-2 font-mono text-[10px] leading-[1.6] text-text-secondary">
-                <div><span className="text-[color:var(--cat-particles)]">@compute</span> @workgroup_size(64)</div>
-                <div>fn <span className="text-accent-2">update_emitter</span>() {"{"}</div>
+                <div><span className="text-[color:var(--cat-particles)]">{t("@compute")}</span> {t("@workgroup_size(64)")}</div>
+                <div>{t("fn")} <span className="text-accent-2">update_emitter</span>() {"{"}</div>
                 <div className="pl-3">// generated from graph #emit</div>
                 <div className="pl-3">// resp. lib particles@1.2.0</div>
                 <div>{"}"}</div>
@@ -428,7 +435,7 @@ function Inspector({ graph, selectedId }: { graph: Graph; selectedId: string | n
           </>
         ) : (
           <>
-            <InspectorGroup title="Properties">
+            <InspectorGroup title={t("Properties")}>
               {(node.rows ?? []).map((r, i) => (
                 <Field label={r.label} key={i}>
                   {r.slider !== undefined ? (
@@ -441,21 +448,21 @@ function Inspector({ graph, selectedId }: { graph: Graph; selectedId: string | n
                   )}
                 </Field>
               ))}
-              {(!node.rows || node.rows.length === 0) && <div className="text-[11px] text-text-tertiary">No configurable properties.</div>}
+              {(!node.rows || node.rows.length === 0) && <div className="text-[11px] text-text-tertiary">{t("No configurable properties.")}</div>}
             </InspectorGroup>
-            <InspectorGroup title="Ports">
+            <InspectorGroup title={t("Ports")}>
               <div className="flex flex-col gap-1">
                 {node.inputs.map((p) => (
                   <div className="binding" key={`i${p.id}`}>
                     <span className="h-[7px] w-[7px] rounded-full" style={{ background: TYPE_COLOR[p.type] }} />
-                    <BindingText>in · {p.name}</BindingText>
+                    <BindingText>{t("in ·")} {p.name}</BindingText>
                     <span className="font-mono text-[9px] text-text-tertiary">{p.type}</span>
                   </div>
                 ))}
                 {node.outputs.map((p) => (
                   <div className="binding" key={`o${p.id}`}>
                     <span className="h-[7px] w-[7px] rounded-full" style={{ background: TYPE_COLOR[p.type] }} />
-                    <BindingText>out · {p.name}</BindingText>
+                    <BindingText>{t("out ·")} {p.name}</BindingText>
                     <span className="font-mono text-[9px] text-text-tertiary">{p.type}</span>
                   </div>
                 ))}
@@ -492,6 +499,7 @@ function BindingText({ children }: { children: React.ReactNode }) {
 
 /* ── Preview pane ─────────────────────────────────────────────── */
 function PreviewPane() {
+  const t = useT();
   const [playing, setPlaying] = useState(true);
   const [quality, setQuality] = useState<"full" | "balanced" | "perf">("balanced");
   const [showMask, setShowMask] = useState(true);
@@ -502,10 +510,10 @@ function PreviewPane() {
   return (
     <section className="flex min-h-0 flex-col bg-panel">
       <header className="flex h-[30px] items-center justify-between border-b border-border-subtle bg-panel px-2.5">
-        <span className={PANEL_TITLE}>Preview · sample portrait_close_up.mp4</span>
+        <span className={PANEL_TITLE}>{t("Preview · sample portrait_close_up.mp4")}</span>
         <div className="flex gap-1">
-          <button className="flex items-center gap-1.5 rounded px-2 py-0.5 text-[10px] text-text-secondary hover:bg-hover hover:text-text-primary"><Icon name="refresh" size={11} /> Reload sample</button>
-          <button className="flex items-center gap-1.5 rounded px-2 py-0.5 text-[10px] text-text-secondary hover:bg-hover hover:text-text-primary"><Icon name="monitor" size={11} /> portrait_close_up ▾</button>
+          <button className="flex items-center gap-1.5 rounded px-2 py-0.5 text-[10px] text-text-secondary hover:bg-hover hover:text-text-primary"><Icon name="refresh" size={11} /> {t("Reload sample")}</button>
+          <button className="flex items-center gap-1.5 rounded px-2 py-0.5 text-[10px] text-text-secondary hover:bg-hover hover:text-text-primary"><Icon name="monitor" size={11} /> {t("portrait_close_up ▾")}</button>
         </div>
       </header>
 
@@ -564,17 +572,17 @@ function PreviewPane() {
 
         <div className="flex min-h-0 flex-col gap-2.5 overflow-y-auto border-l border-border-subtle bg-panel p-2.5 text-[11px]">
           <div>
-            <div className={cn(PANEL_TITLE, "text-[9px]")}>Parameters</div>
+            <div className={cn(PANEL_TITLE, "text-[9px]")}>{t("Parameters")}</div>
             <div className="flex flex-col gap-1 py-[3px]">
               <div className="flex justify-between">
-                <label className="text-[11px] text-text-secondary">intensity</label>
+                <label className="text-[11px] text-text-secondary">{t("intensity")}</label>
                 <span className="font-mono text-[10px]">{(intensity / 100).toFixed(2)}</span>
               </div>
               <input type="range" className="or-slider" value={intensity} onChange={(e) => setIntensity(+e.target.value)} />
             </div>
             <div className="flex flex-col gap-1 py-[3px]">
               <div className="flex justify-between">
-                <label className="text-[11px] text-text-secondary">flame color</label>
+                <label className="text-[11px] text-text-secondary">{t("flame color")}</label>
                 <span className="font-mono text-[10px]">#FF7700</span>
               </div>
               <div className="flex gap-1">
@@ -585,7 +593,7 @@ function PreviewPane() {
           </div>
 
           <div>
-            <div className={cn(PANEL_TITLE, "text-[9px]")}>Detection overlay</div>
+            <div className={cn(PANEL_TITLE, "text-[9px]")}>{t("Detection overlay")}</div>
             <div className="flex flex-col gap-[5px] pt-1.5">
               <Toggle checked={showMask} onChange={setShowMask} swatch="rgb(var(--accent-2))" label="Subject mask outline" />
               <Toggle checked={showSkeleton} onChange={setShowSkeleton} swatch="rgb(var(--accent))" label="Pose skeleton" />
@@ -595,7 +603,7 @@ function PreviewPane() {
           </div>
 
           <div>
-            <div className={cn(PANEL_TITLE, "text-[9px]")}>Inspect</div>
+            <div className={cn(PANEL_TITLE, "text-[9px]")}>{t("Inspect")}</div>
             <div className="flex flex-col gap-[5px] pt-1.5">
               <Toggle checked={sideBySide} onChange={setSideBySide} label="Show source side-by-side" />
               <Toggle label="Loop sample (3s)" />

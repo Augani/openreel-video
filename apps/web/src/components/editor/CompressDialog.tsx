@@ -42,6 +42,8 @@ import {
   runCompression,
   formatBytes,
 } from "../../services/video-compressor";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 interface CompressDialogProps {
   isOpen: boolean;
@@ -118,6 +120,7 @@ function CompressionSession({
   encoderBusy: boolean;
   acquireEncoder: AcquireEncoder;
 }) {
+  const t = useT();
   const id = useId();
   const input = useRef<HTMLInputElement>(null);
   const active = useRef(true);
@@ -174,10 +177,10 @@ function CompressionSession({
       const result = await probeCompressionSource(picked, controller.signal);
       if (!ownsProbe()) return;
       setSource(result);
-      if (!result) setError("Couldn't read that video — try a different file.");
+      if (!result) setError(translateNow("Couldn't read that video — try a different file."));
     } catch {
       if (ownsProbe())
-        setError("Couldn't read that video — try a different file.");
+        setError(translateNow("Couldn't read that video — try a different file."));
     } finally {
       if (ownsProbe()) {
         probe.current = null;
@@ -246,7 +249,7 @@ function CompressionSession({
         !controller.signal.aborted &&
         (err as Error)?.name !== "AbortError"
       )
-        setError("Compression failed — try a lighter setting.");
+        setError(translateNow("Compression failed — try a lighter setting."));
     } finally {
       if (ownsJob()) {
         job.current = null;
@@ -283,7 +286,7 @@ function CompressionSession({
             <div className="flex items-center gap-2">
               <Video size={18} className="text-accent" aria-hidden />
               <DialogTitle className="text-[15px] font-semibold">
-                Compress Video
+                {t("Compress Video")}
               </DialogTitle>
             </div>
             <Button
@@ -291,7 +294,7 @@ function CompressionSession({
               variant="ghost"
               size="icon"
               className="h-7 w-7 text-fg-2"
-              aria-label="Close dialog"
+              aria-label={t("Close dialog")}
               disabled={compressing}
               onClick={dismiss}
             >
@@ -299,7 +302,7 @@ function CompressionSession({
             </Button>
           </div>
           <DialogDescription className="sr-only">
-            Compress a video by quality or target file size.
+            {t("Compress a video by quality or target file size.")}
           </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 space-y-4 overflow-y-auto p-5">
@@ -320,7 +323,7 @@ function CompressionSession({
           <Button
             type="button"
             variant="outline"
-            aria-label="Video file"
+            aria-label={t("Video file")}
             disabled={compressing}
             onClick={() => input.current?.click()}
             onDragOver={(event) => {
@@ -343,14 +346,14 @@ function CompressionSession({
               <Video size={24} className="text-fg-2" aria-hidden />
             )}
             <span className="max-w-full truncate text-[13px] font-medium">
-              {file?.name ?? "Choose a video to compress…"}
+              {file?.name ?? t("Choose a video to compress…")}
             </span>
             <span className="text-[12px] font-normal text-fg-2">
               {probing
-                ? "Reading…"
+                ? t("Reading…")
                 : file
                   ? `${source ? `${source.width}×${source.height} · ` : ""}${formatBytes(file.size)}`
-                  : "Click to browse or drop a video file"}
+                  : t("Click to browse or drop a video file")}
             </span>
           </Button>
           {file && !compressing && (
@@ -361,7 +364,7 @@ function CompressionSession({
                 className="h-7 text-[12px] text-fg-2"
                 onClick={resetSource}
               >
-                Remove video
+                {t("Remove video")}
               </Button>
             </div>
           )}
@@ -375,15 +378,15 @@ function CompressionSession({
               >
                 <TabsList
                   className="grid w-full grid-cols-2 bg-bg-2"
-                  aria-label="Compression mode"
+                  aria-label={t("Compression mode")}
                 >
-                  <TabsTrigger value="quality">Quality</TabsTrigger>
-                  <TabsTrigger value="size">Target size</TabsTrigger>
+                  <TabsTrigger value="quality">{t("Quality")}</TabsTrigger>
+                  <TabsTrigger value="size">{t("Target size")}</TabsTrigger>
                 </TabsList>
                 <TabsContent value={mode} className="mt-3">
                   {mode === "quality" ? (
                     <RadioGroup
-                      aria-label="Compression quality"
+                      aria-label={t("Compression quality")}
                       value={quality}
                       onValueChange={(value) =>
                         update({ quality: value as CompressionQuality })
@@ -399,11 +402,11 @@ function CompressionSession({
                           <RadioGroupItem
                             id={`${id}-${tier.value}`}
                             value={tier.value}
-                            aria-label={tier.label}
+                            aria-label={t(tier.label)}
                             className="sr-only"
                           />
                           <span className="text-[12px] font-semibold">
-                            {tier.label}
+                            {t(tier.label)}
                           </span>
                           <span className="text-[10px] font-normal text-fg-2">
                             {tier.hint}
@@ -414,7 +417,7 @@ function CompressionSession({
                   ) : (
                     <div className="space-y-3">
                       <RadioGroup
-                        aria-label="Target file size"
+                        aria-label={t("Target file size")}
                         value={sizePresetId}
                         onValueChange={(value) =>
                           update({ sizePresetId: value })
@@ -430,11 +433,11 @@ function CompressionSession({
                             <RadioGroupItem
                               id={`${id}-${preset.id}`}
                               value={preset.id}
-                              aria-label={preset.label}
+                              aria-label={t(preset.label)}
                               className="sr-only"
                             />
                             <span className="text-[12px] font-semibold">
-                              {preset.label}
+                              {t(preset.label)}
                             </span>
                           </Label>
                         ))}
@@ -448,11 +451,11 @@ function CompressionSession({
                           <RadioGroupItem
                             id={`${id}-custom`}
                             value="custom"
-                            aria-label="Custom target size"
+                            aria-label={t("Custom target size")}
                             className="sr-only"
                           />
                           <span className="text-[12px] font-semibold">
-                            Custom
+                            {t("Custom")}
                           </span>
                         </Label>
                       </RadioGroup>
@@ -462,7 +465,7 @@ function CompressionSession({
                             htmlFor={`${id}-mb`}
                             className="text-[12px] text-fg-2"
                           >
-                            Custom target size (MB)
+                            {t("Custom target size (MB)")}
                           </Label>
                           <Input
                             id={`${id}-mb`}
@@ -484,7 +487,7 @@ function CompressionSession({
                               id={`${id}-size-error`}
                               className="text-[12px] text-fg-2"
                             >
-                              Enter a size greater than 0 MB.
+                              {t("Enter a size greater than 0 MB.")}
                             </p>
                           )}
                         </div>
@@ -496,7 +499,7 @@ function CompressionSession({
               {plan && (
                 <Card className="rounded-[7px] border-border bg-bg-2 p-3 text-fg shadow-none">
                   <div className="flex flex-wrap items-center justify-between gap-2 text-[12px]">
-                    <span className="text-fg-2">Estimated output</span>
+                    <span className="text-fg-2">{t("Estimated output")}</span>
                     <span className="font-semibold">
                       {plan.width}×{plan.height} · ~{formatBytes(estimated)}
                     </span>
@@ -504,7 +507,7 @@ function CompressionSession({
                   {savings > 0 && file && (
                     <div className="mt-1 flex items-center justify-between gap-2 text-[12px]">
                       <span className="text-fg-2">
-                        from {formatBytes(file.size)}
+                        {t("from")} {formatBytes(file.size)}
                       </span>
                       <span className="font-semibold text-accent">
                         -{savings}% smaller
@@ -527,11 +530,11 @@ function CompressionSession({
                   aria-hidden
                 />
                 {cancelling
-                  ? "Cancelling…"
+                  ? t("Cancelling…")
                   : `Compressing… ${Math.round(progress * 100)}%`}
               </div>
               <Progress
-                aria-label="Compression progress"
+                aria-label={t("Compression progress")}
                 value={Math.round(progress * 100)}
                 max={100}
               />
@@ -539,7 +542,7 @@ function CompressionSession({
           )}
           {encoderBusy && !compressing && (
             <p role="status" className="text-[12px] text-fg-2">
-              Finishing previous cancellation…
+              {t("Finishing previous cancellation…")}
             </p>
           )}
           {error && (
@@ -565,12 +568,12 @@ function CompressionSession({
                 setCancelling(true);
               }}
             >
-              Cancel
+              {t("Cancel")}
             </Button>
           ) : (
             <>
               <Button type="button" variant="ghost" size="sm" onClick={dismiss}>
-                Close
+                {t("Close")}
               </Button>
               <Button
                 type="button"
@@ -581,7 +584,7 @@ function CompressionSession({
                 }}
                 className="bg-accent text-accent-fg hover:bg-accent/90"
               >
-                Compress
+                {t("Compress")}
               </Button>
             </>
           )}

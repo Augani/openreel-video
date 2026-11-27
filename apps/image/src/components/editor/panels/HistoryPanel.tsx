@@ -16,8 +16,10 @@ import {
 import { useHistoryStore } from '../../../stores/history-store';
 import { useProjectStore } from '../../../stores/project-store';
 import { formatDistanceToNow } from '../../../utils/time';
+import { useT } from "@openreel/i18n/react";
 
 export function HistoryPanel() {
+  const t = useT();
   const entries = useHistoryStore((s) => s.getEntries());
   const currentIndex = useHistoryStore((s) => s.getCurrentIndex());
   const snapshots = useHistoryStore((s) => s.getSnapshots());
@@ -88,7 +90,7 @@ export function HistoryPanel() {
       <div className="flex items-center justify-between p-3 border-b border-border">
         <div className="flex items-center gap-2">
           <History size={16} className="text-muted-foreground" />
-          <h3 className="text-sm font-medium text-foreground">History</h3>
+          <h3 className="text-sm font-medium text-foreground">{t("History")}</h3>
           <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded-full text-muted-foreground">
             {entries.length}
           </span>
@@ -99,7 +101,7 @@ export function HistoryPanel() {
             onClick={handleUndo}
             disabled={!canUndo()}
             className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
-            title="Undo (Ctrl+Z)"
+            title={t("Undo (Ctrl+Z)")}
           >
             <Undo2 size={14} />
           </button>
@@ -107,7 +109,7 @@ export function HistoryPanel() {
             onClick={handleRedo}
             disabled={!canRedo()}
             className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
-            title="Redo (Ctrl+Shift+Z)"
+            title={t("Redo (Ctrl+Shift+Z)")}
           >
             <Redo2 size={14} />
           </button>
@@ -115,7 +117,7 @@ export function HistoryPanel() {
             onClick={() => clear(project ?? undefined)}
             disabled={entries.length === 0}
             className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
-            title="Clear history"
+            title={t("Clear history")}
           >
             <Trash2 size={14} />
           </button>
@@ -130,7 +132,7 @@ export function HistoryPanel() {
           >
             {showSnapshots ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
             <Bookmark size={12} className="text-muted-foreground" />
-            <span className="text-[11px] font-medium">Snapshots</span>
+            <span className="text-[11px] font-medium">{t("Snapshots")}</span>
             <span className="text-[10px] text-muted-foreground ml-auto">{snapshots.length}</span>
           </button>
 
@@ -141,12 +143,12 @@ export function HistoryPanel() {
                 className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 mb-2 text-[10px] rounded bg-secondary hover:bg-secondary/80 transition-colors"
               >
                 <Camera size={10} />
-                New Snapshot
+                {t("New Snapshot")}
               </button>
 
               {snapshots.length === 0 ? (
                 <p className="text-[10px] text-muted-foreground text-center py-2">
-                  No snapshots yet
+                  {t("No snapshots yet")}
                 </p>
               ) : (
                 <div className="space-y-1">
@@ -219,9 +221,9 @@ export function HistoryPanel() {
         {entries.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <Clock size={32} className="text-muted-foreground/50 mb-3" />
-            <p className="text-xs text-muted-foreground">No history yet</p>
+            <p className="text-xs text-muted-foreground">{t("No history yet")}</p>
             <p className="text-[10px] text-muted-foreground/70 mt-1">
-              Your actions will appear here
+              {t("Your actions will appear here")}
             </p>
           </div>
         ) : (
@@ -258,7 +260,7 @@ export function HistoryPanel() {
                         isCurrent ? 'font-medium text-foreground' : 'text-muted-foreground'
                       }`}
                     >
-                      {entry.description}
+                      {t(entry.description)}
                     </p>
                     <p className="text-[9px] text-muted-foreground/70">
                       {formatDistanceToNow(entry.timestamp)}

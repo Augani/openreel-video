@@ -17,6 +17,7 @@ import {
   type RawSourceSettings,
 } from "@openreel/core";
 import { runOrganize, setRawSourceSettings } from "../../../services/project-panel-commands";
+import { useT } from "@openreel/i18n/react";
 
 /**
  * RAW Source Settings: white balance (temperature / tint), exposure, highlight
@@ -60,6 +61,7 @@ const SliderRow: React.FC<RowProps> = ({ id, label, value, min, max, step, forma
 );
 
 export const RawSourceSettingsDialog: React.FC<{ media: MediaItem; onClose: () => void }> = ({ media, onClose }) => {
+  const t = useT();
   const raw = media.raw;
   const stored = raw?.settings;
   const [draft, setDraft] = React.useState<RawSourceSettings | null>(stored ?? null);
@@ -100,16 +102,15 @@ export const RawSourceSettingsDialog: React.FC<{ media: MediaItem; onClose: () =
       <Dialog open onOpenChange={(open) => !open && onClose()}>
         <DialogContent className="max-w-[460px] border-border bg-bg-1 text-fg" data-testid="raw-settings-dialog">
           <DialogHeader>
-            <DialogTitle>RAW Source Settings</DialogTitle>
+            <DialogTitle>{t("RAW Source Settings")}</DialogTitle>
             <DialogDescription className="truncate">{media.name}</DialogDescription>
           </DialogHeader>
           <p className="text-xs leading-snug text-fg-2" data-testid="raw-settings-sequence">
-            This CinemaDNG sequence ({raw.sequence.frames} frames at {raw.sequence.frameRate} fps, from {raw.sequence.firstFrame}) was developed
-            when it was imported: {baked.temperature} K, tint {baked.tint}, exposure {baked.exposure} EV, highlight recovery{" "}
-            {Math.round(baked.highlightRecovery * 100)}%, {baked.demosaic} demosaic. To change the look, import the DNG frames again.
+            {t("This CinemaDNG sequence (")}{raw.sequence.frames} {t("frames at")} {raw.sequence.frameRate} {t("fps, from")} {raw.sequence.firstFrame}{t(") was developed when it was imported:")} {baked.temperature} {t("K, tint")} {baked.tint}{t(", exposure")} {baked.exposure} {t("EV, highlight recovery")}{" "}
+            {Math.round(baked.highlightRecovery * 100)}%, {baked.demosaic} {t("demosaic. To change the look, import the DNG frames again.")}
           </p>
           <DialogFooter>
-            <Button onClick={onClose}>Close</Button>
+            <Button onClick={onClose}>{t("Close")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -121,16 +122,14 @@ export const RawSourceSettingsDialog: React.FC<{ media: MediaItem; onClose: () =
       <Dialog open onOpenChange={(open) => !open && onClose()}>
         <DialogContent className="max-w-[460px] border-border bg-bg-1 text-fg" data-testid="raw-settings-dialog">
           <DialogHeader>
-            <DialogTitle>RAW Source Settings</DialogTitle>
+            <DialogTitle>{t("RAW Source Settings")}</DialogTitle>
             <DialogDescription className="truncate">{media.name}</DialogDescription>
           </DialogHeader>
           <p className="text-xs leading-snug text-fg-2" data-testid="raw-settings-unavailable">
-            {format?.label ?? raw.format.toUpperCase()} was developed by macOS (ImageIO) when it was imported. Apple&apos;s engine chose the white
-            balance and tone, so these settings cannot be changed here. For full control, convert the file to DNG (Adobe DNG Converter is free)
-            and import the DNG.
+            {t(format?.label ?? "") || raw.format.toUpperCase()} {t("was developed by macOS (ImageIO) when it was imported. Apple's engine chose the white balance and tone, so these settings cannot be changed here. For full control, convert the file to DNG (Adobe DNG Converter is free) and import the DNG.")}
           </p>
           <DialogFooter>
-            <Button onClick={onClose}>Close</Button>
+            <Button onClick={onClose}>{t("Close")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -149,7 +148,7 @@ export const RawSourceSettingsDialog: React.FC<{ media: MediaItem; onClose: () =
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-[760px] border-border bg-bg-1 text-fg" data-testid="raw-settings-dialog">
         <DialogHeader>
-          <DialogTitle>RAW Source Settings</DialogTitle>
+          <DialogTitle>{t("RAW Source Settings")}</DialogTitle>
           <DialogDescription className="truncate">
             {media.name}
             {raw.make || raw.model ? ` · ${[raw.make, raw.model].filter(Boolean).join(" ")}` : ""}
@@ -158,8 +157,8 @@ export const RawSourceSettingsDialog: React.FC<{ media: MediaItem; onClose: () =
         </DialogHeader>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_360px]">
           <div className="flex min-h-[200px] items-center justify-center rounded border border-border bg-bg-0 p-1">
-            <canvas ref={canvasRef} className="max-h-[360px] max-w-full" data-testid="raw-settings-preview" aria-label="Preview of the developed image" />
-            {status === "error" && <span className="text-xs text-status-error">Could not develop this file.</span>}
+            <canvas ref={canvasRef} className="max-h-[360px] max-w-full" data-testid="raw-settings-preview" aria-label={t("Preview of the developed image")} />
+            {status === "error" && <span className="text-xs text-status-error">{t("Could not develop this file.")}</span>}
           </div>
           <div className="space-y-2">
             <SliderRow id="temperature" label="Temperature" value={draft.temperature} min={TEMPERATURE_MIN} max={TEMPERATURE_MAX} step={50}
@@ -171,38 +170,37 @@ export const RawSourceSettingsDialog: React.FC<{ media: MediaItem; onClose: () =
             <SliderRow id="highlights" label="Highlight recovery" value={draft.highlightRecovery} min={0} max={1} step={0.01}
               format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => set({ highlightRecovery: v })} />
             <div className="grid grid-cols-[110px_1fr] items-center gap-2 text-xs">
-              <label htmlFor="raw-demosaic" className="text-fg-2">Demosaic</label>
+              <label htmlFor="raw-demosaic" className="text-fg-2">{t("Demosaic")}</label>
               <select id="raw-demosaic" data-testid="raw-demosaic" className="h-7 rounded border border-border bg-bg-2 px-1"
                 value={draft.demosaic} onChange={(e) => isRawDemosaicQuality(e.target.value) && set({ demosaic: e.target.value })}>
                 {RAW_DEMOSAIC_QUALITIES.map((q) => <option key={q.id} value={q.id}>{q.label} - {q.hint}</option>)}
               </select>
             </div>
             <div className="grid grid-cols-[110px_1fr] items-center gap-2 text-xs">
-              <label htmlFor="raw-output" className="text-fg-2">Output colour space</label>
+              <label htmlFor="raw-output" className="text-fg-2">{t("Output colour space")}</label>
               <select id="raw-output" data-testid="raw-output" className="h-7 rounded border border-border bg-bg-2 px-1"
                 value={draft.outputColorSpace} onChange={(e) => isRawOutputColorSpace(e.target.value) && set({ outputColorSpace: e.target.value })}>
-                {RAW_OUTPUT_COLOR_SPACES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                {RAW_OUTPUT_COLOR_SPACES.map((s) => <option key={s.id} value={s.id}>{t(s.label)}</option>)}
               </select>
             </div>
             <div className="flex gap-2 pt-1">
               <Button variant="secondary" size="sm" data-testid="raw-as-shot"
                 onClick={() => asShot && set({ temperature: asShot.temperature, tint: asShot.tint })}>
-                As shot white balance
+                {t("As shot white balance")}
               </Button>
               <Button variant="secondary" size="sm" data-testid="raw-reset"
                 onClick={() => asShot && setDraft(normalizeRawSettings({ temperature: asShot.temperature, tint: asShot.tint, exposure: 0, highlightRecovery: 0, demosaic: "standard", outputColorSpace: "srgb" }, draft))}>
-                Reset all
+                {t("Reset all")}
               </Button>
             </div>
           </div>
         </div>
         <p className="text-[10px] leading-snug text-fg-3">
-          Applying is one undo step. Preview and export develop from these same values, so they match. Output colour space sets the primaries
-          of the developed image; the project&apos;s colour pipeline converts it from there.
+          {t("Applying is one undo step. Preview and export develop from these same values, so they match. Output colour space sets the primaries of the developed image; the project's colour pipeline converts it from there.")}
         </p>
         <DialogFooter>
-          <Button variant="secondary" onClick={onClose} data-testid="raw-cancel">Cancel</Button>
-          <Button onClick={apply} disabled={!dirty} data-testid="raw-apply">Apply</Button>
+          <Button variant="secondary" onClick={onClose} data-testid="raw-cancel">{t("Cancel")}</Button>
+          <Button onClick={apply} disabled={!dirty} data-testid="raw-apply">{t("Apply")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

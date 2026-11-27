@@ -7,6 +7,7 @@ import { useLessonProgress, useLessonAutoComplete } from "./useLessonProgress";
 import { useTargetRect, type TargetRect } from "./useTargetRect";
 import { askAiToDoStep, askAiToExplain, isAiConnected } from "./explain";
 import { LessonFinish } from "./LessonFinish";
+import { useT } from "@openreel/i18n/react";
 
 const SHOW_ME_MS = 3000;
 const PREVIEW_SELECTOR = "[data-tour='preview']";
@@ -71,6 +72,7 @@ function ProgressDots({ states, currentId }: { states: ReadonlyArray<{ id: strin
  * editor (only the card itself takes pointer events) and "Mark as done" is always available.
  */
 export function LessonBar(): JSX.Element | null {
+  const t = useT();
   const progress = useLessonProgress();
   const keys = useLiveLessonKeys();
   const reduced = usePrefersReducedMotion();
@@ -152,23 +154,23 @@ export function LessonBar(): JSX.Element | null {
                 className="rounded-full border border-border bg-bg-2 px-2 py-0.5 text-2xs font-medium tabular-nums text-fg-2"
                 data-testid="lesson-progress"
               >
-                {progress.position} of {progress.total}
+                {progress.position} {t("of")} {progress.total}
               </span>
               <ProgressDots
                 states={LESSONS.map((l) => ({ id: l.id, state: progress.items.find((i) => i.def.id === l.id)?.state ?? "todo" }))}
                 currentId={lesson.id}
               />
             </div>
-            <h2 className="mt-1.5 text-sm font-semibold tracking-tight text-fg">{lesson.title}</h2>
+            <h2 className="mt-1.5 text-sm font-semibold tracking-tight text-fg">{t(lesson.title)}</h2>
             <p className="mt-0.5 text-xs leading-relaxed text-fg-2" role="status" aria-live="polite">
               {celebrating ? lesson.success : <LessonText template={lesson.instruction} keys={keys} />}
             </p>
           </div>
 
           {!celebrating && (
-            <button type="button" className={lessonButton("quiet")} onClick={progress.exit} aria-label="Exit lessons">
+            <button type="button" className={lessonButton("quiet")} onClick={progress.exit} aria-label={t("Exit lessons")}>
               <X size={14} aria-hidden="true" />
-              Exit
+              {t("Exit")}
             </button>
           )}
         </div>
@@ -176,28 +178,28 @@ export function LessonBar(): JSX.Element | null {
         {!celebrating && (
           <div className="mt-2.5 flex flex-wrap items-center gap-1.5 pl-11">
             <button type="button" className={lessonButton("primary")} onClick={onShowMe}>
-              Show me
+              {t("Show me")}
             </button>
             {aiReady && (
               <button type="button" className={lessonButton("quiet")} onClick={onExplain} disabled={asking}>
                 <Lightbulb size={13} aria-hidden="true" />
-                Ask AI to explain
+                {t("Ask AI to explain")}
               </button>
             )}
             {aiReady && lesson.doPrompt && (
               <button type="button" className={lessonButton("quiet")} onClick={onDoStep} disabled={asking}>
                 <Sparkles size={13} aria-hidden="true" />
-                Do this step for me
+                {t("Do this step for me")}
               </button>
             )}
             <span className="flex-1" />
             <button type="button" className={lessonButton("quiet")} onClick={progress.skip}>
               <SkipForward size={13} aria-hidden="true" />
-              Skip lesson
+              {t("Skip lesson")}
             </button>
             <button type="button" className={lessonButton("quiet")} onClick={progress.markDone}>
               <Check size={13} aria-hidden="true" />
-              Mark as done
+              {t("Mark as done")}
             </button>
           </div>
         )}

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Check } from "@/icons/lucide-compat";
 import { EffectLivePreview } from "../../panels/effect-previews/EffectLivePreview";
 import type { PreviewEffectDef } from "../../panels/effect-previews/preview-engine";
+import { useT } from "@openreel/i18n/react";
 
 /** Keyboard focus (not a mouse click's focus) starts a card's preview, like hover does. */
 function isKeyboardFocus(element: HTMLElement): boolean {
@@ -43,6 +44,7 @@ export const LookCard: React.FC<LookCardProps> = ({
   onApply,
   actions,
 }) => {
+  const t = useT();
   const [isHover, setIsHover] = useState(false);
   const [isFocus, setIsFocus] = useState(false);
   return (
@@ -72,8 +74,8 @@ export const LookCard: React.FC<LookCardProps> = ({
                 <EffectLivePreview def={before} active={isHover || isFocus} />
               </span>
               <span aria-hidden className="absolute inset-y-0 left-1/2 block w-px -translate-x-1/2 bg-white/80 shadow-[0_0_2px_rgba(0,0,0,0.6)]" />
-              <span aria-hidden className="absolute bottom-1 left-1 rounded bg-black/55 px-1 py-px text-[8px] uppercase text-white/85">Before</span>
-              <span aria-hidden className="absolute bottom-1 right-1 rounded bg-black/55 px-1 py-px text-[8px] uppercase text-white/85">After</span>
+              <span aria-hidden className="absolute bottom-1 left-1 rounded bg-black/55 px-1 py-px text-[8px] uppercase text-white/85">{t("Before")}</span>
+              <span aria-hidden className="absolute bottom-1 right-1 rounded bg-black/55 px-1 py-px text-[8px] uppercase text-white/85">{t("After")}</span>
             </>
           ) : null}
           {applied && !before ? (

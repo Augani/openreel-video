@@ -30,6 +30,7 @@ import { PreviewScrubber } from "./PreviewScrubber";
 import { PreviewTimecode } from "./PreviewTimecode";
 import { PreviewTransportControls } from "./PreviewTransportControls";
 import { MonitorTabs } from "./MonitorTabs";
+import { useT } from "@openreel/i18n/react";
 
 function useBlobUrl(blob: Blob | null | undefined): string | null {
   const [url, setUrl] = useState<string | null>(null);
@@ -61,6 +62,7 @@ function AngleTile({
   sharedTime: number | null;
   onPick: () => void;
 }) {
+  const t = useT();
   const projectId = useProjectStore((state) => state.project.id);
   const original = useProjectStore((state) => state.project.mediaLibrary.items.find((item) => item.id === angle.mediaId));
   // Angles decode the proxy while proxies are toggled on (same rule as the Program monitor);
@@ -124,10 +126,10 @@ function AngleTile({
           className="h-full w-full object-contain"
         />
       ) : (
-        <span className="grid h-full w-full place-items-center text-[11px] text-fg-3">Media offline</span>
+        <span className="grid h-full w-full place-items-center text-[11px] text-fg-3">{t("Media offline")}</span>
       )}
       {url && mediaTime !== null && !inRange && (
-        <span className="absolute inset-0 grid place-items-center bg-black/70 text-[11px] text-fg-3">No footage here</span>
+        <span className="absolute inset-0 grid place-items-center bg-black/70 text-[11px] text-fg-3">{t("No footage here")}</span>
       )}
       <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold text-white">
         <span className="grid h-4 min-w-4 place-items-center rounded-sm px-1 text-[10px] font-black text-black" style={{ background: angle.color }}>
@@ -137,7 +139,7 @@ function AngleTile({
       </span>
       {active && (
         <span className="absolute right-1.5 top-1.5 rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent-fg">
-          Active
+          {t("Active")}
         </span>
       )}
     </button>
@@ -147,6 +149,7 @@ function AngleTile({
 const FOLLOW = "__follow__";
 
 export function MulticamMonitor() {
+  const t = useT();
   const project = useProjectStore((state) => state.project);
   const frameRate = project.settings.frameRate;
   const duration = project.timeline.duration;
@@ -204,12 +207,12 @@ export function MulticamMonitor() {
     >
       <div className="workspace-preview-header">
         <MonitorTabs active="multicam" />
-        <span className="truncate">{source ? source.name : "No multi-camera source"}</span>
+        <span className="truncate">{source ? source.name : t("No multi-camera source")}</span>
         <div className="workspace-preview-options">
           {recording && (
             <span data-testid="multicam-rec-status" className="flex items-center gap-1.5 text-[11px] font-semibold text-status-error">
               <span className="h-2 w-2 animate-pulse rounded-full bg-status-error" aria-hidden="true" />
-              REC · {pending.length} cut{pending.length === 1 ? "" : "s"}
+              REC · {pending.length} {t("cut")}{pending.length === 1 ? "" : "s"}
             </span>
           )}
         </div>
@@ -220,7 +223,7 @@ export function MulticamMonitor() {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border px-3 py-1.5" data-testid="multicam-toolbar">
             {sources.length > 1 && (
               <Select value={source.id} onValueChange={(id) => setSourceId(id)}>
-                <SelectTrigger aria-label="Multi-camera source" className="h-7 w-[150px] px-2 text-[11px]">
+                <SelectTrigger aria-label={t("Multi-camera source")} className="h-7 w-[150px] px-2 text-[11px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -233,13 +236,13 @@ export function MulticamMonitor() {
               </Select>
             )}
             <Select value={grid} onValueChange={(next) => setGrid(next as MulticamGrid)}>
-              <SelectTrigger aria-label="Angle grid" data-testid="multicam-grid" className="h-7 w-[96px] px-2 text-[11px]">
+              <SelectTrigger aria-label={t("Angle grid")} data-testid="multicam-grid" className="h-7 w-[96px] px-2 text-[11px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="auto">Grid: Auto</SelectItem>
-                <SelectItem value="2x2">Grid: 2 × 2</SelectItem>
-                <SelectItem value="3x3">Grid: 3 × 3</SelectItem>
+                <SelectItem value="auto">{t("Grid: Auto")}</SelectItem>
+                <SelectItem value="2x2">{t("Grid: 2 × 2")}</SelectItem>
+                <SelectItem value="3x3">{t("Grid: 3 × 3")}</SelectItem>
               </SelectContent>
             </Select>
             <Select
@@ -247,14 +250,14 @@ export function MulticamMonitor() {
               disabled={recording || disabled}
               onValueChange={(next) => void setAudioModeCommand(source.id, next === FOLLOW ? { mode: "follow" } : { mode: "fixed", angleId: next })}
             >
-              <SelectTrigger aria-label="Multicam audio" data-testid="multicam-audio" className="h-7 w-[170px] px-2 text-[11px]">
+              <SelectTrigger aria-label={t("Multicam audio")} data-testid="multicam-audio" className="h-7 w-[170px] px-2 text-[11px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={FOLLOW}>Audio follows video</SelectItem>
+                <SelectItem value={FOLLOW}>{t("Audio follows video")}</SelectItem>
                 {source.angles.map((angle, index) => (
                   <SelectItem key={angle.id} value={angle.id}>
-                    Fixed audio: {index + 1} {angle.name}
+                    {t("Fixed audio:")} {index + 1} {angle.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -266,10 +269,10 @@ export function MulticamMonitor() {
                 variant="secondary"
                 data-testid="multicam-place"
                 disabled={disabled || recording}
-                title="Place this source on the timeline at the playhead"
+                title={t("Place this source on the timeline at the playhead")}
                 onClick={() => void placeMulticamSource(source.id)}
               >
-                Place on timeline
+                {t("Place on timeline")}
               </Button>
               <Button
                 type="button"
@@ -278,10 +281,10 @@ export function MulticamMonitor() {
                 data-testid="multicam-record"
                 aria-pressed={recording}
                 disabled={disabled || (!recording && clipsOfSource.length === 0)}
-                title={clipsOfSource.length === 0 ? "Place the source on the timeline first" : "Play and cut live with the number keys 1-9"}
+                title={clipsOfSource.length === 0 ? t("Place the source on the timeline first") : t("Play and cut live with the number keys 1-9")}
                 onClick={() => (recording ? void stopRecording() : startRecording())}
               >
-                {recording ? "Stop recording" : "Record"}
+                {recording ? t("Stop recording") : t("Record")}
               </Button>
               <Button
                 type="button"
@@ -289,10 +292,10 @@ export function MulticamMonitor() {
                 variant="secondary"
                 data-testid="multicam-flatten"
                 disabled={disabled || !canFlatten}
-                title="Turn every multicam clip of this source into plain clips of its active angle"
+                title={t("Turn every multicam clip of this source into plain clips of its active angle")}
                 onClick={() => void flattenMulticamCommand({ sourceId: source.id })}
               >
-                Flatten
+                {t("Flatten")}
               </Button>
             </div>
           </div>
@@ -317,16 +320,16 @@ export function MulticamMonitor() {
           </div>
           {clipsOfSource.length === 0 && (
             <p className="px-3 pb-1 text-[11px] text-fg-3" data-testid="multicam-hint">
-              Place this source on the timeline to cut between angles with the number keys 1-{source.angles.length}.
+              {t("Place this source on the timeline to cut between angles with the number keys 1-")}{source.angles.length}.
             </p>
           )}
         </>
       ) : (
         <div className="grid flex-1 place-items-center p-6 text-center">
           <div className="max-w-sm space-y-3">
-            <p className="text-sm text-fg-2">No multi-camera source yet. Sync two to nine camera clips to cut between them.</p>
+            <p className="text-sm text-fg-2">{t("No multi-camera source yet. Sync two to nine camera clips to cut between them.")}</p>
             <Button type="button" size="sm" onClick={() => useEditorWorkspaceStore.getState().setMulticamSourceOpen(true)}>
-              Create multi-camera source…
+              {t("Create multi-camera source…")}
             </Button>
           </div>
         </div>

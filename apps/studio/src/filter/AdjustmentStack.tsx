@@ -1,5 +1,6 @@
 import { Icon } from "../icons";
 import type { Behavior } from "../effect/scene";
+import { useT } from "@openreel/i18n/react";
 
 export function AdjustmentStack({
   adjustments,
@@ -16,16 +17,17 @@ export function AdjustmentStack({
   onRemove: (id: string) => void;
   onMove: (fromIndex: number, toIndex: number) => void;
 }) {
+  const t = useT();
   return (
     <div className="flex flex-col gap-1 border-b border-zinc-900 p-2">
       <div className="mb-1 flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-wider text-zinc-500">Adjustments</span>
+        <span className="text-[10px] uppercase tracking-wider text-zinc-500">{t("Adjustments")}</span>
         <button type="button" onClick={onAdd} className="rounded border border-zinc-800 px-2 py-0.5 text-xs text-zinc-300 hover:border-zinc-700">
-          + Add
+          {t("+ Add")}
         </button>
       </div>
       {adjustments.length === 0 ? (
-        <p className="px-1 text-xs text-zinc-600">No adjustments yet.</p>
+        <p className="px-1 text-xs text-zinc-600">{t("No adjustments yet.")}</p>
       ) : (
         adjustments.map((a, i) => (
           <div

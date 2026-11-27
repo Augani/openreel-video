@@ -5,6 +5,7 @@ import { PRO_EFFECT_DEFAULTS, PRO_EFFECT_SPECS, resolveProEffectParams } from "@
 import { PropertySlider } from "./shell/PropertySlider";
 import { KeyButton } from "./HslSecondarySection";
 import { useColorMonitorStore } from "../../../stores/color-monitor-store";
+import { useT } from "@openreel/i18n/react";
 
 const TYPE = "ultra-key";
 const SPEC = PRO_EFFECT_SPECS[TYPE];
@@ -42,6 +43,7 @@ export const UltraKeyControls: React.FC<{
   disabled: boolean;
   onChange: (params: Record<string, unknown>) => void;
 }> = ({ clipId, effectId, params, disabled, onChange }) => {
+  const t = useT();
   const values = resolveProEffectParams(TYPE, params);
   const picker = useColorMonitorStore((state) => state.keyPicker);
   const setPicker = useColorMonitorStore((state) => state.setKeyPicker);
@@ -117,7 +119,7 @@ export const UltraKeyControls: React.FC<{
           )}
           onClick={() => onPick(option.value)}
         >
-          {option.label}
+          {t(option.label)}
         </button>
       ))}
     </div>
@@ -126,11 +128,11 @@ export const UltraKeyControls: React.FC<{
   return (
     <div className="flex flex-col gap-2" data-testid="ultra-key-controls" data-effect-id={effectId}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-normal text-fg-2">Key color</span>
+        <span className="text-[10px] font-normal text-fg-2">{t("Key color")}</span>
         <div className="flex items-center gap-1">
           <input
             type="color"
-            aria-label="Key color"
+            aria-label={t("Key color")}
             data-testid="ultra-key-swatch"
             value={hex}
             disabled={disabled}
@@ -144,8 +146,8 @@ export const UltraKeyControls: React.FC<{
             className="h-6 w-6"
             disabled={disabled}
             aria-pressed={armed}
-            aria-label="Pick key color from the Program monitor"
-            title="Pick the key color from the Program monitor (Esc cancels)"
+            aria-label={t("Pick key color from the Program monitor")}
+            title={t("Pick the key color from the Program monitor (Esc cancels)")}
             onClick={() => setPicker(armed ? null : { clipId, effectId })}
           >
             <Pipette className="h-3 w-3" />
@@ -156,8 +158,8 @@ export const UltraKeyControls: React.FC<{
             size="icon-sm"
             className="h-6 w-6"
             disabled={disabled}
-            aria-label="Reset Ultra Key"
-            title="Reset to defaults"
+            aria-label={t("Reset Ultra Key")}
+            title={t("Reset to defaults")}
             onClick={() => onChange({ ...PRO_EFFECT_DEFAULTS[TYPE] })}
           >
             <RotateCcw className="h-3 w-3" />
@@ -166,11 +168,11 @@ export const UltraKeyControls: React.FC<{
       </div>
       {armed ? (
         <p role="status" className="text-[10px] leading-snug text-accent">
-          Click the screen colour on the Program monitor. Esc cancels.
+          {t("Click the screen colour on the Program monitor. Esc cancels.")}
         </p>
       ) : null}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-normal text-fg-2">Setting</span>
+        <span className="text-[10px] font-normal text-fg-2">{t("Setting")}</span>
         <div className="w-[170px]">
           {segmented(
             "Ultra Key setting",
@@ -184,14 +186,14 @@ export const UltraKeyControls: React.FC<{
         </div>
       </div>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-normal text-fg-2">Output</span>
+        <span className="text-[10px] font-normal text-fg-2">{t("Output")}</span>
         <div className="w-[170px]">
           {segmented("Ultra Key output", OUTPUTS, output, (value) => onChange({ output: value }))}
         </div>
       </div>
       {GROUPS.map((group) => (
         <div key={group.title} className="flex flex-col gap-1.5 border-t border-border pt-2">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-3">{group.title}</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-3">{t(group.title)}</span>
           {group.keys.map(slider)}
         </div>
       ))}

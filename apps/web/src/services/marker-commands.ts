@@ -16,6 +16,7 @@ import { useProjectStore } from "../stores/project-store";
 import { useTimelineStore } from "../stores/timeline-store";
 import { useUIStore } from "../stores/ui-store";
 import { toast } from "../stores/notification-store";
+import { translateNow } from "@openreel/i18n/translate";
 
 /** Marker colours offered in menus and cycled by the panel (name, hex). */
 export const MARKER_COLORS: readonly { name: string; value: string }[] = [
@@ -95,7 +96,7 @@ export function editMarkerAtPlayhead(): void {
   const list = markers();
   const target = markerAt(list, playhead()) ?? prevMarker(list, playhead());
   if (!target) {
-    toast.info("No marker to edit", "Press M to add a marker at the playhead.");
+    toast.info(translateNow("No marker to edit"), "Press M to add a marker at the playhead.");
     return;
   }
   editMarker(target.id);
@@ -104,7 +105,7 @@ export function editMarkerAtPlayhead(): void {
 export async function clearMarkerAtPlayhead(): Promise<void> {
   const target = markerAt(markers(), playhead());
   if (!target) {
-    toast.info("No marker at the playhead");
+    toast.info(translateNow("No marker at the playhead"));
     return;
   }
   await useProjectStore.getState().removeMarker(target.id);
@@ -186,13 +187,13 @@ export function download(file: MarkerExportFile): void {
 /** Export the project's markers as YouTube chapters, a Premiere-style CSV or EDL locators. */
 export function exportMarkers(kind: MarkerExportKind): MarkerExportFile | null {
   if (markers().length === 0) {
-    toast.info("No markers to export", "Press M to add a marker at the playhead.");
+    toast.info(translateNow("No markers to export"), "Press M to add a marker at the playhead.");
     return null;
   }
   const file = buildMarkerExport(kind);
   download(file);
-  if (file.warnings.length > 0) toast.warning("Chapters exported with warnings", file.warnings.join(" "));
-  else toast.success("Markers exported", file.filename);
+  if (file.warnings.length > 0) toast.warning(translateNow("Chapters exported with warnings"), file.warnings.join(" "));
+  else toast.success(translateNow("Markers exported"), file.filename);
   return file;
 }
 
@@ -203,15 +204,15 @@ export async function copyYouTubeChapters(): Promise<boolean> {
   const chapters = deliveryChapters(project.timeline.markers, duration);
   const text = chapters.length > 0 ? chaptersToYouTubeText(chapters) : chaptersText(project.timeline.markers, { totalDuration: duration }).text;
   if (!text) {
-    toast.info("No chapters to copy", "Add markers and set their type to Chapter.");
+    toast.info(translateNow("No chapters to copy"), "Add markers and set their type to Chapter.");
     return false;
   }
   try {
     await navigator.clipboard.writeText(text);
-    toast.success("Chapters copied", `${text.split("\n").length} lines, ready to paste into a YouTube description.`);
+    toast.success(translateNow("Chapters copied"), `${text.split("\n").length} lines, ready to paste into a YouTube description.`);
     return true;
   } catch {
-    toast.error("Could not copy", "The clipboard is not available here.");
+    toast.error(translateNow("Could not copy"), "The clipboard is not available here.");
     return false;
   }
 }

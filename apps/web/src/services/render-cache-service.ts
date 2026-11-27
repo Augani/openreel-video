@@ -40,6 +40,7 @@ import {
   maxWidthFor,
   readRenderCachePrefs,
 } from "./render-cache-prefs";
+import { translateNow } from "@openreel/i18n/translate";
 
 const DEFAULT_BUDGET = 2 * 1024 * 1024 * 1024;
 const LOCK_PREFIX = "openreel-render-cache:";
@@ -528,7 +529,7 @@ class RenderCacheService {
   private async runRender(mode: "all" | "effects", override?: RenderTimeRange): Promise<RenderSummary | null> {
     const cache = this.ensureStarted();
     if (useUIStore.getState().exportState.isExporting || isExportQueueRunning()) {
-      toast.warning("Render unavailable", "Wait for the export to finish before rendering previews.");
+      toast.warning(translateNow("Render unavailable"), "Wait for the export to finish before rendering previews.");
       return null;
     }
     // A background chunk yields to a render the user asked for.
@@ -540,24 +541,24 @@ class RenderCacheService {
       ? { start: Math.max(0, override.start), end: Math.min(duration, override.end) }
       : this.getRenderRange();
     if (!range || !(range.end > range.start)) {
-      toast.info("Nothing to render", "Add clips to the timeline first.");
+      toast.info(translateNow("Nothing to render"), "Add clips to the timeline first.");
       return null;
     }
     await this.refreshSourceStamps();
     cache.setProject(useProjectStore.getState().getFullProject());
     const ranges = mode === "effects" ? this.effectRanges(range) : [range];
     if (ranges.length === 0) {
-      toast.info("Nothing to render", "No effects, transitions or layers need rendering in this range.");
+      toast.info(translateNow("Nothing to render"), "No effects, transitions or layers need rendering in this range.");
       return null;
     }
     const summary = await cache.renderRanges(ranges);
     if (summary.status === "completed") {
       toast.success(
-        "Render complete",
+        translateNow("Render complete"),
         `${summary.framesRendered} frames in ${(summary.elapsedMs / 1000).toFixed(1)}s`,
       );
     } else if (summary.status === "failed") {
-      toast.error("Render failed", summary.message);
+      toast.error(translateNow("Render failed"), summary.message);
     }
     return summary;
   }
@@ -619,7 +620,7 @@ class RenderCacheService {
       }
     }
     if (!options.silent) {
-      toast.info("Render files deleted", removed > 0 ? `${removed} cached frames removed.` : "Nothing was cached.");
+      toast.info(translateNow("Render files deleted"), removed > 0 ? `${removed} cached frames removed.` : "Nothing was cached.");
     }
     return removed;
   }

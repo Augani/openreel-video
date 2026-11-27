@@ -18,6 +18,7 @@ import { AudioRackSection } from "./AudioRackSection";
 import { Fader, PanKnob } from "./ChannelStrip";
 import { MixerLevelMeters } from "./MixerLevelMeters";
 import { AutomationPointsEditor, OutputSelect, PeakHoldReadout, commitRoutingPlan } from "./routing-ui";
+import { useT } from "@openreel/i18n/react";
 
 interface BusStripProps {
   bus: AudioBus;
@@ -39,6 +40,7 @@ const lufsText = (value: number) => (Number.isFinite(value) ? value.toFixed(1) :
 
 /** A submix bus strip: meter, pan, fader, effect rack, output, mute/solo, automation, loudness. */
 export const BusStrip = memo(function BusStrip({ bus, buses, levels, anySolo }: BusStripProps) {
+  const t = useT();
   const setAudioRack = useProjectStore((state) => state.setAudioRack);
   const rack = bus.rack;
   const [volume, setVolume] = useState(rack?.volume ?? 1);
@@ -142,7 +144,7 @@ export const BusStrip = memo(function BusStrip({ bus, buses, levels, anySolo }: 
       />
 
       <div className="flex w-full flex-col gap-1">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">Output</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">{t("Output")}</span>
         <OutputSelect
           value={bus.output}
           buses={buses}
@@ -233,11 +235,11 @@ export const BusStrip = memo(function BusStrip({ bus, buses, levels, anySolo }: 
           data-testid={`bus-measure-${bus.id}`}
           onClick={() => void measure()}
         >
-          {measuring ? "Measuring…" : "Measure LUFS"}
+          {measuring ? t("Measuring…") : t("Measure LUFS")}
         </Button>
         {loudness && (
           <span className="text-center font-mono text-[10px] text-fg-muted" data-testid={`bus-lufs-${bus.id}`}>
-            {lufsText(loudness.lufs)} LUFS / {lufsText(loudness.peak)} dBTP
+            {lufsText(loudness.lufs)} LUFS / {lufsText(loudness.peak)} {t("dBTP")}
           </span>
         )}
       </div>

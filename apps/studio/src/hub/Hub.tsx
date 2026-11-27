@@ -1,6 +1,7 @@
 import { Icon, type IconName } from "../icons";
 import { RecentProjects } from "./RecentProjects";
 import { PresetGallery } from "./PresetGallery";
+import { useT } from "@openreel/i18n/react";
 
 export interface HubCommands {
   newEffect(): void;
@@ -12,36 +13,37 @@ export interface HubCommands {
 }
 
 export function Hub({ commands }: { commands: HubCommands }) {
+  const t = useT();
   return (
     <div className="h-full overflow-y-auto bg-zinc-950">
       <div className="mx-auto max-w-5xl px-8 py-10">
         <h1 className="mb-6 text-xl font-medium text-zinc-100">Studio</h1>
 
         <section className="mb-10">
-          <h2 className="mb-3 text-xs uppercase tracking-wider text-zinc-500">Start something new</h2>
+          <h2 className="mb-3 text-xs uppercase tracking-wider text-zinc-500">{t("Start something new")}</h2>
           <div className="grid grid-cols-3 gap-3">
-            <Tile icon="sparkle" title="Effect" description="Subject-aware VFX" onClick={commands.newEffect} />
-            <Tile icon="palette" title="Filter" description="Color & stylize" onClick={commands.newFilter} />
-            <Tile icon="layers" title="Template" description="Multi-clip recipe" onClick={commands.newTemplate} />
+            <Tile icon="sparkle" title={t("Effect")} description="Subject-aware VFX" onClick={commands.newEffect} />
+            <Tile icon="palette" title={t("Filter")} description="Color & stylize" onClick={commands.newFilter} />
+            <Tile icon="layers" title={t("Template")} description="Multi-clip recipe" onClick={commands.newTemplate} />
           </div>
         </section>
 
         <section className="mb-10">
-          <h2 className="mb-3 text-xs uppercase tracking-wider text-zinc-500">Continue your work</h2>
+          <h2 className="mb-3 text-xs uppercase tracking-wider text-zinc-500">{t("Continue your work")}</h2>
           <RecentProjects onOpen={commands.openRecent} onNew={commands.newEffect} />
         </section>
 
         <section className="mb-10">
-          <h2 className="mb-3 text-xs uppercase tracking-wider text-zinc-500">Start from a preset</h2>
+          <h2 className="mb-3 text-xs uppercase tracking-wider text-zinc-500">{t("Start from a preset")}</h2>
           <PresetGallery onOpen={commands.openPreset} />
         </section>
 
         <footer className="mt-12 flex justify-center gap-6 text-xs text-zinc-600">
-          <button type="button" onClick={commands.openTutorials} className="hover:text-zinc-300">Tutorials</button>
+          <button type="button" onClick={commands.openTutorials} className="hover:text-zinc-300">{t("Tutorials")}</button>
           <span>·</span>
-          <span>Docs</span>
+          <span>{t("Docs")}</span>
           <span>·</span>
-          <span>Marketplace (coming soon)</span>
+          <span>{t("Marketplace (coming soon)")}</span>
         </footer>
       </div>
     </div>

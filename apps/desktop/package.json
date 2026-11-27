@@ -55,6 +55,7 @@
     "test:watch-e2e": "OPENREEL_DESKTOP_WATCH_E2E=1 vitest run test/watch-folders-electron.test.ts test/watch-folders-project-electron.test.ts"
   },
   "dependencies": {
+    "@openreel/i18n": "workspace:*",
     "electron-updater": "^6.3.9",
     "zod": "^3.23.8"
   },

@@ -6,6 +6,7 @@ import { useUIStore } from "../../stores/ui-store";
 import { useProjectStore } from "../../stores/project-store";
 import { useInspectorNavigationStore } from "../../stores/inspector-navigation-store";
 import type { InspectorClipType } from "./inspector/clip-tabs.config";
+import { useT } from "@openreel/i18n/react";
 
 interface SearchItem {
   id: string;
@@ -322,6 +323,7 @@ function SearchEffectsContent({ query, setQuery, category, setCategory, inputRef
   query: string; setQuery: (value: string) => void; category: string; setCategory: (value: string) => void;
   inputRef: React.RefObject<HTMLInputElement | null>; onClose: () => void; onNavigate: () => void;
 }) {
+  const t = useT();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   const listId = useId();
@@ -372,15 +374,15 @@ function SearchEffectsContent({ query, setQuery, category, setCategory, inputRef
 
   return <>
     <DialogHeader className="relative shrink-0 border-b border-border p-4 pr-14 text-left">
-      <DialogTitle className="flex items-center gap-2 text-base"><Search size={18} className="text-primary" aria-hidden />Search Effects</DialogTitle>
-      <DialogDescription>{selectedClipType ? `Find tools for the selected ${selectedClipType} clip.` : "Find effects and tools across the inspector."}</DialogDescription>
-      <DialogClose asChild><Button variant="ghost" size="icon-sm" aria-label="Close dialog" className="absolute right-3 top-3"><X size={16} aria-hidden /></Button></DialogClose>
+      <DialogTitle className="flex items-center gap-2 text-base"><Search size={18} className="text-primary" aria-hidden />{t("Search Effects")}</DialogTitle>
+      <DialogDescription>{selectedClipType ? `Find tools for the selected ${selectedClipType} clip.` : t("Find effects and tools across the inspector.")}</DialogDescription>
+      <DialogClose asChild><Button variant="ghost" size="icon-sm" aria-label={t("Close dialog")} className="absolute right-3 top-3"><X size={16} aria-hidden /></Button></DialogClose>
     </DialogHeader>
     <div className="min-w-0 shrink-0 space-y-3 p-4 pb-3">
       <div className="flex min-w-0 items-center gap-2">
         <div className="relative min-w-0 flex-1"><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted" aria-hidden />
-          <Input ref={inputRef} aria-label="Search effects" aria-controls={listId} type="text" value={query}
-            onChange={event => setQuery(event.target.value)} placeholder={selectedClipType ? `Search effects for ${selectedClipType} clip...` : "Search all effects and tools..."}
+          <Input ref={inputRef} aria-label={t("Search effects")} aria-controls={listId} type="text" value={query}
+            onChange={event => setQuery(event.target.value)} placeholder={selectedClipType ? `Search effects for ${selectedClipType} clip...` : t("Search all effects and tools...")}
             className="min-w-0 pl-9" onKeyDown={event => {
               if (event.defaultPrevented || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
               if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -391,18 +393,18 @@ function SearchEffectsContent({ query, setQuery, category, setCategory, inputRef
               }
             }} />
         </div>
-        {query && <Button variant="ghost" size="icon-sm" onClick={() => setQuery("")} aria-label="Clear search"><X size={14} aria-hidden /></Button>}
-        <kbd className="rounded border border-border bg-bg-2 px-1.5 font-mono text-[10px] text-fg-2">Esc</kbd>
+        {query && <Button variant="ghost" size="icon-sm" onClick={() => setQuery("")} aria-label={t("Clear search")}><X size={14} aria-hidden /></Button>}
+        <kbd className="rounded border border-border bg-bg-2 px-1.5 font-mono text-[10px] text-fg-2">{t("Esc")}</kbd>
       </div>
       <div className="min-w-0 overflow-x-auto pb-1">
-        <ToggleGroup type="single" value={category} aria-label="Effect category" className="min-w-max justify-start gap-1" onValueChange={value => { if (value) setCategory(value); }}>
+        <ToggleGroup type="single" value={category} aria-label={t("Effect category")} className="min-w-max justify-start gap-1" onValueChange={value => { if (value) setCategory(value); }}>
           {CATEGORIES.map(cat => { const Icon = cat.icon; return <ToggleGroupItem key={cat.id} value={cat.id} className="h-8 gap-1.5 px-2 text-xs">{Icon && <Icon size={14} aria-hidden />}{cat.name}</ToggleGroupItem>; })}
         </ToggleGroup>
       </div>
     </div>
     <ScrollArea className="min-h-0 flex-1 px-4" style={{ height: "min(380px, 50dvh)" }}>
-      <div ref={listRef} id={listId} role="list" aria-label="Search results" className="space-y-2 pb-3">
-        {filteredEffects.length === 0 ? <div role="status" className="space-y-2 py-10 text-center"><Search size={32} className="mx-auto text-fg-muted opacity-50" aria-hidden /><p className="text-sm font-semibold">No effects found</p><p className="text-xs text-fg-2">Try a different search term or category.</p></div>
+      <div ref={listRef} id={listId} role="list" aria-label={t("Search results")} className="space-y-2 pb-3">
+        {filteredEffects.length === 0 ? <div role="status" className="space-y-2 py-10 text-center"><Search size={32} className="mx-auto text-fg-muted opacity-50" aria-hidden /><p className="text-sm font-semibold">{t("No effects found")}</p><p className="text-xs text-fg-2">{t("Try a different search term or category.")}</p></div>
           : filteredEffects.map((effect, index) => { const Icon = effect.icon; const highlighted = activeIndex === index; return <div key={effect.id} role="listitem">
             <Button variant="ghost" onClick={() => handleSelect(effect)} onFocus={() => setSelectedIndex(index)} type="button" data-search-result={index}
               aria-label={`Open ${effect.name}`} aria-current={highlighted ? "true" : undefined}
@@ -410,15 +412,15 @@ function SearchEffectsContent({ query, setQuery, category, setCategory, inputRef
               <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", highlighted ? "bg-primary text-primary-foreground" : "bg-bg-2 text-fg-2")}><Icon size={16} aria-hidden /></span>
               <span className="min-w-0 flex-1"><span className="flex min-w-0 items-center gap-2"><span className={cn("truncate text-xs font-bold", highlighted ? "text-accent" : "text-fg")}>{effect.name}</span>
                 <Card className="shrink-0 rounded border-0 bg-bg-2 px-1 py-0 text-[10px] font-normal text-fg-2 shadow-none">{effect.category}</Card></span>
-                <span className="mt-0.5 block truncate text-xs font-normal text-fg-2">{effect.description}</span></span>
-              <kbd className="shrink-0 rounded border border-border bg-bg-2 px-1 font-mono text-[10px] text-fg-2">Enter</kbd>
+                <span className="mt-0.5 block truncate text-xs font-normal text-fg-2">{t(effect.description)}</span></span>
+              <kbd className="shrink-0 rounded border border-border bg-bg-2 px-1 font-mono text-[10px] text-fg-2">{t("Enter")}</kbd>
             </Button>
           </div>; })}
       </div>
     </ScrollArea>
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3 text-[10px] text-fg-2">
-      <span>{filteredEffects.length} effect{filteredEffects.length !== 1 ? "s" : ""} available</span>
-      <span><kbd>↑</kbd> <kbd>↓</kbd> Navigate · <kbd>Enter</kbd> Select</span>
+      <span>{filteredEffects.length} {t("effect")}{filteredEffects.length !== 1 ? "s" : ""} {t("available")}</span>
+      <span><kbd>↑</kbd> <kbd>↓</kbd> {t("Navigate ·")} <kbd>{t("Enter")}</kbd> {t("Select")}</span>
     </div>
   </>;
 }

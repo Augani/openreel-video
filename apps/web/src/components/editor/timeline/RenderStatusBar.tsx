@@ -10,6 +10,7 @@ import {
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { renderCacheService, useIdleRenderState, useRenderCacheSnapshot } from "../../../services/render-cache-service";
+import { useT } from "@openreel/i18n/react";
 
 const LEVEL_COLOR: Record<Exclude<RenderStatusLevel, "none">, string> = {
   cached: "#3fb950",
@@ -58,6 +59,7 @@ export const RenderStatusBar = React.memo(function RenderStatusBar({
   pixelsPerSecond: number;
   width: number;
 }) {
+  const t = useT();
   const segments = useRenderStatusSegments();
   const snapshot = useRenderCacheSnapshot();
   const idle = useIdleRenderState();
@@ -67,7 +69,7 @@ export const RenderStatusBar = React.memo(function RenderStatusBar({
       data-testid="render-status-bar"
       data-rendering={snapshot.phase === "rendering" || undefined}
       data-idle-render={idle.kind === "rendering" ? "rendering" : idle.kind === "paused" ? idle.reason : undefined}
-      aria-label="Render status"
+      aria-label={t("Render status")}
       role="img"
       style={{ position: "relative", height: RENDER_STATUS_BAR_HEIGHT, width }}
       className="bg-bg-1 pointer-events-none"
@@ -98,7 +100,7 @@ export const RenderStatusBar = React.memo(function RenderStatusBar({
         <div
           data-testid="render-status-progress"
           data-idle={idle.kind === "rendering" || undefined}
-          title={idle.kind === "rendering" ? "Rendering in the background" : "Rendering"}
+          title={idle.kind === "rendering" ? t("Rendering in the background") : t("Rendering")}
           style={{
             position: "absolute",
             top: 0,
@@ -127,6 +129,7 @@ function formatBytes(bytes: number): string {
 
 /** Toolbar cluster: Render In to Out, cancellable progress, Delete render files. */
 export const RenderCacheControls = React.memo(function RenderCacheControls() {
+  const t = useT();
   const snapshot = useRenderCacheSnapshot();
   const hasRange = useTimelineStore((state) => state.loopEnd > state.loopStart);
   const rendering = snapshot.phase === "rendering";
@@ -138,7 +141,7 @@ export const RenderCacheControls = React.memo(function RenderCacheControls() {
         <>
           <div
             role="progressbar"
-            aria-label="Render progress"
+            aria-label={t("Render progress")}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={percent}
@@ -153,8 +156,8 @@ export const RenderCacheControls = React.memo(function RenderCacheControls() {
             type="button"
             variant="ghost"
             size="icon-sm"
-            aria-label="Cancel render"
-            title="Cancel render"
+            aria-label={t("Cancel render")}
+            title={t("Cancel render")}
             onClick={() => renderCacheService.cancelRender()}
           >
             <X size={14} aria-hidden />
@@ -165,23 +168,23 @@ export const RenderCacheControls = React.memo(function RenderCacheControls() {
           type="button"
           variant="ghost"
           size="sm"
-          aria-label="Render In to Out"
-          title={hasRange ? "Render In to Out (Enter)" : "Render the whole sequence (Enter)"}
+          aria-label={t("Render In to Out")}
+          title={hasRange ? t("Render In to Out (Enter)") : t("Render the whole sequence (Enter)")}
           onClick={() => void renderCacheService.renderInToOut()}
         >
           <Clapperboard size={14} aria-hidden />
-          Render
+          {t("Render")}
         </Button>
       )}
       <Button
         type="button"
         variant="ghost"
         size="icon-sm"
-        aria-label="Delete render files"
+        aria-label={t("Delete render files")}
         title={
           snapshot.frameCount > 0
             ? `Delete render files (${formatBytes(snapshot.bytes)} cached)`
-            : "Delete render files"
+            : t("Delete render files")
         }
         disabled={snapshot.frameCount === 0 && !rendering}
         onClick={() => void renderCacheService.deleteRenderFiles()}

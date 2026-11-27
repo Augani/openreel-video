@@ -4,6 +4,7 @@ import { DEFAULT_VR_VIEW, vrViewWindow, VR_VIEW_FOV_RANGE } from "@openreel/core
 import { useProjectStore } from "../../../stores/project-store";
 import { useVrViewStore, type VrViewStore } from "../../../stores/vr-view-store";
 import { getPreviewCanvas } from "../scopes/preview-canvas-registry";
+import { useT } from "@openreel/i18n/react";
 
 /**
  * Program monitor VR view (Premiere's "Toggle VR Video Display"): a rectilinear window onto the equirectangular
@@ -26,6 +27,7 @@ interface VrViewProps {
 }
 
 export const VrView: React.FC<VrViewProps> = ({ layout, getSource, store, idPrefix, label }) => {
+  const t = useT();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const moduleRef = useRef<VrViewModule | null>(null);
   const dragRef = useRef<{ x: number; y: number } | null>(null);
@@ -119,7 +121,7 @@ export const VrView: React.FC<VrViewProps> = ({ layout, getSource, store, idPref
     >
       <canvas ref={canvasRef} aria-label={`VR view of the ${label} frame`} className="h-full w-full object-contain" />
       <div className="pointer-events-none absolute left-2 top-2 rounded bg-black/65 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white/85">
-        VR view: pan {view.pan.toFixed(0)}° tilt {view.tilt.toFixed(0)}° fov {view.fov.toFixed(0)}°
+        {t("VR view: pan")} {view.pan.toFixed(0)}{t("° tilt")} {view.tilt.toFixed(0)}{t("° fov")} {view.fov.toFixed(0)}°
       </div>
       <div className="absolute right-2 top-2 flex gap-1" onPointerDown={(event) => event.stopPropagation()}>
         <button
@@ -128,7 +130,7 @@ export const VrView: React.FC<VrViewProps> = ({ layout, getSource, store, idPref
           className="rounded bg-black/65 px-1.5 py-0.5 text-[10px] font-semibold text-white/90 hover:bg-black/80"
           onClick={reset}
         >
-          Reset view
+          {t("Reset view")}
         </button>
         <button
           type="button"
@@ -136,10 +138,10 @@ export const VrView: React.FC<VrViewProps> = ({ layout, getSource, store, idPref
           className="rounded bg-black/65 px-1.5 py-0.5 text-[10px] font-semibold text-white/90 hover:bg-black/80"
           onClick={() => setEnabled(false)}
         >
-          Exit VR view
+          {t("Exit VR view")}
         </button>
       </div>
-      <span className="sr-only">Field of view limits {VR_VIEW_FOV_RANGE.min} to {VR_VIEW_FOV_RANGE.max} degrees</span>
+      <span className="sr-only">{t("Field of view limits")} {VR_VIEW_FOV_RANGE.min} {t("to")} {VR_VIEW_FOV_RANGE.max} {t("degrees")}</span>
     </div>
   );
 };

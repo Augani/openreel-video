@@ -12,12 +12,14 @@ import {
   saveEffectPresetFromClip,
   type EffectPresetOutcome,
 } from "../../../services/effect-presets";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const NO_PRESETS: readonly never[] = [];
 
 function report(outcome: EffectPresetOutcome): void {
-  if (outcome.ok) toast.success("Effect presets", outcome.message);
-  else toast.error("Effect presets", outcome.error);
+  if (outcome.ok) toast.success(translateNow("Effect presets"), outcome.message);
+  else toast.error(translateNow("Effect presets"), outcome.error);
 }
 
 /**
@@ -30,6 +32,7 @@ export const EffectPresetsPanel: React.FC<{
   hasEffects: boolean;
   disabled: boolean;
 }> = ({ clipId, hasEffects, disabled }) => {
+  const t = useT();
   const presets = useProjectStore((state) => state.project.effectPresets ?? NO_PRESETS);
   const [name, setName] = useState("");
   const [timing, setTiming] = useState<EffectPresetTiming>("relative");
@@ -59,34 +62,34 @@ export const EffectPresetsPanel: React.FC<{
   };
 
   return (
-    <details className="rounded-md border border-border bg-bg-1 px-2 py-1.5" aria-label="Effect presets">
-      <summary className="cursor-pointer select-none text-[11px] text-fg-2">Effect presets{presets.length ? ` (${presets.length})` : ""}</summary>
+    <details className="rounded-md border border-border bg-bg-1 px-2 py-1.5" aria-label={t("Effect presets")}>
+      <summary className="cursor-pointer select-none text-[11px] text-fg-2">{t("Effect presets")}{presets.length ? ` (${presets.length})` : ""}</summary>
       <div className="mt-2 space-y-2">
         <div className="flex items-center gap-1.5">
-          <Input aria-label="Preset name" placeholder="Preset name" value={name} onChange={(event) => setName(event.target.value)} className="h-7 min-w-0 flex-1 text-[11px]" />
+          <Input aria-label={t("Preset name")} placeholder={t("Preset name")} value={name} onChange={(event) => setName(event.target.value)} className="h-7 min-w-0 flex-1 text-[11px]" />
           <Select value={timing} onValueChange={(value) => setTiming(value === "absolute" ? "absolute" : "relative")}>
-            <SelectTrigger aria-label="Keyframe timing" className="h-7 w-[104px] text-[10px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-label={t("Keyframe timing")} className="h-7 w-[104px] text-[10px]"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="relative">Relative</SelectItem>
-              <SelectItem value="absolute">Absolute</SelectItem>
+              <SelectItem value="relative">{t("Relative")}</SelectItem>
+              <SelectItem value="absolute">{t("Absolute")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
-        <Button type="button" variant="outline" size="sm" className="h-7 w-full text-[11px]" aria-label="Save effects as preset"
+        <Button type="button" variant="outline" size="sm" className="h-7 w-full text-[11px]" aria-label={t("Save effects as preset")}
           disabled={disabled || !hasEffects || !name.trim()} onClick={() => void save()}>
-          Save effects as preset
+          {t("Save effects as preset")}
         </Button>
         {presets.length === 0 ? (
-          <p className="text-center text-[10px] text-fg-3">No presets saved</p>
+          <p className="text-center text-[10px] text-fg-3">{t("No presets saved")}</p>
         ) : (
           <ul className="space-y-1">
             {presets.map((preset) => (
               <li key={preset.id} className="flex items-center gap-1" aria-label={`Preset ${preset.name}`}>
                 <span className="min-w-0 flex-1 truncate text-[11px]" title={`${preset.effects.length} effects, ${preset.keyframes.length} keyframes, ${preset.timing} timing`}>{preset.name}</span>
                 <Button type="button" variant="outline" size="sm" className="h-6 px-1.5 text-[10px]" aria-label={`Apply preset ${preset.name}`} disabled={disabled}
-                  onClick={() => void applyEffectPresetToClip(clipId, preset.id, "append").then(report)}>Apply</Button>
+                  onClick={() => void applyEffectPresetToClip(clipId, preset.id, "append").then(report)}>{t("Apply")}</Button>
                 <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-[10px]" aria-label={`Replace effects with preset ${preset.name}`} disabled={disabled}
-                  onClick={() => void applyEffectPresetToClip(clipId, preset.id, "replace").then(report)}>Replace</Button>
+                  onClick={() => void applyEffectPresetToClip(clipId, preset.id, "replace").then(report)}>{t("Replace")}</Button>
                 <Button type="button" variant="ghost" size="icon-sm" className="h-6 w-6 hover:text-red-400" aria-label={`Delete preset ${preset.name}`}
                   onClick={() => void deleteEffectPreset(preset.id).then(report)}><Trash2 size={12} aria-hidden /></Button>
               </li>
@@ -94,13 +97,13 @@ export const EffectPresetsPanel: React.FC<{
           </ul>
         )}
         <div className="grid grid-cols-2 gap-1.5">
-          <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-[11px]" aria-label="Export presets as JSON" disabled={presets.length === 0} onClick={exportAll}>
-            <Download size={12} aria-hidden />Export
+          <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-[11px]" aria-label={t("Export presets as JSON")} disabled={presets.length === 0} onClick={exportAll}>
+            <Download size={12} aria-hidden />{t("Export")}
           </Button>
-          <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-[11px]" aria-label="Import presets from JSON" onClick={() => fileInput.current?.click()}>
-            <Upload size={12} aria-hidden />Import
+          <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-[11px]" aria-label={t("Import presets from JSON")} onClick={() => fileInput.current?.click()}>
+            <Upload size={12} aria-hidden />{t("Import")}
           </Button>
-          <input ref={fileInput} type="file" accept="application/json,.json" className="hidden" aria-label="Preset file" onChange={(event) => void importFile(event.target.files?.[0])} />
+          <input ref={fileInput} type="file" accept="application/json,.json" className="hidden" aria-label={t("Preset file")} onChange={(event) => void importFile(event.target.files?.[0])} />
         </div>
       </div>
     </details>

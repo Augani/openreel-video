@@ -16,6 +16,7 @@ import {
   type SequenceColorSpace,
 } from "@openreel/core/color/sequence-color";
 import { useProjectStore } from "../../../stores/project-store";
+import { useT } from "@openreel/i18n/react";
 
 type Choice = SequenceColorSpace | "rec2020";
 
@@ -31,6 +32,7 @@ const CHOICES: ReadonlyArray<{ value: Choice; label: string }> = [
  * `project/updateSettings`. Detected HDR footage (PQ / HLG tags read from the container) offers its matching space.
  */
 export const SequenceColorSpaceMenu: React.FC = () => {
+  const t = useT();
   const settings = useProjectStore((s) => s.project.settings);
   const items = useProjectStore((s) => s.project.mediaLibrary.items);
   const updateSettings = useProjectStore((s) => s.updateSettings);
@@ -45,26 +47,24 @@ export const SequenceColorSpaceMenu: React.FC = () => {
   };
   return (
     <DropdownMenuSub>
-      <DropdownMenuSubTrigger data-testid="sequence-color-space-trigger">Sequence color space</DropdownMenuSubTrigger>
+      <DropdownMenuSubTrigger data-testid="sequence-color-space-trigger">{t("Sequence color space")}</DropdownMenuSubTrigger>
       <DropdownMenuSubContent>
         {CHOICES.map(({ value, label }) => (
           <DropdownMenuCheckboxItem key={value} data-testid={`sequence-color-space-${value}`} checked={current === value} onCheckedChange={() => select(value)}>
-            {label}
+            {t(label)}
           </DropdownMenuCheckboxItem>
         ))}
         {suggestion && sequence === "rec709" ? (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuCheckboxItem data-testid="sequence-color-space-suggest" checked={false} onCheckedChange={() => select(suggestion)}>
-              HDR footage detected: switch to {suggestion === "rec2100pq" ? "Rec.2100 PQ" : "Rec.2100 HLG"}
+              {t("HDR footage detected: switch to {space}", { space: suggestion === "rec2100pq" ? "Rec.2100 PQ" : "Rec.2100 HLG" })}
             </DropdownMenuCheckboxItem>
           </>
         ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="max-w-[260px] whitespace-normal text-[10px] font-normal leading-snug">
-          Rec.2020 and Rec.2100 switch to the HDR working mode: compositing and grading run in half-float scene-linear Rec.2020 (highlights above SDR
-          white are kept). The preview shows a tone-mapped SDR view, scopes read in nits, and the export defaults to the sequence transfer (HEVC Main10
-          or ProRes, tagged BT.2020 with PQ or HLG).
+          {t("Rec.2020 and Rec.2100 switch to the HDR working mode: compositing and grading run in half-float scene-linear Rec.2020 (highlights above SDR white are kept). The preview shows a tone-mapped SDR view, scopes read in nits, and the export defaults to the sequence transfer (HEVC Main10 or ProRes, tagged BT.2020 with PQ or HLG).")}
         </DropdownMenuLabel>
       </DropdownMenuSubContent>
     </DropdownMenuSub>

@@ -3,6 +3,7 @@ import { Button, cn } from "@openreel/ui";
 
 import { Check, X, Maximize2 } from "@/icons/lucide-compat";
 import type { Clip } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 
 interface CropModeViewProps {
   clip: Clip;
@@ -53,6 +54,7 @@ export const CropModeView: React.FC<CropModeViewProps> = ({
   onComplete,
   onCancel,
 }) => {
+  const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
   const videoDisplayRef = useRef<HTMLVideoElement>(null);
   const imageDisplayRef = useRef<HTMLImageElement>(null);
@@ -360,7 +362,7 @@ export const CropModeView: React.FC<CropModeViewProps> = ({
       <div className="flex items-center justify-between p-3 bg-background border-b border-border">
         <div className="flex items-center gap-3">
           <span className="text-xs font-medium text-text-primary">
-            Crop Video
+            {t("Crop Video")}
           </span>
           <div className="flex items-center gap-1">
             {ASPECT_RATIOS.map((ratio) => (
@@ -369,26 +371,26 @@ export const CropModeView: React.FC<CropModeViewProps> = ({
                     ? "bg-primary text-white font-medium"
                     : "bg-background-tertiary text-text-secondary hover:bg-background-secondary"
                 }`)}>
-                {(ratio.label) ? <span className="truncate">{ratio.label}</span> : null}
+                {(ratio.label) ? <span className="truncate">{t(ratio.label)}</span> : null}
               </Button>
             ))}
           </div>
-          <Button variant="ghost" size="icon-sm" onClick={handleReset} type="button" aria-label="Reset crop" title="Reset crop" disabled={(isLoading)} className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent hover:text-fg p-1 text-text-muted hover:bg-background-secondary rounded transition-colors">
+          <Button variant="ghost" size="icon-sm" onClick={handleReset} type="button" aria-label={t("Reset crop")} title={t("Reset crop")} disabled={(isLoading)} className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent hover:text-fg p-1 text-text-muted hover:bg-background-secondary rounded transition-colors">
             {<Maximize2 size={14} aria-hidden />}
           </Button>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button onClick={onCancel} type="button" aria-label="Cancel" className="min-w-0 justify-center font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 border border-border hover:text-fg px-3 py-1.5 text-xs bg-background-tertiary hover:bg-background-secondary text-text-primary rounded transition-colors flex items-center gap-1.5">
+          <Button onClick={onCancel} type="button" aria-label={t("Cancel")} className="min-w-0 justify-center font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 border border-border hover:text-fg px-3 py-1.5 text-xs bg-background-tertiary hover:bg-background-secondary text-text-primary rounded transition-colors flex items-center gap-1.5">
             <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<X size={14} aria-hidden />}</span>
-            <span className="truncate">{"Cancel"}</span>
+            <span className="truncate">{t("Cancel")}</span>
           </Button>
           <Button onClick={() => {
               onCropChange(crop);
               onComplete();
-            }} type="button" aria-label="Apply" disabled={(isLoading)} className="min-w-0 justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-3 py-1.5 text-xs bg-primary hover:bg-primary/90 text-black font-medium rounded transition-colors flex items-center gap-1.5">
+            }} type="button" aria-label={t("Apply")} disabled={(isLoading)} className="min-w-0 justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-3 py-1.5 text-xs bg-primary hover:bg-primary/90 text-black font-medium rounded transition-colors flex items-center gap-1.5">
             <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Check size={14} aria-hidden />}</span>
-            <span className="truncate">{"Apply"}</span>
+            <span className="truncate">{t("Apply")}</span>
           </Button>
         </div>
       </div>
@@ -397,7 +399,7 @@ export const CropModeView: React.FC<CropModeViewProps> = ({
       <div className="flex-1 flex items-center justify-center p-4 overflow-hidden relative">
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-background-secondary">
-            <div className="text-text-muted text-sm">Loading video...</div>
+            <div className="text-text-muted text-sm">{t("Loading video...")}</div>
           </div>
         )}
 
@@ -415,7 +417,7 @@ export const CropModeView: React.FC<CropModeViewProps> = ({
               ref={imageDisplayRef}
               className="w-full h-full"
               style={{ objectFit: "contain" }}
-              alt="Crop preview"
+              alt={t("Crop preview")}
             />
           ) : (
             <video

@@ -16,6 +16,7 @@ import {
 
 import { KeyframeButton } from "./PrimaryVideoProperties";
 import type { HueCurveKeyframing } from "./useHueCurveKeyframes";
+import { useT } from "@openreel/i18n/react";
 
 const SIZE = 200;
 const PAD = 8;
@@ -68,6 +69,7 @@ export const HueCurvesEditor: React.FC<HueCurvesEditorProps> = ({
   onEnable,
   keyframing,
 }) => {
+  const t = useT();
   const [kind, setKind] = useState<HueCurveKind>("hueVsSat");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [selected, setSelected] = useState(0);
@@ -175,21 +177,20 @@ export const HueCurvesEditor: React.FC<HueCurvesEditorProps> = ({
           role="status"
           className="rounded-[7px] border border-border bg-bg-1 p-2 text-[10px] leading-snug text-fg-2"
         >
-          Hue curves are part of the Premiere-order color pipeline. This clip still uses the classic
-          order, so its current look is unchanged and the curves are off.
+          {t("Hue curves are part of the Premiere-order color pipeline. This clip still uses the classic order, so its current look is unchanged and the curves are off.")}
           <Button
             type="button"
             variant="ghost"
             onClick={onEnable}
-            aria-label="Switch this clip to the Premiere-order pipeline"
+            aria-label={t("Switch this clip to the Premiere-order pipeline")}
             className="mt-2 h-7 w-full rounded-[7px] border border-border bg-bg-2 text-[10px] font-semibold text-fg-2 hover:bg-bg-3 hover:text-fg"
           >
-            Switch this clip to Premiere order
+            {t("Switch this clip to Premiere order")}
           </Button>
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-1" role="tablist" aria-label="Hue curve type">
+      <div className="grid grid-cols-2 gap-1" role="tablist" aria-label={t("Hue curve type")}>
         {HUE_CURVE_KINDS.map((candidate) => (
           <Button
             key={candidate}
@@ -213,7 +214,7 @@ export const HueCurvesEditor: React.FC<HueCurvesEditorProps> = ({
         ))}
       </div>
 
-      <p className="text-[10px] leading-snug text-fg-3">{info.description}</p>
+      <p className="text-[10px] leading-snug text-fg-3">{t(info.description)}</p>
 
       <div
         className={`relative mx-auto w-full max-w-[240px] overflow-hidden rounded-[7px] border border-border ${
@@ -272,8 +273,8 @@ export const HueCurvesEditor: React.FC<HueCurvesEditorProps> = ({
       {keyframing && sorted.length > 0 && (
         <div className="flex items-center justify-between gap-2 text-[10px] text-fg-2" data-testid="hue-curve-keyframe-row">
           <span>
-            Point {Math.min(selected, sorted.length - 1) + 1} of {sorted.length}
-            {keyframing.isAnimated(kind, Math.min(selected, sorted.length - 1)) ? " (animated)" : ""}
+            {t("Point")} {Math.min(selected, sorted.length - 1) + 1} {t("of")} {sorted.length}
+            {keyframing.isAnimated(kind, Math.min(selected, sorted.length - 1)) ? t(" (animated)") : ""}
           </span>
           <KeyframeButton
             keyframes={keyframing.keyframes}
@@ -286,7 +287,7 @@ export const HueCurvesEditor: React.FC<HueCurvesEditorProps> = ({
       )}
 
       <div className="flex items-center justify-between gap-2 text-[10px] text-fg-3">
-        <span>Click to add a point. Double-click or Delete removes it.</span>
+        <span>{t("Click to add a point. Double-click or Delete removes it.")}</span>
         <div className="flex shrink-0 items-center gap-1">
           <Button
             type="button"
@@ -296,7 +297,7 @@ export const HueCurvesEditor: React.FC<HueCurvesEditorProps> = ({
             aria-label={`Reset ${info.label} curve`}
             className="h-6 rounded-[7px] px-2 text-[10px] text-fg-3 hover:text-fg"
           >
-            Reset curve
+            {t("Reset curve")}
           </Button>
           <Button
             type="button"
@@ -304,8 +305,8 @@ export const HueCurvesEditor: React.FC<HueCurvesEditorProps> = ({
             size="icon-sm"
             onClick={onReset}
             disabled={!enabled}
-            aria-label="Reset all hue curves"
-            title="Reset all hue curves"
+            aria-label={t("Reset all hue curves")}
+            title={t("Reset all hue curves")}
             className="h-6 w-6 rounded-[7px] text-fg-3 hover:text-fg"
           >
             <RotateCcw size={10} />

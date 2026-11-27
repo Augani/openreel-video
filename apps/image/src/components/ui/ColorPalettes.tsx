@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@openreel/ui';
 import { ChevronDown, Palette } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 export interface ColorPalette {
   id: string;
@@ -77,6 +78,7 @@ interface ColorPalettesProps {
 }
 
 export function ColorPalettes({ onColorSelect, selectedColor }: ColorPalettesProps) {
+  const t = useT();
   const [isOpen, setIsOpen] = useState(false);
   const [expandedPalette, setExpandedPalette] = useState<string | null>(null);
 
@@ -86,7 +88,7 @@ export function ColorPalettes({ onColorSelect, selectedColor }: ColorPalettesPro
         <button className="w-full flex items-center justify-between p-2 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors">
           <div className="flex items-center gap-2">
             <Palette size={14} className="text-muted-foreground" />
-            <span className="text-xs font-medium">Color Palettes</span>
+            <span className="text-xs font-medium">{t("Color Palettes")}</span>
           </div>
           <ChevronDown size={14} className={`text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </button>
@@ -141,6 +143,7 @@ interface QuickColorSwatchesProps {
 }
 
 export function QuickColorSwatches({ onColorSelect, selectedColor }: QuickColorSwatchesProps) {
+  const t = useT();
   const quickColors = [
     '#000000', '#ffffff', '#ef4444', '#f97316', '#eab308', '#22c55e',
     '#14b8a6', '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280', '#1f2937',
@@ -148,7 +151,7 @@ export function QuickColorSwatches({ onColorSelect, selectedColor }: QuickColorS
 
   return (
     <div className="space-y-1.5">
-      <label className="text-[10px] text-muted-foreground">Quick Colors</label>
+      <label className="text-[10px] text-muted-foreground">{t("Quick Colors")}</label>
       <div className="grid grid-cols-6 gap-1">
         {quickColors.map((color) => (
           <button

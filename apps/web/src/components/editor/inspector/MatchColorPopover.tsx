@@ -12,6 +12,8 @@ import {
   type ColorMatchMeasurement,
 } from "../../../services/color-sampling";
 import { toast } from "../../../stores/notification-store";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 interface MatchColorPopoverProps {
   clipId: string;
@@ -35,6 +37,7 @@ function sampleTime(clip: { startTime: number; duration: number }, playhead: num
  * slider re-applies the match live.
  */
 export const MatchColorPopover: React.FC<MatchColorPopoverProps> = ({ clipId }) => {
+  const t = useT();
   const project = useProjectStore((state) => state.project);
   const updateColorGrading = useProjectStore((state) => state.updateColorGrading);
   const [open, setOpen] = useState(false);
@@ -75,7 +78,7 @@ export const MatchColorPopover: React.FC<MatchColorPopoverProps> = ({ clipId }) 
         sampleTime(target, playhead),
       );
       if (!measured) {
-        toast.error("Could not match color", "Pause playback and make sure both clips have a visible frame.");
+        toast.error(translateNow("Could not match color"), "Pause playback and make sure both clips have a visible frame.");
         return;
       }
       measurement.current = measured;
@@ -99,21 +102,21 @@ export const MatchColorPopover: React.FC<MatchColorPopoverProps> = ({ clipId }) 
         <Button
           type="button"
           variant="ghost"
-          aria-label="Match Color…"
+          aria-label={t("Match Color…")}
           className="h-7 gap-1 rounded-[7px] border border-border bg-bg-2 px-2 text-[10px] font-semibold text-fg-2 hover:bg-bg-3 hover:text-fg"
         >
           <Palette size={11} aria-hidden />
-          <span>Match Color…</span>
+          <span>{t("Match Color…")}</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent side="bottom" align="end" aria-label="Match Color" className="w-[min(280px,calc(100vw-32px))] space-y-3 p-3">
+      <PopoverContent side="bottom" align="end" aria-label={t("Match Color")} className="w-[min(280px,calc(100vw-32px))] space-y-3 p-3">
         <p className="text-[10px] leading-snug text-fg-2">
-          Match this clip to a reference clip. The reference frame is taken at the playhead when it is over that clip, otherwise from its middle.
+          {t("Match this clip to a reference clip. The reference frame is taken at the playhead when it is over that clip, otherwise from its middle.")}
         </p>
         <label className="block space-y-1">
-          <span className="text-[11px] font-medium text-fg-2">Reference clip</span>
+          <span className="text-[11px] font-medium text-fg-2">{t("Reference clip")}</span>
           <select
-            aria-label="Reference clip"
+            aria-label={t("Reference clip")}
             value={referenceId}
             onChange={(event) => {
               setReferenceId(event.target.value);
@@ -122,7 +125,7 @@ export const MatchColorPopover: React.FC<MatchColorPopoverProps> = ({ clipId }) 
             }}
             className="h-7 w-full rounded-[6px] border border-border bg-bg-1 px-1.5 text-[11px] text-fg"
           >
-            <option value="">Select a clip…</option>
+            <option value="">{t("Select a clip…")}</option>
             {candidates.map(({ clip, name }) => (
               <option key={clip.id} value={clip.id}>
                 {name} ({clip.startTime.toFixed(1)}s)
@@ -148,14 +151,14 @@ export const MatchColorPopover: React.FC<MatchColorPopoverProps> = ({ clipId }) 
           <Button
             type="button"
             disabled={!selectedReference || busy}
-            aria-label="Apply match"
+            aria-label={t("Apply match")}
             onClick={() => void runMatch()}
             className="h-7 rounded-[7px] bg-primary px-3 text-[11px] font-semibold text-white disabled:opacity-50"
           >
-            {busy ? "Matching…" : applied ? "Match again" : "Match"}
+            {busy ? t("Matching…") : applied ? t("Match again") : t("Match")}
           </Button>
           {applied ? (
-            <span className="text-[10px] text-fg-3" role="status">Applied. Before/After split is on in the Program monitor.</span>
+            <span className="text-[10px] text-fg-3" role="status">{t("Applied. Before/After split is on in the Program monitor.")}</span>
           ) : null}
         </div>
       </PopoverContent>

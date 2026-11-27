@@ -4,6 +4,7 @@ import { resolveTextAnimationPhase, TEXT_ANIMATION_PRESETS, type TextAnimation, 
 import { useInspectorNavigationStore } from "../../../stores/inspector-navigation-store";
 import { setTextAnimationPhasePreset, updateTextAnimationPhase, type TextAnimationSide } from "../../../services/text-animation-phases";
 import { ValueField } from "./PrimaryVideoProperties";
+import { useT } from "@openreel/i18n/react";
 
 const presetName = (preset: TextAnimationPreset) =>
   (TEXT_ANIMATION_PRESETS.find(item => item.id === preset)?.name ?? preset).replace(/ (In|Out)$/, "");
@@ -13,6 +14,7 @@ export function TextAnimationPhaseControl({ clipId, side, animation }: {
   side: TextAnimationSide;
   animation: TextAnimation | undefined;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const entry = side === "entry";
   const selected = animation ? resolveTextAnimationPhase(animation, entry) : undefined;
@@ -22,17 +24,17 @@ export function TextAnimationPhaseControl({ clipId, side, animation }: {
   return <Popover open={open} onOpenChange={setOpen}>
     <PopoverTrigger asChild>
       <Button variant="outline">
-        {entry ? "In" : "Out"} · {presetName(preset)}<small>{Number(duration.toFixed(3))}s</small>
+        {entry ? t("In") : t("Out")} · {presetName(preset)}<small>{Number(duration.toFixed(3))}s</small>
       </Button>
     </PopoverTrigger>
     <PopoverContent align="end" className="workspace-text-animation-phase w-[260px] space-y-3">
-      <h3 className="text-sm font-medium">{label} animation</h3>
+      <h3 className="text-sm font-medium">{label} {t("animation")}</h3>
       <Select value={preset} onValueChange={value => setTextAnimationPhasePreset(clipId, side, value as TextAnimationPreset)}>
         <SelectTrigger aria-label={`${label} animation preset`}><SelectValue /></SelectTrigger>
         <SelectContent>{TEXT_ANIMATION_PRESETS.map(item => <SelectItem key={item.id} value={item.id}>{presetName(item.id)}</SelectItem>)}</SelectContent>
       </Select>
       {preset !== "none" && <div className="flex items-center justify-between gap-3 text-xs">
-        <span>Duration</span>
+        <span>{t("Duration")}</span>
         <ValueField label={`${label} animation duration`} value={duration} min={0} max={5} step={0.1} unit="s"
           onChange={value => updateTextAnimationPhase(clipId, side, preset,
             entry ? value : animation?.inDuration ?? 0,
@@ -41,7 +43,7 @@ export function TextAnimationPhaseControl({ clipId, side, animation }: {
       <Button variant="ghost" size="sm" className="w-full" onClick={() => {
         setOpen(false);
         useInspectorNavigationStore.getState().requestSection("text-animation", clipId);
-      }}>Advanced animation controls</Button>
+      }}>{t("Advanced animation controls")}</Button>
     </PopoverContent>
   </Popover>;
 }

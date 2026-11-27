@@ -18,7 +18,7 @@ export default defineConfig({
   // fully copied into the asar, which dropped electron-updater's deps and
   // crashed the app on launch ("Cannot find module 'fs-extra'").
   external: ["electron"],
-  noExternal: ["electron-updater", "zod"],
+  noExternal: ["electron-updater", "zod", "@openreel/i18n"],
   clean: true,
   minify: true,
   // Keep function/class names so crash stacks and Function.name stay useful.

@@ -12,6 +12,7 @@ import { useUIStore } from "../../../stores/ui-store";
 import { useEngineStore } from "../../../stores/engine-store";
 import { generateDefaultControlPoints, type GSAPMotionPathPoint } from "@openreel/core";
 import { getGSAPEngine } from "@openreel/core/animation/gsap-engine";
+import { useT } from "@openreel/i18n/react";
 
 interface MotionPathSectionProps {
   clipId: string;
@@ -20,6 +21,7 @@ interface MotionPathSectionProps {
 export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
   clipId,
 }) => {
+  const t = useT();
   const { getClip, project } = useProjectStore();
   const { motionPathMode, motionPathClipId, setMotionPathMode } = useUIStore();
   const getGraphicsEngine = useEngineStore((state) => state.getGraphicsEngine);
@@ -151,7 +153,7 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
   if (!clip) {
     return (
       <span className="text-fg-2 font-normal py-8 text-center text-xs">
-        No clip selected
+        {t("No clip selected")}
       </span>
     );
   }
@@ -168,7 +170,7 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
         <div className="flex items-center gap-2">
           <Route size={14} className="text-primary" />
           <span className="text-fg text-xs font-medium">
-            Motion Path
+            {t("Motion Path")}
           </span>
         </div>
         <InspectorToggle
@@ -183,10 +185,10 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
           <Card className="min-w-0 rounded-[7px] border shadow-none border-transparent bg-bg-2 text-fg p-3 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-fg-2 font-normal text-[10px]">
-                Show Path
+                {t("Show Path")}
               </span>
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon-sm" onClick={() => handleShowPathToggle(!showPath)} type="button" aria-label={showPath ? "Hide path" : "Show path"} title={showPath ? "Hide path" : "Show path"} className={cn("inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", (showPath ? "bg-accent text-accent-fg hover:bg-accent/90" : "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"), `p-1.5 rounded transition-colors ${
+                <Button variant="ghost" size="icon-sm" onClick={() => handleShowPathToggle(!showPath)} type="button" aria-label={showPath ? t("Hide path") : t("Show path")} title={showPath ? t("Hide path") : t("Show path")} className={cn("inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 w-7", (showPath ? "bg-accent text-accent-fg hover:bg-accent/90" : "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"), `p-1.5 rounded transition-colors ${
                     showPath
                       ? "bg-primary/20 text-primary"
                       : "bg-bg-elev text-fg-3"
@@ -198,7 +200,7 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
 
             <div className="flex items-center justify-between">
               <span className="text-fg-2 font-normal text-[10px]">
-                Auto Orient
+                {t("Auto Orient")}
               </span>
               <InspectorToggle
                 ariaLabel="Auto Orient"
@@ -209,7 +211,7 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
 
             <div className="space-y-1">
               <span className="text-fg-2 font-normal text-[10px]">
-                Path Type
+                {t("Path Type")}
               </span>
               <div className="grid grid-cols-3 gap-1">
                 {(["linear", "bezier", "catmull-rom"] as const).map((type) => (
@@ -219,7 +221,7 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
                         : "bg-bg-elev border border-border text-fg-2 hover:text-fg"
                     }`)}>
                     <PathTypeGlyph type={type} className="mx-auto mb-1 !h-7 !w-full" />
-                    {type === "catmull-rom" ? "Smooth" : type}
+                    {type === "catmull-rom" ? t("Smooth") : type}
                   </Button>
                 ))}
               </div>
@@ -229,17 +231,17 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
           <Card className="min-w-0 rounded-[7px] border shadow-none border-transparent bg-bg-2 text-fg p-3 flex items-center justify-between">
             <div className="flex flex-col gap-0.5">
               <span className="text-fg-2 font-normal text-[10px]">
-                Path Points
+                {t("Path Points")}
               </span>
               <span className="text-fg text-sm font-medium">
-                {pointCount} points
+                {pointCount} {t("points")}
               </span>
             </div>
             <div className="flex items-center gap-1">
-              <Button variant="ghost" size="icon-sm" onClick={handleAddPoint} type="button" aria-label="Add point" title="Add point" className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 p-1.5 rounded bg-primary/20 text-primary hover:bg-primary/30 transition-colors">
+              <Button variant="ghost" size="icon-sm" onClick={handleAddPoint} type="button" aria-label={t("Add point")} title={t("Add point")} className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 p-1.5 rounded bg-primary/20 text-primary hover:bg-primary/30 transition-colors">
                 {<Plus size={12} />}
               </Button>
-              <Button variant="ghost" size="icon-sm" onClick={handleClearPath} type="button" aria-label="Clear path" title="Clear path" className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 border border-border hover:text-fg p-1.5 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors">
+              <Button variant="ghost" size="icon-sm" onClick={handleClearPath} type="button" aria-label={t("Clear path")} title={t("Clear path")} className="inline-flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 border border-border hover:text-fg p-1.5 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors">
                 {<Trash2 size={12} />}
               </Button>
             </div>
@@ -251,18 +253,16 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
                 : "bg-bg-2 text-fg border border-border hover:bg-bg-elev"
             }`)}>
             <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Route size={14} />}</span>
-            <span className="truncate">{isEditing ? "Exit Edit Mode" : "Edit Path on Canvas"}</span>
+            <span className="truncate">{isEditing ? t("Exit Edit Mode") : t("Edit Path on Canvas")}</span>
           </Button>
 
           {isEditing && (
             <Card className="min-w-0 rounded-[7px] shadow-none text-fg p-2 border border-primary/30 bg-primary/10">
               <span className="font-normal text-[9px] text-primary">
                 <span className="text-[12px] leading-5 font-medium text-primary">
-                  Editing:
+                  {t("Editing:")}
                 </span>{" "}
-                Click on the path
-                to add points. Drag points to move them. Right-click to remove.
-                Drag handles to adjust curves.
+                {t("Click on the path to add points. Drag points to move them. Right-click to remove. Drag handles to adjust curves.")}
               </span>
             </Card>
           )}
@@ -270,10 +270,9 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
           <Card className="min-w-0 rounded-[7px] shadow-none text-fg p-2 border border-border bg-bg-2/50">
             <span className="text-fg-2 font-normal text-[9px]">
               <span className="text-[12px] leading-5 font-medium text-fg-2">
-                Tip:
+                {t("Tip:")}
               </span>{" "}
-              Motion paths animate the clip's position along a curved path over
-              time. Use bezier handles for smooth curves.
+              {t("Motion paths animate the clip's position along a curved path over time. Use bezier handles for smooth curves.")}
             </span>
           </Card>
         </>

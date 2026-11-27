@@ -28,6 +28,8 @@ import { toast } from "../../../stores/notification-store";
 import { TransitionInspector } from "./TransitionInspector";
 import { Button, Card, Input, Label, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, ToggleGroup, ToggleGroupItem, cn } from "@openreel/ui";
 import { useNumericDraft } from "./shell/useNumericDraft";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const PRESETS: {
   id: TransitionPreset;
@@ -89,6 +91,7 @@ function AnimationPhaseControls({ side, preset, duration, easing, maxDuration, d
   onDuration: (value: number) => void;
   onEasing: (value: EasingType) => void;
 }) {
+  const t = useT();
   const durationId = useId();
   const easingId = useId();
   const title = side === "entry" ? "Entry" : "Exit";
@@ -98,18 +101,18 @@ function AnimationPhaseControls({ side, preset, duration, easing, maxDuration, d
     format: (value) => String(Number(value.toPrecision(12))) });
   const easings = EASINGS.some((item) => item.id === easing) ? EASINGS : [...EASINGS, { id: easing, label: easing }];
   return <div className="min-w-0 space-y-2">
-    <h3 className="text-[11px] font-medium text-fg-2">{title} Animation</h3>
+    <h3 className="text-[11px] font-medium text-fg-2">{title} {t("Animation")}</h3>
     <ToggleGroup type="single" value={preset} onValueChange={(value) => { if (value) onPreset(value as TransitionPreset); }}
       disabled={disabled} aria-label={`${title} animation preset`} className="grid grid-cols-3 gap-1" variant="outline" size="sm">
       {PRESETS.map((item) => <ToggleGroupItem key={item.id} value={item.id} aria-label={`Set ${side} animation to ${item.label}`}
         className={cn("h-auto min-h-7 min-w-0 gap-1 whitespace-normal rounded-[6px] p-1.5 text-[10px] font-normal",
           preset === item.id ? "border-primary bg-primary text-white data-[state=on]:bg-primary data-[state=on]:text-white" : "border-border bg-bg-2 text-fg-2 hover:bg-bg-3")}>
-        {item.icon}<span>{item.label}</span>
+        {item.icon}<span>{t(item.label)}</span>
       </ToggleGroupItem>)}
     </ToggleGroup>
     {preset !== "none" && <div className="grid min-w-0 grid-cols-2 gap-2">
       <div className="min-w-0 space-y-1">
-        <Label htmlFor={durationId} className="text-[11px] font-normal text-fg-2">Duration</Label>
+        <Label htmlFor={durationId} className="text-[11px] font-normal text-fg-2">{t("Duration")}</Label>
         <div className="relative min-w-0">
           <Input {...input} id={durationId} aria-label={`${title} animation duration`} type="number" inputMode="decimal"
             disabled={disabled} min={Math.min(0.1, maxDuration)} max={maxDuration} step={Math.min(0.1, maxDuration) || 0.1}
@@ -118,10 +121,10 @@ function AnimationPhaseControls({ side, preset, duration, easing, maxDuration, d
         </div>
       </div>
       <div className="min-w-0 space-y-1">
-        <Label htmlFor={easingId} className="text-[11px] font-normal text-fg-2">Easing</Label>
+        <Label htmlFor={easingId} className="text-[11px] font-normal text-fg-2">{t("Easing")}</Label>
         <Select value={easing} onValueChange={(value) => onEasing(value as EasingType)} disabled={disabled}>
           <SelectTrigger id={easingId} aria-label={`${title} animation easing`} className="h-7 w-full min-w-0 rounded-[6px] border-border bg-bg-1 px-2 text-[12px]"><SelectValue /></SelectTrigger>
-          <SelectContent>{easings.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectContent>
+          <SelectContent>{easings.map((item) => <SelectItem key={item.id} value={item.id}>{t(item.label)}</SelectItem>)}</SelectContent>
         </Select>
       </div>
     </div>}
@@ -131,6 +134,7 @@ function AnimationPhaseControls({ side, preset, duration, easing, maxDuration, d
 export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
   clipId,
 }) => {
+  const t = useT();
   const {
     project,
     updateClipKeyframes,
@@ -336,7 +340,7 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
     const updated = clip.type === "regular" ? updateClipKeyframes(clipId, allKeyframes) :
       updateOverlayClipTiming(clipId, { keyframes: allKeyframes });
     if (!updated) {
-      toast.error("Animation could not be applied");
+      toast.error(translateNow("Animation could not be applied"));
       return;
     }
 
@@ -348,9 +352,9 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
       parts.push(`Exit: ${exitPreset}`);
     }
     if (parts.length > 0) {
-      toast.success("Clip Animation Applied", parts.join(", "));
+      toast.success(translateNow("Clip Animation Applied"), parts.join(", "));
     } else {
-      toast.info("Animations Cleared");
+      toast.info(translateNow("Animations Cleared"));
     }
   }, [
     clip,
@@ -380,14 +384,14 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
         onPreset={setExitPreset} onDuration={setExitDuration} onEasing={setExitEasing} />
 
       {/* Apply Button */}
-      <Button disabled={locked || clip.data.duration <= 0} onClick={applyTransitions} type="button" aria-label="Apply Entry/Exit Animations" className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90 w-full justify-center">
-        <span className="truncate">{"Apply Entry/Exit Animations"}</span>
+      <Button disabled={locked || clip.data.duration <= 0} onClick={applyTransitions} type="button" aria-label={t("Apply Entry/Exit Animations")} className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90 w-full justify-center">
+        <span className="truncate">{t("Apply Entry/Exit Animations")}</span>
       </Button>
 
       <div className="space-y-3 border-t border-border pt-3">
         <span className="block text-fg-2 text-[10px] font-medium uppercase tracking-wider"
         >
-          Single-Clip Transitions
+          {t("Single-Clip Transitions")}
         </span>
 
         {edgeTransitions.length > 0 ? (
@@ -397,11 +401,11 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
               <div className="space-y-1">
                 <span className="text-fg text-[10px] font-medium"
                 >
-                  {edgeTransition.title}
+                  {t(edgeTransition.title)}
                 </span>
                 <span className="block text-fg-2 font-normal text-[9px]"
                 >
-                  {edgeTransition.description}
+                  {t(edgeTransition.description)}
                 </span>
               </div>
 
@@ -419,7 +423,7 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
           ))
         ) : (
           <span className="block text-fg-2 font-normal text-[10px]">
-            Single-clip transitions are available for video and image clips.
+            {t("Single-clip transitions are available for video and image clips.")}
           </span>
         )}
       </div>
@@ -427,7 +431,7 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
       <div className="space-y-3 border-t border-border pt-3">
         <span className="block text-fg-2 text-[10px] font-medium uppercase tracking-wider"
         >
-          Clip-to-Clip Transitions
+          {t("Clip-to-Clip Transitions")}
         </span>
 
         {timelineClipContext ? (
@@ -438,11 +442,11 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
                 <div className="space-y-1">
                   <span className="text-fg text-[10px] font-medium"
                   >
-                    {adjacentTransition.title}
+                    {t(adjacentTransition.title)}
                   </span>
                   <span className="block text-fg-2 font-normal text-[9px]"
                   >
-                    {adjacentTransition.description}
+                    {t(adjacentTransition.description)}
                   </span>
                 </div>
 
@@ -458,12 +462,12 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
             ))
           ) : (
             <span className="block text-fg-2 font-normal text-[10px]">
-              No adjacent clips are available on this track.
+              {t("No adjacent clips are available on this track.")}
             </span>
           )
         ) : (
           <span className="block text-fg-2 font-normal text-[10px]">
-            Clip-to-clip transitions are available for timeline media clips.
+            {t("Clip-to-clip transitions are available for timeline media clips.")}
           </span>
         )}
       </div>

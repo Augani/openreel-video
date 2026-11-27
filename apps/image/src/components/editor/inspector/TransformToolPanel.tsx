@@ -1,5 +1,6 @@
 import { useUIStore } from '../../../stores/ui-store';
 import { Move, RotateCcw, Scale, RotateCw, ArrowUpDown, Maximize2, Grid3x3 } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 const transformModes = [
   { id: 'free', label: 'Free', icon: Move },
@@ -12,6 +13,7 @@ const transformModes = [
 ] as const;
 
 export function TransformToolPanel() {
+  const t = useT();
   const { transformSettings, setTransformSettings } = useUIStore();
 
   const resetSettings = () => {
@@ -27,24 +29,24 @@ export function TransformToolPanel() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Move size={16} className="text-muted-foreground" />
-          <h3 className="text-sm font-medium">Transform</h3>
+          <h3 className="text-sm font-medium">{t("Transform")}</h3>
         </div>
         <button
           onClick={resetSettings}
           className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-secondary transition-colors"
-          title="Reset"
+          title={t("Reset")}
         >
           <RotateCcw size={14} />
         </button>
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Select a layer and use handles to transform. Press Enter to apply, Escape to cancel.
+        {t("Select a layer and use handles to transform. Press Enter to apply, Escape to cancel.")}
       </p>
 
       <div className="space-y-3">
         <div>
-          <span className="text-xs text-muted-foreground mb-1.5 block">Mode</span>
+          <span className="text-xs text-muted-foreground mb-1.5 block">{t("Mode")}</span>
           <div className="grid grid-cols-4 gap-1">
             {transformModes.map((mode) => {
               const Icon = mode.icon;
@@ -57,10 +59,10 @@ export function TransformToolPanel() {
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary'
                   }`}
-                  title={mode.label}
+                  title={t(mode.label)}
                 >
                   <Icon size={14} />
-                  <span className="text-[9px]">{mode.label}</span>
+                  <span className="text-[9px]">{t(mode.label)}</span>
                 </button>
               );
             })}
@@ -68,7 +70,7 @@ export function TransformToolPanel() {
         </div>
 
         <div>
-          <span className="text-xs text-muted-foreground mb-1.5 block">Interpolation</span>
+          <span className="text-xs text-muted-foreground mb-1.5 block">{t("Interpolation")}</span>
           <div className="grid grid-cols-3 gap-1">
             {(['nearest', 'bilinear', 'bicubic'] as const).map((interp) => (
               <button
@@ -94,7 +96,7 @@ export function TransformToolPanel() {
               onChange={(e) => setTransformSettings({ maintainAspectRatio: e.target.checked })}
               className="w-3.5 h-3.5 rounded border-border"
             />
-            Maintain Aspect Ratio (Shift)
+            {t("Maintain Aspect Ratio (Shift)")}
           </label>
         </div>
       </div>

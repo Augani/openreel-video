@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { FolderInput, FolderOutput, Pause, Play, Plus, RotateCcw, Trash2 } from "@/icons/lucide-compat";
 import { Button, Switch } from "@openreel/ui";
 import type { OpenReelWatchFolderConfig, OpenReelWatchFoldersBridge, OpenReelWatchFoldersSnapshot, OpenReelWatchFolderStatus, OpenReelWatchItem } from "../../../types/global";
+import { useT } from "@openreel/i18n/react";
 
 type WatchPatch = Parameters<OpenReelWatchFoldersBridge["update"]>[1];
 
@@ -36,31 +37,33 @@ const fieldClass = "h-7 min-w-0 rounded-md border border-border bg-background px
 const iconButton = "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-fg-2 outline-none transition-colors hover:bg-bg-2 hover:text-fg focus-visible:ring-2 focus-visible:ring-ring";
 
 function IngestOptions({ config, onPatch }: { config: OpenReelWatchFolderConfig; onPatch: (patch: WatchPatch) => void }) {
+  const t = useT();
   const [bin, setBin] = useState(config.bin);
   useEffect(() => setBin(config.bin), [config.bin]);
   return (
     <div className="mt-2 space-y-2">
       <label className="flex items-center gap-2 text-xs text-fg-2">
-        <span className="w-24 shrink-0">Import into bin</span>
+        <span className="w-24 shrink-0">{t("Import into bin")}</span>
         <input
           value={bin}
           onChange={(e) => setBin(e.target.value)}
           onBlur={() => bin !== config.bin && onPatch({ bin })}
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-          aria-label="Bin name"
-          placeholder="Project root"
+          aria-label={t("Bin name")}
+          placeholder={t("Project root")}
           className={`${fieldClass} flex-1`}
         />
       </label>
       <div className="flex items-center justify-between gap-3 text-xs text-fg-2">
-        <span>Create preview proxies for imported media</span>
-        <Switch aria-label="Create proxies" checked={config.createProxies} onCheckedChange={(createProxies) => onPatch({ createProxies })} />
+        <span>{t("Create preview proxies for imported media")}</span>
+        <Switch aria-label={t("Create proxies")} checked={config.createProxies} onCheckedChange={(createProxies) => onPatch({ createProxies })} />
       </div>
     </div>
   );
 }
 
 function FolderCard({ config, status, items, bridge }: { config: OpenReelWatchFolderConfig; status: OpenReelWatchFolderStatus; items: OpenReelWatchItem[]; bridge: OpenReelWatchFoldersBridge }) {
+  const t = useT();
   const [error, setError] = useState<string | null>(null);
   const run = useCallback(async (action: () => Promise<unknown>) => {
     try {
@@ -83,15 +86,15 @@ function FolderCard({ config, status, items, bridge }: { config: OpenReelWatchFo
         <span className="shrink-0 rounded bg-bg-3 px-1.5 text-[11px] font-semibold uppercase tracking-wide text-fg-muted" data-testid="watch-folder-state">
           {STATE_LABEL[status.state]}
         </span>
-        <button type="button" className={iconButton} aria-label={config.paused ? `Resume ${config.path}` : `Pause ${config.path}`} title={config.paused ? "Resume" : "Pause"} onClick={() => patch({ paused: !config.paused })}>
+        <button type="button" className={iconButton} aria-label={config.paused ? `Resume ${config.path}` : `Pause ${config.path}`} title={config.paused ? t("Resume") : t("Pause")} onClick={() => patch({ paused: !config.paused })}>
           {config.paused ? <Play size={14} aria-hidden /> : <Pause size={14} aria-hidden />}
         </button>
-        <button type="button" className={iconButton} aria-label={`Remove ${config.path}`} title="Stop watching" onClick={() => void run(() => bridge.remove(config.id))}>
+        <button type="button" className={iconButton} aria-label={`Remove ${config.path}`} title={t("Stop watching")} onClick={() => void run(() => bridge.remove(config.id))}>
           <Trash2 size={14} aria-hidden />
         </button>
       </div>
       <p className="mt-1 text-xs text-fg-2">
-        {config.kind === "ingest" ? "New media is imported into the open project." : "Media dropped here is rendered to the output folder; the source moves to done/ or failed/."}
+        {config.kind === "ingest" ? t("New media is imported into the open project.") : t("Media dropped here is rendered to the output folder; the source moves to done/ or failed/.")}
         {status.message ? ` ${status.message}` : ""}
       </p>
       {config.kind === "ingest" ? (
@@ -99,35 +102,35 @@ function FolderCard({ config, status, items, bridge }: { config: OpenReelWatchFo
       ) : (
         <div className="mt-2 space-y-2">
           <label className="flex items-center gap-2 text-xs text-fg-2">
-            <span className="w-24 shrink-0">Export preset</span>
-            <select value={config.presetId} onChange={(e) => patch({ presetId: e.target.value })} aria-label="Export preset" className={`${fieldClass} flex-1`}>
+            <span className="w-24 shrink-0">{t("Export preset")}</span>
+            <select value={config.presetId} onChange={(e) => patch({ presetId: e.target.value })} aria-label={t("Export preset")} className={`${fieldClass} flex-1`}>
               {WATCH_EXPORT_PRESETS.map((preset) => (
                 <option key={preset.id} value={preset.id}>
-                  {preset.label}
+                  {t(preset.label)}
                 </option>
               ))}
             </select>
           </label>
           <div className="flex items-center gap-2 text-xs text-fg-2">
-            <span className="w-24 shrink-0">Output folder</span>
+            <span className="w-24 shrink-0">{t("Output folder")}</span>
             <code className="min-w-0 flex-1 truncate font-mono" title={config.outputDir}>
               {config.outputDir}
             </code>
             <Button type="button" variant="ghost" className="h-7 px-2 text-xs" onClick={() => void run(() => bridge.pickOutput(config.id))}>
-              Change
+              {t("Change")}
             </Button>
           </div>
           <div className="flex items-center justify-between gap-3 text-xs text-fg-2">
-            <span className="max-w-sm">Also render .oreel project files (opens each in the editor; the project open now is saved first)</span>
-            <Switch aria-label="Render project files" checked={config.includeProjects} onCheckedChange={(includeProjects) => patch({ includeProjects })} />
+            <span className="max-w-sm">{t("Also render .oreel project files (opens each in the editor; the project open now is saved first)")}</span>
+            <Switch aria-label={t("Render project files")} checked={config.includeProjects} onCheckedChange={(includeProjects) => patch({ includeProjects })} />
           </div>
         </div>
       )}
       <div className="mt-2 flex items-center gap-2 text-xs text-fg-2">
-        <span data-testid="watch-folder-summary">{summary(status) || "Nothing yet"}</span>
+        <span data-testid="watch-folder-summary">{summary(status) || t("Nothing yet")}</span>
         {failed.length > 0 && (
           <Button type="button" variant="ghost" className="ml-auto h-6 gap-1 px-1.5 text-xs" onClick={() => void run(() => Promise.all(failed.map((item) => bridge.retry(item.id))))}>
-            <RotateCcw size={11} aria-hidden /> Retry failed
+            <RotateCcw size={11} aria-hidden /> {t("Retry failed")}
           </Button>
         )}
       </div>
@@ -142,6 +145,7 @@ function FolderCard({ config, status, items, bridge }: { config: OpenReelWatchFo
 
 /** Settings > Watch folders (desktop). The folder list lives in the main process; this edits it. */
 export const WatchFoldersPanel: React.FC = () => {
+  const t = useT();
   const bridge = typeof window !== "undefined" ? window.openreel?.watchFolders : undefined;
   const [snapshot, setSnapshot] = useState<OpenReelWatchFoldersSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -171,20 +175,19 @@ export const WatchFoldersPanel: React.FC = () => {
     [bridge],
   );
 
-  if (!bridge) return <p className="text-xs text-fg-2">Watch folders are available in the OpenReel desktop app.</p>;
+  if (!bridge) return <p className="text-xs text-fg-2">{t("Watch folders are available in the OpenReel desktop app.")}</p>;
   const folders = snapshot?.folders ?? [];
   return (
     <div className="space-y-4" data-testid="watch-folders-panel">
       <div>
-        <span className="block text-sm font-medium text-fg">Watch folders</span>
+        <span className="block text-sm font-medium text-fg">{t("Watch folders")}</span>
         <span className="mt-0.5 block text-xs text-fg-2">
-          An ingest folder imports media dropped into it into the open project. An export folder renders media dropped into it with a preset.
-          Files are picked up once they stop growing, duplicates are skipped, and watching resumes when OpenReel starts. Progress shows in the background tasks panel.
+          {t("An ingest folder imports media dropped into it into the open project. An export folder renders media dropped into it with a preset. Files are picked up once they stop growing, duplicates are skipped, and watching resumes when OpenReel starts. Progress shows in the background tasks panel.")}
         </span>
       </div>
-      <ul className="space-y-2" aria-label="Watch folders">
-        {snapshot === null && <li className="text-xs text-fg-2">Loading…</li>}
-        {snapshot !== null && folders.length === 0 && <li className="text-xs text-fg-2">No watch folders yet.</li>}
+      <ul className="space-y-2" aria-label={t("Watch folders")}>
+        {snapshot === null && <li className="text-xs text-fg-2">{t("Loading…")}</li>}
+        {snapshot !== null && folders.length === 0 && <li className="text-xs text-fg-2">{t("No watch folders yet.")}</li>}
         {folders.map(({ config, status }) => (
           <FolderCard key={config.id} config={config} status={status} items={(snapshot?.items ?? []).filter((item) => item.folderId === config.id)} bridge={bridge} />
         ))}
@@ -192,19 +195,19 @@ export const WatchFoldersPanel: React.FC = () => {
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" onClick={() => void add("ingest")} className="inline-flex h-7 items-center gap-1.5 rounded-[7px] border border-border bg-bg-2 px-2.5 text-[12px] font-semibold text-fg-2 hover:bg-bg-3 hover:text-fg">
           <Plus size={14} aria-hidden />
-          Add ingest folder
+          {t("Add ingest folder")}
         </Button>
         <Button type="button" onClick={() => void add("export")} className="inline-flex h-7 items-center gap-1.5 rounded-[7px] border border-border bg-bg-2 px-2.5 text-[12px] font-semibold text-fg-2 hover:bg-bg-3 hover:text-fg">
           <Plus size={14} aria-hidden />
-          Add export folder
+          {t("Add export folder")}
         </Button>
         {snapshot?.items.some((item) => ["done", "failed", "duplicate", "cancelled"].includes(item.state)) && (
           <Button type="button" variant="ghost" className="h-7 px-2 text-xs text-fg-2 hover:text-fg" onClick={() => void bridge.clearFinished()}>
-            Clear finished
+            {t("Clear finished")}
           </Button>
         )}
       </div>
-      <p className="text-xs text-fg-2">Files already in a folder when you add it are skipped; only files that arrive afterwards are processed.</p>
+      <p className="text-xs text-fg-2">{t("Files already in a folder when you add it are skipped; only files that arrive afterwards are processed.")}</p>
       {error && (
         <p role="alert" className="text-xs text-status-error">
           {error}

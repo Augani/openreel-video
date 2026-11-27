@@ -26,6 +26,7 @@ import {
   updateWarpSettings,
   warpAnalysisCovers,
 } from "../../../services/warp-stabilizer-service";
+import { useT } from "@openreel/i18n/react";
 
 interface StabilizationSectionProps {
   clip: Clip;
@@ -55,6 +56,7 @@ function Choice<T extends string>({ label, value, values, labels, onChange, disa
 }
 
 export const StabilizationSection: React.FC<StabilizationSectionProps> = ({ clip }) => {
+  const t = useT();
   const job = useSyncExternalStore(subscribe, () => getWarpRegistry().getJob(clip.id));
   const stabilization = clip.stabilization;
   const analysed = Boolean(stabilization?.warpAnalysis && isWarpAnalysis(stabilization.warpAnalysis));
@@ -71,7 +73,7 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({ clip
       <div className="flex items-center justify-between">
         <span className="text-fg font-normal flex items-center gap-2 text-sm">
           <Video className="h-4 w-4" />
-          Warp Stabilizer
+          {t("Warp Stabilizer")}
         </span>
         <InspectorToggle
           ariaLabel="Enable Warp Stabilizer"
@@ -83,21 +85,21 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({ clip
       {busy && (
         <Card
           role="status"
-          aria-label="Stabilizer status"
+          aria-label={t("Stabilizer status")}
           className="min-w-0 rounded-[7px] border shadow-none border-transparent bg-bg-2 text-fg p-2 space-y-1"
         >
           <div className="flex items-center justify-between gap-2">
             <span className="text-fg-2 font-normal text-xs">
-              {job.status === "analysing" ? `Analysing in background (step 1 of 2) ${percent}%` : "Stabilizing (step 2 of 2)"}
+              {job.status === "analysing" ? `Analysing in background (step 1 of 2) ${percent}%` : t("Stabilizing (step 2 of 2)")}
             </span>
             <Button
               type="button"
-              aria-label="Cancel stabilizer analysis"
+              aria-label={t("Cancel stabilizer analysis")}
               className="inline-flex h-6 items-center gap-1 rounded-[6px] border border-border bg-bg-2 px-2 text-[11px] text-fg-2 hover:bg-bg-3 hover:text-fg"
               onClick={() => cancelWarpAnalysis(clip.id)}
             >
               <X className="h-3 w-3" />
-              Cancel
+              {t("Cancel")}
             </Button>
           </div>
           <div className="h-1.5 w-full rounded-full bg-muted">
@@ -114,14 +116,14 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({ clip
 
       {stale && !busy && (
         <Card className="min-w-0 rounded-[7px] shadow-none text-fg p-2 flex items-center justify-between gap-2 border border-border/60 bg-muted/40">
-          <span className="text-fg-2 font-normal text-[11px]">The trim changed since the analysis.</span>
+          <span className="text-fg-2 font-normal text-[11px]">{t("The trim changed since the analysis.")}</span>
           <Button
             type="button"
-            aria-label="Analyse again"
+            aria-label={t("Analyse again")}
             className="h-6 rounded-[6px] border border-border bg-bg-2 px-2 text-[11px] text-fg-2 hover:bg-bg-3 hover:text-fg"
             onClick={() => void startWarpStabilizer(clip.id)}
           >
-            Analyse again
+            {t("Analyse again")}
           </Button>
         </Card>
       )}
@@ -164,10 +166,10 @@ export const StabilizationSection: React.FC<StabilizationSectionProps> = ({ clip
           />
           <p className="text-[10px] text-fg-3">
             {warp.framing === "synthesizeEdges"
-              ? "Fills the empty borders with picture from neighbouring frames."
+              ? t("Fills the empty borders with picture from neighbouring frames.")
               : cropping
-                ? "Smoothing gives way before the crop passes the budget set by Crop Less / Smooth More."
-                : "Borders the correction uncovers stay empty."}
+                ? t("Smoothing gives way before the crop passes the budget set by Crop Less / Smooth More.")
+                : t("Borders the correction uncovers stay empty.")}
           </p>
         </fieldset>
       )}

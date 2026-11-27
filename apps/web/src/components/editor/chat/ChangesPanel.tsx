@@ -15,12 +15,14 @@ import { getTrackBadge } from "../timeline/track-badge";
 import { useAIUndoAvailability } from "./useAIUndoAvailability";
 import { observeAIHistory } from "../../../services/agent/observe-ai-history";
 import { ChangeAge, useChangeClock, validChangeTimestamp } from "./ChangeAge";
+import { useT } from "@openreel/i18n/react";
 
 function RevertIcon() {
   return <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 7v6h6M21 17a9 9 0 0 0-15-6.7L3 13" /></svg>;
 }
 
 export function ChangesPanel() {
+  const t = useT();
   useEffect(observeAIHistory, []);
   const undoHintId = useId();
   const messages = useChatStore(s => s.messages);
@@ -55,14 +57,14 @@ export function ChangesPanel() {
   return (
     <div className="workspace-changes flex h-full flex-col">
       <header>
-        <strong>Changes <span>{count}</span></strong>
-        <small>Click to jump · ⌘Z undoes one</small>
+        <strong>{t("Changes")} <span>{count}</span></strong>
+        <small>{t("Click to jump · ⌘Z undoes one")}</small>
       </header>
       <ScrollArea className="flex-1 min-h-0">
         <div className="workspace-changes-list">
           {turns.length ? turns.map(({ message: turn, request, calls }) => (
             <section key={turn.id}>
-              <h3 title={request}><span>{request ? `“${request}”` : "Timeline edits"}</span><ChangeAge timestamp={turn.createdAt} now={now}/></h3>
+              <h3 title={request}><span>{request ? `“${request}”` : t("Timeline edits")}</span><ChangeAge timestamp={turn.createdAt} now={now}/></h3>
               {calls.map(call => {
                 const target = resolveAIEditTarget(fullProject, call, items);
                 const item = target?.id ? items.get(target.id) : undefined;
@@ -76,38 +78,38 @@ export function ChangesPanel() {
                 return (
                   <div key={call.id} className={`workspace-change ${call.status === "running" ? "is-running" : ""}`}>
                     <Button variant="ghost" className="workspace-change-jump" disabled={isUndone || exporting || locked || !target}
-                      onClick={() => jumpToAIEdit(call)} title={target ? "Go to this edit" : "No timeline position for this edit"}>
+                      onClick={() => jumpToAIEdit(call)} title={target ? t("Go to this edit") : t("No timeline position for this edit")}>
                       <span className={`workspace-change-dot ${isUndone ? "undone" : call.status}`}
                         data-kind={target?.kind} data-media-type={item?.kind === "media" ? item.mediaItem?.type : undefined} data-track-badge={badge} />
                       <span><strong>{summary}</strong><small>{detail}</small></span>
                     </Button>
                     <Button variant="ghost" size="icon" className="workspace-change-undo"
                       disabled={turn.id !== latest || !undoAvailable || isUndone}
-                      aria-label="Undo all edits from this AI turn" aria-describedby={undoHintId}
-                      title="Undo every edit in this AI turn" onClick={() => void undo()}><RevertIcon /></Button>
+                      aria-label={t("Undo all edits from this AI turn")} aria-describedby={undoHintId}
+                      title={t("Undo every edit in this AI turn")} onClick={() => void undo()}><RevertIcon /></Button>
                   </div>
                 );
               })}
             </section>
           )) : (
-            <div className="workspace-changes-empty"><Sparkles size={22} /><strong>Your edits, step by step</strong>
-              <p>Changes made by the assistant appear here. Select an edit to jump to its clip.</p></div>
+            <div className="workspace-changes-empty"><Sparkles size={22} /><strong>{t("Your edits, step by step")}</strong>
+              <p>{t("Changes made by the assistant appear here. Select an edit to jump to its clip.")}</p></div>
           )}
         </div>
       </ScrollArea>
       <footer>
-        <strong>The assistant can</strong>
-        <p><Check size={14} aria-hidden="true" />{dryRun ? "Preview timeline edits" : "Edit the timeline"}</p>
-        <p><Check size={14} aria-hidden="true" />Use your imported media</p>
-        <p><Eye size={14} className="is-review" aria-hidden="true" />Open export for your review</p>
+        <strong>{t("The assistant can")}</strong>
+        <p><Check size={14} aria-hidden="true" />{dryRun ? t("Preview timeline edits") : t("Edit the timeline")}</p>
+        <p><Check size={14} aria-hidden="true" />{t("Use your imported media")}</p>
+        <p><Eye size={14} className="is-review" aria-hidden="true" />{t("Open export for your review")}</p>
         <div className="workspace-changes-actions flex gap-2">
           <Button variant="secondary" className="flex-1" disabled={!undoAvailable || count === 0}
-            aria-label="Undo all edits in the last AI turn" aria-describedby={undoHintId}
-            title="Undo every edit in the last AI turn" onClick={() => void undo()}>Undo all</Button>
+            aria-label={t("Undo all edits in the last AI turn")} aria-describedby={undoHintId}
+            title={t("Undo every edit in the last AI turn")} onClick={() => void undo()}>{t("Undo all")}</Button>
           <Button className="flex-1" disabled={!committed || count === 0 || busy || keptTurn === latest}
-            onClick={() => setKeptTurn(latest ?? null)}>{keptTurn === latest && latest ? "Kept" : "Keep all"}</Button>
+            onClick={() => setKeptTurn(latest ?? null)}>{keptTurn === latest && latest ? t("Kept") : t("Keep all")}</Button>
         </div>
-        <span id={undoHintId} className="sr-only">Each AI turn is one undoable edit.</span>
+        <span id={undoHintId} className="sr-only">{t("Each AI turn is one undoable edit.")}</span>
       </footer>
     </div>
   );

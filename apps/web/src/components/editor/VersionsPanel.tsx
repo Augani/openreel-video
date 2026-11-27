@@ -6,6 +6,7 @@ import { useProjectStore } from "../../stores/project-store";
 import { formatFrameTimecode } from "../../utils/frame-timecode";
 import { listVersions, onVersionsChanged } from "../../services/project-versions";
 import { deleteVersion, restoreVersion, restoreVersionAsCopy, saveNamedVersion } from "../../services/version-commands";
+import { useT } from "@openreel/i18n/react";
 
 const formatBytes = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`;
@@ -48,6 +49,7 @@ function Detail({ version }: { version: ProjectVersionMeta }) {
 
 /** Named and automatic project snapshots: preview, restore (undoable or as a copy) and delete. */
 export function VersionsPanel() {
+  const t = useT();
   const projectId = useProjectStore((s) => s.project.id);
   const [versions, setVersions] = useState<ProjectVersionMeta[]>([]);
   const [name, setName] = useState("");
@@ -88,19 +90,19 @@ export function VersionsPanel() {
   const minutes = Math.round(DEFAULT_VERSION_POLICY.autoIntervalMs / 60000);
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col text-fg" aria-label="Versions" data-testid="versions-panel">
+    <section className="flex min-h-0 flex-1 flex-col text-fg" aria-label={t("Versions")} data-testid="versions-panel">
       <header className="flex flex-col gap-2 border-b border-border px-3 py-3">
         <h2 className="flex items-center gap-1.5 text-[13px] font-semibold">
           <History size={14} aria-hidden />
-          Versions
+          {t("Versions")}
           <span className="rounded-full bg-bg-2 px-1.5 text-[11px] font-normal text-fg-muted" data-testid="versions-count">
             {versions.length}
           </span>
         </h2>
         <div className="flex gap-1.5">
           <Input
-            aria-label="Version name"
-            placeholder="Version name"
+            aria-label={t("Version name")}
+            placeholder={t("Version name")}
             data-testid="version-name-input"
             value={name}
             onChange={(event) => setName(event.target.value)}
@@ -112,7 +114,7 @@ export function VersionsPanel() {
           />
           <Button size="sm" className="h-7 gap-1 px-2.5 text-[12px]" data-testid="version-save" disabled={busy} onClick={() => void save()}>
             <Save size={12} aria-hidden />
-            Save version
+            {t("Save version")}
           </Button>
         </div>
       </header>
@@ -120,10 +122,10 @@ export function VersionsPanel() {
       <div className="min-h-0 flex-1 overflow-auto">
         {versions.length === 0 ? (
           <p className="px-4 py-8 text-center text-[12px] text-fg-muted" data-testid="versions-empty">
-            No versions yet. Save one before a risky edit; automatic versions appear every {minutes} minutes while you work.
+            {t("No versions yet. Save one before a risky edit; automatic versions appear every")} {minutes} {t("minutes while you work.")}
           </p>
         ) : (
-          <ul aria-label="Version list">
+          <ul aria-label={t("Version list")}>
             {versions.map((version) => {
               const selected = selectedId === version.id;
               return (
@@ -151,7 +153,7 @@ export function VersionsPanel() {
                     <span
                       className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${version.kind === "manual" ? "bg-accent/20 text-fg" : "bg-bg-2 text-fg-muted"}`}
                     >
-                      {version.kind === "manual" ? "Manual" : "Auto"}
+                      {version.kind === "manual" ? t("Manual") : t("Auto")}
                     </span>
                   </button>
                   {selected && (
@@ -163,11 +165,11 @@ export function VersionsPanel() {
                           className="h-7 gap-1 px-2 text-[12px]"
                           data-testid="version-restore"
                           disabled={busy}
-                          title="Replace the current edit with this version. Undo brings it back."
+                          title={t("Replace the current edit with this version. Undo brings it back.")}
                           onClick={() => void run(() => restoreVersion(version.id))}
                         >
                           <RotateCcw size={12} aria-hidden />
-                          Restore
+                          {t("Restore")}
                         </Button>
                         <Button
                           variant="secondary"
@@ -175,11 +177,11 @@ export function VersionsPanel() {
                           className="h-7 gap-1 px-2 text-[12px]"
                           data-testid="version-restore-copy"
                           disabled={busy}
-                          title="Open this version as a new project and keep the current one"
+                          title={t("Open this version as a new project and keep the current one")}
                           onClick={() => void run(() => restoreVersionAsCopy(version.id))}
                         >
                           <Copy size={12} aria-hidden />
-                          Restore as copy
+                          {t("Restore as copy")}
                         </Button>
                         {confirmDeleteId === version.id ? (
                           <>
@@ -194,10 +196,10 @@ export function VersionsPanel() {
                                 void run(() => deleteVersion(version.id));
                               }}
                             >
-                              Delete for good
+                              {t("Delete for good")}
                             </Button>
                             <Button variant="ghost" size="sm" className="h-7 px-2 text-[12px]" onClick={() => setConfirmDeleteId(null)}>
-                              Keep
+                              {t("Keep")}
                             </Button>
                           </>
                         ) : (
@@ -209,7 +211,7 @@ export function VersionsPanel() {
                             onClick={() => setConfirmDeleteId(version.id)}
                           >
                             <Trash2 size={12} aria-hidden />
-                            Delete
+                            {t("Delete")}
                           </Button>
                         )}
                       </div>
@@ -223,7 +225,7 @@ export function VersionsPanel() {
       </div>
 
       <footer className="border-t border-border px-3 py-2 text-[11px] text-fg-muted" data-testid="versions-footer">
-        {formatBytes(total)} used · {autoCount} automatic (keeps the latest {DEFAULT_VERSION_POLICY.maxAuto}) · media files are not copied into versions
+        {formatBytes(total)} {t("used ·")} {autoCount} {t("automatic (keeps the latest")} {DEFAULT_VERSION_POLICY.maxAuto}{t(") · media files are not copied into versions")}
       </footer>
     </section>
   );

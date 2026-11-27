@@ -1,4 +1,5 @@
 import { memo, useMemo } from "react";
+import { useT } from "@openreel/i18n/react";
 
 const POINTS = 96;
 const MIN_HZ = 20;
@@ -48,6 +49,7 @@ export function rackEqResponse(params: Record<string, number | string | boolean>
 
 /** Visual EQ curve (20 Hz - 20 kHz, +-24 dB) for the rack's Parametric EQ. */
 export const EqCurve = memo(function EqCurve({ params }: { params: Record<string, number | string | boolean> }) {
+  const t = useT();
   const path = useMemo(() => {
     const freqs = new Float32Array(POINTS);
     for (let i = 0; i < POINTS; i += 1) freqs[i] = MIN_HZ * Math.pow(MAX_HZ / MIN_HZ, i / (POINTS - 1));
@@ -64,7 +66,7 @@ export const EqCurve = memo(function EqCurve({ params }: { params: Record<string
   if (!path) return null;
   const guide = (hz: number) => (Math.log(hz / MIN_HZ) / Math.log(MAX_HZ / MIN_HZ)) * 240;
   return (
-    <svg viewBox="0 0 240 72" className="h-[72px] w-full rounded border border-border bg-bg-1" role="img" aria-label="EQ frequency response curve" data-testid="eq-curve">
+    <svg viewBox="0 0 240 72" className="h-[72px] w-full rounded border border-border bg-bg-1" role="img" aria-label={t("EQ frequency response curve")} data-testid="eq-curve">
       <line x1="0" x2="240" y1="36" y2="36" className="stroke-border" strokeWidth="1" />
       {[100, 1000, 10000].map((hz) => (
         <g key={hz}>

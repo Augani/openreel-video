@@ -30,6 +30,7 @@ import {
   SPEED_MAX,
   SPEED_CURVE_PRESETS,
 } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 
 interface ClipLike {
   id: string;
@@ -75,6 +76,7 @@ const SpeedCurveCanvas: React.FC<{
   onRemoveKeyframe,
   onMoveKeyframe,
 }) => {
+  const t = useT();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hoveredKeyframe, setHoveredKeyframe] = useState<string | null>(null);
   const [draggingKeyframe, setDraggingKeyframe] = useState<string | null>(null);
@@ -373,13 +375,14 @@ const SpeedCurveCanvas: React.FC<{
         }`}
       />
       <div className="absolute bottom-1 right-1 text-[8px] text-fg-3 pointer-events-none">
-        Click to add • Drag to move • Click a point to remove
+        {t("Click to add • Drag to move • Click a point to remove")}
       </div>
     </div>
   );
 };
 
 export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
+  const t = useT();
   const playheadPosition = useTimelineStore((state) => state.playheadPosition);
   const speedEngine = useMemo(() => getSpeedEngine(), []);
 
@@ -607,7 +610,7 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
     <fieldset className="min-w-0 space-y-3 border-0 p-0">
       <Card className="min-w-0 rounded-[7px] shadow-none bg-bg-2 text-fg p-2 border border-border">
         <span className="text-fg-2 font-normal text-[10px]">
-          Effective duration: {formatDuration(effectiveDuration)}
+          {t("Effective duration:")} {formatDuration(effectiveDuration)}
         </span>
       </Card>
 
@@ -637,18 +640,18 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
       </div>
 
       <div className="flex gap-2">
-        <Button onClick={handleReverseToggle} type="button" aria-label="Reverse" className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 px-2.5 text-[12px]", (isReverse ? "bg-accent text-accent-fg hover:bg-accent/90" : "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"), "flex-1")}>
+        <Button onClick={handleReverseToggle} type="button" aria-label={t("Reverse")} className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 px-2.5 text-[12px]", (isReverse ? "bg-accent text-accent-fg hover:bg-accent/90" : "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"), "flex-1")}>
           <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<RotateCcw size={12} aria-hidden />}</span>
-          <span className="truncate">{"Reverse"}</span>
+          <span className="truncate">{t("Reverse")}</span>
         </Button>
-        <Button onClick={handlePitchCorrectionToggle} type="button" aria-label="Pitch Correct" className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 px-2.5 text-[12px]", (pitchCorrection ? "bg-accent text-accent-fg hover:bg-accent/90" : "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"), "flex-1")}>
-          <span className="truncate">{"Pitch Correct"}</span>
+        <Button onClick={handlePitchCorrectionToggle} type="button" aria-label={t("Pitch Correct")} className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-7 px-2.5 text-[12px]", (pitchCorrection ? "bg-accent text-accent-fg hover:bg-accent/90" : "border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"), "flex-1")}>
+          <span className="truncate">{t("Pitch Correct")}</span>
         </Button>
       </div>
 
       <div className="space-y-1.5">
         <span className="text-fg-2 font-bold text-[10px]">
-          Speed Curve Presets
+          {t("Speed Curve Presets")}
         </span>
         <div className="grid grid-cols-2 gap-1">
           {SPEED_CURVE_PRESETS.map((preset) => (
@@ -693,7 +696,7 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
                   <span className="text-fg font-normal text-[9px] font-mono">
                     {kf.speed.toFixed(2)}x
                   </span>
-                  <Button variant="ghost" size="icon-sm" onClick={() => handleRemoveKeyframe(kf.id)} type="button" aria-label="Remove speed keyframe" title="Remove speed keyframe" className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent hover:bg-bg-2 ml-auto text-fg-3 hover:text-red-400">
+                  <Button variant="ghost" size="icon-sm" onClick={() => handleRemoveKeyframe(kf.id)} type="button" aria-label={t("Remove speed keyframe")} title={t("Remove speed keyframe")} className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent hover:bg-bg-2 ml-auto text-fg-3 hover:text-red-400">
                     {<Trash2 size={10} aria-hidden />}
                   </Button>
                 </Card>
@@ -714,9 +717,9 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
 
       {isExpanded && (
         <div className="space-y-2">
-          <Button onClick={handleCreateFreezeFrame} type="button" aria-label="Add Freeze Frame at Playhead" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90 w-full">
+          <Button onClick={handleCreateFreezeFrame} type="button" aria-label={t("Add Freeze Frame at Playhead")} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90 w-full">
             <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<Pause size={12} aria-hidden />}</span>
-            <span className="truncate">{"Add Freeze Frame at Playhead"}</span>
+            <span className="truncate">{t("Add Freeze Frame at Playhead")}</span>
           </Button>
 
           {freezeFrames.length > 0 && (
@@ -728,11 +731,11 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
                   <span className="text-fg-2 font-normal text-[9px]">
                     {ff.startTime.toFixed(2)}s
                   </span>
-                  <span className="text-fg-2 font-normal text-[9px]">for</span>
+                  <span className="text-fg-2 font-normal text-[9px]">{t("for")}</span>
                   <span className="text-fg font-normal text-[9px] font-mono">
                     {ff.duration.toFixed(1)}s
                   </span>
-                  <Button variant="ghost" size="icon-sm" onClick={() => handleRemoveFreezeFrame(ff.id)} type="button" aria-label="Remove freeze frame" title="Remove freeze frame" className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent hover:bg-bg-2 ml-auto text-fg-3 hover:text-red-400">
+                  <Button variant="ghost" size="icon-sm" onClick={() => handleRemoveFreezeFrame(ff.id)} type="button" aria-label={t("Remove freeze frame")} title={t("Remove freeze frame")} className="inline-flex shrink-0 items-center justify-center rounded-[7px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 w-7 bg-transparent hover:bg-bg-2 ml-auto text-fg-3 hover:text-red-400">
                     {<Trash2 size={10} aria-hidden />}
                   </Button>
                 </Card>
@@ -742,9 +745,9 @@ export const SpeedRampSection: React.FC<SpeedRampSectionProps> = ({ clip }) => {
         </div>
       )}
 
-      <Button onClick={handleReset} type="button" aria-label="Reset Speed & Effects" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 hover:bg-bg-3 hover:text-fg w-full text-red-400">
+      <Button onClick={handleReset} type="button" aria-label={t("Reset Speed & Effects")} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] border border-border bg-bg-2 hover:bg-bg-3 hover:text-fg w-full text-red-400">
         <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<RotateCcw size={12} aria-hidden />}</span>
-        <span className="truncate">{"Reset Speed & Effects"}</span>
+        <span className="truncate">{t("Reset Speed & Effects")}</span>
       </Button>
     </fieldset>
   );

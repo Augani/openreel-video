@@ -1,4 +1,5 @@
 import { TemplateHero } from "./TemplateHero";
+import { translateNow } from "@openreel/i18n/translate";
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
@@ -38,6 +39,7 @@ import {
 } from "../../services/template-customization";
 import type { EditorDraftOwner } from "../../services/editor-field-drafts";
 import { TemplatePlaceholderField } from "./TemplatePlaceholderField";
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   template: ScriptableTemplate;
@@ -46,8 +48,11 @@ interface Props {
 }
 const formatDuration = (seconds: number) =>
   seconds < 60
-    ? `${seconds}s`
-    : `${Math.floor(seconds / 60)}m${seconds % 60 ? ` ${seconds % 60}s` : ""}`;
+    ? translateNow("{seconds}s", { seconds })
+    : translateNow(
+        seconds % 60 ? "{minutes}m {seconds}s" : "{minutes}m",
+        { minutes: Math.floor(seconds / 60), seconds: seconds % 60 },
+      );
 
 export function TemplatePreviewModal(props: Props) {
   const owner = useProjectStore(
@@ -82,6 +87,7 @@ function TemplateCustomizationSession({
   onClose,
   onApply,
 }: Props & { owner: EditorDraftOwner }) {
+  const t = useT();
   const getEngine = useEngineStore((state) => state.getTemplateEngine);
   const { track } = useAnalytics();
   const [drafts, setDrafts] = useState<TemplateFieldDrafts>({});
@@ -249,15 +255,19 @@ function TemplateCustomizationSession({
             </DialogTitle>
             <DialogDescription className="mt-1 text-xs leading-4 text-fg-muted">
               {formatDuration(template.timeline.duration)} ·{" "}
-              {template.placeholders.length} editable{" "}
-              {template.placeholders.length === 1 ? "field" : "fields"}
+              {t(
+                template.placeholders.length === 1
+                  ? "{count} editable field"
+                  : "{count} editable fields",
+                { count: template.placeholders.length },
+              )}
             </DialogDescription>
           </div>
           <Button
             variant="ghost"
             size="icon-sm"
             type="button"
-            aria-label="Close dialog"
+            aria-label={t("Close dialog")}
             onClick={close}
             className="h-7 w-7 shrink-0 max-sm:h-11 max-sm:w-11"
           >
@@ -284,9 +294,9 @@ function TemplateCustomizationSession({
                 <p className="text-sm text-fg-2">{template.description}</p>
               )}
               {!!template.scenes?.length && (
-                <section className="space-y-2" aria-label="Scenes">
+                <section className="space-y-2" aria-label={t("Scenes")}>
                   <h3 className="text-xs font-medium uppercase tracking-wide text-fg-3">
-                    Scenes
+                    {t("Scenes")}
                   </h3>
                   <div className="flex flex-wrap gap-2">
                     {template.scenes.map((scene) => (
@@ -299,7 +309,7 @@ function TemplateCustomizationSession({
                           className="h-2 w-2 rounded-full"
                           style={{ backgroundColor: scene.color || "#22c55e" }}
                         />
-                        <span className="text-fg-2">{scene.label}</span>
+                        <span className="text-fg-2">{t(scene.label)}</span>
                         <span className="text-fg-3">
                           ({formatDuration(scene.endTime - scene.startTime)})
                         </span>
@@ -312,7 +322,7 @@ function TemplateCustomizationSession({
             <div className="min-w-0 space-y-4">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-sm font-medium text-fg">
-                  Customize Template
+                  {t("Customize Template")}
                 </h3>
                 {!!Object.keys(drafts).length && (
                   <Button
@@ -330,7 +340,7 @@ function TemplateCustomizationSession({
                     className="h-7 gap-1 text-xs"
                   >
                     <RotateCcw size={12} aria-hidden />
-                    Reset all
+                    {t("Reset all")}
                   </Button>
                 )}
               </div>
@@ -342,7 +352,7 @@ function TemplateCustomizationSession({
                 errorTarget={errorTarget}
                 onChange={change}
                 onReset={reset}
-                label="Main fields"
+                label={t("Main fields")}
               />
               {!!groups.advanced.length && (
                 <Collapsible open={advanced} onOpenChange={setAdvanced}>
@@ -358,7 +368,7 @@ function TemplateCustomizationSession({
                         aria-hidden
                         className={advanced ? "rotate-90" : ""}
                       />
-                      Advanced Options ({groups.advanced.length})
+                      {t("Advanced Options ({count})", { count: groups.advanced.length })}
                     </Button>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="mt-3 border-l border-border pl-3">
@@ -370,7 +380,7 @@ function TemplateCustomizationSession({
                       errorTarget={errorTarget}
                       onChange={change}
                       onReset={reset}
-                      label="Advanced fields"
+                      label={t("Advanced fields")}
                     />
                   </CollapsibleContent>
                 </Collapsible>
@@ -385,7 +395,7 @@ function TemplateCustomizationSession({
               )}
               {!template.placeholders.length && (
                 <p className="text-xs text-fg-3">
-                  This template has no editable fields.
+                  {t("This template has no editable fields.")}
                 </p>
               )}
             </div>
@@ -397,7 +407,7 @@ function TemplateCustomizationSession({
               onClick={close}
               className="h-8 px-3 text-xs max-sm:min-h-11"
             >
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button
               type="submit"
@@ -409,7 +419,7 @@ function TemplateCustomizationSession({
               ) : (
                 <ChevronRight size={16} aria-hidden />
               )}
-              {busy ? "Applying..." : "Use Template"}
+              {busy ? t("Applying...") : t("Use Template")}
             </Button>
           </DialogFooter>
         </form>
@@ -437,6 +447,7 @@ function TemplateFieldList({
   onReset: (id: string) => void;
   label: string;
 }) {
+  const t = useT();
   const [page, setPage] = useState(0);
   useEffect(() => {
     const index = fields.findIndex((field) => field.id === errorTarget);
@@ -471,11 +482,11 @@ function TemplateFieldList({
           <Button
             variant="ghost"
             type="button"
-            aria-label={`Previous ${label.toLowerCase()} page`}
+            aria-label={t("Previous {label} page", { label })}
             disabled={disabled || activePage === 0}
             onClick={() => setPage(activePage - 1)}
           >
-            Previous
+            {t("Previous")}
           </Button>
           <span>
             {activePage + 1} / {pages}
@@ -483,11 +494,11 @@ function TemplateFieldList({
           <Button
             variant="ghost"
             type="button"
-            aria-label={`Next ${label.toLowerCase()} page`}
+            aria-label={t("Next {label} page", { label })}
             disabled={disabled || activePage + 1 >= pages}
             onClick={() => setPage(activePage + 1)}
           >
-            Next
+            {t("Next")}
           </Button>
         </div>
       )}

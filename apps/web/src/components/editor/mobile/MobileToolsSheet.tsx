@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { Button, Dialog, DialogContent, DialogTitle, Input, ScrollArea } from "@openreel/ui";
 import { MobileEditorIcon } from "./MobileEditorIcon";
 import { MOBILE_QUICK_TOOLS, MOBILE_TOOL_GROUPS, type MobileTool, type MobileToolId } from "./mobile-tools";
+import { useT } from "@openreel/i18n/react";
 
 export function MobileToolsSheet({ open, onOpenChange, onTool, unavailable = [], recent = [] }: {
   open: boolean;
@@ -10,6 +11,7 @@ export function MobileToolsSheet({ open, onOpenChange, onTool, unavailable = [],
   unavailable?: readonly MobileToolId[];
   recent?: readonly MobileToolId[];
 }) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const contentRef = useRef<HTMLDivElement>(null);
   const groups = useMemo(() => {
@@ -27,16 +29,16 @@ export function MobileToolsSheet({ open, onOpenChange, onTool, unavailable = [],
     <DialogContent ref={contentRef} hideCloseButton aria-describedby={undefined} className="mobile-editor-sheet mobile-tools-sheet" overlayClassName="mobile-editor-sheet-scrim"
       data-platform={/Android/i.test(navigator.userAgent) ? "android" : "ios"} onOpenAutoFocus={event => { event.preventDefault(); contentRef.current?.focus({ preventScroll: true }); }}>
       <div className="mobile-sheet-grabber" aria-hidden><span/></div>
-      <div className="mobile-sheet-heading"><DialogTitle>All tools</DialogTitle><Button variant="ghost" onClick={() => onOpenChange(false)} aria-label="Close all tools">{/Android/i.test(navigator.userAgent) ? <MobileEditorIcon name="close" size={20}/> : "Done"}</Button></div>
+      <div className="mobile-sheet-heading"><DialogTitle>{t("All tools")}</DialogTitle><Button variant="ghost" onClick={() => onOpenChange(false)} aria-label={t("Close all tools")}>{/Android/i.test(navigator.userAgent) ? <MobileEditorIcon name="close" size={20}/> : t("Done")}</Button></div>
       <ScrollArea className="mobile-sheet-scroll">
         <div className="mobile-tools-content">
-          <label className="mobile-tools-search"><MobileEditorIcon name="search" size={18}/><Input aria-label="Search tools" placeholder="Search tools, e.g. “remove background”" value={query} onChange={event => setQuery(event.currentTarget.value)}/></label>
-          {!query.trim() && <div className="mobile-recent-tools"><span>{recent.length ? "Recent" : "Quick access"}</span>{shortcuts.map(tool => <Button variant="ghost" key={tool.id} disabled={unavailable.includes(tool.id)} onClick={() => choose(tool.id)}>{tool.label}</Button>)}</div>}
-          {groups.map(group => <section key={group.title} aria-label={group.title} className="mobile-tool-group"><h3>{group.title}</h3><div className="mobile-tool-grid">{group.items.map(tool => <Button
+          <label className="mobile-tools-search"><MobileEditorIcon name="search" size={18}/><Input aria-label={t("Search tools")} placeholder={t("Search tools, e.g. “remove background”")} value={query} onChange={event => setQuery(event.currentTarget.value)}/></label>
+          {!query.trim() && <div className="mobile-recent-tools"><span>{recent.length ? t("Recent") : t("Quick access")}</span>{shortcuts.map(tool => <Button variant="ghost" key={tool.id} disabled={unavailable.includes(tool.id)} onClick={() => choose(tool.id)}>{t(tool.label)}</Button>)}</div>}
+          {groups.map(group => <section key={group.title} aria-label={t(group.title)} className="mobile-tool-group"><h3>{t(group.title)}</h3><div className="mobile-tool-grid">{group.items.map(tool => <Button
             key={tool.id} variant="ghost" className={`mobile-tool-tile ${tool.ai ? "is-ai" : ""} ${tool.danger ? "is-danger" : ""}`}
             disabled={unavailable.includes(tool.id)} onClick={() => choose(tool.id)}
-          ><span className="mobile-tool-tile-icon"><MobileEditorIcon name={tool.icon}/></span><span>{tool.label}</span></Button>)}</div></section>)}
-          {!groups.length && <p className="mobile-tools-empty" role="status">No tools found. Try another name, such as captions, shaders or audio.</p>}
+          ><span className="mobile-tool-tile-icon"><MobileEditorIcon name={tool.icon}/></span><span>{t(tool.label)}</span></Button>)}</div></section>)}
+          {!groups.length && <p className="mobile-tools-empty" role="status">{t("No tools found. Try another name, such as captions, shaders or audio.")}</p>}
         </div>
       </ScrollArea>
     </DialogContent>

@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
   ScrollArea,
 } from "@openreel/ui";
+import { useT } from "@openreel/i18n/react";
 import {
   X,
   Undo2,
@@ -56,6 +57,7 @@ function EmptyState({
   hasOpenProject: boolean;
   compact?: boolean;
 }): JSX.Element {
+  const t = useT();
   const send = useChatStore((s) => s.send);
   const connection = useAIConnectionStore();
   const ready = isConnectionReady(connection);
@@ -65,13 +67,13 @@ function EmptyState({
       <div className="mb-3 grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-accent">
         <Sparkles size={18} />
       </div>
-      <div className="text-[13px] font-medium text-fg">Edit by chatting</div>
+      <div className="text-[13px] font-medium text-fg">{t("Edit by chatting")}</div>
       <p
         className="mt-1 max-w-[14rem] text-[11px] leading-relaxed text-fg-muted"
       >
         {hasOpenProject
-          ? "Describe an edit in plain language and the AI will perform it on your timeline."
-          : "Open or create a project, then describe edits in plain language."}
+          ? t("Describe an edit in plain language and the AI will perform it on your timeline.")
+          : t("Open or create a project, then describe edits in plain language.")}
       </p>
       {hasOpenProject && !ready && (
         <ShadcnButton
@@ -83,7 +85,7 @@ function EmptyState({
           }
           className="mt-4 h-7 rounded-[7px] border border-border bg-bg-2 px-2.5 text-[12px] font-semibold text-fg-2 hover:bg-bg-3 hover:text-fg"
         >
-          Connect a model
+          {t("Connect a model")}
         </ShadcnButton>
       )}
       {hasOpenProject && ready && !compact && (
@@ -97,7 +99,7 @@ function EmptyState({
               onClick={() => void send(s)}
               className="h-7 w-full min-w-0 rounded-md border border-border bg-bg-1/60 px-2.5 py-1.5 text-left text-[11px] font-semibold text-fg-2 transition-colors hover:border-accent/50 hover:bg-hover hover:text-fg"
             >
-              <span className="truncate">{s}</span>
+              <span className="truncate">{t(s)}</span>
             </ShadcnButton>
           ))}
         </div>
@@ -107,6 +109,7 @@ function EmptyState({
 }
 
 export function ChatPanel({ onClose }: { onClose?: () => void }): JSX.Element {
+  const t = useT();
   useEffect(observeAIHistory, []);
   const phone = usePhoneEditor();
   const connectionOpen = useEditorWorkspaceStore(s => s.aiConnectionOpen);
@@ -165,14 +168,14 @@ export function ChatPanel({ onClose }: { onClose?: () => void }): JSX.Element {
 
   const actionMenu = (
             <DropdownMenuContent align="end" className="w-64">
-              {phone && <DropdownMenuItem disabled={busy || !messages.length} onSelect={() => { newChat(); setDraft(""); setHistoryOpen(false); }}><Plus/>New chat</DropdownMenuItem>}
+              {phone && <DropdownMenuItem disabled={busy || !messages.length} onSelect={() => { newChat(); setDraft(""); setHistoryOpen(false); }}><Plus/>{t("New chat")}</DropdownMenuItem>}
               <DropdownMenuItem
                 onSelect={() =>
                   useEditorWorkspaceStore.getState().setAIConnectionOpen(true)
                 }
               >
                 <Settings />
-                AI connection settings
+                {t("AI connection settings")}
               </DropdownMenuItem>
               <DropdownMenuCheckboxItem
                 checked={historyOpen}
@@ -180,14 +183,14 @@ export function ChatPanel({ onClose }: { onClose?: () => void }): JSX.Element {
                 disabled={busy}
               >
                 <History />
-                Conversation history
+                {t("Conversation history")}
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
                 checked={sharingOpen}
                 onCheckedChange={setSharingOpen}
               >
                 <Link2 />
-                Edit sharing &amp; collaboration
+                {t("Edit sharing & collaboration")}
               </DropdownMenuCheckboxItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -195,13 +198,16 @@ export function ChatPanel({ onClose }: { onClose?: () => void }): JSX.Element {
                 disabled={!canUndoTurn}
               >
                 <Undo2 />
-                Undo last AI turn
+                {t("Undo last AI turn")}
               </DropdownMenuItem>
-              {phone && <><DropdownMenuSeparator/><DropdownMenuLabel>More edit ideas</DropdownMenuLabel>{SUGGESTIONS.map(text => <DropdownMenuItem key={text} disabled={busy || !hasOpenProject} onSelect={() => setDraft(text)}>{text}</DropdownMenuItem>)}</>}
+              {phone && <><DropdownMenuSeparator/><DropdownMenuLabel>{t("More edit ideas")}</DropdownMenuLabel>{SUGGESTIONS.map(text => <DropdownMenuItem key={text} disabled={busy || !hasOpenProject} onSelect={() => setDraft(text)}>{t(text)}</DropdownMenuItem>)}</>}
               {totalTokens > 0 && (
                 <DropdownMenuLabel className="text-[11px] font-normal text-fg-muted">
-                  {tokenLabel} tokens · {usage.inputTokens} in ·{" "}
-                  {usage.outputTokens} out
+                  {t("{label} tokens · {input} in · {output} out", {
+                    label: tokenLabel,
+                    input: usage.inputTokens,
+                    output: usage.outputTokens,
+                  })}
                 </DropdownMenuLabel>
               )}
               {onClose && (
@@ -209,7 +215,7 @@ export function ChatPanel({ onClose }: { onClose?: () => void }): JSX.Element {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onSelect={onClose}>
                     <X />
-                    Close assistant
+                    {t("Close assistant")}
                   </DropdownMenuItem>
                 </>
               )}
@@ -222,7 +228,7 @@ export function ChatPanel({ onClose }: { onClose?: () => void }): JSX.Element {
       : <ChatMessage key={message.id} message={message} pending={busy && index === messages.length - 1 && message.role === "assistant"}/>
     )}
     {keepGoing && <ShadcnButton type="button" variant="secondary" size="sm" disabled={busy} onClick={() => void useChatStore.getState().send("Continue where you left off.")}
-      className="mt-2 h-7 rounded-[7px] border border-border bg-bg-2 px-2.5 text-[12px] font-semibold text-fg-2 hover:bg-bg-3 hover:text-fg">Keep going</ShadcnButton>}
+      className="mt-2 h-7 rounded-[7px] border border-border bg-bg-2 px-2.5 text-[12px] font-semibold text-fg-2 hover:bg-bg-3 hover:text-fg">{t("Keep going")}</ShadcnButton>}
     {pendingConfirm && <InlineConfirmCard call={pendingConfirm.call}/>}
     {error && <ChatErrorCard error={error} onDismiss={clearError} onOpenSettings={openSettings} onNewChat={() => { newChat(); setDraft(""); setHistoryOpen(false); }}/>}
   </>;
@@ -234,19 +240,19 @@ export function ChatPanel({ onClose }: { onClose?: () => void }): JSX.Element {
   const providerName = aiProviderLabel(connection.provider, connection.baseUrl);
   if (phone) return <Suspense fallback={null}><MobileAISheet open={open && !connectionOpen} onOpenChange={next => { if (!next) { if (onClose) onClose(); else useUIStore.getState().setPanelVisible("agentChat", false); } }}
     draft={draft} onDraftChange={setDraft} activity={messages} error={error} pendingConfirm={pendingConfirm}
-    provider={<DropdownMenu><DropdownMenuTrigger asChild><ShadcnButton variant="ghost" className="mobile-ai-provider" aria-label="AI connection and conversation actions">
-      <span className={configured ? "is-configured" : ""} aria-hidden/><span>{configured ? `${providerName} · ${aiModelLabel(connection.provider, connection.model)}` : "Connect a model"}</span>
+    provider={<DropdownMenu><DropdownMenuTrigger asChild><ShadcnButton variant="ghost" className="mobile-ai-provider" aria-label={t("AI connection and conversation actions")}>
+      <span className={configured ? "is-configured" : ""} aria-hidden/><span>{configured ? `${providerName} · ${aiModelLabel(connection.provider, connection.model)}` : t("Connect a model")}</span>
     </ShadcnButton></DropdownMenuTrigger>{actionMenu}</DropdownMenu>}
     auxiliary={auxiliary}>{conversation}</MobileAISheet></Suspense>;
   return (
     <div className="workspace-chat relative flex h-full flex-col bg-bg-1" data-tour="ai-chat">
       <header className="workspace-chat-header">
         <span className="shrink-0 text-[13px] font-semibold text-fg">
-          Assistant
+          {t("Assistant")}
         </span>
         <ShadcnButton
-          aria-label={configured ? `${connection.provider} · ${connection.model}` : "No model connected"}
-          title={configured ? `${providerName} · ${connection.model}` : "No model connected. Open AI connection settings"}
+          aria-label={configured ? `${connection.provider} · ${connection.model}` : t("No model connected")}
+          title={configured ? `${providerName} · ${connection.model}` : t("No model connected. Open AI connection settings")}
           variant="secondary"
           className="workspace-provider-pill"
           onClick={() =>
@@ -262,8 +268,8 @@ export function ChatPanel({ onClose }: { onClose?: () => void }): JSX.Element {
         </ShadcnButton>
         <div className="workspace-chat-actions ml-auto flex items-center">
           <ShadcnButton
-            aria-label="New chat"
-            title="New chat"
+            aria-label={t("New chat")}
+            title={t("New chat")}
             variant="ghost"
             disabled={busy || messages.length === 0}
             onClick={() => {
@@ -278,8 +284,8 @@ export function ChatPanel({ onClose }: { onClose?: () => void }): JSX.Element {
               <ShadcnButton
                 variant="ghost"
                 data-tour="ai-actions"
-                aria-label="Assistant actions"
-                title="Assistant actions"
+                aria-label={t("Assistant actions")}
+                title={t("Assistant actions")}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M9 10v4M17 16v4" /></svg>
               </ShadcnButton>
@@ -293,7 +299,7 @@ export function ChatPanel({ onClose }: { onClose?: () => void }): JSX.Element {
       <ScrollArea
         ref={scrollRef}
         role="log"
-        aria-label="AI conversation and edit results"
+        aria-label={t("AI conversation and edit results")}
         aria-live="polite"
         className="workspace-chat-log min-h-0 flex-1"
       >

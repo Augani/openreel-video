@@ -18,6 +18,8 @@ import {
   stockCreditText,
   type StockFootage,
 } from "../../services/stock-footage";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 function formatClipDuration(seconds: number): string {
   const total = Math.max(0, Math.round(seconds));
@@ -73,7 +75,7 @@ function FootagePreview({
         onPause={() => setPlaying(false)}
         onEnded={() => setPlaying(false)}
         onError={() =>
-          setError("Preview could not load. Close it and try again.")
+          setError(translateNow("Preview could not load. Close it and try again."))
         }
       />
       <div className="flex items-center gap-2 px-2 py-1.5">
@@ -90,7 +92,7 @@ function FootagePreview({
               void element
                 .play()
                 .catch(() =>
-                  setError("Preview could not play. Close it and try again."),
+                  setError(translateNow("Preview could not play. Close it and try again.")),
                 );
           }}
         >
@@ -147,6 +149,7 @@ function FootagePreview({
 }
 
 export function StockFootagePanel() {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<StockFootage[]>([]);
   const [nextOffset, setNextOffset] = useState<number>();
@@ -348,16 +351,15 @@ export function StockFootagePanel() {
         <div className="workspace-search min-w-0 flex-1">
           <Search />
           <Input
-            aria-label="Search stock footage"
-            placeholder="Search free footage"
+            aria-label={t("Search stock footage")}
+            placeholder={t("Search free footage")}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
       </form>
       <p className="text-[11px] text-fg-muted">
-        Free clips from Wikimedia Commons. Check each clip’s licence and
-        credits.
+        {t("Free clips from Wikimedia Commons. Check each clip’s licence and credits.")}
       </p>
       {error && (
         <Alert variant="destructive">
@@ -367,7 +369,7 @@ export function StockFootagePanel() {
             size="sm"
             onClick={() => void runSearch(searchedQuery.current)}
           >
-            Retry search
+            {t("Retry search")}
           </Button>
         </Alert>
       )}
@@ -380,20 +382,20 @@ export function StockFootagePanel() {
         <div className="flex items-center gap-2">
           {progress !== undefined && (
             <Progress
-              aria-label="Footage download"
+              aria-label={t("Footage download")}
               value={progress}
               className="h-1 flex-1"
             />
           )}
           <Button size="sm" variant="secondary" onClick={() => cancelImport()}>
-            Cancel import
+            {t("Cancel import")}
           </Button>
         </div>
       )}
       <div
         className="workspace-footage-grid"
         aria-busy={loading}
-        aria-label="Stock footage results"
+        aria-label={t("Stock footage results")}
       >
         {results.map((item) => {
           const source = preferredFootageSource(item);
@@ -422,7 +424,7 @@ export function StockFootagePanel() {
                     <img
                       crossOrigin="anonymous"
                       src={item.thumbnailUrl}
-                      alt={item.title}
+                      alt={t(item.title)}
                       loading="lazy"
                     />
                   ) : null}
@@ -444,7 +446,7 @@ export function StockFootagePanel() {
                 </Button>
               )}
               <div className="workspace-footage-meta">
-                <strong title={item.title}>{item.title}</strong>
+                <strong title={t(item.title)}>{t(item.title)}</strong>
                 <small className="workspace-footage-creator" title={`By ${item.credit.creator}`}>
                   {item.credit.creator}
                 </small>
@@ -461,19 +463,19 @@ export function StockFootagePanel() {
                   }
                   title={
                     exporting
-                      ? "Wait for export to finish"
+                      ? t("Wait for export to finish")
                       : lockedReason || undefined
                   }
                   onClick={() => void importFootage(item)}
                   aria-label={`Add footage ${item.title}`}
                 >
-                  {importing === item.id ? "Adding…" : "Add"}
+                  {importing === item.id ? t("Adding…") : t("Add")}
                 </Button>
                 <Button
                   size="icon-sm"
                   variant="secondary"
                   asChild
-                  title="Source & licence"
+                  title={t("Source & licence")}
                 >
                   <a
                     href={item.credit.pageUrl}
@@ -487,7 +489,7 @@ export function StockFootagePanel() {
                 <Button
                   size="icon-sm"
                   variant="secondary"
-                  title="Copy credits"
+                  title={t("Copy credits")}
                   aria-label={`Copy credits for ${item.title}`}
                   onClick={() => {
                     void navigator.clipboard
@@ -495,8 +497,7 @@ export function StockFootagePanel() {
                       .then(
                         () => setStatus("Credits copied."),
                         () =>
-                          setError(
-                            "Could not copy credits. Open Source & licence to view them.",
+                          setError(translateNow("Could not copy credits. Open Source & licence to view them."),
                           ),
                       );
                   }}
@@ -510,12 +511,12 @@ export function StockFootagePanel() {
       </div>
       {loading && (
         <p role="status" className="text-[11px] text-fg-muted">
-          Searching footage…
+          {t("Searching footage…")}
         </p>
       )}
       {!loading && !error && !results.length && (
         <p className="text-[11px] text-fg-muted">
-          No clips found. Try another search.
+          {t("No clips found. Try another search.")}
         </p>
       )}
       {nextOffset !== undefined && (
@@ -527,7 +528,7 @@ export function StockFootagePanel() {
             void runSearch(searchedQuery.current, nextOffset, true)
           }
         >
-          Load more footage
+          {t("Load more footage")}
         </Button>
       )}
     </div>

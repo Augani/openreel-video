@@ -32,6 +32,8 @@ import {
 import { exportFilename } from "../../services/export-runner";
 import { restoreMediaItem } from "../../utils/media-recovery";
 import { saveCurrentProjectForReplacement } from "../../services/project-replacement";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 function formatPackageBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
@@ -56,6 +58,7 @@ function downloadPackage(blob: Blob, name: string) {
 }
 
 export function ProjectPackageDialog({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const projectName = useProjectStore((state) => state.project.name);
   const mediaLibrary = useProjectStore((state) => state.project.mediaLibrary);
   const exporting = useUIStore((state) => state.exportState.isExporting);
@@ -146,12 +149,12 @@ export function ProjectPackageDialog({ onClose }: { onClose: () => void }) {
           const skipped = entries.filter((entry) => entry.status === "restricted" || entry.status === "unknown-license");
           if (skipped.length > 0)
             toast.warning(
-              "Some fonts were not embedded",
+              translateNow("Some fonts were not embedded"),
               `${skipped.map((entry) => entry.family).join(", ")}: the font license does not allow embedding or could not be read. Install them on the other machine.`,
             );
           const readOnly = entries.filter((entry) => entry.status === "embedded-readonly");
           if (readOnly.length > 0)
-            toast.info("Fonts embedded read-only", `${readOnly.map((entry) => entry.family).join(", ")} can be previewed and exported but not edited with.`);
+            toast.info(translateNow("Fonts embedded read-only"), `${readOnly.map((entry) => entry.family).join(", ")} can be previewed and exported but not edited with.`);
         },
       });
       abort.signal.throwIfAborted();
@@ -172,7 +175,7 @@ export function ProjectPackageDialog({ onClose }: { onClose: () => void }) {
         }
       } else downloadPackage(blob, snapshot.name);
       toast.success(
-        "Project backup ready",
+        translateNow("Project backup ready"),
         "Includes your edits and original media. Open it in another browser to continue editing.",
       );
       setStatus("Backup ready. Keep this file somewhere safe.");
@@ -259,15 +262,15 @@ export function ProjectPackageDialog({ onClose }: { onClose: () => void }) {
       });
       abort.signal.throwIfAborted();
       if (fontResult.failed.length > 0)
-        toast.warning("Some embedded fonts could not be loaded", fontResult.failed.join(", "));
+        toast.warning(translateNow("Some embedded fonts could not be loaded"), fontResult.failed.join(", "));
       if (fontResult.readOnly.length > 0)
         toast.info(
-          "Read-only fonts in this project",
+          translateNow("Read-only fonts in this project"),
           `${fontResult.readOnly.join(", ")} came with the project under a license that allows preview and export only. They are not added to your font list and are not saved to this browser.`,
         );
       if (fontResult.conflicts.length > 0)
         toast.warning(
-          "Fonts replaced for this project",
+          translateNow("Fonts replaced for this project"),
           `${fontResult.conflicts.join(", ")} already existed here as a different font file; the project's packaged version is used.`,
         );
       committing.current = true;
@@ -283,7 +286,7 @@ export function ProjectPackageDialog({ onClose }: { onClose: () => void }) {
       useTimelineStore.getState().zoomToFit(copy.timeline.duration || 5);
       committed = true;
       toast.success(
-        "Project opened",
+        translateNow("Project opened"),
         `${copy.mediaLibrary.items.length} original media file${copy.mediaLibrary.items.length === 1 ? "" : "s"} restored. Your previous project is saved in Recent projects.`,
       );
       // Thumbnails are optional; restoring footage never waits for every video
@@ -351,17 +354,17 @@ export function ProjectPackageDialog({ onClose }: { onClose: () => void }) {
         <DialogHeader className="shrink-0 flex-row items-start gap-3 space-y-0 border-b border-border px-5 py-4 text-left">
           <div className="min-w-0 flex-1">
             <DialogTitle className="text-[15px] font-semibold leading-5 text-fg">
-              Project backups
+              {t("Project backups")}
             </DialogTitle>
             <DialogDescription className="mt-1 text-[12px] leading-4 text-fg-muted">
-              Take your edits and original media with you.
+              {t("Take your edits and original media with you.")}
             </DialogDescription>
           </div>
           <Button
             variant="ghost"
             size="icon-sm"
             type="button"
-            aria-label="Close dialog"
+            aria-label={t("Close dialog")}
             onClick={close}
             disabled={committing.current}
             className="h-7 w-7 shrink-0 text-fg-muted"
@@ -372,58 +375,54 @@ export function ProjectPackageDialog({ onClose }: { onClose: () => void }) {
         <div className="min-h-0 space-y-5 overflow-y-auto p-5">
           <section
             className="space-y-3 rounded-lg border border-border bg-bg-1 p-4"
-            aria-label="Back up current project"
+            aria-label={t("Back up current project")}
           >
             <h3 className="text-sm font-semibold text-fg">{projectName}</h3>
             <p className="text-xs text-fg-2">
-              {summary.count} media file{summary.count === 1 ? "" : "s"} ·
-              approximately {formatPackageBytes(summary.bytes)}
+              {summary.count} {t("media file")}{summary.count === 1 ? "" : "s"} {t("· approximately")} {formatPackageBytes(summary.bytes)}
             </p>
             <p className="text-xs leading-relaxed text-fg-3">
-              The backup includes original videos, images, audio, captions, and
-              timeline edits. Preview proxies can be recreated. Uploaded custom
-              fonts need to be installed in the destination browser.
+              {t("The backup includes original videos, images, audio, captions, and timeline edits. Preview proxies can be recreated. Uploaded custom fonts need to be installed in the destination browser.")}
             </p>
             <div className="flex flex-wrap gap-2">
               <Button
                 onClick={() => void save(false)}
                 type="button"
-                aria-label="Download backup"
+                aria-label={t("Download backup")}
                 disabled={busy || exporting}
                 className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-accent text-accent-fg hover:bg-accent/90"
               >
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center">
                   {<Download size={15} aria-hidden />}
                 </span>
-                <span className="truncate">{"Download backup"}</span>
+                <span className="truncate">{t("Download backup")}</span>
               </Button>
               {"showSaveFilePicker" in window && (
                 <Button
                   onClick={() => void save(true)}
                   type="button"
-                  aria-label="Choose file location"
+                  aria-label={t("Choose file location")}
                   disabled={busy || exporting}
                   className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"
                 >
                   <span className="flex h-4 w-4 shrink-0 items-center justify-center">
                     {<FolderOpen size={15} aria-hidden />}
                   </span>
-                  <span className="truncate">{"Choose file location"}</span>
+                  <span className="truncate">{t("Choose file location")}</span>
                 </Button>
               )}
             </div>
             <p className="text-xs text-fg-3">
-              For large projects, choosing a file location writes directly to
-              disk.
+              {t("For large projects, choosing a file location writes directly to disk.")}
             </p>
           </section>
-          <section className="space-y-3" aria-label="Open a project backup">
+          <section className="space-y-3" aria-label={t("Open a project backup")}>
             <Input
               ref={input}
               type="file"
               accept=".oreelpack"
               className="hidden"
-              aria-label="Project backup file"
+              aria-label={t("Project backup file")}
               onChange={(event) => {
                 const file = event.currentTarget.files?.[0];
                 event.currentTarget.value = "";
@@ -433,14 +432,14 @@ export function ProjectPackageDialog({ onClose }: { onClose: () => void }) {
             <Button
               onClick={() => input.current?.click()}
               type="button"
-              aria-label="Choose backup to open"
+              aria-label={t("Choose backup to open")}
               disabled={busy || exporting}
               className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"
             >
               <span className="flex h-4 w-4 shrink-0 items-center justify-center">
                 {<Upload size={15} aria-hidden />}
               </span>
-              <span className="truncate">{"Choose backup to open"}</span>
+              <span className="truncate">{t("Choose backup to open")}</span>
             </Button>
             {incoming && (
               <div className="space-y-3 rounded-lg border border-accent/30 bg-accent/5 p-4">
@@ -449,31 +448,29 @@ export function ProjectPackageDialog({ onClose }: { onClose: () => void }) {
                 </h3>
                 <p className="text-xs text-fg-2">
                   {incoming.settings.width}×{incoming.settings.height} ·{" "}
-                  {incoming.settings.frameRate} fps ·{" "}
-                  {projectMediaSummary(incoming).count} media files ·{" "}
+                  {incoming.settings.frameRate} {t("fps ·")}{" "}
+                  {projectMediaSummary(incoming).count} {t("media files ·")}{" "}
                   {formatPackageBytes(projectMediaSummary(incoming).bytes)}
                 </p>
                 <p className="text-xs text-fg-3">
-                  Opens as an independent copy. Your current project will be
-                  saved first.
+                  {t("Opens as an independent copy. Your current project will be saved first.")}
                 </p>
                 <Button
                   onClick={() => void open()}
                   type="button"
-                  aria-label="Open this project"
+                  aria-label={t("Open this project")}
                   disabled={busy || exporting}
                   className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-accent text-accent-fg hover:bg-accent/90"
                 >
-                  <span className="truncate">{"Open this project"}</span>
+                  <span className="truncate">{t("Open this project")}</span>
                 </Button>
               </div>
             )}
           </section>
           {storage?.quota && (
             <p className="text-xs text-fg-3">
-              Browser storage: {formatPackageBytes(storage.usage ?? 0)} of{" "}
-              {formatPackageBytes(storage.quota)} used. Keep a backup outside
-              your browser.
+              {t("Browser storage:")} {formatPackageBytes(storage.usage ?? 0)} {t("of")}{" "}
+              {formatPackageBytes(storage.quota)} {t("used. Keep a backup outside your browser.")}
             </p>
           )}
           {status && (
@@ -498,7 +495,7 @@ export function ProjectPackageDialog({ onClose }: { onClose: () => void }) {
             className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] border border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"
           >
             <span className="truncate">
-              {busy ? "Cancel operation" : "Close"}
+              {busy ? t("Cancel operation") : t("Close")}
             </span>
           </Button>
         </DialogFooter>

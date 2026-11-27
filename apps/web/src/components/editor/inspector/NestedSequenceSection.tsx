@@ -38,6 +38,8 @@ import {
   type AdvancedLayerScope,
 } from "../../../services/advanced-layer-edit";
 import type { CompoundClip, CompoundClipInstance } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const EMPTY_COMPOUNDS: CompoundClip[] = [],
   EMPTY_INSTANCES: CompoundClipInstance[] = [];
@@ -122,6 +124,7 @@ function NestedControls({
   lockedTracks: Set<string>;
   disabled: boolean;
 }) {
+  const t = useT();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null),
     [name, setName] = useState("");
@@ -156,7 +159,7 @@ function NestedControls({
       } catch (error) {
         if (mounted.current && ownsAdvancedLayerScope(scope))
           toast.error(
-            "Compound edit failed",
+            translateNow("Compound edit failed"),
             error instanceof Error
               ? error.message
               : "The edit could not be applied.",
@@ -205,10 +208,10 @@ function NestedControls({
         <Layers size={16} aria-hidden className="text-primary" />
         <div>
           <span className="block text-[11px] font-medium text-fg">
-            Nested Sequences
+            {t("Nested Sequences")}
           </span>
           <span className="block text-[9px] text-fg-3">
-            Create compound clips from selections
+            {t("Create compound clips from selections")}
           </span>
         </div>
       </Card>
@@ -221,7 +224,7 @@ function NestedControls({
             </span>
           </div>
           <p className="text-[9px] text-fg-3">
-            {compound.content.clips.length} clips ·{" "}
+            {compound.content.clips.length} {t("clips ·")}{" "}
             {duration(compound.content.duration)}
           </p>
           <div className="flex gap-2">
@@ -269,19 +272,19 @@ function NestedControls({
               }
             >
               <Maximize2 size={10} aria-hidden />
-              Flatten
+              {t("Flatten")}
             </Button>
             <Button
               type="button"
               variant="outline"
               size="sm"
               className="flex-1"
-              aria-label="Duplicate current compound"
+              aria-label={t("Duplicate current compound")}
               disabled={unavailable}
               onClick={() => duplicate(compound.id)}
             >
               <Copy size={10} aria-hidden />
-              Duplicate
+              {t("Duplicate")}
             </Button>
           </div>
         </Card>
@@ -289,10 +292,10 @@ function NestedControls({
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-medium text-fg-2">
-            Create Compound Clip
+            {t("Create Compound Clip")}
           </span>
           <Badge variant="secondary" className="text-[9px] font-normal">
-            {selectedClipIds.length} clips selected
+            {selectedClipIds.length} {t("clips selected")}
           </Badge>
         </div>
         <Button
@@ -305,18 +308,18 @@ function NestedControls({
           onClick={create}
         >
           <Plus size={14} aria-hidden />
-          Create Compound Clip
+          {t("Create Compound Clip")}
         </Button>
         {selectedClipIds.length < 2 && (
           <p className="text-center text-[9px] text-fg-3">
-            Select 2+ clips to create a compound clip
+            {t("Select 2+ clips to create a compound clip")}
           </p>
         )}
       </div>
       {compounds.length > 0 && (
         <div className="space-y-2">
           <span className="text-[10px] font-medium text-fg-2">
-            Compound Clips Library
+            {t("Compound Clips Library")}
           </span>
           <div className="space-y-1.5">
             {compounds.map((item) => {
@@ -363,7 +366,7 @@ function NestedControls({
                       {editing && (
                         <Input
                           autoFocus
-                          aria-label="Compound clip name"
+                          aria-label={t("Compound clip name")}
                           value={name}
                           disabled={busy}
                           onChange={(event) => setName(event.target.value)}
@@ -382,14 +385,14 @@ function NestedControls({
                         />
                       )}
                       <span className="shrink-0 text-[9px] text-fg-3">
-                        {count} instance{count !== 1 ? "s" : ""}
+                        {count} {t("instance")}{count !== 1 ? "s" : ""}
                       </span>
                     </div>
                     <CollapsibleContent className="space-y-2 px-2 pb-2">
                       <p className="pl-5 text-[9px] text-fg-3">
-                        {item.content.clips.length} clips ·{" "}
+                        {item.content.clips.length} {t("clips ·")}{" "}
                         {duration(item.content.duration)} ·{" "}
-                        {item.content.tracks.length} tracks
+                        {item.content.tracks.length} {t("tracks")}
                       </p>
                       <div className="flex gap-1 pl-5">
                         {editing ? (
@@ -398,7 +401,7 @@ function NestedControls({
                               type="button"
                               variant="ghost"
                               size="icon-sm"
-                              aria-label="Confirm rename"
+                              aria-label={t("Confirm rename")}
                               disabled={unavailable || !name.trim()}
                               onClick={confirm}
                             >
@@ -408,7 +411,7 @@ function NestedControls({
                               type="button"
                               variant="ghost"
                               size="icon-sm"
-                              aria-label="Cancel rename"
+                              aria-label={t("Cancel rename")}
                               disabled={busy}
                               onClick={() => {
                                 setRenaming(null);
@@ -449,7 +452,7 @@ function NestedControls({
                               size="icon-sm"
                               aria-label={
                                 count > 0
-                                  ? "Cannot delete - has instances"
+                                  ? t("Cannot delete - has instances")
                                   : `Delete ${item.name}`
                               }
                               disabled={unavailable || count > 0}
@@ -479,7 +482,7 @@ function NestedControls({
         </div>
       )}
       <p className="border-t border-border pt-2 text-center text-[9px] text-fg-3">
-        Group clips into reusable compound clips
+        {t("Group clips into reusable compound clips")}
       </p>
     </div>
   );

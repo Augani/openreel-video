@@ -42,6 +42,7 @@ import {
   templateFieldUsesJson,
   type TemplateFieldDraft,
 } from "../../services/template-customization";
+import { useT } from "@openreel/i18n/react";
 
 const icons: Record<ExtendedPlaceholderType, React.ElementType> = {
   text: Type,
@@ -80,6 +81,7 @@ export const TemplatePlaceholderField = memo(function TemplatePlaceholderField({
   onChange,
   onReset,
 }: Props) {
+  const t = useT();
   const id = useId(),
     value = draft ?? displayTemplateField(field),
     text = String(value);
@@ -134,7 +136,7 @@ export const TemplatePlaceholderField = memo(function TemplatePlaceholderField({
           id={field.description ? `${id}-description` : undefined}
           className="text-xs text-fg-3"
         >
-          {field.description ?? "Enabled"}
+          {field.description ?? t("Enabled")}
         </span>
       </div>
     );
@@ -146,7 +148,7 @@ export const TemplatePlaceholderField = memo(function TemplatePlaceholderField({
         disabled={disabled}
       >
         <SelectTrigger {...attributes} className={inputClass}>
-          <SelectValue placeholder="Choose a value" />
+          <SelectValue placeholder={t("Choose a value")} />
         </SelectTrigger>
         <SelectContent>
           {text && !choices.some((option) => option.value === text) && (
@@ -154,7 +156,7 @@ export const TemplatePlaceholderField = memo(function TemplatePlaceholderField({
           )}
           {choices.map((option) => (
             <SelectItem key={option.value} value={option.value}>
-              {option.label}
+              {t(option.label)}
             </SelectItem>
           ))}
         </SelectContent>
@@ -175,8 +177,8 @@ export const TemplatePlaceholderField = memo(function TemplatePlaceholderField({
       <div className="flex items-center gap-3">
         {field.uiHints?.inputType === "slider" && max > min && (
           <Slider
-            aria-label={`${field.label} slider`}
-            aria-valuetext={finite ? text : "No value"}
+            aria-label={t("{name} slider", { name: field.label })}
+            aria-valuetext={finite ? text : t("No value")}
             value={[finite ? Math.max(min, Math.min(max, numeric)) : min]}
             min={min}
             max={max}
@@ -206,7 +208,7 @@ export const TemplatePlaceholderField = memo(function TemplatePlaceholderField({
     control = (
       <div className="flex items-center gap-3">
         <ColorPicker
-          label={`${field.label} picker`}
+          label={t("{name} picker", { name: field.label })}
           value={text || "#000000"}
           onChange={(next) => {
             const hex = templateColorHex(next);
@@ -247,7 +249,7 @@ export const TemplatePlaceholderField = memo(function TemplatePlaceholderField({
         />
         {json ? (
           <p className="text-[10px] text-fg-3">
-            Edit the structured values as JSON.
+            {t("Edit the structured values as JSON.")}
           </p>
         ) : (
           field.constraints?.maxLength !== undefined && (
@@ -298,7 +300,7 @@ export const TemplatePlaceholderField = memo(function TemplatePlaceholderField({
             size="icon-sm"
             type="button"
             disabled={disabled}
-            aria-label={`Reset ${field.label}`}
+            aria-label={t("Reset {name}", { name: field.label })}
             onClick={() => onReset(field.id)}
           >
             <RotateCcw size={12} aria-hidden />
@@ -339,6 +341,7 @@ function LibraryMediaChoices({
   disabled: boolean;
   onChange: Props["onChange"];
 }) {
+  const t = useT();
   const items = useProjectStore((state) => state.project.mediaLibrary.items);
   const [search, setSearch] = useState(""),
     [page, setPage] = useState(0);
@@ -358,27 +361,27 @@ function LibraryMediaChoices({
   if (!items.length)
     return (
       <p className="text-[10px] text-fg-3">
-        Enter a media reference, or import media to choose from your library.
+        {t("Enter a media reference, or import media to choose from your library.")}
       </p>
     );
   return (
     <div className="space-y-2">
       <Input
-        aria-label={`Search ${field.label} library`}
+        aria-label={t("Search {name} library", { name: field.label })}
         value={search}
         disabled={disabled}
         onChange={(event) => {
           setSearch(event.target.value);
           setPage(0);
         }}
-        placeholder="Search current media..."
+        placeholder={t("Search current media...")}
         className="h-8 border-border bg-bg-2 text-xs"
       />
       {!matches.length ? (
-        <p className="text-[10px] text-fg-3">No matching media</p>
+        <p className="text-[10px] text-fg-3">{t("No matching media")}</p>
       ) : (
         <RadioGroup
-          aria-label={`${field.label} library`}
+          aria-label={t("{name} library", { name: field.label })}
           value={value}
           onValueChange={(next) => onChange(field.id, next)}
           disabled={disabled}
@@ -421,22 +424,24 @@ function LibraryMediaChoices({
             variant="ghost"
             size="icon-sm"
             type="button"
-            aria-label={`Previous ${field.label} library page`}
+            aria-label={t("Previous {name} library page", { name: field.label })}
             disabled={disabled || activePage === 0}
             onClick={() => setPage(activePage - 1)}
           >
             <ChevronLeft size={12} aria-hidden />
           </Button>
           <span>
-            {activePage * 24 + 1}–
-            {Math.min(matches.length, (activePage + 1) * 24)} of{" "}
-            {matches.length}
+            {t("{from}–{to} of {total}", {
+              from: activePage * 24 + 1,
+              to: Math.min(matches.length, (activePage + 1) * 24),
+              total: matches.length,
+            })}
           </span>
           <Button
             variant="ghost"
             size="icon-sm"
             type="button"
-            aria-label={`Next ${field.label} library page`}
+            aria-label={t("Next {name} library page", { name: field.label })}
             disabled={disabled || activePage + 1 >= pages}
             onClick={() => setPage(activePage + 1)}
           >

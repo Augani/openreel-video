@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import type { IpcMainEvent } from "electron";
 import { CHANNELS } from "../shared/ipc-contract";
+import { nativeT } from "./language-state";
 
 // Windows that have passed the guard and may close freely.
 const forceClose = new WeakSet<BrowserWindow>();
@@ -75,13 +76,13 @@ async function handleGuardedClose(win: BrowserWindow): Promise<void> {
 
   const { response } = await dialog.showMessageBox(win, {
     type: "warning",
-    buttons: ["Save", "Don't Save", "Cancel"],
+    buttons: [nativeT("Save"), nativeT("Don't Save"), nativeT("Cancel")],
     defaultId: 0,
     cancelId: 2,
     noLink: true,
-    title: "Unsaved changes",
-    message: "Do you want to save the changes to your project?",
-    detail: "Your changes will be lost if you don't save them.",
+    title: nativeT("Unsaved changes"),
+    message: nativeT("Do you want to save the changes to your project?"),
+    detail: nativeT("Your changes will be lost if you don't save them."),
   });
 
   if (response === 2) {
@@ -113,12 +114,12 @@ async function handleGuardedClose(win: BrowserWindow): Promise<void> {
   if (!win.isDestroyed()) {
     await dialog.showMessageBox(win, {
       type: "error",
-      buttons: ["OK"],
+      buttons: [nativeT("OK")],
       defaultId: 0,
-      title: "Could not save",
-      message: "Your changes could not be saved.",
+      title: nativeT("Could not save"),
+      message: nativeT("Your changes could not be saved."),
       detail:
-        "Your project is still open so you can try again or save it manually.",
+        nativeT("Your project is still open so you can try again or save it manually."),
     });
   }
 }

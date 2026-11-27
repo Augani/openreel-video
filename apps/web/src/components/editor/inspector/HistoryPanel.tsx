@@ -22,6 +22,7 @@ import {
 
 import { useProjectStore } from "../../../stores/project-store";
 import type { HistorySnapshot } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 
 interface DisplayEntry {
   id: string;
@@ -34,6 +35,7 @@ interface DisplayEntry {
 }
 
 export const HistoryPanel: React.FC = () => {
+  const t = useT();
   const { actionHistory, undo, redo, canUndo, canRedo, clipUndoStack, clipRedoStack } = useProjectStore();
   const [combinedHistory, setCombinedHistory] = useState<DisplayEntry[]>([]);
   const [snapshots, setSnapshots] = useState<HistorySnapshot[]>([]);
@@ -136,7 +138,7 @@ export const HistoryPanel: React.FC = () => {
         <div className="flex items-center gap-2">
           <History size={14} className="text-primary" aria-hidden />
           <span className="text-fg font-bold text-sm">
-            History
+            {t("History")}
           </span>
         </div>
         <div className="flex items-center gap-1">
@@ -159,7 +161,7 @@ export const HistoryPanel: React.FC = () => {
             )}
             <Bookmark size={12} className="text-yellow-500" aria-hidden />
             <span className="text-fg-2 font-normal text-xs">
-              Snapshots ({snapshots.length})
+              {t("Snapshots (")}{snapshots.length})
             </span>
           </div>
         </Button>
@@ -168,7 +170,7 @@ export const HistoryPanel: React.FC = () => {
           <div className="px-2 pb-2">
             {snapshots.length === 0 && !isCreatingSnapshot && (
               <span className="text-fg-2 font-normal block text-[10px] py-2 text-center">
-                No snapshots saved
+                {t("No snapshots saved")}
               </span>
             )}
 
@@ -200,8 +202,8 @@ export const HistoryPanel: React.FC = () => {
                     if (e.key === "Enter") handleCreateSnapshot();
                     if (e.key === "Escape") setIsCreatingSnapshot(false);
                   }}
-                  placeholder="Snapshot name..."
-                  aria-label={"Snapshot name"}
+                  placeholder={t("Snapshot name...")}
+                  aria-label={t("Snapshot name")}
                   onChange={(event) => setNewSnapshotName(event.currentTarget.value)}
                   autoFocus={true}
                   style={{ width: "100%" }}
@@ -210,14 +212,14 @@ export const HistoryPanel: React.FC = () => {
                     "h-7 text-[12px] md:text-[12px]",
                   )}
                 />
-                <Button onClick={handleCreateSnapshot} type="button" aria-label="Save" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90">
-                  <span className="truncate">{"Save"}</span>
+                <Button onClick={handleCreateSnapshot} type="button" aria-label={t("Save")} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-accent text-accent-fg hover:bg-accent/90">
+                  <span className="truncate">{t("Save")}</span>
                 </Button>
               </div>
             ) : (
-              <Button onClick={() => setIsCreatingSnapshot(true)} type="button" aria-label="Create Snapshot" className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg w-full border border-dashed border-border">
+              <Button onClick={() => setIsCreatingSnapshot(true)} type="button" aria-label={t("Create Snapshot")} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 text-[12px] bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg w-full border border-dashed border-border">
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<BookmarkPlus size={12} aria-hidden />}</span>
-                <span className="truncate">{"Create Snapshot"}</span>
+                <span className="truncate">{t("Create Snapshot")}</span>
               </Button>
             )}
           </div>
@@ -229,7 +231,7 @@ export const HistoryPanel: React.FC = () => {
           <div className="flex flex-col items-center justify-center h-full text-fg-3">
             <History size={24} className="mb-2 opacity-30" aria-hidden />
             <span className="text-fg-2 font-normal text-xs">
-              No actions yet
+              {t("No actions yet")}
             </span>
           </div>
         ) : (
@@ -263,7 +265,7 @@ export const HistoryPanel: React.FC = () => {
                           : "text-fg-2"
                       }`)}
                     >
-                      {item.description}
+                      {t(item.description)}
                     </span>
                     <span className="text-fg-2 font-normal block text-[10px]">
                       {formatTime(item.timestamp)}
@@ -271,12 +273,12 @@ export const HistoryPanel: React.FC = () => {
                   </div>
                   {item.groupId && (
                     <span className="text-fg-2 font-normal px-1 py-0.5 bg-bg-2 rounded text-[8px]">
-                      grouped
+                      {t("grouped")}
                     </span>
                   )}
                   {item.isClipEntry && (
                     <span className="font-normal px-1 py-0.5 bg-amber-500/20 rounded text-[8px] text-amber-400">
-                      clip
+                      {t("clip")}
                     </span>
                   )}
                 </Card>
@@ -289,10 +291,10 @@ export const HistoryPanel: React.FC = () => {
       <div className="p-2 border-t border-border bg-bg-2">
         <div className="flex items-center justify-between text-[10px] text-fg-3">
           <span className="text-fg-2 font-normal text-[10px]">
-            {undoCount} actions
+            {undoCount} {t("actions")}
           </span>
           <span className="text-fg-2 font-normal text-[10px]">
-            {redoCount} redoable
+            {redoCount} {t("redoable")}
           </span>
         </div>
       </div>

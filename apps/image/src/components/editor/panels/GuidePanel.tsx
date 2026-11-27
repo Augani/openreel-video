@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { Ruler, Plus, Trash2, X, ArrowRight, ArrowDown } from 'lucide-react';
 import { useCanvasStore, type Guide } from '../../../stores/canvas-store';
 import { useProjectStore } from '../../../stores/project-store';
+import { useT } from "@openreel/i18n/react";
 
 export function GuidePanel() {
+  const t = useT();
   const { guides, addGuide, removeGuide, updateGuide, clearGuides } = useCanvasStore();
   const { project, selectedArtboardId } = useProjectStore();
   const [editingGuideId, setEditingGuideId] = useState<string | null>(null);
@@ -73,7 +75,7 @@ export function GuidePanel() {
       <div className="flex items-center justify-between px-3 py-2 border-b border-border">
         <div className="flex items-center gap-2">
           <Ruler size={14} className="text-muted-foreground" />
-          <h3 className="text-xs font-medium text-foreground">Guides</h3>
+          <h3 className="text-xs font-medium text-foreground">{t("Guides")}</h3>
         </div>
         <span className="text-[10px] text-muted-foreground">{guides.length}</span>
       </div>
@@ -86,13 +88,13 @@ export function GuidePanel() {
               className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md bg-primary text-primary-foreground text-[10px] font-medium hover:bg-primary/90 transition-colors"
             >
               <Plus size={12} />
-              Add Guide
+              {t("Add Guide")}
             </button>
             {guides.length > 0 && (
               <button
                 onClick={clearGuides}
                 className="p-1.5 rounded-md bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
-                title="Clear all guides"
+                title={t("Clear all guides")}
               >
                 <Trash2 size={14} />
               </button>
@@ -111,7 +113,7 @@ export function GuidePanel() {
                   }`}
                 >
                   <ArrowRight size={10} />
-                  Horizontal
+                  {t("Horizontal")}
                 </button>
                 <button
                   onClick={() => setNewGuideType('vertical')}
@@ -122,7 +124,7 @@ export function GuidePanel() {
                   }`}
                 >
                   <ArrowDown size={10} />
-                  Vertical
+                  {t("Vertical")}
                 </button>
               </div>
               <div className="flex gap-1">
@@ -134,7 +136,7 @@ export function GuidePanel() {
                     if (e.key === 'Enter') handleAddGuide();
                     if (e.key === 'Escape') setShowAddForm(false);
                   }}
-                  placeholder={newGuideType === 'horizontal' ? 'Y position...' : 'X position...'}
+                  placeholder={newGuideType === 'horizontal' ? t("Y position...") : t("X position...")}
                   className="flex-1 px-2 py-1 text-[10px] bg-background border border-input rounded focus:outline-none focus:ring-1 focus:ring-primary"
                   autoFocus
                 />
@@ -142,7 +144,7 @@ export function GuidePanel() {
                   onClick={handleAddGuide}
                   className="px-2 py-1 rounded bg-primary text-primary-foreground text-[10px] hover:bg-primary/90 transition-colors"
                 >
-                  Add
+                  {t("Add")}
                 </button>
                 <button
                   onClick={() => setShowAddForm(false)}
@@ -155,25 +157,25 @@ export function GuidePanel() {
           )}
 
           <div className="space-y-1">
-            <span className="text-[10px] text-muted-foreground font-medium">Quick Presets</span>
+            <span className="text-[10px] text-muted-foreground font-medium">{t("Quick Presets")}</span>
             <div className="grid grid-cols-3 gap-1">
               <button
                 onClick={handleAddCenterGuides}
                 className="px-2 py-1.5 rounded bg-secondary/50 text-[9px] text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
               >
-                Center
+                {t("Center")}
               </button>
               <button
                 onClick={handleAddThirdsGuides}
                 className="px-2 py-1.5 rounded bg-secondary/50 text-[9px] text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
               >
-                Thirds
+                {t("Thirds")}
               </button>
               <button
                 onClick={handleAddEdgeGuides}
                 className="px-2 py-1.5 rounded bg-secondary/50 text-[9px] text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
               >
-                Margins
+                {t("Margins")}
               </button>
             </div>
           </div>
@@ -183,7 +185,7 @@ export function GuidePanel() {
               <div className="flex items-center gap-1.5">
                 <ArrowRight size={10} className="text-blue-400" />
                 <span className="text-[10px] text-muted-foreground">
-                  Horizontal ({horizontalGuides.length})
+                  {t("Horizontal (")}{horizontalGuides.length})
                 </span>
               </div>
               <div className="space-y-0.5">
@@ -231,7 +233,7 @@ export function GuidePanel() {
               <div className="flex items-center gap-1.5">
                 <ArrowDown size={10} className="text-green-400" />
                 <span className="text-[10px] text-muted-foreground">
-                  Vertical ({verticalGuides.length})
+                  {t("Vertical (")}{verticalGuides.length})
                 </span>
               </div>
               <div className="space-y-0.5">
@@ -277,9 +279,9 @@ export function GuidePanel() {
           {guides.length === 0 && !showAddForm && (
             <div className="flex flex-col items-center justify-center py-6 text-center">
               <Ruler size={24} className="text-muted-foreground/40 mb-2" />
-              <p className="text-[10px] text-muted-foreground">No guides yet</p>
+              <p className="text-[10px] text-muted-foreground">{t("No guides yet")}</p>
               <p className="text-[9px] text-muted-foreground/60 mt-0.5">
-                Click "Add Guide" or use presets
+                {t("Click \"Add Guide\" or use presets")}
               </p>
             </div>
           )}

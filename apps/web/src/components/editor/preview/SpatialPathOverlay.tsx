@@ -9,6 +9,7 @@ import {
   type Keyframe,
 } from "@openreel/core";
 import { ContextMenu, ContextMenuCheckboxItem, ContextMenuContent, ContextMenuLabel, ContextMenuTrigger } from "@openreel/ui";
+import { useT } from "@openreel/i18n/react";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { applySpatialInterpolationToClip, moveSpatialVertexOnClip, setSpatialHandleOnClip } from "../../../services/spatial-path-edit";
@@ -33,6 +34,7 @@ type Live =
  * Position here is the clip's position keyframes in project pixels from the frame centre.
  */
 export const SpatialPathOverlay: React.FC<{ clipId: string | null; bounds: Bounds | null; disabled?: boolean }> = ({ clipId, bounds, disabled = false }) => {
+  const t = useT();
   const clip = useProjectStore((s) => (clipId ? s.project.timeline.tracks.flatMap((t) => t.clips).find((c) => c.id === clipId) : undefined));
   const playhead = useTimelineStore((s) => s.playheadPosition);
   const svg = useRef<SVGSVGElement>(null);
@@ -94,7 +96,7 @@ export const SpatialPathOverlay: React.FC<{ clipId: string | null; bounds: Bound
   const here = evaluateKeyframesAt(keys, localTime);
   const marker = here.has("position.x") && here.has("position.y") ? toScreen({ x: here.get("position.x") as number, y: here.get("position.y") as number }) : null;
   return (
-    <svg ref={svg} data-testid="spatial-path-overlay" className="pointer-events-none absolute inset-0 z-30 h-full w-full overflow-visible" aria-label="Position motion path">
+    <svg ref={svg} data-testid="spatial-path-overlay" className="pointer-events-none absolute inset-0 z-30 h-full w-full overflow-visible" aria-label={t("Position motion path")}>
       <polyline
         data-testid="spatial-path-route"
         points={route.map((p) => { const s = toScreen(p); return `${s.x},${s.y}`; }).join(" ")}
@@ -138,11 +140,11 @@ export const SpatialPathOverlay: React.FC<{ clipId: string | null; bounds: Bound
                   onPointerMove={move} onPointerUp={end} onPointerCancel={() => { drag.current = null; setLive(null); }}
                 />
               </ContextMenuTrigger>
-              <ContextMenuContent aria-label="Spatial interpolation">
-                <ContextMenuLabel>Spatial Interpolation</ContextMenuLabel>
+              <ContextMenuContent aria-label={t("Spatial interpolation")}>
+                <ContextMenuLabel>{t("Spatial Interpolation")}</ContextMenuLabel>
                 {SPATIAL_INTERPOLATION_OPS.map((op) => (
                   <ContextMenuCheckboxItem key={op} checked={vertex.mode === op} onSelect={() => clipId && applySpatialInterpolationToClip(clipId, [vertex.xKeyId], op)}>
-                    {SPATIAL_INTERPOLATION_LABELS[op]}
+                    {t(SPATIAL_INTERPOLATION_LABELS[op])}
                   </ContextMenuCheckboxItem>
                 ))}
               </ContextMenuContent>

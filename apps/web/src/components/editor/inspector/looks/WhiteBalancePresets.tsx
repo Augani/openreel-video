@@ -4,6 +4,7 @@ import type { PreviewEffectDef } from "../../panels/effect-previews/preview-engi
 import { LookCard } from "./LookCard";
 import { CompareToggle, useLookCompare } from "./compare-context";
 import { currentLookDef, effectsSignature, gradeSignature, memoLookDef, mergedPreviewGrading, type PreviewClipEffect } from "./look-defs";
+import { useT } from "@openreel/i18n/react";
 
 export interface WhiteBalancePreset {
   label: string;
@@ -40,6 +41,7 @@ interface Props {
 
 /** White balance presets as footage previews instead of text chips. */
 export const WhiteBalancePresets: React.FC<Props> = ({ presets, currentGrading, clipEffects = [], isActive, onApply }) => {
+  const t = useT();
   const { compare } = useLookCompare();
   const before = useMemo(() => (compare ? currentLookDef(clipEffects, currentGrading) : null), [compare, clipEffects, currentGrading]);
   return (
@@ -47,7 +49,7 @@ export const WhiteBalancePresets: React.FC<Props> = ({ presets, currentGrading, 
       <div className="flex justify-end">
         <CompareToggle testId="wb-compare" />
       </div>
-      <div className="grid grid-cols-3 gap-2" role="group" aria-label="White balance presets">
+      <div className="grid grid-cols-3 gap-2" role="group" aria-label={t("White balance presets")}>
         {presets.map((preset) => (
           <LookCard
             key={preset.label}

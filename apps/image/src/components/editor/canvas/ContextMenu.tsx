@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useT } from '@openreel/i18n/react';
 import {
   Copy,
   Clipboard,
@@ -145,6 +146,7 @@ export function ContextMenu({
   hasStyleClipboard,
   selectedCount,
 }: ContextMenuProps) {
+  const t = useT();
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -192,110 +194,110 @@ export function ContextMenu({
   const getMenuItems = (): MenuItem[] => {
     if (type === 'canvas') {
       return [
-        { label: 'Paste', icon: <Clipboard size={14} />, shortcut: '⌘V', action: onPaste, disabled: !hasClipboard },
-        { label: 'Paste Style', icon: <Paintbrush size={14} />, shortcut: '⌘⇧V', action: onPasteStyle, disabled: !hasStyleClipboard },
+        { label: t('Paste'), icon: <Clipboard size={14} />, shortcut: '⌘V', action: onPaste, disabled: !hasClipboard },
+        { label: t('Paste Style'), icon: <Paintbrush size={14} />, shortcut: '⌘⇧V', action: onPasteStyle, disabled: !hasStyleClipboard },
         { label: '', action: () => {}, divider: true },
-        { label: 'Select All', icon: <MousePointer size={14} />, shortcut: '⌘A', action: onSelectAll },
+        { label: t('Select All'), icon: <MousePointer size={14} />, shortcut: '⌘A', action: onSelectAll },
         { label: '', action: () => {}, divider: true },
-        { label: 'Add Text', icon: <Type size={14} />, shortcut: 'T', action: onAddText },
+        { label: t('Add Text'), icon: <Type size={14} />, shortcut: 'T', action: onAddText },
         {
-          label: 'Add Shape',
+          label: t('Add Shape'),
           icon: <Square size={14} />,
           action: () => {},
           submenu: [
-            { label: 'Rectangle', icon: <Square size={14} />, action: () => onAddShape('rectangle') },
-            { label: 'Ellipse', icon: <Circle size={14} />, action: () => onAddShape('ellipse') },
-            { label: 'Triangle', icon: <Triangle size={14} />, action: () => onAddShape('triangle') },
-            { label: 'Star', icon: <Star size={14} />, action: () => onAddShape('star') },
-            { label: 'Polygon', icon: <Hexagon size={14} />, action: () => onAddShape('polygon') },
-            { label: 'Line', icon: <Minus size={14} />, action: () => onAddShape('line') },
+            { label: t('Rectangle'), icon: <Square size={14} />, action: () => onAddShape('rectangle') },
+            { label: t('Ellipse'), icon: <Circle size={14} />, action: () => onAddShape('ellipse') },
+            { label: t('Triangle'), icon: <Triangle size={14} />, action: () => onAddShape('triangle') },
+            { label: t('Star'), icon: <Star size={14} />, action: () => onAddShape('star') },
+            { label: t('Polygon'), icon: <Hexagon size={14} />, action: () => onAddShape('polygon') },
+            { label: t('Line'), icon: <Minus size={14} />, action: () => onAddShape('line') },
           ],
         },
         { label: '', action: () => {}, divider: true },
-        { label: showGrid ? 'Hide Grid' : 'Show Grid', icon: <Grid3X3 size={14} />, shortcut: "⌘'", action: onToggleGrid },
-        { label: showRulers ? 'Hide Rulers' : 'Show Rulers', icon: <Ruler size={14} />, shortcut: '⌘R', action: onToggleRulers },
+        { label: t(showGrid ? 'Hide Grid' : 'Show Grid'), icon: <Grid3X3 size={14} />, shortcut: "⌘'", action: onToggleGrid },
+        { label: t(showRulers ? 'Hide Rulers' : 'Show Rulers'), icon: <Ruler size={14} />, shortcut: '⌘R', action: onToggleRulers },
         { label: '', action: () => {}, divider: true },
-        { label: 'Zoom In', icon: <ZoomIn size={14} />, shortcut: '⌘+', action: onZoomIn },
-        { label: 'Zoom Out', icon: <ZoomOut size={14} />, shortcut: '⌘-', action: onZoomOut },
-        { label: 'Zoom to Fit', icon: <Maximize size={14} />, shortcut: '⌘0', action: onZoomFit },
+        { label: t('Zoom In'), icon: <ZoomIn size={14} />, shortcut: '⌘+', action: onZoomIn },
+        { label: t('Zoom Out'), icon: <ZoomOut size={14} />, shortcut: '⌘-', action: onZoomOut },
+        { label: t('Zoom to Fit'), icon: <Maximize size={14} />, shortcut: '⌘0', action: onZoomFit },
       ];
     }
 
     if (type === 'multi-layer') {
       return [
-        { label: 'Cut', icon: <Scissors size={14} />, shortcut: '⌘X', action: onCut },
-        { label: 'Copy', icon: <Copy size={14} />, shortcut: '⌘C', action: onCopy },
-        { label: 'Paste', icon: <Clipboard size={14} />, shortcut: '⌘V', action: onPaste, disabled: !hasClipboard },
-        { label: 'Duplicate', icon: <Copy size={14} />, shortcut: '⌘D', action: onDuplicate },
-        { label: 'Delete', icon: <Trash2 size={14} />, shortcut: '⌫', action: onDelete },
+        { label: t('Cut'), icon: <Scissors size={14} />, shortcut: '⌘X', action: onCut },
+        { label: t('Copy'), icon: <Copy size={14} />, shortcut: '⌘C', action: onCopy },
+        { label: t('Paste'), icon: <Clipboard size={14} />, shortcut: '⌘V', action: onPaste, disabled: !hasClipboard },
+        { label: t('Duplicate'), icon: <Copy size={14} />, shortcut: '⌘D', action: onDuplicate },
+        { label: t('Delete'), icon: <Trash2 size={14} />, shortcut: '⌫', action: onDelete },
         { label: '', action: () => {}, divider: true },
-        { label: `Group ${selectedCount} Layers`, icon: <FolderPlus size={14} />, shortcut: '⌘G', action: onGroup },
+        { label: t('Group {count} Layers', { count: selectedCount }), icon: <FolderPlus size={14} />, shortcut: '⌘G', action: onGroup },
         { label: '', action: () => {}, divider: true },
         {
-          label: 'Align',
+          label: t('Align'),
           icon: <AlignLeft size={14} />,
           action: () => {},
           submenu: [
-            { label: 'Align Left', icon: <AlignLeft size={14} />, action: onAlignLeft },
-            { label: 'Align Center', icon: <AlignCenter size={14} />, action: onAlignCenter },
-            { label: 'Align Right', icon: <AlignRight size={14} />, action: onAlignRight },
+            { label: t('Align Left'), icon: <AlignLeft size={14} />, action: onAlignLeft },
+            { label: t('Align Center'), icon: <AlignCenter size={14} />, action: onAlignCenter },
+            { label: t('Align Right'), icon: <AlignRight size={14} />, action: onAlignRight },
             { label: '', action: () => {}, divider: true },
-            { label: 'Align Top', icon: <AlignStartVertical size={14} />, action: onAlignTop },
-            { label: 'Align Middle', icon: <AlignCenterVertical size={14} />, action: onAlignMiddle },
-            { label: 'Align Bottom', icon: <AlignEndVertical size={14} />, action: onAlignBottom },
+            { label: t('Align Top'), icon: <AlignStartVertical size={14} />, action: onAlignTop },
+            { label: t('Align Middle'), icon: <AlignCenterVertical size={14} />, action: onAlignMiddle },
+            { label: t('Align Bottom'), icon: <AlignEndVertical size={14} />, action: onAlignBottom },
           ],
         },
         { label: '', action: () => {}, divider: true },
-        { label: 'Bring to Front', icon: <ArrowUpToLine size={14} />, shortcut: '⌘⇧]', action: onBringToFront },
-        { label: 'Send to Back', icon: <ArrowDownToLine size={14} />, shortcut: '⌘⇧[', action: onSendToBack },
+        { label: t('Bring to Front'), icon: <ArrowUpToLine size={14} />, shortcut: '⌘⇧]', action: onBringToFront },
+        { label: t('Send to Back'), icon: <ArrowDownToLine size={14} />, shortcut: '⌘⇧[', action: onSendToBack },
       ];
     }
 
     if (type === 'group') {
       return [
-        { label: 'Cut', icon: <Scissors size={14} />, shortcut: '⌘X', action: onCut },
-        { label: 'Copy', icon: <Copy size={14} />, shortcut: '⌘C', action: onCopy },
-        { label: 'Paste', icon: <Clipboard size={14} />, shortcut: '⌘V', action: onPaste, disabled: !hasClipboard },
-        { label: 'Duplicate', icon: <Copy size={14} />, shortcut: '⌘D', action: onDuplicate },
-        { label: 'Delete', icon: <Trash2 size={14} />, shortcut: '⌫', action: onDelete },
+        { label: t('Cut'), icon: <Scissors size={14} />, shortcut: '⌘X', action: onCut },
+        { label: t('Copy'), icon: <Copy size={14} />, shortcut: '⌘C', action: onCopy },
+        { label: t('Paste'), icon: <Clipboard size={14} />, shortcut: '⌘V', action: onPaste, disabled: !hasClipboard },
+        { label: t('Duplicate'), icon: <Copy size={14} />, shortcut: '⌘D', action: onDuplicate },
+        { label: t('Delete'), icon: <Trash2 size={14} />, shortcut: '⌫', action: onDelete },
         { label: '', action: () => {}, divider: true },
-        { label: 'Ungroup', icon: <FolderOpen size={14} />, shortcut: '⌘⇧G', action: onUngroup },
+        { label: t('Ungroup'), icon: <FolderOpen size={14} />, shortcut: '⌘⇧G', action: onUngroup },
         { label: '', action: () => {}, divider: true },
-        { label: isVisible ? 'Hide' : 'Show', icon: isVisible ? <EyeOff size={14} /> : <Eye size={14} />, shortcut: '⌘⇧H', action: onToggleVisibility },
-        { label: isLocked ? 'Unlock' : 'Lock', icon: isLocked ? <Unlock size={14} /> : <Lock size={14} />, shortcut: '⌘⇧L', action: onToggleLock },
+        { label: t(isVisible ? 'Hide' : 'Show'), icon: isVisible ? <EyeOff size={14} /> : <Eye size={14} />, shortcut: '⌘⇧H', action: onToggleVisibility },
+        { label: t(isLocked ? 'Unlock' : 'Lock'), icon: isLocked ? <Unlock size={14} /> : <Lock size={14} />, shortcut: '⌘⇧L', action: onToggleLock },
         { label: '', action: () => {}, divider: true },
-        { label: 'Bring to Front', icon: <ArrowUpToLine size={14} />, shortcut: '⌘⇧]', action: onBringToFront },
-        { label: 'Bring Forward', icon: <ChevronUp size={14} />, shortcut: '⌘]', action: onBringForward },
-        { label: 'Send Backward', icon: <ChevronDown size={14} />, shortcut: '⌘[', action: onSendBackward },
-        { label: 'Send to Back', icon: <ArrowDownToLine size={14} />, shortcut: '⌘⇧[', action: onSendToBack },
+        { label: t('Bring to Front'), icon: <ArrowUpToLine size={14} />, shortcut: '⌘⇧]', action: onBringToFront },
+        { label: t('Bring Forward'), icon: <ChevronUp size={14} />, shortcut: '⌘]', action: onBringForward },
+        { label: t('Send Backward'), icon: <ChevronDown size={14} />, shortcut: '⌘[', action: onSendBackward },
+        { label: t('Send to Back'), icon: <ArrowDownToLine size={14} />, shortcut: '⌘⇧[', action: onSendToBack },
         { label: '', action: () => {}, divider: true },
-        { label: 'Flip Horizontal', icon: <FlipHorizontal size={14} />, action: onFlipHorizontal },
-        { label: 'Flip Vertical', icon: <FlipVertical size={14} />, action: onFlipVertical },
-        { label: 'Reset Transform', icon: <RotateCcw size={14} />, action: onResetTransform },
+        { label: t('Flip Horizontal'), icon: <FlipHorizontal size={14} />, action: onFlipHorizontal },
+        { label: t('Flip Vertical'), icon: <FlipVertical size={14} />, action: onFlipVertical },
+        { label: t('Reset Transform'), icon: <RotateCcw size={14} />, action: onResetTransform },
       ];
     }
 
     return [
-      { label: 'Cut', icon: <Scissors size={14} />, shortcut: '⌘X', action: onCut },
-      { label: 'Copy', icon: <Copy size={14} />, shortcut: '⌘C', action: onCopy },
-      { label: 'Paste', icon: <Clipboard size={14} />, shortcut: '⌘V', action: onPaste, disabled: !hasClipboard },
-      { label: 'Duplicate', icon: <Copy size={14} />, shortcut: '⌘D', action: onDuplicate },
-      { label: 'Delete', icon: <Trash2 size={14} />, shortcut: '⌫', action: onDelete },
+      { label: t('Cut'), icon: <Scissors size={14} />, shortcut: '⌘X', action: onCut },
+      { label: t('Copy'), icon: <Copy size={14} />, shortcut: '⌘C', action: onCopy },
+      { label: t('Paste'), icon: <Clipboard size={14} />, shortcut: '⌘V', action: onPaste, disabled: !hasClipboard },
+      { label: t('Duplicate'), icon: <Copy size={14} />, shortcut: '⌘D', action: onDuplicate },
+      { label: t('Delete'), icon: <Trash2 size={14} />, shortcut: '⌫', action: onDelete },
       { label: '', action: () => {}, divider: true },
-      { label: 'Copy Style', icon: <Paintbrush size={14} />, shortcut: '⌘⌥C', action: onCopyStyle },
-      { label: 'Paste Style', icon: <Paintbrush size={14} />, shortcut: '⌘⌥V', action: onPasteStyle, disabled: !hasStyleClipboard },
+      { label: t('Copy Style'), icon: <Paintbrush size={14} />, shortcut: '⌘⌥C', action: onCopyStyle },
+      { label: t('Paste Style'), icon: <Paintbrush size={14} />, shortcut: '⌘⌥V', action: onPasteStyle, disabled: !hasStyleClipboard },
       { label: '', action: () => {}, divider: true },
-      { label: isVisible ? 'Hide' : 'Show', icon: isVisible ? <EyeOff size={14} /> : <Eye size={14} />, shortcut: '⌘⇧H', action: onToggleVisibility },
-      { label: isLocked ? 'Unlock' : 'Lock', icon: isLocked ? <Unlock size={14} /> : <Lock size={14} />, shortcut: '⌘⇧L', action: onToggleLock },
+      { label: t(isVisible ? 'Hide' : 'Show'), icon: isVisible ? <EyeOff size={14} /> : <Eye size={14} />, shortcut: '⌘⇧H', action: onToggleVisibility },
+      { label: t(isLocked ? 'Unlock' : 'Lock'), icon: isLocked ? <Unlock size={14} /> : <Lock size={14} />, shortcut: '⌘⇧L', action: onToggleLock },
       { label: '', action: () => {}, divider: true },
-      { label: 'Bring to Front', icon: <ArrowUpToLine size={14} />, shortcut: '⌘⇧]', action: onBringToFront },
-      { label: 'Bring Forward', icon: <ChevronUp size={14} />, shortcut: '⌘]', action: onBringForward },
-      { label: 'Send Backward', icon: <ChevronDown size={14} />, shortcut: '⌘[', action: onSendBackward },
-      { label: 'Send to Back', icon: <ArrowDownToLine size={14} />, shortcut: '⌘⇧[', action: onSendToBack },
+      { label: t('Bring to Front'), icon: <ArrowUpToLine size={14} />, shortcut: '⌘⇧]', action: onBringToFront },
+      { label: t('Bring Forward'), icon: <ChevronUp size={14} />, shortcut: '⌘]', action: onBringForward },
+      { label: t('Send Backward'), icon: <ChevronDown size={14} />, shortcut: '⌘[', action: onSendBackward },
+      { label: t('Send to Back'), icon: <ArrowDownToLine size={14} />, shortcut: '⌘⇧[', action: onSendToBack },
       { label: '', action: () => {}, divider: true },
-      { label: 'Flip Horizontal', icon: <FlipHorizontal size={14} />, action: onFlipHorizontal },
-      { label: 'Flip Vertical', icon: <FlipVertical size={14} />, action: onFlipVertical },
-      { label: 'Reset Transform', icon: <RotateCcw size={14} />, action: onResetTransform },
+      { label: t('Flip Horizontal'), icon: <FlipHorizontal size={14} />, action: onFlipHorizontal },
+      { label: t('Flip Vertical'), icon: <FlipVertical size={14} />, action: onFlipVertical },
+      { label: t('Reset Transform'), icon: <RotateCcw size={14} />, action: onResetTransform },
     ];
   };
 
@@ -311,7 +313,7 @@ export function ContextMenu({
             className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-foreground hover:bg-accent rounded-sm transition-colors"
           >
             {item.icon && <span className="text-muted-foreground">{item.icon}</span>}
-            <span className="flex-1 text-left">{item.label}</span>
+            <span className="flex-1 text-left">{t(item.label)}</span>
             <ChevronUp size={12} className="text-muted-foreground rotate-90" />
           </button>
           <div className="absolute left-full top-0 ml-1 hidden group-hover/submenu:block">
@@ -340,7 +342,7 @@ export function ContextMenu({
         }`}
       >
         {item.icon && <span className={item.disabled ? 'text-muted-foreground/50' : 'text-muted-foreground'}>{item.icon}</span>}
-        <span className="flex-1 text-left">{item.label}</span>
+        <span className="flex-1 text-left">{t(item.label)}</span>
         {item.shortcut && (
           <span className="text-[10px] text-muted-foreground font-mono">{item.shortcut}</span>
         )}

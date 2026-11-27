@@ -15,17 +15,19 @@ import {
 import { useMaskPenStore } from "../../../stores/mask-pen-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
 import { commitMaskEdit, maskKeyTolerance } from "../../../services/mask-pen";
+import { useT } from "@openreel/i18n/react";
 
 /** "Pen" entry next to the shape buttons: arms the pen on the Program monitor to draw a new mask. */
 export function MaskPenLauncher({ clipId }: { clipId: string }) {
+  const t = useT();
   const active = useMaskPenStore((s) => s.active && s.clipId === clipId && s.maskId === null);
   return (
     <Button
       type="button"
       variant="outline"
-      aria-label="Pen tool: draw a mask on the Program monitor"
+      aria-label={t("Pen tool: draw a mask on the Program monitor")}
       aria-pressed={active}
-      title="Draw a free-form Bezier mask on the Program monitor"
+      title={t("Draw a free-form Bezier mask on the Program monitor")}
       onClick={() => {
         const pen = useMaskPenStore.getState();
         if (active) pen.disarm();
@@ -37,7 +39,7 @@ export function MaskPenLauncher({ clipId }: { clipId: string }) {
       )}
     >
       <Pen size={14} className="shrink-0" aria-hidden />
-      <span className="truncate">{active ? "Pen: drawing on monitor (Esc to stop)" : "Pen: draw a Bezier mask on the monitor"}</span>
+      <span className="truncate">{active ? t("Pen: drawing on monitor (Esc to stop)") : t("Pen: draw a Bezier mask on the monitor")}</span>
     </Button>
   );
 }
@@ -48,6 +50,7 @@ export function MaskPenLauncher({ clipId }: { clipId: string }) {
  * at the playhead (path keyframes interpolate between each other).
  */
 export function MaskPathTools({ mask }: { mask: Mask }) {
+  const t = useT();
   const penActive = useMaskPenStore((s) => s.active);
   const penClip = useMaskPenStore((s) => s.clipId);
   const penMask = useMaskPenStore((s) => s.maskId);
@@ -65,13 +68,13 @@ export function MaskPathTools({ mask }: { mask: Mask }) {
   return (
     <div className="space-y-2 rounded-md border border-border bg-bg-1 p-2" data-testid="mask-path-tools">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] text-fg-2">Path · {shown.points.length} points</span>
+        <span className="text-[11px] text-fg-2">{t("Path ·")} {shown.points.length} {t("points")}</span>
         <Button
           type="button"
           variant={editing ? "secondary" : "outline"}
           size="sm"
           aria-pressed={editing}
-          aria-label="Edit mask on Program monitor"
+          aria-label={t("Edit mask on Program monitor")}
           onClick={() => {
             if (editing) useMaskPenStore.getState().disarm();
             else useMaskPenStore.getState().arm(mask.clipId, mask.id);
@@ -79,7 +82,7 @@ export function MaskPathTools({ mask }: { mask: Mask }) {
           className="h-7 gap-1 px-2 text-[10px]"
         >
           <Pen size={12} aria-hidden />
-          {editing ? "Editing on monitor" : "Edit on monitor"}
+          {editing ? t("Editing on monitor") : t("Edit on monitor")}
         </Button>
       </div>
       {editing && (
@@ -88,7 +91,7 @@ export function MaskPathTools({ mask }: { mask: Mask }) {
             type="button"
             variant="outline"
             size="sm"
-            aria-label={smooth ? "Convert vertex to corner" : "Convert vertex to smooth"}
+            aria-label={smooth ? t("Convert vertex to corner") : t("Convert vertex to smooth")}
             disabled={vertex === null}
             onClick={() => {
               if (vertex === null) return;
@@ -96,13 +99,13 @@ export function MaskPathTools({ mask }: { mask: Mask }) {
             }}
             className="h-7 flex-1 px-1.5 text-[10px]"
           >
-            {smooth ? "To corner" : "To smooth"}
+            {smooth ? t("To corner") : t("To smooth")}
           </Button>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            aria-label="Delete selected vertex"
+            aria-label={t("Delete selected vertex")}
             disabled={vertex === null || shown.points.length <= 3}
             onClick={() => {
               if (vertex === null) return;
@@ -112,7 +115,7 @@ export function MaskPathTools({ mask }: { mask: Mask }) {
             className="h-7 gap-1 px-1.5 text-[10px]"
           >
             <Trash2 size={12} aria-hidden />
-            Delete point
+            {t("Delete point")}
           </Button>
         </div>
       )}
@@ -121,7 +124,7 @@ export function MaskPathTools({ mask }: { mask: Mask }) {
           type="button"
           variant={here ? "secondary" : "outline"}
           size="sm"
-          aria-label={here ? "Update path keyframe at playhead" : "Add path keyframe at playhead"}
+          aria-label={here ? t("Update path keyframe at playhead") : t("Add path keyframe at playhead")}
           onClick={() => {
             void commitMaskEdit(mask.clipId, mask.id, (m) =>
               upsertMaskKeyframe(m, playhead, maskPathAtTime(m, playhead), maskKeyTolerance()),
@@ -130,26 +133,26 @@ export function MaskPathTools({ mask }: { mask: Mask }) {
           className="h-7 flex-1 gap-1 px-1.5 text-[10px]"
         >
           <Diamond size={12} aria-hidden className={cn(here && "fill-current")} />
-          {here ? "Update keyframe" : "Keyframe path"}
+          {here ? t("Update keyframe") : t("Keyframe path")}
         </Button>
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          aria-label="Remove path keyframe at playhead"
+          aria-label={t("Remove path keyframe at playhead")}
           disabled={!here}
           onClick={() => {
             void commitMaskEdit(mask.clipId, mask.id, (m) => removeMaskKeyframeAt(m, playhead, maskKeyTolerance()));
           }}
           className="h-7 px-1.5 text-[10px]"
         >
-          Remove
+          {t("Remove")}
         </Button>
       </div>
       <p className="text-[10px] leading-4 text-fg-3" data-testid="mask-keyframe-summary">
         {times.length
           ? `${times.length} path keyframe${times.length === 1 ? "" : "s"} at ${times.map((t) => `${t.toFixed(2)}s`).join(", ")}. Edits at the playhead write a keyframe.`
-          : "No path keyframes. Move the playhead and press Keyframe path to animate the shape."}
+          : t("No path keyframes. Move the playhead and press Keyframe path to animate the shape.")}
       </p>
     </div>
   );

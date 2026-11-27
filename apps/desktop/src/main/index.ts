@@ -12,7 +12,7 @@ import { installNavigationGuard } from "./nav-guard";
 import { handle } from "./ipc";
 import { ProjectLocks } from "./project-lock";
 import fsSync from "node:fs";
-import { CHANNELS } from "../shared/ipc-contract";
+import { CHANNELS, languageSetArgsSchema } from "../shared/ipc-contract";
 import { collectHardwareInfo } from "./ipc/hardware";
 import {
   startExport,
@@ -59,6 +59,8 @@ import { noteOpenProjectFile } from "./mcp/policy";
 import { getEditorWindow, registerEditorWindow, setEditorWindowFactory } from "./mcp/editor-window";
 import { getMcpClientStatus } from "./mcp/client-tracker";
 import { installApplicationMenu, sendMenuAction } from "./app-menu";
+import { readLanguageState, setCurrentLocale, writeLanguagePreference } from "./language-state";
+import { loadDictionary } from "@openreel/i18n/translate";
 import { OpenFileRouter } from "./open-files";
 import { attachUnsavedGuard, markQuitting } from "./lifecycle";
 import { initAutoUpdater } from "./updater";
@@ -294,7 +296,8 @@ function showEditorWindow(): void {
   win.focus();
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await loadDictionary();
   if (!hasSingleInstanceLock) return;
   mark("whenReady");
   setEditorWindowFactory(() => createWindow({ hidden: true }));
@@ -574,7 +577,7 @@ app.whenReady().then(() => {
       message: error instanceof Error ? error.message : String(error),
     }),
   );
-  installApplicationMenu(process.platform, (id) => {
+  const onMenuAction = (id: string) => {
     if (id === "openLicenses") {
       const dir = app.isPackaged
         ? path.join(process.resourcesPath, "LICENSES")
@@ -591,6 +594,20 @@ app.whenReady().then(() => {
       return;
     }
     sendMenuAction(focused, id);
+  };
+  const languageFile = path.join(app.getPath("userData"), "language.json");
+  const initialLanguage = readLanguageState(languageFile, app.getPreferredSystemLanguages());
+  setCurrentLocale(initialLanguage.locale);
+  installApplicationMenu(process.platform, onMenuAction, initialLanguage.locale);
+  handle(CHANNELS.languageSet, languageSetArgsSchema, ({ preference, locale }) => {
+    setCurrentLocale(locale);
+    installApplicationMenu(process.platform, onMenuAction, locale);
+    try {
+      writeLanguagePreference(languageFile, preference);
+    } catch {
+      // The menu is already rebuilt; a read-only userData folder must not leave it stale.
+    }
+    return { ok: true };
   });
   mark("menu-installed");
   app.on("activate", () => showEditorWindow());

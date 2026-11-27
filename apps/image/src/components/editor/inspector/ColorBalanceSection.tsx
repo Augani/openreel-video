@@ -4,6 +4,7 @@ import type { Layer } from '../../../types/project';
 import type { ColorBalanceValues } from '../../../types/adjustments';
 import { DEFAULT_COLOR_BALANCE } from '../../../types/adjustments';
 import { Palette, RotateCcw } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   layer: Layer;
@@ -64,6 +65,7 @@ function BalanceSlider({
 }
 
 export function ColorBalanceSection({ layer }: Props) {
+  const t = useT();
   const { updateLayer } = useProjectStore();
   const [activeTone, setActiveTone] = useState<ToneType>('midtones');
   const [isExpanded, setIsExpanded] = useState(true);
@@ -121,7 +123,7 @@ export function ColorBalanceSection({ layer }: Props) {
       >
         <div className="flex items-center gap-2">
           <Palette size={14} className="text-muted-foreground" />
-          <span className="text-xs font-medium">Color Balance</span>
+          <span className="text-xs font-medium">{t("Color Balance")}</span>
           {colorBalance.enabled && (
             <span className="w-1.5 h-1.5 rounded-full bg-primary" />
           )}
@@ -153,14 +155,14 @@ export function ColorBalanceSection({ layer }: Props) {
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  {tone.label}
+                  {t(tone.label)}
                 </button>
               ))}
             </div>
             <button
               onClick={resetColorBalance}
               className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-secondary transition-colors"
-              title="Reset Color Balance"
+              title={t("Reset Color Balance")}
             >
               <RotateCcw size={12} />
             </button>
@@ -202,7 +204,7 @@ export function ColorBalanceSection({ layer }: Props) {
               onChange={(e) => handlePreserveLuminosityChange(e.target.checked)}
               className="w-3.5 h-3.5 rounded border-border"
             />
-            <span className="text-[10px] text-muted-foreground">Preserve Luminosity</span>
+            <span className="text-[10px] text-muted-foreground">{t("Preserve Luminosity")}</span>
           </label>
         </div>
       )}

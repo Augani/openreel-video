@@ -63,6 +63,8 @@ import {
   type TimeFrequencyPoint,
   type TimeFrequencyRect,
 } from "./spectral-geometry";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 interface SpectralEditorProps {
   clipId: string;
@@ -263,6 +265,7 @@ const REGION_COLOUR: Record<SpectralRegionMode, string> = { attenuate: "rgb(125 
  * "spectralRepair" effect, applied identically in the preview and the export.
  */
 export const SpectralEditor: React.FC<SpectralEditorProps> = ({ clipId }) => {
+  const t = useT();
   const clip = useProjectStore((state) => state.project.timeline.tracks.flatMap((track) => track.clips).find((candidate) => candidate.id === clipId));
   const regions = useMemo(() => regionsOf(clip), [clip]);
   const regionsRef = useRef(regions);
@@ -510,7 +513,7 @@ export const SpectralEditor: React.FC<SpectralEditorProps> = ({ clipId }) => {
     const [r] = sanitizeSpectralRegions([{ id: "tmp", mode: "remove", shape: "harmonic", points: outcome.points, harmonic: spec }]);
     if (!r) {
       setSelection(null);
-      setError("That track is too short to select.");
+      setError(translateNow("That track is too short to select."));
       return;
     }
     setSelection({ shape: "harmonic", points: r.points as TimeFrequencyPoint[], harmonic: spec, trackFrom: from, startTime: r.startTime, endTime: r.endTime, lowHz: r.lowHz, highHz: r.highHz });
@@ -558,7 +561,7 @@ export const SpectralEditor: React.FC<SpectralEditorProps> = ({ clipId }) => {
     if (!edit || !final) return;
     if (JSON.stringify(final) === JSON.stringify(edit.from)) return;
     const ok = await commitSpectralRegions(clipId, regionsRef.current.map((r) => (r.id === final.id ? final : r)));
-    if (!ok) setError("Could not apply that edit.");
+    if (!ok) setError(translateNow("Could not apply that edit."));
   };
 
   /** Heal continues a steady partial present on both sides of the selection, so flag that before it is applied. */
@@ -627,7 +630,7 @@ export const SpectralEditor: React.FC<SpectralEditorProps> = ({ clipId }) => {
       if (ok) {
         setSelection(null);
         setSelectedId(region.id);
-      } else setError("Could not apply that edit.");
+      } else setError(translateNow("Could not apply that edit."));
     },
     [attenuation, channel, clipId, selection],
   );
@@ -635,7 +638,7 @@ export const SpectralEditor: React.FC<SpectralEditorProps> = ({ clipId }) => {
   /** One undoable change to one region of the list. */
   const changeRegion = useCallback(
     (id: string, change: (region: SpectralRegion) => SpectralRegion) =>
-      void commitSpectralRegions(clipId, regionsRef.current.map((r) => (r.id === id ? change(r) : r))).then((ok) => ok || setError("Could not apply that edit.")),
+      void commitSpectralRegions(clipId, regionsRef.current.map((r) => (r.id === id ? change(r) : r))).then((ok) => ok || setError(translateNow("Could not apply that edit."))),
     [clipId],
   );
 
@@ -669,10 +672,10 @@ export const SpectralEditor: React.FC<SpectralEditorProps> = ({ clipId }) => {
       data-expanded={expanded}
     >
       <p className="text-[11px] leading-snug text-fg-muted">
-        Select the sound you want to change with a box, a frequency band, a lasso, a brush, the magic wand (click a point to take the connected region of similar energy) or the harmonic tool (click a fundamental to follow its pitch and take its overtones), then attenuate, remove or heal it. Heal matches the background around the selection; Remove is a smooth, quieter fill. Edits are saved on the clip, can be undone, and play the same in preview and export.
+        {t("Select the sound you want to change with a box, a frequency band, a lasso, a brush, the magic wand (click a point to take the connected region of similar energy) or the harmonic tool (click a fundamental to follow its pitch and take its overtones), then attenuate, remove or heal it. Heal matches the background around the selection; Remove is a smooth, quieter fill. Edits are saved on the clip, can be undone, and play the same in preview and export.")}
       </p>
       <div className="flex flex-wrap items-center gap-1.5">
-        <div role="group" aria-label="Selection tool" className="flex overflow-hidden rounded border border-border">
+        <div role="group" aria-label={t("Selection tool")} className="flex overflow-hidden rounded border border-border">
           {TOOLS.map(({ id, label, title }) => (
             <button
               key={id}
@@ -687,17 +690,17 @@ export const SpectralEditor: React.FC<SpectralEditorProps> = ({ clipId }) => {
             </button>
           ))}
         </div>
-        <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-[11px]" onClick={() => zoom(0.5)} disabled={!source} data-testid="spectral-zoom-in" aria-label="Zoom in">
+        <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-[11px]" onClick={() => zoom(0.5)} disabled={!source} data-testid="spectral-zoom-in" aria-label={t("Zoom in")}>
           +
         </Button>
-        <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-[11px]" onClick={() => zoom(2)} disabled={!source || !zoomed} data-testid="spectral-zoom-out" aria-label="Zoom out">
+        <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-[11px]" onClick={() => zoom(2)} disabled={!source || !zoomed} data-testid="spectral-zoom-out" aria-label={t("Zoom out")}>
           -
         </Button>
         <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-[11px]" onClick={() => source && setWindow({ startTime: 0, endTime: source.duration })} disabled={!source || !zoomed} data-testid="spectral-zoom-fit">
-          Fit
+          {t("Fit")}
         </Button>
         <select
-          aria-label="Frequency range"
+          aria-label={t("Frequency range")}
           value={rangeId}
           onChange={(e) => setRangeId(e.target.value as FrequencyRangeId)}
           className="h-6 rounded border border-border bg-bg-1 px-1 text-[11px] text-fg"
@@ -705,12 +708,12 @@ export const SpectralEditor: React.FC<SpectralEditorProps> = ({ clipId }) => {
         >
           {FREQUENCY_RANGES.map((range) => (
             <option key={range.id} value={range.id}>
-              {range.label}
+              {t(range.label)}
             </option>
           ))}
         </select>
         <select
-          aria-label="Colour map"
+          aria-label={t("Colour map")}
           value={colour}
           onChange={(e) => setColour(e.target.value as ColourMapId)}
           className="h-6 rounded border border-border bg-bg-1 px-1 text-[11px] text-fg"
@@ -718,18 +721,18 @@ export const SpectralEditor: React.FC<SpectralEditorProps> = ({ clipId }) => {
         >
           {COLOUR_MAPS.map((map) => (
             <option key={map.id} value={map.id}>
-              {map.label}
+              {t(map.label)}
             </option>
           ))}
         </select>
         {tool === "brush" && (
           <label className="flex items-center gap-1 text-[11px] text-fg">
-            <span>Brush size</span>
-            <input type="range" min={3} max={40} step={1} value={brushPx} onChange={(e) => setBrushPx(Number(e.target.value))} aria-label="Brush size in pixels" data-testid="spectral-brush-size" className="w-16" />
+            <span>{t("Brush size")}</span>
+            <input type="range" min={3} max={40} step={1} value={brushPx} onChange={(e) => setBrushPx(Number(e.target.value))} aria-label={t("Brush size in pixels")} data-testid="spectral-brush-size" className="w-16" />
           </label>
         )}
         <Button type="button" variant="ghost" size="sm" className="ml-auto h-6 px-2 text-[11px]" onClick={() => setExpanded((v) => !v)} data-testid="spectral-expand" aria-pressed={expanded}>
-          {expanded ? "Close" : "Expand"}
+          {expanded ? t("Close") : t("Expand")}
         </Button>
       </div>
 
@@ -738,38 +741,38 @@ export const SpectralEditor: React.FC<SpectralEditorProps> = ({ clipId }) => {
           {tool === "wand" && (
             <>
               <label className="flex items-center gap-1">
-                <span>Tolerance</span>
-                <input type="range" min={1} max={30} step={1} value={wandTolerance} onChange={(e) => setWandTolerance(Number(e.target.value))} aria-label="Magic wand tolerance in dB" data-testid="spectral-wand-tolerance" className="w-20" />
+                <span>{t("Tolerance")}</span>
+                <input type="range" min={1} max={30} step={1} value={wandTolerance} onChange={(e) => setWandTolerance(Number(e.target.value))} aria-label={t("Magic wand tolerance in dB")} data-testid="spectral-wand-tolerance" className="w-20" />
                 <span className="w-9 tabular-nums text-fg-muted" data-testid="spectral-wand-tolerance-value">{wandTolerance} dB</span>
               </label>
-              <label className="flex items-center gap-1" title="Compare cells with their own surroundings instead of with the clicked cell's level: follows a whistle or hum whose level wanders and ignores the floor">
+              <label className="flex items-center gap-1" title={t("Compare cells with their own surroundings instead of with the clicked cell's level: follows a whistle or hum whose level wanders and ignores the floor")}>
                 <input type="checkbox" checked={wandContrast} onChange={(e) => setWandContrast(e.target.checked)} data-testid="spectral-wand-contrast" />
-                <span>Local contrast</span>
+                <span>{t("Local contrast")}</span>
               </label>
             </>
           )}
           {tool === "harmonic" && (
             <>
               <label className="flex items-center gap-1">
-                <span>Harmonics</span>
-                <input type="number" min={1} max={MAX_HARMONICS} step={1} value={harmonics} onChange={(e) => setHarmonics(Math.max(1, Math.min(MAX_HARMONICS, Math.round(Number(e.target.value)) || 1)))} aria-label="Number of harmonics, the fundamental counting as one" data-testid="spectral-harmonics" className="h-6 w-12 rounded border border-border bg-bg-1 px-1 text-[11px] text-fg" />
+                <span>{t("Harmonics")}</span>
+                <input type="number" min={1} max={MAX_HARMONICS} step={1} value={harmonics} onChange={(e) => setHarmonics(Math.max(1, Math.min(MAX_HARMONICS, Math.round(Number(e.target.value)) || 1)))} aria-label={t("Number of harmonics, the fundamental counting as one")} data-testid="spectral-harmonics" className="h-6 w-12 rounded border border-border bg-bg-1 px-1 text-[11px] text-fg" />
               </label>
               <label className="flex items-center gap-1">
-                <span>Up to</span>
-                <input type="number" min={100} max={Math.round(nyquist)} step={500} value={maxHarmonicHz} onChange={(e) => setMaxHarmonicHz(Math.max(100, Math.min(Math.round(nyquist), Number(e.target.value) || 100)))} aria-label="Highest frequency of the selected harmonics in Hz" data-testid="spectral-harmonic-max" className="h-6 w-16 rounded border border-border bg-bg-1 px-1 text-[11px] text-fg" />
-                <span>Hz</span>
+                <span>{t("Up to")}</span>
+                <input type="number" min={100} max={Math.round(nyquist)} step={500} value={maxHarmonicHz} onChange={(e) => setMaxHarmonicHz(Math.max(100, Math.min(Math.round(nyquist), Number(e.target.value) || 100)))} aria-label={t("Highest frequency of the selected harmonics in Hz")} data-testid="spectral-harmonic-max" className="h-6 w-16 rounded border border-border bg-bg-1 px-1 text-[11px] text-fg" />
+                <span>{t("Hz")}</span>
               </label>
               <label className="flex items-center gap-1">
-                <span>Bandwidth</span>
-                <input type="number" min={5} max={400} step={5} value={bandCents} onChange={(e) => setBandCents(Math.max(5, Math.min(400, Number(e.target.value) || 5)))} aria-label="Bandwidth of each harmonic in cents" data-testid="spectral-harmonic-cents" className="h-6 w-14 rounded border border-border bg-bg-1 px-1 text-[11px] text-fg" />
-                <span>cents</span>
+                <span>{t("Bandwidth")}</span>
+                <input type="number" min={5} max={400} step={5} value={bandCents} onChange={(e) => setBandCents(Math.max(5, Math.min(400, Number(e.target.value) || 5)))} aria-label={t("Bandwidth of each harmonic in cents")} data-testid="spectral-harmonic-cents" className="h-6 w-14 rounded border border-border bg-bg-1 px-1 text-[11px] text-fg" />
+                <span>{t("cents")}</span>
               </label>
             </>
           )}
           {stereo && (
             <label className="flex items-center gap-1">
-              <span>Edit</span>
-              <select aria-label="Channel to edit" value={channel} onChange={(e) => setChannel(e.target.value as SpectralChannel)} className="h-6 rounded border border-border bg-bg-1 px-1 text-[11px] text-fg" data-testid="spectral-channel">
+              <span>{t("Edit")}</span>
+              <select aria-label={t("Channel to edit")} value={channel} onChange={(e) => setChannel(e.target.value as SpectralChannel)} className="h-6 rounded border border-border bg-bg-1 px-1 text-[11px] text-fg" data-testid="spectral-channel">
                 {(Object.keys(CHANNEL_LABEL) as SpectralChannel[]).map((id) => (
                   <option key={id} value={id}>
                     {CHANNEL_LABEL[id]}
@@ -778,7 +781,7 @@ export const SpectralEditor: React.FC<SpectralEditorProps> = ({ clipId }) => {
               </select>
             </label>
           )}
-          {analysing && <span className="text-fg-muted" role="status" data-testid="spectral-analysing">Analysing…</span>}
+          {analysing && <span className="text-fg-muted" role="status" data-testid="spectral-analysing">{t("Analysing…")}</span>}
         </div>
       )}
 
@@ -803,7 +806,7 @@ export const SpectralEditor: React.FC<SpectralEditorProps> = ({ clipId }) => {
         data-duration={duration}
         data-nyquist={nyquist}
       >
-        <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" role="img" aria-label="Spectrogram of the clip's audio" data-testid="spectral-canvas" data-ready={spectrogram && !busy ? "true" : "false"} />
+        <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" role="img" aria-label={t("Spectrogram of the clip's audio")} data-testid="spectral-canvas" data-ready={spectrogram && !busy ? "true" : "false"} />
         <div className="pointer-events-none absolute inset-0">
           <canvas ref={wandCanvasRef} className="absolute inset-0 h-full w-full" aria-hidden data-testid="spectral-wand-layer" />
           {shown.map((region) => {
@@ -971,7 +974,7 @@ export const SpectralEditor: React.FC<SpectralEditorProps> = ({ clipId }) => {
         </div>
         {!source && (
           <div className="absolute inset-0 flex items-center justify-center text-[11px] text-fg-muted" data-testid="spectral-loading">
-            Decoding audio…
+            {t("Decoding audio…")}
           </div>
         )}
       </div>
@@ -979,7 +982,7 @@ export const SpectralEditor: React.FC<SpectralEditorProps> = ({ clipId }) => {
       {zoomed && window_ && source && (
         <input
           type="range"
-          aria-label="Pan the spectrogram"
+          aria-label={t("Pan the spectrogram")}
           min={0}
           max={Math.max(0, source.duration - (window_.endTime - window_.startTime))}
           step={0.01}
@@ -999,14 +1002,14 @@ export const SpectralEditor: React.FC<SpectralEditorProps> = ({ clipId }) => {
               : ""}
         </span>
         <label className="flex shrink-0 items-center gap-1">
-          <span>Original</span>
-          <Switch checked={showOriginal} onCheckedChange={setShowOriginal} aria-label="Show the original, unedited spectrogram" className="workspace-switch flex-none" data-testid="spectral-show-original" />
+          <span>{t("Original")}</span>
+          <Switch checked={showOriginal} onCheckedChange={setShowOriginal} aria-label={t("Show the original, unedited spectrogram")} className="workspace-switch flex-none" data-testid="spectral-show-original" />
         </label>
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5" data-testid="spectral-actions">
         <label className="flex items-center gap-1 text-[11px] text-fg">
-          <span>Attenuate by</span>
+          <span>{t("Attenuate by")}</span>
           <input
             type="number"
             min={1}
@@ -1015,29 +1018,29 @@ export const SpectralEditor: React.FC<SpectralEditorProps> = ({ clipId }) => {
             value={attenuation}
             onChange={(e) => setAttenuation(Math.max(1, Math.min(120, Number(e.target.value) || 1)))}
             className="h-6 w-14 rounded border border-border bg-bg-1 px-1 text-[11px] text-fg"
-            aria-label="Attenuation in dB"
+            aria-label={t("Attenuation in dB")}
             data-testid="spectral-db"
           />
           <span>dB</span>
         </label>
         <Button type="button" size="sm" className="h-6 px-2 text-[11px]" disabled={!selection} onClick={() => void commit("attenuate")} data-testid="spectral-attenuate">
-          Attenuate
+          {t("Attenuate")}
         </Button>
-        <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-[11px]" disabled={!selection} onClick={() => void commit("remove")} data-testid="spectral-remove" title="Replace the selection by a smooth interpolation of its surroundings. Cheapest, and the lowest error when what lay underneath is silence or cannot be predicted, but it leaves a notch 5 to 10 dB quieter than the background">
-          Remove
+        <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-[11px]" disabled={!selection} onClick={() => void commit("remove")} data-testid="spectral-remove" title={t("Replace the selection by a smooth interpolation of its surroundings. Cheapest, and the lowest error when what lay underneath is silence or cannot be predicted, but it leaves a notch 5 to 10 dB quieter than the background")}>
+          {t("Remove")}
         </Button>
-        <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-[11px]" disabled={!selection} onClick={() => void commit("heal")} data-testid="spectral-heal" title="Refill the selection with the surrounding background at its own level and texture (no quiet hole) and carry steady partials through short gaps. Best where the background is audible: noise floor, hum, held notes. Not for a slice of a persistent tone: use Remove for that">
-          Heal
+        <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-[11px]" disabled={!selection} onClick={() => void commit("heal")} data-testid="spectral-heal" title={t("Refill the selection with the surrounding background at its own level and texture (no quiet hole) and carry steady partials through short gaps. Best where the background is audible: noise floor, hum, held notes. Not for a slice of a persistent tone: use Remove for that")}>
+          {t("Heal")}
         </Button>
         <Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-[11px]" disabled={!selection} onClick={() => setSelection(null)} data-testid="spectral-clear-selection">
-          Clear selection
+          {t("Clear selection")}
         </Button>
       </div>
       {selection && healContinues && (
         <p role="status" className="flex flex-wrap items-center gap-2 text-[11px] text-amber-300" data-testid="spectral-heal-warning">
-          <span>A steady tone in this band continues on both sides of the selection. Heal carries it through, so it would stay. Remove takes it out, or select its whole length.</span>
+          <span>{t("A steady tone in this band continues on both sides of the selection. Heal carries it through, so it would stay. Remove takes it out, or select its whole length.")}</span>
           <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-[11px]" onClick={() => void commit("remove")} data-testid="spectral-heal-use-remove">
-            Use Remove
+            {t("Use Remove")}
           </Button>
         </p>
       )}
@@ -1049,7 +1052,7 @@ export const SpectralEditor: React.FC<SpectralEditorProps> = ({ clipId }) => {
 
       {regions.length > 0 && (
         <div className="flex flex-col gap-1" data-testid="spectral-regions">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">Edits on this clip</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">{t("Edits on this clip")}</span>
           {shown.map((region) => {
             const selected = region.id === selectedId;
             const masked = regionShape(region) !== "rect";
@@ -1144,7 +1147,7 @@ export const SpectralEditor: React.FC<SpectralEditorProps> = ({ clipId }) => {
                       defaultValue={region.harmonic.harmonics}
                       key={`${region.id}-h${region.harmonic.harmonics}`}
                       aria-label={`Harmonics of edit ${describeRegion(region)}`}
-                      title="Harmonics (the fundamental counts as one)"
+                      title={t("Harmonics (the fundamental counts as one)")}
                       className="h-5 w-10 rounded border border-border bg-bg-0 px-1 text-[10px] text-fg"
                       data-testid="spectral-region-harmonics"
                       onBlur={(e) => {
@@ -1161,7 +1164,7 @@ export const SpectralEditor: React.FC<SpectralEditorProps> = ({ clipId }) => {
                       defaultValue={region.harmonic.bandCents}
                       key={`${region.id}-c${region.harmonic.bandCents}`}
                       aria-label={`Bandwidth in cents of edit ${describeRegion(region)}`}
-                      title="Bandwidth of each harmonic, cents"
+                      title={t("Bandwidth of each harmonic, cents")}
                       className="h-5 w-11 rounded border border-border bg-bg-0 px-1 text-[10px] text-fg"
                       data-testid="spectral-region-cents"
                       onBlur={(e) => {
@@ -1181,7 +1184,7 @@ export const SpectralEditor: React.FC<SpectralEditorProps> = ({ clipId }) => {
                     defaultValue={regionFeather(region)}
                     key={`${region.id}-f${regionFeather(region)}`}
                     aria-label={`Feather of edit ${describeRegion(region)}`}
-                    title="Soft edge in STFT cells"
+                    title={t("Soft edge in STFT cells")}
                     className="h-5 w-9 rounded border border-border bg-bg-0 px-1 text-[10px] text-fg"
                     data-testid="spectral-region-feather"
                     onBlur={(e) => {

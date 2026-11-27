@@ -16,6 +16,7 @@ import {
   selectVoiceOverMimeType as selectMimeType,
   type PlacementTrack,
 } from "../../../services/voiceover/voiceover-logic";
+import { useT } from "@openreel/i18n/react";
 
 export { listVoiceOverTakes, peakLevel };
 
@@ -29,12 +30,13 @@ const INPUT_METER_BARS = 24;
 
 /** Segmented live input meter; `level` is 0..1. */
 export const VoiceOverMeter: React.FC<{ level: number; active: boolean }> = ({ level, active }) => {
+  const t = useT();
   const lit = Math.round(level * INPUT_METER_BARS);
   return (
     <div
       className="flex h-3 items-stretch gap-[2px]"
       role="meter"
-      aria-label="Microphone input level"
+      aria-label={t("Microphone input level")}
       aria-valuemin={0}
       aria-valuemax={1}
       aria-valuenow={Number(level.toFixed(2))}
@@ -93,6 +95,7 @@ function timecode(seconds: number): string {
 }
 
 export const VoiceOverPanel: React.FC = () => {
+  const t = useT();
   const phase = useVoiceOverStore((state) => state.phase);
   const countdown = useVoiceOverStore((state) => state.countdown);
   const elapsedMs = useVoiceOverStore((state) => state.elapsedMs);
@@ -194,31 +197,31 @@ export const VoiceOverPanel: React.FC = () => {
         <Button
           onClick={() => useVoiceOverStore.getState().cancel()}
           type="button"
-          aria-label="Cancel recording"
+          aria-label={t("Cancel recording")}
           className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring h-8 px-3 text-[12px] w-full justify-center bg-bg-3 text-fg hover:bg-bg-3/80"
         >
-          <span className="truncate">Cancel (Esc)</span>
+          <span className="truncate">{t("Cancel (Esc)")}</span>
         </Button>
       ) : phase === "recording" ? (
         <Button
           onClick={() => useVoiceOverStore.getState().stop()}
           type="button"
-          aria-label="Stop & Add to Timeline"
+          aria-label={t("Stop & Add to Timeline")}
           className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] text-accent-fg w-full justify-center bg-red-500 hover:bg-red-600"
         >
           <span className="flex h-4 w-4 shrink-0 items-center justify-center"><Square size={13} aria-hidden /></span>
-          <span className="truncate">Stop & Add to Timeline</span>
+          <span className="truncate">{t("Stop & Add to Timeline")}</span>
         </Button>
       ) : (
         <Button
           onClick={() => void useVoiceOverStore.getState().start()}
           type="button"
-          aria-label={phase === "saving" ? "Adding Voice Over…" : "Record Voice Over"}
+          aria-label={phase === "saving" ? t("Adding Voice Over…") : t("Record Voice Over")}
           disabled={phase === "saving"}
           className="inline-flex min-w-0 items-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-accent text-accent-fg hover:bg-accent/90 w-full justify-center"
         >
           <span className="flex h-4 w-4 shrink-0 items-center justify-center"><Mic size={14} aria-hidden /></span>
-          <span className="truncate">{phase === "saving" ? "Adding Voice Over…" : "Record Voice Over"}</span>
+          <span className="truncate">{phase === "saving" ? t("Adding Voice Over…") : t("Record Voice Over")}</span>
         </Button>
       )}
 
@@ -238,7 +241,7 @@ export const VoiceOverPanel: React.FC = () => {
                 onClick={() => void window.openreel?.microphone?.openSettings()}
                 className="rounded-md border border-red-500/40 px-2 py-0.5 text-[10px] font-semibold text-red-300 hover:bg-red-500/10 focus-visible:ring-2 focus-visible:ring-ring"
               >
-                Open microphone settings
+                {t("Open microphone settings")}
               </button>
             )}
           </div>
@@ -250,7 +253,7 @@ export const VoiceOverPanel: React.FC = () => {
 
       <div className="space-y-2 rounded-[7px] border border-border bg-bg-2 p-3">
         <div className={ROW}>
-          <label htmlFor="voiceover-input" className={LABEL}>Input</label>
+          <label htmlFor="voiceover-input" className={LABEL}>{t("Input")}</label>
           <select
             id="voiceover-input"
             data-testid="voiceover-device"
@@ -259,21 +262,21 @@ export const VoiceOverPanel: React.FC = () => {
             onChange={(event) => setPrefs({ deviceId: event.target.value })}
             className={FIELD}
           >
-            <option value="">System default microphone</option>
+            <option value="">{t("System default microphone")}</option>
             {devices.map((device) => (
-              <option key={device.deviceId} value={device.deviceId}>{device.label}</option>
+              <option key={device.deviceId} value={device.deviceId}>{t(device.label)}</option>
             ))}
           </select>
         </div>
         {savedDeviceMissing && (
           <p className="text-[9px] text-status-warning" data-testid="voiceover-device-missing">
-            Your saved microphone is not connected. The system default will be used.
+            {t("Your saved microphone is not connected. The system default will be used.")}
           </p>
         )}
         <VoiceOverMeter level={level} active={phase !== "idle" && phase !== "saving"} />
         <div className={ROW}>
           <p className="text-[9px] text-fg-muted">
-            {phase === "idle" ? "Check your level before recording." : "Live input level. Keep peaks out of the red."}
+            {phase === "idle" ? t("Check your level before recording.") : t("Live input level. Keep peaks out of the red.")}
           </p>
           {(
             <button
@@ -283,7 +286,7 @@ export const VoiceOverPanel: React.FC = () => {
               onClick={() => (phase === "monitoring" ? useVoiceOverStore.getState().stopMonitor() : void useVoiceOverStore.getState().startMonitor())}
               className="shrink-0 rounded-md border border-border bg-bg-1 px-2 py-1 text-[10px] font-semibold text-fg hover:bg-bg-3 focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
             >
-              {phase === "monitoring" ? "Stop check" : "Check level"}
+              {phase === "monitoring" ? t("Stop check") : t("Check level")}
             </button>
           )}
         </div>
@@ -291,7 +294,7 @@ export const VoiceOverPanel: React.FC = () => {
 
       <div className="space-y-2 rounded-[7px] border border-border bg-bg-2 p-3">
         <div className={ROW}>
-          <label htmlFor="voiceover-track" className={LABEL}>Record to</label>
+          <label htmlFor="voiceover-track" className={LABEL}>{t("Record to")}</label>
           <select
             id="voiceover-track"
             data-testid="voiceover-track"
@@ -300,14 +303,14 @@ export const VoiceOverPanel: React.FC = () => {
             onChange={(event) => setPrefs({ targetTrackId: event.target.value })}
             className={FIELD}
           >
-            <option value="">New Voice Over track</option>
+            <option value="">{t("New Voice Over track")}</option>
             {audioTracks.map((track) => (
               <option key={track.id} value={track.id}>{track.name}</option>
             ))}
           </select>
         </div>
         <div className={ROW}>
-          <label htmlFor="voiceover-preroll" className={LABEL}>Pre-roll</label>
+          <label htmlFor="voiceover-preroll" className={LABEL}>{t("Pre-roll")}</label>
           <select
             id="voiceover-preroll"
             data-testid="voiceover-preroll"
@@ -317,7 +320,7 @@ export const VoiceOverPanel: React.FC = () => {
             className={FIELD}
           >
             {Array.from({ length: MAX_PRE_ROLL_SECONDS + 1 }, (_, seconds) => (
-              <option key={seconds} value={seconds}>{seconds === 0 ? "None" : `${seconds} s countdown`}</option>
+              <option key={seconds} value={seconds}>{seconds === 0 ? t("None") : `${seconds} s countdown`}</option>
             ))}
           </select>
         </div>
@@ -326,7 +329,7 @@ export const VoiceOverPanel: React.FC = () => {
           checked={prefs.punch && range !== null}
           disabled={busy || range === null}
           onChange={(punch) => setPrefs({ punch })}
-          title="Punch in / out"
+          title={t("Punch in / out")}
           hint={
             range
               ? `Record only between In ${timecode(range.start)} and Out ${timecode(range.end)}.`
@@ -338,14 +341,14 @@ export const VoiceOverPanel: React.FC = () => {
           checked={prefs.muteDuringRecord}
           disabled={busy}
           onChange={(muteDuringRecord) => setPrefs({ muteDuringRecord })}
-          title="Mute playback while recording"
+          title={t("Mute playback while recording")}
           hint="Silences the timeline once recording starts so speakers do not feed back into the microphone."
         />
       </div>
 
       {takes.length > 0 && (
-        <section aria-label="Takes" data-testid="voiceover-takes" className="space-y-1">
-          <h4 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-muted">Takes · {takes.length}</h4>
+        <section aria-label={t("Takes")} data-testid="voiceover-takes" className="space-y-1">
+          <h4 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-muted">{t("Takes ·")} {takes.length}</h4>
           {takes.map((take) => (
             <button
               key={take.clipId}
@@ -366,7 +369,7 @@ export const VoiceOverPanel: React.FC = () => {
         </section>
       )}
       <span className="text-fg-2 font-normal block text-center text-[9px]">
-        Recorded audio stays in this project and exports with the rest of the mix.
+        {t("Recorded audio stays in this project and exports with the rest of the mix.")}
       </span>
     </div>
   );

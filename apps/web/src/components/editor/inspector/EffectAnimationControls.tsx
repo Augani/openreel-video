@@ -17,6 +17,7 @@ import { v4 as uuidv4 } from "uuid";
 import { PropertySlider } from "./shell/PropertySlider";
 import { useProjectStore } from "../../../stores/project-store";
 import { useTimelineStore } from "../../../stores/timeline-store";
+import { useT } from "@openreel/i18n/react";
 
 const NO_KEYFRAMES: readonly Keyframe[] = [];
 
@@ -53,6 +54,7 @@ interface RowProps {
 const EffectParamAnimationRow: React.FC<RowProps> = ({
   clipId, effect, param, keyframes, localTime, insideClip, disabled,
 }) => {
+  const t = useT();
   const own = useMemo(() => getEffectParamKeyframes(keyframes, effect.id, param.key), [keyframes, effect.id, param.key]);
   const animated = own.length > 0;
   const atPlayhead = findEffectParamKeyframeAt(keyframes, effect.id, param.key, localTime);
@@ -96,13 +98,13 @@ const EffectParamAnimationRow: React.FC<RowProps> = ({
           className={cn(iconButton, animated && "bg-primary/15 text-primary")}
           aria-label={`Animate ${param.label}`}
           aria-pressed={animated}
-          title={animated ? "Stopwatch on: click to remove all keyframes" : "Stopwatch off: click to start animating"}
+          title={animated ? t("Stopwatch on: click to remove all keyframes") : t("Stopwatch off: click to start animating")}
           disabled={disabled || (!animated && !insideClip)}
           onClick={toggleAnimation}
         >
           <Timer size={12} aria-hidden />
         </Button>
-        <span className="min-w-0 flex-1 truncate text-[10px] text-fg-2">{param.label}</span>
+        <span className="min-w-0 flex-1 truncate text-[10px] text-fg-2">{t(param.label)}</span>
         {animated ? (
           <>
             <Button type="button" variant="ghost" size="icon-sm" className={iconButton} aria-label={`Previous ${param.label} keyframe`}
@@ -152,6 +154,7 @@ export const EffectAnimationControls: React.FC<{
   effect: Pick<Effect, "id" | "type" | "params">;
   disabled: boolean;
 }> = ({ clipId, effect, disabled }) => {
+  const t = useT();
   const clip = useProjectStore((state) =>
     state.project.timeline.tracks.flatMap((track) => track.clips).find((candidate) => candidate.id === clipId),
   );
@@ -165,7 +168,7 @@ export const EffectAnimationControls: React.FC<{
   return (
     <details className="rounded-md border border-border bg-bg-1 px-2 py-1" open={animatedCount > 0}>
       <summary className="cursor-pointer select-none text-[10px] text-fg-2">
-        Animation{animatedCount > 0 ? ` (${animatedCount} animated)` : ""}
+        {t("Animation")}{animatedCount > 0 ? ` (${animatedCount} animated)` : ""}
       </summary>
       <div className="mt-1.5 space-y-1.5">
         {params.map((param) => (

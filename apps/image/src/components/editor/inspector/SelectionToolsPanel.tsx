@@ -18,6 +18,7 @@ import {
   ChevronDown,
   X,
 } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 interface SliderProps {
   label: string;
@@ -63,6 +64,7 @@ function Slider({ label, value, min, max, step = 1, onChange }: SliderProps) {
 }
 
 export function SelectionToolsPanel() {
+  const t = useT();
   const {
     activeTool,
     setActiveTool,
@@ -125,7 +127,7 @@ export function SelectionToolsPanel() {
   return (
     <div className="border-b border-border">
       <div className="px-3 py-2">
-        <span className="text-xs font-medium">Selection Tools</span>
+        <span className="text-xs font-medium">{t("Selection Tools")}</span>
       </div>
 
       <div className="px-3 pb-3 space-y-3">
@@ -139,7 +141,7 @@ export function SelectionToolsPanel() {
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
               }`}
-              title={tool.label}
+              title={t(tool.label)}
             >
               <tool.icon size={14} />
             </button>
@@ -149,7 +151,7 @@ export function SelectionToolsPanel() {
         {isSelectionTool && (
           <>
             <div className="space-y-1.5">
-              <span className="text-[10px] text-muted-foreground font-medium">Mode</span>
+              <span className="text-[10px] text-muted-foreground font-medium">{t("Mode")}</span>
               <div className="flex gap-1">
                 {selectionModes.map((mode) => (
                   <button
@@ -161,7 +163,7 @@ export function SelectionToolsPanel() {
                         : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
                     }`}
                   >
-                    {mode.label}
+                    {t(mode.label)}
                   </button>
                 ))}
               </div>
@@ -182,7 +184,7 @@ export function SelectionToolsPanel() {
                 onChange={(e) => setSelectionToolSettings({ antiAlias: e.target.checked })}
                 className="w-3.5 h-3.5 rounded border-border"
               />
-              <span className="text-[10px] text-muted-foreground">Anti-alias</span>
+              <span className="text-[10px] text-muted-foreground">{t("Anti-alias")}</span>
             </label>
 
             {activeTool === 'magic-wand' && (
@@ -202,7 +204,7 @@ export function SelectionToolsPanel() {
                     onChange={(e) => setMagicWandSettings({ contiguous: e.target.checked })}
                     className="w-3.5 h-3.5 rounded border-border"
                   />
-                  <span className="text-[10px] text-muted-foreground">Contiguous</span>
+                  <span className="text-[10px] text-muted-foreground">{t("Contiguous")}</span>
                 </label>
 
                 <label className="flex items-center gap-2">
@@ -212,7 +214,7 @@ export function SelectionToolsPanel() {
                     onChange={(e) => setMagicWandSettings({ sampleAllLayers: e.target.checked })}
                     className="w-3.5 h-3.5 rounded border-border"
                   />
-                  <span className="text-[10px] text-muted-foreground">Sample All Layers</span>
+                  <span className="text-[10px] text-muted-foreground">{t("Sample All Layers")}</span>
                 </label>
               </div>
             )}
@@ -221,7 +223,7 @@ export function SelectionToolsPanel() {
 
         {hasSelection && (
           <div className="space-y-2.5 pt-2 border-t border-border">
-            <span className="text-[10px] text-muted-foreground font-medium">Selection Actions</span>
+            <span className="text-[10px] text-muted-foreground font-medium">{t("Selection Actions")}</span>
 
             <div className="grid grid-cols-2 gap-1.5">
               <button
@@ -229,14 +231,14 @@ export function SelectionToolsPanel() {
                 className="flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] rounded bg-secondary hover:bg-secondary/80 transition-colors"
               >
                 <RotateCcw size={10} />
-                Invert
+                {t("Invert")}
               </button>
               <button
                 onClick={() => clearSelection()}
                 className="flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] rounded bg-secondary hover:bg-secondary/80 transition-colors"
               >
                 <Trash2 size={10} />
-                Deselect
+                {t("Deselect")}
               </button>
             </div>
 
@@ -246,20 +248,20 @@ export function SelectionToolsPanel() {
                   onClick={() => expandSelection(1)}
                   className="flex-1 px-2 py-1.5 text-[10px] rounded bg-secondary hover:bg-secondary/80 transition-colors"
                 >
-                  Expand
+                  {t("Expand")}
                 </button>
                 <button
                   onClick={() => contractSelection(1)}
                   className="flex-1 px-2 py-1.5 text-[10px] rounded bg-secondary hover:bg-secondary/80 transition-colors"
                 >
-                  Contract
+                  {t("Contract")}
                 </button>
               </div>
               <button
                 onClick={() => featherSelection(selectionToolSettings.feather || 5)}
                 className="w-full px-2 py-1.5 text-[10px] rounded bg-secondary hover:bg-secondary/80 transition-colors"
               >
-                Feather ({selectionToolSettings.feather || 5}px)
+                {t("Feather (")}{selectionToolSettings.feather || 5}{t("px)")}
               </button>
             </div>
 
@@ -267,20 +269,20 @@ export function SelectionToolsPanel() {
               <button
                 onClick={() => saveSelection(`Selection ${savedSelections.length + 1}`)}
                 className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] rounded bg-secondary hover:bg-secondary/80 transition-colors"
-                title="Save Selection"
+                title={t("Save Selection")}
               >
                 <Download size={10} />
-                Save
+                {t("Save")}
               </button>
               <div className="flex-1 relative">
                 <button
                   onClick={() => setShowLoadMenu(!showLoadMenu)}
                   disabled={savedSelections.length === 0}
                   className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] rounded bg-secondary hover:bg-secondary/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Load Selection"
+                  title={t("Load Selection")}
                 >
                   <Upload size={10} />
-                  Load
+                  {t("Load")}
                   {savedSelections.length > 0 && (
                     <ChevronDown size={8} className={`transition-transform ${showLoadMenu ? 'rotate-180' : ''}`} />
                   )}
@@ -299,7 +301,7 @@ export function SelectionToolsPanel() {
                           }}
                           className="flex-1 text-left text-[10px] text-foreground truncate"
                         >
-                          Selection {idx + 1}
+                          {t("Selection")} {idx + 1}
                         </button>
                         <button
                           onClick={(e) => {

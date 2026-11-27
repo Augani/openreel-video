@@ -42,6 +42,7 @@ import {
 } from "../../services/screen-recorder";
 import { RecordingCountdown } from "./RecordingCountdown";
 import { RecordingControls } from "./RecordingControls";
+import { useT } from "@openreel/i18n/react";
 
 interface ScreenRecorderProps {
   isOpen: boolean;
@@ -77,6 +78,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
   onClose,
   onRecordingComplete,
 }) => {
+  const t = useT();
   const {
     status,
     options,
@@ -170,10 +172,10 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
               </span>
               <div className="min-w-0 flex-1">
                 <ShadcnDialogTitle className="truncate text-[15px] font-semibold leading-5 text-fg">
-                  {"Screen Recording"}
+                  {t("Screen Recording")}
                 </ShadcnDialogTitle>
                 <ShadcnDialogDescription className="sr-only">
-                  {"Screen Recording"}
+                  {t("Screen Recording")}
                 </ShadcnDialogDescription>
               </div>
               <ShadcnDialogClose asChild>
@@ -181,7 +183,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                   variant="ghost"
                   size="icon-sm"
                   type="button"
-                  aria-label="Close dialog"
+                  aria-label={t("Close dialog")}
                   className="size-7 shrink-0 rounded-[7px] p-0 text-fg-muted hover:bg-bg-2 hover:text-fg"
                 >
                   <DialogCloseIcon size={15} aria-hidden />
@@ -206,11 +208,10 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                   />
                   <div>
                     <span className="text-[13px] leading-5 font-bold block text-error">
-                      Screen recording not supported
+                      {t("Screen recording not supported")}
                     </span>
                     <span className="text-[12px] leading-5 text-fg-2 font-normal block mt-1">
-                      Your browser doesn't support screen recording. Please use
-                      Chrome, Edge, or Firefox.
+                      {t("Your browser doesn't support screen recording. Please use Chrome, Edge, or Firefox.")}
                     </span>
                   </div>
                 </Card>
@@ -225,7 +226,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                   />
                   <div>
                     <span className="text-[13px] leading-5 font-bold block text-error">
-                      Recording Error
+                      {t("Recording Error")}
                     </span>
                     <span className="text-[12px] leading-5 text-fg-2 font-normal block mt-1">
                       {error}
@@ -238,7 +239,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                 <div className="flex items-center gap-2">
                   <Monitor size={16} aria-hidden />
                   <span className="text-[13px] leading-5 text-fg-2 font-bold">
-                    Video Settings
+                    {t("Video Settings")}
                   </span>
                 </div>
 
@@ -246,7 +247,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                   <div>
                     <ShadcnLabel className="block min-w-0 space-y-1.5">
                       <span className="block truncate text-[11px] font-medium text-text-secondary">
-                        {"Resolution"}
+                        {t("Resolution")}
                       </span>
                       <ShadcnSelect
                         value={
@@ -266,7 +267,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                         }}
                       >
                         <ShadcnSelectTrigger
-                          aria-label={"Resolution"}
+                          aria-label={t("Resolution")}
                           className={cn(
                             "flex h-8 w-full min-w-0 rounded-[7px] border border-border bg-bg-1 px-2.5 py-1.5 text-[13px] font-medium text-fg-2 outline-none transition-colors focus:border-accent disabled:cursor-not-allowed disabled:opacity-50",
                             "h-7 text-[12px]",
@@ -290,7 +291,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                                 "disabled" in option && option.disabled === true
                               }
                             >
-                              {option.label}
+                              {t(option.label)}
                             </ShadcnSelectItem>
                           ))}
                         </ShadcnSelectContent>
@@ -308,7 +309,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                   <div>
                     <ShadcnLabel className="block min-w-0 space-y-1.5">
                       <span className="block truncate text-[11px] font-medium text-text-secondary">
-                        {"Frame Rate"}
+                        {t("Frame Rate")}
                       </span>
                       <ShadcnSelect
                         value={
@@ -328,7 +329,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                         }}
                       >
                         <ShadcnSelectTrigger
-                          aria-label={"Frame Rate"}
+                          aria-label={t("Frame Rate")}
                           className={cn(
                             "flex h-8 w-full min-w-0 rounded-[7px] border border-border bg-bg-1 px-2.5 py-1.5 text-[13px] font-medium text-fg-2 outline-none transition-colors focus:border-accent disabled:cursor-not-allowed disabled:opacity-50",
                             "h-7 text-[12px]",
@@ -352,7 +353,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                                 "disabled" in option && option.disabled === true
                               }
                             >
-                              {option.label}
+                              {t(option.label)}
                             </ShadcnSelectItem>
                           ))}
                         </ShadcnSelectContent>
@@ -366,7 +367,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                 <div className="flex items-center gap-2">
                   <Settings size={16} aria-hidden />
                   <span className="text-[13px] leading-5 text-fg-2 font-bold">
-                    Audio Settings
+                    {t("Audio Settings")}
                   </span>
                 </div>
 
@@ -374,7 +375,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                   <Button
                     variant="ghost"
                     type="button"
-                    aria-label="System Audio"
+                    aria-label={t("System Audio")}
                     disabled={!isSupported || !features.systemAudio}
                     onClick={() =>
                       setAudioOption("systemAudio", !options.audio.systemAudio)
@@ -401,14 +402,14 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                       <VolumeX size={18} aria-hidden />
                     )}
                     <span className="text-fg-2 font-normal ml-2 text-sm">
-                      System Audio
+                      {t("System Audio")}
                     </span>
                   </Button>
 
                   <Button
                     variant="ghost"
                     type="button"
-                    aria-label="Microphone"
+                    aria-label={t("Microphone")}
                     disabled={!isSupported}
                     onClick={() =>
                       setAudioOption("microphone", !options.audio.microphone)
@@ -435,15 +436,14 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                       <MicOff size={18} aria-hidden />
                     )}
                     <span className="text-fg-2 font-normal ml-2 text-sm">
-                      Microphone
+                      {t("Microphone")}
                     </span>
                   </Button>
                 </div>
 
                 {!features.systemAudio && (
                   <span className="text-fg-2 font-normal block text-[10px]">
-                    System audio capture is only available in Chrome and Edge
-                    browsers.
+                    {t("System audio capture is only available in Chrome and Edge browsers.")}
                   </span>
                 )}
               </div>
@@ -453,11 +453,11 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                   <div className="flex items-center gap-2">
                     <Camera size={16} aria-hidden />
                     <span className="text-[13px] leading-5 text-fg-2 font-bold">
-                      Webcam Recording
+                      {t("Webcam Recording")}
                     </span>
                   </div>
                   <ShadcnSwitch
-                    aria-label={"Webcam recording"}
+                    aria-label={t("Webcam recording")}
                     checked={options.webcam.enabled}
                     disabled={!isSupported || !features.webcam}
                     onCheckedChange={(enabled) =>
@@ -472,7 +472,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                     <div className="flex-1">
                       <ShadcnLabel className="block min-w-0 space-y-1.5">
                         <span className="block truncate text-[11px] font-medium text-text-secondary">
-                          {"Webcam Resolution"}
+                          {t("Webcam Resolution")}
                         </span>
                         <ShadcnSelect
                           value={
@@ -492,7 +492,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                           }}
                         >
                           <ShadcnSelectTrigger
-                            aria-label={"Webcam Resolution"}
+                            aria-label={t("Webcam Resolution")}
                             className={cn(
                               "flex h-8 w-full min-w-0 rounded-[7px] border border-border bg-bg-1 px-2.5 py-1.5 text-[13px] font-medium text-fg-2 outline-none transition-colors focus:border-accent disabled:cursor-not-allowed disabled:opacity-50",
                               "h-7 text-[12px]",
@@ -517,7 +517,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                                   option.disabled === true
                                 }
                               >
-                                {option.label}
+                                {t(option.label)}
                               </ShadcnSelectItem>
                             ))}
                           </ShadcnSelectContent>
@@ -540,8 +540,7 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                 )}
 
                 <span className="text-fg-2 font-normal block text-[10px]">
-                  Webcam will be recorded as a separate file, giving you full
-                  control in the editor.
+                  {t("Webcam will be recorded as a separate file, giving you full control in the editor.")}
                 </span>
               </div>
             </div>
@@ -556,17 +555,17 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
             >
               <div className="flex items-center justify-between gap-4">
                 <span className="text-fg-2 font-normal text-xs">
-                  Recording will start after a 3-second countdown
+                  {t("Recording will start after a 3-second countdown")}
                 </span>
 
                 <div className="flex gap-3">
                   <Button
                     onClick={handleCancel}
                     type="button"
-                    aria-label="Cancel"
+                    aria-label={t("Cancel")}
                     className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-8 px-3 text-[12px] bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg"
                   >
-                    <span className="truncate">{"Cancel"}</span>
+                    <span className="truncate">{t("Cancel")}</span>
                   </Button>
                   <Button
                     onClick={handleStartRecording}
@@ -593,8 +592,8 @@ export const ScreenRecorder: React.FC<ScreenRecorderProps> = ({
                     </span>
                     <span className="truncate">
                       {status === "requesting"
-                        ? "Requesting Access..."
-                        : "Start Recording"}
+                        ? t("Requesting Access...")
+                        : t("Start Recording")}
                     </span>
                   </Button>
                 </div>

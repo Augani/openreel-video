@@ -50,6 +50,8 @@ import {
   type MotionPresetScope,
   type MotionPresetTarget,
 } from "../../../services/motion-preset-application";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const CATEGORY_CONFIG = [
   { id: "entrance", name: "In", icon: ArrowRight },
@@ -73,6 +75,7 @@ const PresetCard = memo(function PresetCard({
   disabled: boolean;
   onApply: (preset: MotionPreset) => void;
 }) {
+  const t = useT();
   const { active, handlers } = useLivePreviewActivity();
   const def = useMemo(() => motionPreviewDef(preset, duration, target), [preset, duration, target]);
   return (
@@ -102,7 +105,7 @@ const PresetCard = memo(function PresetCard({
           />
         ) : (
           <span className="pointer-events-none absolute bottom-1 right-1 rounded bg-primary px-1.5 py-0.5 text-[9px] font-medium text-white opacity-0 group-hover/card:opacity-100">
-            Apply
+            {t("Apply")}
           </span>
         )}
       </div>
@@ -125,6 +128,7 @@ interface MotionPresetsPanelProps {
 export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
   clipId,
 }) => {
+  const t = useT();
   const selectedId = useUIStore((state) =>
     clipId ? undefined : state.getSelectedClipIds()[0],
   );
@@ -170,8 +174,8 @@ export const MotionPresetsPanel: React.FC<MotionPresetsPanelProps> = ({
         <Zap size={24} aria-hidden className="mx-auto mb-2 text-fg-3" />
         <span className="text-[10px] font-normal text-fg-2">
           {targetId
-            ? "Clip not found"
-            : "Select a clip to apply motion presets"}
+            ? t("Clip not found")
+            : t("Select a clip to apply motion presets")}
         </span>
       </div>
     );
@@ -202,6 +206,7 @@ function MotionPresetControls({
   clip: MotionPresetTarget;
   disabled: boolean;
 }) {
+  const t = useT();
   const library = useMemo(() => getPresetLibrary(), []);
   // The clip the presets would be applied to, and the canvas their slide offsets are measured against: what "apply" uses.
   const targetKind = useProjectStore(
@@ -338,7 +343,7 @@ function MotionPresetControls({
         ...current,
         [preset.category]: preset.id,
       }));
-      toast.success("Motion Preset Applied", `${preset.name} added to clip`);
+      toast.success(translateNow("Motion Preset Applied"), `${preset.name} added to clip`);
     },
     [cancelPending, disabled, scope, durations],
   );
@@ -351,7 +356,7 @@ function MotionPresetControls({
     )
       return;
     setLastApplied((current) => ({ ...current, [selected]: undefined }));
-    toast.info("Preset Removed");
+    toast.info(translateNow("Preset Removed"));
   };
   const commitDraft = () => {
     const match = draft.trim().match(/^([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*s?$/i);
@@ -373,7 +378,7 @@ function MotionPresetControls({
       {CATEGORY_CONFIG.some((item) => applied[item.id]) && (
         <Card className="space-y-1 rounded-[7px] border-border bg-bg-2 p-2 shadow-none">
           <span className="text-[10px] font-medium text-fg-2">
-            Applied Animations
+            {t("Applied Animations")}
           </span>
           <div className="flex flex-wrap gap-1">
             {CATEGORY_CONFIG.filter((item) => applied[item.id]).map((item) => (
@@ -404,7 +409,7 @@ function MotionPresetControls({
         }}
       >
         <TabsList
-          aria-label="Motion preset categories"
+          aria-label={t("Motion preset categories")}
           className="grid h-8 w-full grid-cols-4 gap-0 p-0.5"
         >
           {CATEGORY_CONFIG.map((item) => (
@@ -415,7 +420,7 @@ function MotionPresetControls({
             >
               <item.icon size={11} aria-hidden />
               <span>{item.name}</span>
-              {applied[item.id] && <span className="sr-only"> applied</span>}
+              {applied[item.id] && <span className="sr-only"> {t("applied")}</span>}
             </TabsTrigger>
           ))}
         </TabsList>
@@ -425,7 +430,7 @@ function MotionPresetControls({
               htmlFor="motion-preset-duration"
               className="text-[11px] font-medium text-text-secondary"
             >
-              Duration
+              {t("Duration")}
             </Label>
             <span
               className="inline-grid h-5 min-w-[4ch] place-items-center"
@@ -442,7 +447,7 @@ function MotionPresetControls({
                   ref={inputRef}
                   value={draft}
                   disabled={disabled}
-                  aria-label="Motion preset duration value"
+                  aria-label={t("Motion preset duration value")}
                   onChange={(event) => setDraft(event.target.value)}
                   onBlur={commitDraft}
                   onKeyDown={(event) => {
@@ -472,8 +477,8 @@ function MotionPresetControls({
                   variant="ghost"
                   size="sm"
                   disabled={disabled}
-                  aria-label="Edit Motion preset duration value"
-                  title="Click to edit, double-click to reset"
+                  aria-label={t("Edit Motion preset duration value")}
+                  title={t("Click to edit, double-click to reset")}
                   onClick={() => {
                     setDraft(`${Number(duration.toFixed(2))}s`);
                     setEditing(true);
@@ -487,7 +492,7 @@ function MotionPresetControls({
           </div>
           <Slider
             id="motion-preset-duration"
-            aria-label="Motion preset duration"
+            aria-label={t("Motion preset duration")}
             aria-valuetext={`${Number(duration.toFixed(2))} seconds`}
             value={[duration]}
             min={minimum}
@@ -499,8 +504,7 @@ function MotionPresetControls({
             className="h-2"
           />
           <span className="text-[9px] font-normal text-fg-2">
-            Sets how long {category} presets run. The last applied preset
-            updates after you stop dragging.
+            {t("Sets how long")} {category} {t("presets run. The last applied preset updates after you stop dragging.")}
           </span>
         </Card>
         <TabsContent value={category} className="mt-3 space-y-3">
@@ -525,7 +529,7 @@ function MotionPresetControls({
             ))}
           </div>
           <Badge variant="secondary" className="text-[9px] font-normal">
-            {presets.length} presets in {category}
+            {presets.length} {t("presets in")} {category}
           </Badge>
         </TabsContent>
       </Tabs>

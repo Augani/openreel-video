@@ -13,6 +13,8 @@ import {
   projectJsonForManager,
   startProjectManagerJob,
 } from "../../../services/project-consolidate";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const formatBytes = (bytes: number): string => {
   if (bytes >= 1e12) return `${(bytes / 1e12).toFixed(2)} TB`;
@@ -34,6 +36,7 @@ function Check({ id, checked, onChange, disabled, label, hint }: { id: string; c
 }
 
 export function ProjectManagerDialog() {
+  const t = useT();
   const open = useProjectManagerStore((s) => s.open);
   const setOpen = useProjectManagerStore((s) => s.setOpen);
   const job = useProjectManagerStore((s) => s.job);
@@ -107,7 +110,7 @@ export function ProjectManagerDialog() {
     try {
       await startProjectManagerJob(options, destParent, projectName);
     } catch (error) {
-      toast.error("Could not start", error instanceof Error ? error.message : String(error));
+      toast.error(translateNow("Could not start"), error instanceof Error ? error.message : String(error));
     }
   };
 
@@ -119,16 +122,16 @@ export function ProjectManagerDialog() {
         <DialogHeader className="shrink-0 border-b border-border px-5 py-4 pr-12 text-left">
           <DialogTitle className="flex items-center gap-2 text-sm">
             <Package size={18} className="text-primary" aria-hidden />
-            Project Manager
+            {t("Project Manager")}
           </DialogTitle>
           <DialogDescription className="text-xs leading-5 text-fg-2">
-            Copy the chosen sequences and their media into a new, self-contained project folder. Your original media and project are never changed.
+            {t("Copy the chosen sequences and their media into a new, self-contained project folder. Your original media and project are never changed.")}
           </DialogDescription>
         </DialogHeader>
         <ScrollArea className="min-h-0 flex-1">
           <div className="space-y-5 px-5 py-4">
-            <section aria-label="Sequences">
-              <h3 className="mb-2 text-xs font-semibold text-fg">Sequences</h3>
+            <section aria-label={t("Sequences")}>
+              <h3 className="mb-2 text-xs font-semibold text-fg">{t("Sequences")}</h3>
               <ul className="space-y-1.5">
                 {sequences.map((sequence) => (
                   <li key={sequence.id}>
@@ -143,33 +146,33 @@ export function ProjectManagerDialog() {
                   </li>
                 ))}
               </ul>
-              <p className="mt-1.5 text-[11px] text-fg-3">Sequences nested in a chosen sequence come along.</p>
+              <p className="mt-1.5 text-[11px] text-fg-3">{t("Sequences nested in a chosen sequence come along.")}</p>
             </section>
 
-            <section aria-label="Action" className="space-y-2">
-              <h3 className="text-xs font-semibold text-fg">Resulting project</h3>
+            <section aria-label={t("Action")} className="space-y-2">
+              <h3 className="text-xs font-semibold text-fg">{t("Resulting project")}</h3>
               <label className="flex items-start gap-2 text-xs">
                 <input type="radio" name="pm-mode" className="mt-0.5 accent-primary" checked={!consolidate} disabled={running} onChange={() => set("mode", "collect")} />
-                <span><span className="text-fg">Collect Files and Copy to New Location</span><span className="block text-[11px] text-fg-3">Copies each file as it is.</span></span>
+                <span><span className="text-fg">{t("Collect Files and Copy to New Location")}</span><span className="block text-[11px] text-fg-3">{t("Copies each file as it is.")}</span></span>
               </label>
               <label className="flex items-start gap-2 text-xs">
                 <input type="radio" name="pm-mode" className="mt-0.5 accent-primary" checked={consolidate} disabled={running} onChange={() => set("mode", "consolidate")} />
-                <span><span className="text-fg">Consolidate and Transcode</span><span className="block text-[11px] text-fg-3">Converts the media to one format, optionally keeping only the parts you use.</span></span>
+                <span><span className="text-fg">{t("Consolidate and Transcode")}</span><span className="block text-[11px] text-fg-3">{t("Converts the media to one format, optionally keeping only the parts you use.")}</span></span>
               </label>
               {consolidate ? (
                 <div className="ml-6 space-y-2 rounded-md border border-border bg-bg-2 p-3">
                   <label className="flex items-center gap-2 text-xs text-fg">
-                    Format
-                    <select aria-label="Transcode preset" className="rounded border border-border bg-bg-1 px-2 py-1 text-xs" value={options.preset} disabled={running} onChange={(event) => set("preset", event.target.value as OpenReelProjectManagerOptions["preset"])}>
-                      {PRESET_CHOICES.map((choice) => <option key={choice.id} value={choice.id}>{choice.label}</option>)}
+                    {t("Format")}
+                    <select aria-label={t("Transcode preset")} className="rounded border border-border bg-bg-1 px-2 py-1 text-xs" value={options.preset} disabled={running} onChange={(event) => set("preset", event.target.value as OpenReelProjectManagerOptions["preset"])}>
+                      {PRESET_CHOICES.map((choice) => <option key={choice.id} value={choice.id}>{t(choice.label)}</option>)}
                     </select>
                   </label>
                   <Check id="pm-trim" checked={options.trim} disabled={running} onChange={(on) => set("trim", on)} label="Trim media to the parts used, plus handles" hint="Each file keeps only what the sequences play; clip in and out points are rewritten so every frame stays the same." />
                   {options.trim ? (
                     <label className="ml-6 flex items-center gap-2 text-xs text-fg">
-                      Handles
-                      <input aria-label="Handle frames" type="number" min={0} max={1000} className="w-20 rounded border border-border bg-bg-1 px-2 py-1 text-xs" value={options.handleFrames} disabled={running} onChange={(event) => set("handleFrames", Math.max(0, Math.min(1000, Math.round(Number(event.target.value) || 0))))} />
-                      frames each side
+                      {t("Handles")}
+                      <input aria-label={t("Handle frames")} type="number" min={0} max={1000} className="w-20 rounded border border-border bg-bg-1 px-2 py-1 text-xs" value={options.handleFrames} disabled={running} onChange={(event) => set("handleFrames", Math.max(0, Math.min(1000, Math.round(Number(event.target.value) || 0))))} />
+                      {t("frames each side")}
                     </label>
                   ) : null}
                   <Check id="pm-conform" checked={options.includeAudioConform} disabled={running} onChange={(on) => set("includeAudioConform", on)} label="Conform audio to 48 kHz PCM" hint="Writes the sound of every transcoded file as 24-bit 48 kHz PCM (the project's working format)." />
@@ -177,8 +180,8 @@ export function ProjectManagerDialog() {
               ) : null}
             </section>
 
-            <section aria-label="Options" className="space-y-2">
-              <h3 className="text-xs font-semibold text-fg">Options</h3>
+            <section aria-label={t("Options")} className="space-y-2">
+              <h3 className="text-xs font-semibold text-fg">{t("Options")}</h3>
               <Check id="pm-unused" checked={options.excludeUnused} disabled={running} onChange={(on) => set("excludeUnused", on)} label="Exclude unused clips" hint="Leave out media the chosen sequences never play." />
               <Check id="pm-proxies" checked={options.includeProxies} disabled={running} onChange={(on) => set("includeProxies", on)} label="Include proxies" hint="Proxies are cut with their media when it is trimmed." />
               <Check id="pm-render" checked={options.includeRenderFiles} disabled={running || (consolidate && options.trim)} onChange={(on) => set("includeRenderFiles", on)} label="Include preview (render) files" hint={consolidate && options.trim ? "Not available when trimming: trimming moves every frame." : "Copied with the project and restored when it is opened."} />
@@ -186,62 +189,62 @@ export function ProjectManagerDialog() {
               <Check id="pm-seq" checked disabled onChange={() => undefined} label="Convert image sequences to clips" hint="Always on: OpenReel turns an image sequence into a video clip when it is imported, so a project never holds one." />
             </section>
 
-            <section aria-label="Destination" className="space-y-2">
-              <h3 className="text-xs font-semibold text-fg">Destination</h3>
+            <section aria-label={t("Destination")} className="space-y-2">
+              <h3 className="text-xs font-semibold text-fg">{t("Destination")}</h3>
               <div className="flex items-center gap-2">
-                <Button size="sm" variant="secondary" disabled={running} onClick={() => void chooseFolder()}>Browse…</Button>
-                <span data-testid="pm-destination" className="min-w-0 truncate text-xs text-fg-2">{destParent ?? "Choose a folder; the project gets a folder of its own inside it."}</span>
+                <Button size="sm" variant="secondary" disabled={running} onClick={() => void chooseFolder()}>{t("Browse…")}</Button>
+                <span data-testid="pm-destination" className="min-w-0 truncate text-xs text-fg-2">{destParent ?? t("Choose a folder; the project gets a folder of its own inside it.")}</span>
               </div>
             </section>
 
-            <section aria-label="Disk space estimate" data-testid="pm-estimate" className="rounded-md border border-border bg-bg-2 p-3 text-xs">
-              <h3 className="mb-1 font-semibold text-fg">Disk space</h3>
+            <section aria-label={t("Disk space estimate")} data-testid="pm-estimate" className="rounded-md border border-border bg-bg-2 p-3 text-xs">
+              <h3 className="mb-1 font-semibold text-fg">{t("Disk space")}</h3>
               {estimateError ? <p role="alert" className="text-red-400">{estimateError}</p> : estimate ? (
                 <>
                   <p className="text-fg">
-                    <span data-testid="pm-estimate-total">{formatBytes(estimate.totalBytes)}</span> needed
-                    {estimate.freeBytes !== null ? <span className="text-fg-2"> · {formatBytes(estimate.freeBytes)} free</span> : null}
-                    {estimating ? <span className="text-fg-3"> · updating…</span> : null}
+                    <span data-testid="pm-estimate-total">{formatBytes(estimate.totalBytes)}</span> {t("needed")}
+                    {estimate.freeBytes !== null ? <span className="text-fg-2"> · {formatBytes(estimate.freeBytes)} {t("free")}</span> : null}
+                    {estimating ? <span className="text-fg-3"> {t("· updating…")}</span> : null}
                   </p>
                   <p className="text-[11px] text-fg-3">
-                    Media {formatBytes(estimate.mediaBytes)}{estimate.proxyBytes ? ` · proxies ${formatBytes(estimate.proxyBytes)}` : ""}{estimate.renderBytes ? ` · render files ${formatBytes(estimate.renderBytes)}` : ""}
+                    {t("Media")} {formatBytes(estimate.mediaBytes)}{estimate.proxyBytes ? ` · proxies ${formatBytes(estimate.proxyBytes)}` : ""}{estimate.renderBytes ? ` · render files ${formatBytes(estimate.renderBytes)}` : ""}
                     {estimate.droppedCount ? ` · ${estimate.droppedCount} unused left out` : ""}
                   </p>
-                  {notEnoughRoom ? <p role="alert" className="mt-1 text-red-400">Not enough free space at the destination.</p> : null}
+                  {notEnoughRoom ? <p role="alert" className="mt-1 text-red-400">{t("Not enough free space at the destination.")}</p> : null}
                   {estimate.warnings.map((warning) => <p key={warning} className="mt-1 text-[11px] text-amber-400">{warning}</p>)}
                   <ul className="mt-2 max-h-32 space-y-0.5 overflow-auto text-[11px] text-fg-2">
                     {estimate.items.map((item) => (
                       <li key={item.mediaId} className="flex justify-between gap-3">
                         <span className="min-w-0 truncate">{item.name}</span>
-                        <span className="shrink-0">{item.action === "offline" ? item.note ?? "offline" : `${item.action === "copy" ? "copy" : "transcode"}${item.trimmed ? ` ${formatSeconds(item.keptSeconds)} of ${formatSeconds(item.sourceSeconds)}` : ""} · ${formatBytes(item.bytes)}`}</span>
+                        <span className="shrink-0">{item.action === "offline" ? item.note ?? t("offline") : `${item.action === "copy" ? "copy" : "transcode"}${item.trimmed ? ` ${formatSeconds(item.keptSeconds)} of ${formatSeconds(item.sourceSeconds)}` : ""} · ${formatBytes(item.bytes)}`}</span>
                       </li>
                     ))}
                   </ul>
                 </>
-              ) : <p className="text-fg-3">{estimating ? "Reading the media…" : "Choose a sequence to see the size."}</p>}
+              ) : <p className="text-fg-3">{estimating ? t("Reading the media…") : t("Choose a sequence to see the size.")}</p>}
             </section>
           </div>
         </ScrollArea>
         <div className="shrink-0 border-t border-border px-5 py-3" data-testid="pm-footer">
           {job ? (
             <div className="mb-3 space-y-1.5" data-testid="pm-progress" data-phase={job.phase}>
-              <Progress value={Math.round(job.fraction * 100)} aria-label="Project Manager progress" />
+              <Progress value={Math.round(job.fraction * 100)} aria-label={t("Project Manager progress")} />
               <p className="text-[11px] text-fg-2">
-                {job.phase === "error" ? `Failed: ${job.error}` : job.phase === "cancelled" ? "Cancelled. Nothing was kept." : job.phase === "done" ? `Done: ${job.summary?.files ?? 0} files, ${formatBytes(job.summary?.bytes ?? 0)}` : `${job.label}${job.itemCount ? ` (${job.itemIndex} of ${job.itemCount})` : ""}`}
+                {job.phase === "error" ? `Failed: ${job.error}` : job.phase === "cancelled" ? t("Cancelled. Nothing was kept.") : job.phase === "done" ? `Done: ${job.summary?.files ?? 0} files, ${formatBytes(job.summary?.bytes ?? 0)}` : `${job.label}${job.itemCount ? ` (${job.itemIndex} of ${job.itemCount})` : ""}`}
               </p>
               {job.phase === "done" && job.summary?.warnings.length ? job.summary.warnings.map((w) => <p key={w} className="text-[11px] text-amber-400">{w}</p>) : null}
             </div>
           ) : null}
           <div className="flex flex-wrap justify-end gap-2">
-            {running ? <Button size="sm" variant="secondary" onClick={() => void cancelProjectManagerJob()}>Cancel</Button> : null}
+            {running ? <Button size="sm" variant="secondary" onClick={() => void cancelProjectManagerJob()}>{t("Cancel")}</Button> : null}
             {job?.phase === "done" && job.projectPath ? (
               <>
-                <Button size="sm" variant="secondary" onClick={() => void window.openreel?.fs.revealInFolder(job.projectPath as string)}>Show in folder</Button>
-                <Button size="sm" onClick={() => { void openCollectedProject(job.projectPath as string).then(() => setOpen(false)).catch((error: unknown) => toast.error("Could not open the project", error instanceof Error ? error.message : String(error))); }}>Open new project</Button>
+                <Button size="sm" variant="secondary" onClick={() => void window.openreel?.fs.revealInFolder(job.projectPath as string)}>{t("Show in folder")}</Button>
+                <Button size="sm" onClick={() => { void openCollectedProject(job.projectPath as string).then(() => setOpen(false)).catch((error: unknown) => toast.error(translateNow("Could not open the project"), error instanceof Error ? error.message : String(error))); }}>{t("Open new project")}</Button>
               </>
             ) : null}
-            {!running ? <Button size="sm" disabled={!canStart} onClick={() => void start()}>{finished ? "Run again" : consolidate ? "Consolidate" : "Collect"}</Button> : null}
-            {!running ? <Button size="sm" variant="secondary" onClick={() => setOpen(false)}>Close</Button> : null}
+            {!running ? <Button size="sm" disabled={!canStart} onClick={() => void start()}>{finished ? t("Run again") : consolidate ? t("Consolidate") : t("Collect")}</Button> : null}
+            {!running ? <Button size="sm" variant="secondary" onClick={() => setOpen(false)}>{t("Close")}</Button> : null}
           </div>
         </div>
       </DialogContent>

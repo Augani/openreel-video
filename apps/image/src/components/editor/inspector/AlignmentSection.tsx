@@ -10,12 +10,14 @@ import {
   AlignHorizontalSpaceBetween,
   AlignVerticalSpaceBetween,
 } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   layers: Layer[];
 }
 
 export function AlignmentSection({ layers }: Props) {
+  const t = useT();
   const { project, selectedArtboardId, updateLayerTransform } = useProjectStore();
 
   const artboard = project?.artboards.find((a) => a.id === selectedArtboardId);
@@ -149,39 +151,39 @@ export function AlignmentSection({ layers }: Props) {
   return (
     <div className="space-y-3">
       <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-        Alignment
+        {t("Alignment")}
       </h4>
 
       <div className="grid grid-cols-6 gap-1">
         <AlignButton
           icon={<AlignHorizontalJustifyStart size={14} />}
           onClick={alignLeft}
-          title={isSingleLayer ? 'Align to canvas left' : 'Align left edges'}
+          title={isSingleLayer ? t("Align to canvas left") : t("Align left edges")}
         />
         <AlignButton
           icon={<AlignHorizontalJustifyCenter size={14} />}
           onClick={alignCenterH}
-          title={isSingleLayer ? 'Center horizontally on canvas' : 'Align horizontal centers'}
+          title={isSingleLayer ? t("Center horizontally on canvas") : t("Align horizontal centers")}
         />
         <AlignButton
           icon={<AlignHorizontalJustifyEnd size={14} />}
           onClick={alignRight}
-          title={isSingleLayer ? 'Align to canvas right' : 'Align right edges'}
+          title={isSingleLayer ? t("Align to canvas right") : t("Align right edges")}
         />
         <AlignButton
           icon={<AlignVerticalJustifyStart size={14} />}
           onClick={alignTop}
-          title={isSingleLayer ? 'Align to canvas top' : 'Align top edges'}
+          title={isSingleLayer ? t("Align to canvas top") : t("Align top edges")}
         />
         <AlignButton
           icon={<AlignVerticalJustifyCenter size={14} />}
           onClick={alignCenterV}
-          title={isSingleLayer ? 'Center vertically on canvas' : 'Align vertical centers'}
+          title={isSingleLayer ? t("Center vertically on canvas") : t("Align vertical centers")}
         />
         <AlignButton
           icon={<AlignVerticalJustifyEnd size={14} />}
           onClick={alignBottom}
-          title={isSingleLayer ? 'Align to canvas bottom' : 'Align bottom edges'}
+          title={isSingleLayer ? t("Align to canvas bottom") : t("Align bottom edges")}
         />
       </div>
 
@@ -190,13 +192,13 @@ export function AlignmentSection({ layers }: Props) {
           <AlignButton
             icon={<AlignHorizontalSpaceBetween size={14} />}
             onClick={distributeH}
-            title="Distribute horizontally"
+            title={t("Distribute horizontally")}
             label="Distribute H"
           />
           <AlignButton
             icon={<AlignVerticalSpaceBetween size={14} />}
             onClick={distributeV}
-            title="Distribute vertically"
+            title={t("Distribute vertically")}
             label="Distribute V"
           />
         </div>

@@ -15,6 +15,7 @@ import {
   Switch,
   cn,
 } from "@openreel/ui";
+import { useT } from "@openreel/i18n/react";
 import { ChevronDown, Plus, Sparkles, X } from "@/icons/lucide-compat";
 import { useProjectStore } from "../../../stores/project-store";
 import {
@@ -51,6 +52,7 @@ const ISSUE_LABELS: Record<RepairEffectType, string> = {
  * read-only spectrogram of the source or the processed result.
  */
 export const RepairSection: React.FC<RepairSectionProps> = ({ clipId }) => {
+  const t = useT();
   const clip = useProjectStore((state) =>
     state.project.timeline.tracks.flatMap((track) => track.clips).find((candidate) => candidate.id === clipId),
   );
@@ -182,7 +184,7 @@ export const RepairSection: React.FC<RepairSectionProps> = ({ clipId }) => {
   return (
     <div className="flex min-w-0 flex-col gap-3" data-testid="repair-section">
       <p className="text-[11px] leading-snug text-fg-muted">
-        Analyze finds hum, clipping, clicks and sibilance in this clip and suggests settings. Applying is one undo step.
+        {t("Analyze finds hum, clipping, clicks and sibilance in this clip and suggests settings. Applying is one undo step.")}
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <Button
@@ -194,13 +196,13 @@ export const RepairSection: React.FC<RepairSectionProps> = ({ clipId }) => {
           data-testid="repair-analyze"
         >
           <Sparkles size={12} aria-hidden />
-          {busy === "analyze" ? "Analyzing…" : analysis ? "Analyze again" : "Auto-detect issues"}
+          {busy === "analyze" ? t("Analyzing…") : analysis ? t("Analyze again") : t("Auto-detect issues")}
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button type="button" variant="outline" size="sm" className="h-7 gap-1 px-2 text-[11px]" data-testid="repair-add">
               <Plus size={12} aria-hidden />
-              Add effect
+              {t("Add effect")}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
@@ -213,7 +215,7 @@ export const RepairSection: React.FC<RepairSectionProps> = ({ clipId }) => {
                   setExpanded(effect.id);
                 }}
               >
-                {REPAIR_EFFECT_DEFINITIONS[type].label}
+                {t(REPAIR_EFFECT_DEFINITIONS[type].label)}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
@@ -270,7 +272,7 @@ export const RepairSection: React.FC<RepairSectionProps> = ({ clipId }) => {
               onClick={() => void apply()}
               data-testid="repair-apply"
             >
-              {suggestions.length === 0 ? "Nothing to repair" : `Apply ${chosen.length} repair${chosen.length === 1 ? "" : "s"}`}
+              {suggestions.length === 0 ? t("Nothing to repair") : `Apply ${chosen.length} repair${chosen.length === 1 ? "" : "s"}`}
             </Button>
             {applied && (
               <span className="text-[10px] text-fg-muted" data-testid="repair-applied">
@@ -283,7 +285,7 @@ export const RepairSection: React.FC<RepairSectionProps> = ({ clipId }) => {
 
       {effects.length > 0 && (
         <div className="flex flex-col gap-1.5" data-testid="repair-effects">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">On this clip</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">{t("On this clip")}</span>
           {effects.map((effect) => {
             const type = effect.type as RepairEffectType;
             const open = expanded === effect.id;
@@ -342,8 +344,8 @@ export const RepairSection: React.FC<RepairSectionProps> = ({ clipId }) => {
       {analysis && (
         <div className="flex flex-col gap-1.5" data-testid="repair-spectrogram">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">Spectrogram</span>
-            <div className="flex gap-1" role="group" aria-label="Spectrogram source">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">{t("Spectrogram")}</span>
+            <div className="flex gap-1" role="group" aria-label={t("Spectrogram source")}>
               <Button
                 type="button"
                 size="sm"
@@ -352,7 +354,7 @@ export const RepairSection: React.FC<RepairSectionProps> = ({ clipId }) => {
                 onClick={() => setView("source")}
                 aria-pressed={view === "source"}
               >
-                Source
+                {t("Source")}
               </Button>
               <Button
                 type="button"
@@ -363,7 +365,7 @@ export const RepairSection: React.FC<RepairSectionProps> = ({ clipId }) => {
                 disabled={busy === "spectrogram"}
                 aria-pressed={view === "processed"}
               >
-                {busy === "spectrogram" ? "Rendering…" : "With repairs"}
+                {busy === "spectrogram" ? t("Rendering…") : t("With repairs")}
               </Button>
             </div>
           </div>
@@ -371,7 +373,7 @@ export const RepairSection: React.FC<RepairSectionProps> = ({ clipId }) => {
             spectrogram={view === "source" ? analysis.spectrogram : processed}
             label={`Spectrogram of the ${view === "source" ? "source" : "repaired"} clip audio`}
           />
-          <span className="text-[10px] text-fg-muted">Hum shows as steady horizontal lines, clicks as vertical stripes, sibilance as bright bursts near the top.</span>
+          <span className="text-[10px] text-fg-muted">{t("Hum shows as steady horizontal lines, clicks as vertical stripes, sibilance as bright bursts near the top.")}</span>
         </div>
       )}
     </div>

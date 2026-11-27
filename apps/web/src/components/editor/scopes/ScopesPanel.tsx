@@ -28,6 +28,7 @@ import {
   type ScopeRaster,
 } from "./scope-render";
 import type { ScopesWorkerRequest } from "../../../workers/scopes.worker";
+import { useT } from "@openreel/i18n/react";
 
 /** `name` is the accessible name when the short tab label is not descriptive enough. */
 const TABS: ReadonlyArray<{ id: ScopeKind; label: string; name?: string }> = [
@@ -233,6 +234,7 @@ export const ScopesPanel: React.FC = () => {
 };
 
 const ScopesPanelBody: React.FC = () => {
+  const t = useT();
   const kind = useUIStore((s) => s.scopesKind);
   const setKind = useUIStore((s) => s.setScopesKind);
   const setVisible = useUIStore((s) => s.setScopesVisible);
@@ -524,7 +526,7 @@ const ScopesPanelBody: React.FC = () => {
           if ((e.target as HTMLElement).closest("button, [role=tab]")) return;
           commitLayout(null);
         }}
-        title="Drag to move, double-click to dock"
+        title={t("Drag to move, double-click to dock")}
       >
         <Tabs
           value={kind}
@@ -532,7 +534,7 @@ const ScopesPanelBody: React.FC = () => {
           className="flex-1"
         >
           <TabsList
-            aria-label="Scope type"
+            aria-label={t("Scope type")}
             className="h-7 w-full justify-start gap-0.5 bg-transparent p-0"
           >
             {TABS.map((t) => (
@@ -550,8 +552,8 @@ const ScopesPanelBody: React.FC = () => {
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label="Dock scopes"
-          title="Dock to top-right"
+          aria-label={t("Dock scopes")}
+          title={t("Dock to top-right")}
           disabled={docked}
           onClick={() => commitLayout(null)}
           className="h-6 w-6 rounded-[6px] text-fg-2 hover:bg-bg-2 hover:text-fg"
@@ -561,8 +563,8 @@ const ScopesPanelBody: React.FC = () => {
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label="Close scopes"
-          title="Close scopes (Shift+S)"
+          aria-label={t("Close scopes")}
+          title={t("Close scopes (Shift+S)")}
           onClick={() => setVisible(false)}
           className="h-6 w-6 rounded-[6px] text-fg-2 hover:bg-bg-2 hover:text-fg"
         >
@@ -573,50 +575,50 @@ const ScopesPanelBody: React.FC = () => {
         <Button
           variant={falseColor ? "secondary" : "ghost"}
           size="sm"
-          aria-label="False colour"
+          aria-label={t("False colour")}
           aria-pressed={falseColor}
-          title="False colour exposure overlay on the Program monitor"
+          title={t("False colour exposure overlay on the Program monitor")}
           onClick={() => setFalseColor(!falseColor)}
           className="h-6 rounded-[6px] px-2 text-[10px]"
         >
-          False colour
+          {t("False colour")}
         </Button>
         {acesOutput ? (
           <span
             data-testid="scopes-aces-label"
-            title="ACES color management is on: the scopes read the Program monitor, which shows the ACES output transform, so they measure display-referred output code values."
+            title={t("ACES color management is on: the scopes read the Program monitor, which shows the ACES output transform, so they measure display-referred output code values.")}
             className="rounded-[6px] bg-bg-2 px-1.5 py-0.5 text-[10px] text-fg-2"
           >
-            ACES output · {acesOutput === "rec709" ? "Rec.709" : "sRGB"}
+            {t("ACES output ·")} {acesOutput === "rec709" ? "Rec.709" : t("sRGB")}
           </span>
         ) : null}
         {ocioView ? (
           <span
             data-testid="scopes-ocio-label"
-            title="OpenColorIO is on: the scopes read the Program monitor, which shows the config's display and view, so they measure display-referred output code values."
+            title={t("OpenColorIO is on: the scopes read the Program monitor, which shows the config's display and view, so they measure display-referred output code values.")}
             className="rounded-[6px] bg-bg-2 px-1.5 py-0.5 text-[10px] text-fg-2"
           >
-            OCIO output · {ocioView}
+            {t("OCIO output ·")} {ocioView}
           </span>
         ) : null}
         {isWaveform && hdrSequence ? (
           <span
             data-testid="scopes-hdr-scale"
-            title="HDR sequence: the scope reads the float image PQ-encoded, so levels are absolute nits (203 = reference white)."
+            title={t("HDR sequence: the scope reads the float image PQ-encoded, so levels are absolute nits (203 = reference white).")}
             className="rounded-[6px] bg-bg-2 px-1.5 py-0.5 text-[10px] text-fg-2"
           >
-            {hdrScale === "hlg" ? "HLG sequence" : "PQ sequence"} · nits
+            {hdrScale === "hlg" ? t("HLG sequence") : t("PQ sequence")} {t("· nits")}
           </span>
         ) : isWaveform ? (
           <select
-            aria-label="Waveform scale"
+            aria-label={t("Waveform scale")}
             value={scale}
             onChange={(e) => setScale(e.target.value as ScopeLevelScale)}
             className="h-6 rounded-[6px] border border-border bg-bg-1 px-1 text-[10px] text-fg"
           >
             <option value="ire">IRE %</option>
-            <option value="pq">PQ nits</option>
-            <option value="hlg">HLG nits</option>
+            <option value="pq">{t("PQ nits")}</option>
+            <option value="hlg">{t("HLG nits")}</option>
           </select>
         ) : null}
       </div>
@@ -641,7 +643,7 @@ const ScopesPanelBody: React.FC = () => {
       </div>
       <div
         role="separator"
-        aria-label="Resize scopes"
+        aria-label={t("Resize scopes")}
         onPointerDown={beginResize}
         className="absolute bottom-0 right-0 h-3 w-3 cursor-nwse-resize touch-none"
       />

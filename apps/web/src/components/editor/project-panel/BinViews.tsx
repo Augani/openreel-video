@@ -11,6 +11,7 @@ import {
 } from "@openreel/ui";
 import { Folder } from "@/icons/lucide-compat";
 import { getMediaLabel, type MediaBin } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 import { useProjectPanelStore } from "../../../stores/project-panel-store";
 import { useUIStore } from "../../../stores/ui-store";
 import { moveToBin, renameBin, runOrganize, setBinLabel, createBin } from "../../../services/project-panel-commands";
@@ -84,25 +85,26 @@ export const BinNameEditor: React.FC<{ bin: MediaBin; className?: string }> = ({
 
 /** Right-click menu for a bin (tile or list row). */
 export const BinContextMenu: React.FC<{ bin: MediaBin; children: React.ReactNode }> = ({ bin, children }) => {
+  const t = useT();
   const openBin = useProjectPanelStore((s) => s.openBin);
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-[200px] [&_[role=menuitem]]:text-xs" data-testid="bin-context-menu">
-        <ContextMenuItem onSelect={() => openBin(bin.id)}>Open</ContextMenuItem>
-        <ContextMenuItem onSelect={() => useProjectPanelStore.getState().setRenamingBin(bin.id)}>Rename</ContextMenuItem>
+        <ContextMenuItem onSelect={() => openBin(bin.id)}>{t("Open")}</ContextMenuItem>
+        <ContextMenuItem onSelect={() => useProjectPanelStore.getState().setRenamingBin(bin.id)}>{t("Rename")}</ContextMenuItem>
         <ContextMenuItem onSelect={() => void createBin({ parentId: bin.id }).then(({ binId }) => binId && useProjectPanelStore.getState().setRenamingBin(binId))}>
-          New bin inside
+          {t("New bin inside")}
         </ContextMenuItem>
         <ContextMenuSub>
-          <ContextMenuSubTrigger>Label</ContextMenuSubTrigger>
+          <ContextMenuSubTrigger>{t("Label")}</ContextMenuSubTrigger>
           <ContextMenuSubContent className="max-h-[320px] overflow-auto">
             <LabelPickerItems kind="context" current={bin.label} onPick={(label) => void runOrganize("Set label", setBinLabel(bin.id, label))} />
           </ContextMenuSubContent>
         </ContextMenuSub>
         <ContextMenuSeparator />
         <ContextMenuItem data-testid="bin-delete" onSelect={() => useProjectPanelStore.getState().openDialog({ kind: "delete-bin", binId: bin.id })}>
-          Delete bin…
+          {t("Delete bin…")}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -111,6 +113,7 @@ export const BinContextMenu: React.FC<{ bin: MediaBin; children: React.ReactNode
 
 /** Grid-view bin tile. */
 export const BinTile: React.FC<{ bin: MediaBin; itemCount: number }> = ({ bin, itemCount }) => {
+  const t = useT();
   const renaming = useProjectPanelStore((s) => s.renamingBinId === bin.id);
   const selected = useProjectPanelStore((s) => s.selectedBinIds.includes(bin.id));
   const drop = useBinDropTarget(bin.id);
@@ -146,7 +149,7 @@ export const BinTile: React.FC<{ bin: MediaBin; itemCount: number }> = ({ bin, i
         >
           <Folder size={34} className="text-fg-3" fill="currentColor" fillOpacity={0.18} style={{ color: getMediaLabel(bin.label)?.color }} aria-hidden />
           {bin.label && <LabelChip label={bin.label} className="absolute left-1.5 top-1.5" />}
-          <span className="workspace-media-duration">{itemCount} {itemCount === 1 ? "item" : "items"}</span>
+          <span className="workspace-media-duration">{itemCount} {itemCount === 1 ? t("item") : t("items")}</span>
         </div>
         <div className="workspace-media-filename truncate text-fg-2" title={bin.name}>
           {renaming ? <BinNameEditor bin={bin} className="w-full" /> : bin.name}

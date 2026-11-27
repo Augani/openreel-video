@@ -22,7 +22,7 @@ export function getQuickExportPresets(project: {
   return [
     {
       id: "mp4", label: "MP4 Standard", kind: "video",
-      description: `${project.width}×${project.height} · ${project.frameRate} fps · H.264`,
+      description: "{width}×{height} · {fps} fps · H.264",
       settings: { width: project.width, height: project.height, frameRate: project.frameRate, format: "mp4", codec: "h264", bitrate: 12000, quality: 85 },
     },
     ...(project.width / project.height < 0.9 ? [] : [{

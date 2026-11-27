@@ -1,5 +1,6 @@
 import { useUIStore } from '../../../stores/ui-store';
 import { SquareStack, RotateCcw, X, Plus } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 const gradientTypes = [
   { id: 'linear', label: 'Linear' },
@@ -10,6 +11,7 @@ const gradientTypes = [
 ] as const;
 
 export function GradientToolPanel() {
+  const t = useT();
   const { gradientSettings, setGradientSettings } = useUIStore();
 
   const resetSettings = () => {
@@ -47,24 +49,24 @@ export function GradientToolPanel() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <SquareStack size={16} className="text-muted-foreground" />
-          <h3 className="text-sm font-medium">Gradient</h3>
+          <h3 className="text-sm font-medium">{t("Gradient")}</h3>
         </div>
         <button
           onClick={resetSettings}
           className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-secondary transition-colors"
-          title="Reset"
+          title={t("Reset")}
         >
           <RotateCcw size={14} />
         </button>
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Click and drag on canvas to create gradient.
+        {t("Click and drag on canvas to create gradient.")}
       </p>
 
       <div className="space-y-3">
         <div>
-          <span className="text-xs text-muted-foreground mb-1.5 block">Type</span>
+          <span className="text-xs text-muted-foreground mb-1.5 block">{t("Type")}</span>
           <div className="grid grid-cols-5 gap-1">
             {gradientTypes.map((type) => (
               <button
@@ -76,14 +78,14 @@ export function GradientToolPanel() {
                     : 'bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary'
                 }`}
               >
-                {type.label}
+                {t(type.label)}
               </button>
             ))}
           </div>
         </div>
 
         <div>
-          <span className="text-xs text-muted-foreground mb-1.5 block">Preview</span>
+          <span className="text-xs text-muted-foreground mb-1.5 block">{t("Preview")}</span>
           <div
             className="h-6 rounded border border-border"
             style={{ background: gradientStyle }}
@@ -92,7 +94,7 @@ export function GradientToolPanel() {
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Colors</span>
+            <span className="text-xs text-muted-foreground">{t("Colors")}</span>
             {gradientSettings.colors.length < 5 && (
               <button
                 onClick={addColor}
@@ -132,7 +134,7 @@ export function GradientToolPanel() {
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Opacity</span>
+            <span className="text-xs text-muted-foreground">{t("Opacity")}</span>
             <span className="text-xs font-mono text-muted-foreground">{Math.round(gradientSettings.opacity * 100)}%</span>
           </div>
           <input
@@ -158,7 +160,7 @@ export function GradientToolPanel() {
               onChange={(e) => setGradientSettings({ reverse: e.target.checked })}
               className="w-3.5 h-3.5 rounded border-border"
             />
-            Reverse
+            {t("Reverse")}
           </label>
           <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
             <input
@@ -167,7 +169,7 @@ export function GradientToolPanel() {
               onChange={(e) => setGradientSettings({ dither: e.target.checked })}
               className="w-3.5 h-3.5 rounded border-border"
             />
-            Dither
+            {t("Dither")}
           </label>
         </div>
       </div>

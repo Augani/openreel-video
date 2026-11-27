@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, In
 import { createEditorProject } from "../../../services/project-creation";
 import { useOnboardingStore } from "../../../stores/onboarding-store";
 import { EDITING_FRAME_RATE_OPTIONS } from "../../editor/editing-frame-rate";
+import { useT } from "@openreel/i18n/react";
 
 export interface SequencePreset {
   id: string;
@@ -50,6 +51,7 @@ function parseDimension(raw: string): number | null {
 
 /** Small "Custom sequence" form: resolution, frame rate and common presets. */
 export function CustomSequenceDialog({ onClose, onCreated }: CustomSequenceDialogProps) {
+  const t = useT();
   const ids = { name: useId(), width: useId(), height: useId(), fps: useId() };
   const [name, setName] = useState("Custom Sequence");
   const [width, setWidth] = useState("1920");
@@ -113,9 +115,9 @@ export function CustomSequenceDialog({ onClose, onCreated }: CustomSequenceDialo
         data-testid="custom-sequence-dialog"
       >
         <DialogHeader className="space-y-1">
-          <DialogTitle className="text-base font-semibold tracking-tight text-fg">Custom sequence</DialogTitle>
+          <DialogTitle className="text-base font-semibold tracking-tight text-fg">{t("Custom sequence")}</DialogTitle>
           <DialogDescription className="text-xs text-fg-3">
-            Pick a size and frame rate. You can change them later in project settings.
+            {t("Pick a size and frame rate. You can change them later in project settings.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -126,7 +128,7 @@ export function CustomSequenceDialog({ onClose, onCreated }: CustomSequenceDialo
             void create();
           }}
         >
-          <div role="group" aria-label="Common sequences" className="flex flex-wrap gap-1.5">
+          <div role="group" aria-label={t("Common sequences")} className="flex flex-wrap gap-1.5">
             {SEQUENCE_PRESETS.map((preset) => {
               const on = activePreset === preset.id;
               return (
@@ -142,7 +144,7 @@ export function CustomSequenceDialog({ onClose, onCreated }: CustomSequenceDialo
                       : "border-border bg-bg-2 text-fg-2 hover:bg-bg-3 hover:text-fg"
                   }`}
                 >
-                  {preset.label}
+                  {t(preset.label)}
                 </button>
               );
             })}
@@ -150,7 +152,7 @@ export function CustomSequenceDialog({ onClose, onCreated }: CustomSequenceDialo
 
           <div className="flex flex-col gap-1.5">
             <label htmlFor={ids.name} className="text-xs font-medium text-fg-2">
-              Name
+              {t("Name")}
             </label>
             <Input id={ids.name} value={name} onChange={(e) => setName(e.target.value)} disabled={creating} className={fieldClass} maxLength={80} />
           </div>
@@ -158,7 +160,7 @@ export function CustomSequenceDialog({ onClose, onCreated }: CustomSequenceDialo
           <div className="grid grid-cols-3 gap-3">
             <div className="flex flex-col gap-1.5">
               <label htmlFor={ids.width} className="text-xs font-medium text-fg-2">
-                Width
+                {t("Width")}
               </label>
               <Input
                 id={ids.width}
@@ -172,7 +174,7 @@ export function CustomSequenceDialog({ onClose, onCreated }: CustomSequenceDialo
             </div>
             <div className="flex flex-col gap-1.5">
               <label htmlFor={ids.height} className="text-xs font-medium text-fg-2">
-                Height
+                {t("Height")}
               </label>
               <Input
                 id={ids.height}
@@ -186,7 +188,7 @@ export function CustomSequenceDialog({ onClose, onCreated }: CustomSequenceDialo
             </div>
             <div className="flex flex-col gap-1.5">
               <label htmlFor={ids.fps} className="text-xs font-medium text-fg-2">
-                Frame rate
+                {t("Frame rate")}
               </label>
               <select
                 id={ids.fps}
@@ -197,7 +199,7 @@ export function CustomSequenceDialog({ onClose, onCreated }: CustomSequenceDialo
               >
                 {EDITING_FRAME_RATE_OPTIONS.map((option) => (
                   <option key={option.value} value={String(option.value)}>
-                    {option.label}
+                    {t(option.label)}
                   </option>
                 ))}
               </select>
@@ -206,7 +208,7 @@ export function CustomSequenceDialog({ onClose, onCreated }: CustomSequenceDialo
 
           {(w === null || h === null) && (
             <p className="text-xs text-fg-3">
-              Width and height must be whole numbers from {MIN_DIMENSION} to {MAX_DIMENSION}.
+              {t("Width and height must be whole numbers from")} {MIN_DIMENSION} {t("to")} {MAX_DIMENSION}.
             </p>
           )}
           {error && (
@@ -222,14 +224,14 @@ export function CustomSequenceDialog({ onClose, onCreated }: CustomSequenceDialo
               disabled={creating}
               className="h-9 rounded-lg px-3 text-xs font-semibold text-fg-2 transition-colors hover:bg-bg-2 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
             >
-              Cancel
+              {t("Cancel")}
             </button>
             <button
               type="submit"
               disabled={!valid || creating}
               className="h-9 rounded-lg bg-accent px-4 text-xs font-semibold text-white transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg-1 disabled:pointer-events-none disabled:opacity-50"
             >
-              {creating ? "Creating…" : "Create sequence"}
+              {creating ? t("Creating…") : t("Create sequence")}
             </button>
           </div>
         </form>

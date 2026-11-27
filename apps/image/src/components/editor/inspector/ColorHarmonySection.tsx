@@ -4,6 +4,7 @@ import { Palette, Copy, Check } from 'lucide-react';
 import { ColorPalettes, QuickColorSwatches } from '../../ui/ColorPalettes';
 import { SavedColorsSection } from '../../ui/SavedColorsSection';
 import { useColorStore } from '../../../stores/color-store';
+import { useT } from "@openreel/i18n/react";
 
 interface Props {
   baseColor: string;
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function ColorHarmonySection({ baseColor, onColorSelect }: Props) {
+  const t = useT();
   const [copiedColor, setCopiedColor] = useState<string | null>(null);
   const [selectedHarmony, setSelectedHarmony] = useState<HarmonyType>('complementary');
   const { addRecentColor } = useColorStore();
@@ -41,7 +43,7 @@ export function ColorHarmonySection({ baseColor, onColorSelect }: Props) {
       <div className="flex items-center gap-2">
         <Palette size={14} className="text-muted-foreground" />
         <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          Color Harmony
+          {t("Color Harmony")}
         </h4>
       </div>
 
@@ -87,7 +89,7 @@ export function ColorHarmonySection({ baseColor, onColorSelect }: Props) {
         </div>
 
         <p className="text-[9px] text-muted-foreground text-center">
-          Click a color to apply, or copy its hex code
+          {t("Click a color to apply, or copy its hex code")}
         </p>
       </div>
 

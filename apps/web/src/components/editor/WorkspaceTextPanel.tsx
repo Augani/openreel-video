@@ -32,6 +32,8 @@ import {
   LOWER_THIRD_PRESETS,
   type LowerThirdPresetId,
 } from "../../services/lower-third-presets";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const TranscriptPanel = lazy(() => import("./TranscriptPanel").then((m) => ({ default: m.TranscriptPanel })));
 
@@ -90,6 +92,7 @@ export function WorkspaceTextPanel({
   presets: readonly { name: string; text: string; style: Partial<TextStyle> }[];
   defaultStyle: Partial<TextStyle>;
 }) {
+  const t = useT();
   const tab = useEditorWorkspaceStore((s) => s.textSource);
   const setTab = useEditorWorkspaceStore((s) => s.setTextSource);
   const [showAll, setShowAll] = useState(false);
@@ -130,7 +133,7 @@ export function WorkspaceTextPanel({
       useUIStore.getState().select({ type: "text-clip", ...primary });
     } catch (error) {
       toast.error(
-        "Could not add lower third",
+        translateNow("Could not add lower third"),
         error instanceof Error ? error.message : "Try again.",
       );
     } finally {
@@ -147,7 +150,7 @@ export function WorkspaceTextPanel({
           { value: "text", label: "Text" },
           { value: "captions", label: "Captions" },
           { value: "transcript", label: "Transcript" },
-          { value: "qc", label: <span title="Caption QC: reading speed, rows, durations, gaps">QC</span> },
+          { value: "qc", label: <span title={t("Caption QC: reading speed, rows, durations, gaps")}>QC</span> },
           { value: "saved", label: "Saved styles" },
         ]}
       />
@@ -164,19 +167,19 @@ export function WorkspaceTextPanel({
               <Button
                 variant="secondary"
                 className="workspace-add-text"
-                aria-label="Add plain text"
+                aria-label={t("Add plain text")}
                 onClick={() => {
                   void add("New Title", defaultStyle);
                 }}
               >
                 <span className="workspace-add-text-icon" aria-hidden="true">T</span>
-                <span className="workspace-add-text-label">Add plain text</span>
+                <span className="workspace-add-text-label">{t("Add plain text")}</span>
                 <span className="workspace-add-text-shortcut" aria-hidden="true">T</span>
               </Button>
               <div className="workspace-library-label">
                 <span>TITLES</span>
                 <Button variant="ghost" onClick={() => setShowAll(!showAll)}>
-                  {showAll ? "Show less" : "See all"}
+                  {showAll ? t("Show less") : t("See all")}
                 </Button>
               </div>
               <div className="workspace-title-grid">
@@ -221,13 +224,13 @@ export function WorkspaceTextPanel({
                 <div className="workspace-caption-heading">
                   <span className="workspace-caption-icon" aria-hidden="true">CC</span>
                   <div>
-                    <strong>Auto captions</strong>
+                    <strong>{t("Auto captions")}</strong>
                     <p title={captionSummary}>{captionSummary}</p>
                   </div>
                 </div>
                 <div className="workspace-caption-options">
                   <Select value={language} onValueChange={setLanguage}>
-                    <SelectTrigger aria-label="Caption language">
+                    <SelectTrigger aria-label={t("Caption language")}>
                       <SelectValue />
                       <span className="workspace-caption-caret" aria-hidden="true">▾</span>
                     </SelectTrigger>
@@ -245,7 +248,7 @@ export function WorkspaceTextPanel({
                   className="workspace-caption-generate w-full h-8"
                   onClick={() => { setTab("captions"); if (phone) useEditorWorkspaceStore.getState().setMobileCaptionsOpen(true); }}
                 >
-                  Generate captions
+                  {t("Generate captions")}
                 </Button>
               </div>
             </>
@@ -253,7 +256,7 @@ export function WorkspaceTextPanel({
         </div>
       </ScrollArea>
       {tab === "transcript" && (
-        <Suspense fallback={<div className="min-h-[160px] p-3 text-[11px] text-fg-muted" role="status">Loading transcript…</div>}>
+        <Suspense fallback={<div className="min-h-[160px] p-3 text-[11px] text-fg-muted" role="status">{t("Loading transcript…")}</div>}>
           <TranscriptPanel />
         </Suspense>
       )}
@@ -297,6 +300,7 @@ function SavedTextStyles({
   onAdd: (text: string, style: Partial<TextStyle>) => Promise<void>;
   starters?: readonly TitlePreset[];
 }) {
+  const t = useT();
   const selected = useUIStore((s) => s.selectedItems);
   const id = selected.find((s) => s.type === "text-clip")?.id;
   const clip = useProjectStore((s) =>
@@ -328,7 +332,7 @@ function SavedTextStyles({
       localStorage.setItem("openreel-saved-text-styles", JSON.stringify(next));
       setStyles(next);
     } catch {
-      toast.error("Could not save style", "Local storage is unavailable.");
+      toast.error(translateNow("Could not save style"), "Local storage is unavailable.");
     }
   };
   return (
@@ -350,17 +354,17 @@ function SavedTextStyles({
         }}
       >
         <BookmarkPlus size={14} />
-        Save selected text style
+        {t("Save selected text style")}
       </Button>
       {!clip && (
         <p className="text-[11px] text-fg-muted mt-2">
-          Select a title on the timeline to save its style.
+          {t("Select a title on the timeline to save its style.")}
         </p>
       )}
       {styles.length === 0 && (
         <div className="mt-3" data-testid="saved-styles-empty">
           <p className="text-[11px] text-fg-muted">
-            Styles you save appear here. Until then, start from one of these.
+            {t("Styles you save appear here. Until then, start from one of these.")}
           </p>
           <div className="workspace-library-label">
             <span>STARTER STYLES</span>
@@ -422,7 +426,7 @@ function SavedTextStyles({
           className="w-full h-8 text-xs mt-3"
           onClick={() => setVisibleCount((count) => count + 20)}
         >
-          Load more styles
+          {t("Load more styles")}
         </Button>
       )}
     </div>

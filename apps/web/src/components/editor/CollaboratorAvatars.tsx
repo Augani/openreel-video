@@ -1,4 +1,5 @@
 import { useCollabStore } from "../../services/collab/collab-store";
+import { useT } from "@openreel/i18n/react";
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -8,6 +9,7 @@ function initials(name: string): string {
 
 /** Who is in the project right now. `compact` renders only the avatar stack (toolbar). */
 export function CollaboratorAvatars({ compact = false }: { compact?: boolean }) {
+  const t = useT();
   const snapshot = useCollabStore((s) => s.snapshot);
   const peers = snapshot?.peers ?? [];
   if (!snapshot || snapshot.status === "idle") return null;
@@ -25,12 +27,12 @@ export function CollaboratorAvatars({ compact = false }: { compact?: boolean }) 
     );
   }
   return (
-    <ul className="space-y-1" data-testid="collab-people" aria-label="People in this project">
+    <ul className="space-y-1" data-testid="collab-people" aria-label={t("People in this project")}>
       {peers.map((peer) => (
         <li key={peer.clientId} className="flex items-center gap-2 text-sm">
           <span className="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white" style={{ background: peer.user.color }}>{initials(peer.user.name)}</span>
-          <span className="min-w-0 flex-1 truncate">{peer.user.name}{peer.clientId === snapshot.clientId ? " (you)" : ""}</span>
-          {peer.role === "viewer" && <span className="text-xs text-fg-2">viewing</span>}
+          <span className="min-w-0 flex-1 truncate">{peer.user.name}{peer.clientId === snapshot.clientId ? t(" (you)") : ""}</span>
+          {peer.role === "viewer" && <span className="text-xs text-fg-2">{t("viewing")}</span>}
         </li>
       ))}
     </ul>

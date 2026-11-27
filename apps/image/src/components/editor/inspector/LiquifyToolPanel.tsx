@@ -1,5 +1,6 @@
 import { useUIStore } from '../../../stores/ui-store';
 import { Waves, RotateCcw, ArrowRight, Undo2, Sparkles, RotateCw, RotateCcw as Counterclockwise, Minus, Plus, ArrowLeft, Snowflake, Flame } from 'lucide-react';
+import { useT } from "@openreel/i18n/react";
 
 const liquifyTools = [
   { id: 'forward-warp', label: 'Forward Warp', icon: ArrowRight },
@@ -15,6 +16,7 @@ const liquifyTools = [
 ] as const;
 
 export function LiquifyToolPanel() {
+  const t = useT();
   const { liquifySettings, setLiquifySettings } = useUIStore();
 
   const resetSettings = () => {
@@ -32,12 +34,12 @@ export function LiquifyToolPanel() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Waves size={16} className="text-muted-foreground" />
-          <h3 className="text-sm font-medium">Liquify</h3>
+          <h3 className="text-sm font-medium">{t("Liquify")}</h3>
         </div>
         <button
           onClick={resetSettings}
           className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-secondary transition-colors"
-          title="Reset"
+          title={t("Reset")}
         >
           <RotateCcw size={14} />
         </button>
@@ -45,7 +47,7 @@ export function LiquifyToolPanel() {
 
       <div className="space-y-3">
         <div>
-          <span className="text-xs text-muted-foreground mb-1.5 block">Tool</span>
+          <span className="text-xs text-muted-foreground mb-1.5 block">{t("Tool")}</span>
           <div className="grid grid-cols-5 gap-1">
             {liquifyTools.map((tool) => {
               const Icon = tool.icon;
@@ -58,7 +60,7 @@ export function LiquifyToolPanel() {
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary'
                   }`}
-                  title={tool.label}
+                  title={t(tool.label)}
                 >
                   <Icon size={14} />
                 </button>
@@ -69,7 +71,7 @@ export function LiquifyToolPanel() {
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Brush Size</span>
+            <span className="text-xs text-muted-foreground">{t("Brush Size")}</span>
             <span className="text-xs font-mono text-muted-foreground">{liquifySettings.brushSize}px</span>
           </div>
           <input
@@ -89,7 +91,7 @@ export function LiquifyToolPanel() {
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Density</span>
+            <span className="text-xs text-muted-foreground">{t("Density")}</span>
             <span className="text-xs font-mono text-muted-foreground">{liquifySettings.brushDensity}%</span>
           </div>
           <input
@@ -109,7 +111,7 @@ export function LiquifyToolPanel() {
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Pressure</span>
+            <span className="text-xs text-muted-foreground">{t("Pressure")}</span>
             <span className="text-xs font-mono text-muted-foreground">{liquifySettings.brushPressure}%</span>
           </div>
           <input
@@ -129,7 +131,7 @@ export function LiquifyToolPanel() {
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">Rate</span>
+            <span className="text-xs text-muted-foreground">{t("Rate")}</span>
             <span className="text-xs font-mono text-muted-foreground">{liquifySettings.brushRate}%</span>
           </div>
           <input

@@ -1,4 +1,5 @@
 import React from "react";
+import { useT } from "@openreel/i18n/react";
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@openreel/ui";
 
 interface WhichProjectDialogProps {
@@ -13,23 +14,31 @@ interface WhichProjectDialogProps {
  * project to go into, so the user picks one (the project file picker opens) or backs out. Loaded on demand by
  * `askWhichProject` in services/open-files.ts, never at startup.
  */
-export const WhichProjectDialog: React.FC<WhichProjectDialogProps> = ({ fileCount, onChoose, onCancel }) => (
-  <Dialog open onOpenChange={(open) => (open ? undefined : onCancel())}>
-    <DialogContent className="max-w-md" data-testid="which-project-dialog">
-      <DialogHeader>
-        <DialogTitle>Which project?</DialogTitle>
-        <DialogDescription>
-          No project is open. Choose the project to import {fileCount === 1 ? "this caption file" : `these ${fileCount} caption files`} into.
-        </DialogDescription>
-      </DialogHeader>
-      <DialogFooter>
-        <Button variant="ghost" onClick={onCancel} data-testid="which-project-cancel">
-          Cancel
-        </Button>
-        <Button onClick={onChoose} data-testid="which-project-choose" autoFocus>
-          Choose project…
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
-);
+export const WhichProjectDialog: React.FC<WhichProjectDialogProps> = ({ fileCount, onChoose, onCancel }) => {
+  const t = useT();
+  return (
+    <Dialog open onOpenChange={(open) => (open ? undefined : onCancel())}>
+      <DialogContent className="max-w-md" data-testid="which-project-dialog">
+        <DialogHeader>
+          <DialogTitle>{t("Which project?")}</DialogTitle>
+          <DialogDescription>
+            {t("No project is open. Choose the project to import {target} into.", {
+              target:
+                fileCount === 1
+                  ? t("this caption file")
+                  : t("these {count} caption files", { count: fileCount }),
+            })}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onCancel} data-testid="which-project-cancel">
+            {t("Cancel")}
+          </Button>
+          <Button onClick={onChoose} data-testid="which-project-choose" autoFocus>
+            {t("Choose project…")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};

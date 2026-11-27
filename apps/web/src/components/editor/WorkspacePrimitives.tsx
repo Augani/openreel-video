@@ -57,7 +57,7 @@ export function WorkspaceTabs<T extends string>({
             id={`${prefix}-tab-${option.value}`}
             aria-controls={`${prefix}-panel`}
           >
-            {option.label}
+            {/* i18n-ignore */}{option.label}
           </TabsTrigger>
         ))}
       </TabsList>

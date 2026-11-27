@@ -4,6 +4,7 @@ import { useProjectStore } from "../../../../stores/project-store";
 import { useInspectorSelection } from "./InspectorSelection";
 import { InspectorSlider } from "./InspectorSlider";
 import { useNumericDraft } from "./useNumericDraft";
+import { useT } from "@openreel/i18n/react";
 
 interface PropertySliderProps {
   label?: string;
@@ -86,6 +87,7 @@ export const PropertySlider: React.FC<PropertySliderProps> = ({
   description,
   className,
 }) => {
+  const t = useT();
   const projectId = useProjectStore(state => state.project.id);
   const selectedItems = useInspectorSelection();
   const accessibleLabel = ariaLabel ?? label ?? "Slider";
@@ -109,7 +111,7 @@ export const PropertySlider: React.FC<PropertySliderProps> = ({
               onReset={typeof defaultValue === "number" ? () => { commit(defaultValue); setEditingScope(null); } : undefined}
               onClose={() => setEditingScope(null)}
             /> : <Button variant="ghost" size="sm" type="button"
-              aria-label={`Edit ${accessibleLabel} value`} disabled={isDisabled} title="Click to edit"
+              aria-label={`Edit ${accessibleLabel} value`} disabled={isDisabled} title={t("Click to edit")}
               onClick={() => setEditingScope(scope)}
               onDoubleClick={typeof defaultValue === "number" ? () => { commit(defaultValue); setEditingScope(null); } : undefined}
               className="h-5 min-w-[4ch] cursor-text justify-end rounded border border-transparent px-1 py-0 text-right font-mono text-[11px] font-normal leading-5 tabular-nums text-text-muted transition-colors hover:border-border hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"

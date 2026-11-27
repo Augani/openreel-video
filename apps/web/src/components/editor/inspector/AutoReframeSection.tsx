@@ -29,6 +29,8 @@ import { useProjectStore } from "../../../stores/project-store";
 import { useEngineStore } from "../../../stores/engine-store";
 import { commitAutoReframe, computeSubjectReframe } from "../../../services/auto-reframe-subject";
 import type { ReframeMotionPreset, ReframeSubjectMode } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 interface AutoReframeSectionProps {
   clipId: string;
@@ -62,6 +64,7 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
   clipId,
   onReframeComplete,
 }) => {
+  const t = useT();
   const [reframeSettings, setReframeSettings] = useState<ReframeSettings>(
     DEFAULT_REFRAME_SETTINGS,
   );
@@ -215,13 +218,13 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
         ? PLATFORM_PRESETS[selectedPlatform].name
         : reframeSettings.targetAspectRatio;
       toast.success(
-        "Auto Reframe Applied",
+        translateNow("Auto Reframe Applied"),
         `Project resized to ${platformName} (${targetConfig.width}x${targetConfig.height})`,
       );
     } catch (error) {
       console.error("Auto-reframe failed:", error);
       toast.error(
-        "Auto Reframe Failed",
+        translateNow("Auto Reframe Failed"),
         error instanceof Error ? error.message : "Unknown error",
       );
       setIsApplied(false);
@@ -242,7 +245,7 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
       <div className="space-y-3">
         <div>
           <span className="text-fg-2 font-normal mb-2 block text-[10px]">
-            Platform Presets
+            {t("Platform Presets")}
           </span>
             <div className="grid grid-cols-3 gap-1">
               {(Object.keys(PLATFORM_PRESETS) as PlatformPreset[]).map(
@@ -267,7 +270,7 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
 
         <div>
           <span className="text-fg-2 font-normal mb-2 block text-[10px]">
-            Aspect Ratio
+            {t("Aspect Ratio")}
           </span>
           <div className="grid grid-cols-3 gap-1">
             {(Object.keys(ASPECT_RATIO_PRESETS) as AspectRatioPreset[])
@@ -287,9 +290,9 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
 
         <div>
           <span className="text-fg-2 font-normal mb-2 block text-[10px]">
-            Motion
+            {t("Motion")}
           </span>
-          <div className="grid grid-cols-3 gap-1" role="radiogroup" aria-label="Motion preset">
+          <div className="grid grid-cols-3 gap-1" role="radiogroup" aria-label={t("Motion preset")}>
             {MOTION_OPTIONS.map((option) => (
               <Button
                 variant="ghost"
@@ -306,7 +309,7 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
                     : "bg-bg-1 hover:bg-bg-2 border-transparent text-fg-2",
                 )}
               >
-                {option.label}
+                {t(option.label)}
               </Button>
             ))}
           </div>
@@ -314,9 +317,9 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
 
         <div>
           <span className="text-fg-2 font-normal mb-2 block text-[10px]">
-            Subject
+            {t("Subject")}
           </span>
-          <div className="grid grid-cols-2 gap-1" role="radiogroup" aria-label="Subject">
+          <div className="grid grid-cols-2 gap-1" role="radiogroup" aria-label={t("Subject")}>
             {SUBJECT_OPTIONS.map((option) => (
               <Button
                 variant="ghost"
@@ -333,14 +336,14 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
                     : "bg-bg-1 hover:bg-bg-2 border-transparent text-fg-2",
                 )}
               >
-                {option.label}
+                {t(option.label)}
               </Button>
             ))}
           </div>
           <span className="text-fg-2 font-normal mt-1 block text-[9px]">
             {reframeSettings.subjectMode === "person"
-              ? "Follows the person matte only."
-              : "Follows people, falling back to skin-tone detection when none is found."}
+              ? t("Follows the person matte only.")
+              : t("Follows people, falling back to skin-tone detection when none is found.")}
           </span>
         </div>
 
@@ -360,7 +363,7 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
 
         <div className="flex items-center justify-between">
           <span className="text-fg-2 font-normal text-[10px]">
-            Follow Subject
+            {t("Follow Subject")}
           </span>
           <InspectorToggle
             ariaLabel="Follow Subject"
@@ -408,25 +411,25 @@ export const AutoReframeSection: React.FC<AutoReframeSectionProps> = ({
             )}</span>
           <span className="truncate">{isInitializing || isProcessing
               ? isInitializing
-                ? "Initializing..."
-                : "Analyzing..."
+                ? t("Initializing...")
+                : t("Analyzing...")
               : isApplied
-                ? "Applied - Click to Reanalyze"
-                : "Analyze & Reframe"}</span>
+                ? t("Applied - Click to Reanalyze")
+                : t("Analyze & Reframe")}</span>
         </Button>
 
         {trackingSource && (
           <span className="text-fg-2 font-normal text-center text-[9px]" data-testid="reframe-tracking-source">
             {trackingSource === "person"
-              ? "Tracked with person detection"
+              ? t("Tracked with person detection")
               : trackingSource === "heuristic"
-                ? "Person detection unavailable, used skin-tone fallback"
-                : "No subject found, centred"}
+                ? t("Person detection unavailable, used skin-tone fallback")
+                : t("No subject found, centred")}
           </span>
         )}
 
         <span className="text-fg-2 font-normal text-center text-[9px]">
-          Output:{" "}
+          {t("Output:")}{" "}
           {ASPECT_RATIO_PRESETS[reframeSettings.targetAspectRatio].width} x{" "}
           {ASPECT_RATIO_PRESETS[reframeSettings.targetAspectRatio].height}
         </span>

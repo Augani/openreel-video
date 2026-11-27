@@ -27,6 +27,7 @@ import {
   useEditorWorkspaceStore,
   type AssetSection,
 } from "../../stores/editor-workspace-store";
+import { useT } from "@openreel/i18n/react";
 
 const tools = [
   ["media", "Media", Film],
@@ -45,6 +46,7 @@ const tools = [
 ] as const;
 
 export function EditorActionRail() {
+  const t = useT();
   const section = useEditorWorkspaceStore((s) => s.section);
   const setSection = useEditorWorkspaceStore((s) => s.setSection);
   const chatVisible = useUIStore((s) => s.panels.agentChat?.visible ?? false);
@@ -78,7 +80,7 @@ export function EditorActionRail() {
     <TooltipProvider delayDuration={350}>
       <nav
         data-tour="toolbar"
-        aria-label="Editor tools"
+        aria-label={t("Editor tools")}
         className="workspace-rail"
       >
         <div className="workspace-rail-scroll" data-testid="workspace-rail-scroll">

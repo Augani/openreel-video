@@ -59,11 +59,14 @@ import {
   EditingTemplateControls,
   getEditingTemplateDefaultControlValues,
 } from "./EditingTemplateControls";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 const formatCategoryLabel = (category: string): string =>
   category.replace(/-/g, " ");
 
 export const RecipesTab: React.FC = () => {
+  const t = useT();
   const project = useProjectStore((state) => state.project);
   const getClip = useProjectStore((state) => state.getClip);
   const getMediaItem = useProjectStore((state) => state.getMediaItem);
@@ -197,7 +200,7 @@ export const RecipesTab: React.FC = () => {
   const handleApply = async (template: EditingTemplate): Promise<void> => {
     if (!selectedClip || !selectedTargetType) {
       toast.warning(
-        "Select a clip",
+        translateNow("Select a clip"),
         "Recipes apply to one selected video or image clip.",
       );
       return;
@@ -214,14 +217,14 @@ export const RecipesTab: React.FC = () => {
 
       if (!applicationId) {
         toast.error(
-          "Could not apply recipe",
+          translateNow("Could not apply recipe"),
           "This recipe could not be applied to the current clip.",
         );
         return;
       }
 
       toast.success(
-        "Recipe applied",
+        translateNow("Recipe applied"),
         `${template.name} was added to ${selectedMedia?.name || "the selected clip"}.`,
       );
     } finally {
@@ -237,10 +240,10 @@ export const RecipesTab: React.FC = () => {
         </div>
         <div>
           <span className="text-fg-2 font-bold block text-sm">
-            Select a clip first
+            {t("Select a clip first")}
           </span>
           <span className="text-fg-2 font-normal block mt-1.5 max-w-[240px] text-xs leading-relaxed mx-auto">
-            Choose a video or image in the timeline to apply clip-scoped recipes, looks, and caption treatments.
+            {t("Choose a video or image in the timeline to apply clip-scoped recipes, looks, and caption treatments.")}
           </span>
         </div>
       </div>
@@ -257,10 +260,10 @@ export const RecipesTab: React.FC = () => {
           </div>
           <div className="flex-1 min-w-0">
             <span className="text-fg-2 font-bold block truncate text-xs">
-              {selectedMedia?.name || 'Selected Clip'}
+              {selectedMedia?.name || t("Selected Clip")}
             </span>
             <span className="text-fg-2 font-normal block mt-0.5 text-[10px]">
-              {selectedClip.duration.toFixed(1)}s • {appliedTemplates.length} recipes applied
+              {selectedClip.duration.toFixed(1)}s • {appliedTemplates.length} {t("recipes applied")}
             </span>
           </div>
         </div>
@@ -270,8 +273,8 @@ export const RecipesTab: React.FC = () => {
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
           <ShadcnInput
             value={searchQuery}
-            placeholder="Search recipes..."
-            aria-label={"Search recipes"}
+            placeholder={t("Search recipes...")}
+            aria-label={t("Search recipes")}
             onChange={(event) => setSearchQuery(event.currentTarget.value)}
             className={cn(
               "flex h-8 w-full min-w-0 rounded-[7px] border border-border bg-bg-1 px-2.5 py-1.5 text-[13px] font-medium text-fg-2 outline-none transition-colors placeholder:text-fg-muted focus:border-accent disabled:cursor-not-allowed disabled:opacity-50 md:text-[13px]",
@@ -306,10 +309,10 @@ export const RecipesTab: React.FC = () => {
         {filteredTemplates.length === 0 ? (
           <div className="py-12 text-center">
             <span className="text-fg-2 font-bold block text-sm">
-              No recipes match
+              {t("No recipes match")}
             </span>
             <span className="text-fg-2 font-normal block mt-2 text-xs">
-              Try a different search or category.
+              {t("Try a different search or category.")}
             </span>
           </div>
         ) : (
@@ -359,17 +362,17 @@ export const RecipesTab: React.FC = () => {
                           </span>
                           <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                             {template.controls && template.controls.length > 0 && (
-                              <Button onClick={() => handleExpand(template)} type="button" aria-label="Edit recipe controls" className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-8 px-3 text-[12px]", "bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg", `h-6 px-2 text-[10px] font-medium rounded transition-colors flex items-center gap-1.5 ${
+                              <Button onClick={() => handleExpand(template)} type="button" aria-label={t("Edit recipe controls")} className={cn("inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50", "h-8 px-3 text-[12px]", "bg-transparent text-fg-2 hover:bg-bg-2 hover:text-fg", `h-6 px-2 text-[10px] font-medium rounded transition-colors flex items-center gap-1.5 ${
                                   isExpanded
                                     ? "bg-primary/20 text-primary border border-primary/30"
                                     : "bg-background-secondary border border-border hover:text-text-primary text-text-secondary"
                                   }`)}>
                                 <span className="flex h-4 w-4 shrink-0 items-center justify-center">{<SlidersHorizontal size={10} />}</span>
-                                <span className="truncate">{"Edit recipe controls"}</span>
+                                <span className="truncate">{t("Edit recipe controls")}</span>
                               </Button>
                             )}
                             <Button onClick={() => void handleApply(template)} type="button" aria-label={(applyingTemplateId === template.id ? "Applying" : "Apply").trim() || undefined} disabled={(applyingTemplateId !== null)} className="inline-flex min-w-0 items-center justify-center gap-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none h-6 px-3 bg-primary text-black text-[10px] font-bold rounded transition-colors hover:bg-primary/80 disabled:opacity-50">
-                              <span className="truncate">{applyingTemplateId === template.id ? "Applying" : "Apply"}</span>
+                              <span className="truncate">{applyingTemplateId === template.id ? t("Applying") : t("Apply")}</span>
                             </Button>
                           </div>
                         </div>

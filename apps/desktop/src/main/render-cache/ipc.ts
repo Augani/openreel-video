@@ -15,6 +15,7 @@ import {
 import { handle } from "../ipc";
 import { withNativeDialog } from "../native-dialog-state";
 import { RenderCacheDisk } from "./disk-store";
+import { nativeT } from "../language-state";
 import {
   freeBytes,
   isAcceptableScratchDir,
@@ -104,7 +105,7 @@ export function registerRenderCacheIpc(): void {
   handle(CHANNELS.renderCachePickScratch, renderCacheProjectArgsSchema.partial(), async () => {
     const picked = await withNativeDialog(() =>
       dialog.showOpenDialog({
-        title: "Choose the scratch disk folder for render files",
+        title: nativeT("Choose the scratch disk folder for render files"),
         properties: ["openDirectory", "createDirectory"],
       }),
     );

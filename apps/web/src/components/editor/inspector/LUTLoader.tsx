@@ -8,6 +8,7 @@ import React, { useCallback, useRef, useState } from "react";
 import { PropertySlider } from "./shell/PropertySlider";
 import { Upload, X, AlertCircle } from "@/icons/lucide-compat";
 import { parseCubeToLutData, type LUTData } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 
 interface LUTLoaderProps {
   lutData: LUTData | null;
@@ -122,6 +123,7 @@ export const LUTLoader: React.FC<LUTLoaderProps> = ({
   onImported,
   slotName,
 }) => {
+  const t = useT();
   const slotPrefix = slotName ? `${slotName} ` : "";
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -234,13 +236,13 @@ export const LUTLoader: React.FC<LUTLoaderProps> = ({
 
       {/* Load button or loaded LUT info */}
       {!lutData ? (
-        <Button onClick={handleLoadClick} type="button" aria-label={isLoading ? "Loading..." : `Load ${slotPrefix}LUT (.cube, .3dl)`} disabled={(isLoading)} className="min-w-0 font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none h-7 px-2.5 hover:bg-bg-3 w-full py-2 bg-bg-2 border border-border rounded-lg text-[10px] text-fg-2 hover:text-fg hover:border-text-secondary transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+        <Button onClick={handleLoadClick} type="button" aria-label={isLoading ? t("Loading...") : `Load ${slotPrefix}LUT (.cube, .3dl)`} disabled={(isLoading)} className="min-w-0 font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none h-7 px-2.5 hover:bg-bg-3 w-full py-2 bg-bg-2 border border-border rounded-lg text-[10px] text-fg-2 hover:text-fg hover:border-text-secondary transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
           <span className="flex h-4 w-4 shrink-0 items-center justify-center">{isLoading ? (
               <div className="w-3 h-3 border border-text-muted border-t-transparent rounded-full animate-spin" />
             ) : (
               <Upload size={12} />
             )}</span>
-          <span className="truncate">{isLoading ? "Loading..." : `Load ${slotPrefix}LUT (.cube, .3dl)`}</span>
+          <span className="truncate">{isLoading ? t("Loading...") : `Load ${slotPrefix}LUT (.cube, .3dl)`}</span>
         </Button>
       ) : (
         <div className="space-y-2">
@@ -248,7 +250,7 @@ export const LUTLoader: React.FC<LUTLoaderProps> = ({
           <Card className="min-w-0 rounded-[7px] border shadow-none border-transparent bg-bg-2 text-fg p-2 flex items-center justify-between">
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="text-fg font-normal block truncate text-[10px]">
-                {fileName || "LUT Loaded"}
+                {fileName || t("LUT Loaded")}
               </span>
               <span className="text-fg-2 font-normal text-[9px]">
                 {lutData.size}x{lutData.size}x{lutData.size} LUT
@@ -266,25 +268,25 @@ export const LUTLoader: React.FC<LUTLoaderProps> = ({
           />
 
           <label className="block space-y-1">
-            <span className="text-[10px] text-fg-2">LUT colour space (HDR projects)</span>
+            <span className="text-[10px] text-fg-2">{t("LUT colour space (HDR projects)")}</span>
             <select
               aria-label={`${slotPrefix}LUT colour space`}
               value={lutData.space ?? "srgb"}
               onChange={(event) => handleSpaceChange(event.target.value as NonNullable<LUTData["space"]>)}
               className="h-7 w-full rounded-[6px] border border-border bg-bg-1 px-1.5 text-[11px] text-fg"
             >
-              <option value="srgb">Display (sRGB / Rec.709)</option>
-              <option value="linear">Scene linear (1.0 = SDR white)</option>
-              <option value="pq">PQ (ST 2084)</option>
+              <option value="srgb">{t("Display (sRGB / Rec.709)")}</option>
+              <option value="linear">{t("Scene linear (1.0 = SDR white)")}</option>
+              <option value="pq">{t("PQ (ST 2084)")}</option>
             </select>
             <span className="block text-[9px] leading-snug text-fg-3">
-              In a Rec.2020 / HDR project the LUT sees the picture in this space. Light above its range passes through instead of clipping.
+              {t("In a Rec.2020 / HDR project the LUT sees the picture in this space. Light above its range passes through instead of clipping.")}
             </span>
           </label>
 
           {/* Load different LUT button */}
           <Button onClick={handleLoadClick} type="button" aria-label={`Load Different ${slotPrefix}LUT`} disabled={(isLoading)} className="inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[7px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-7 px-2.5 bg-transparent hover:bg-bg-2 w-full py-1.5 text-[10px] text-fg-3 hover:text-fg-2 transition-colors">
-            <span className="truncate">{"Load Different LUT"}</span>
+            <span className="truncate">{t("Load Different LUT")}</span>
           </Button>
         </div>
       )}

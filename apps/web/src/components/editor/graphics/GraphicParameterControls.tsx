@@ -18,6 +18,7 @@ import {
 import { FONT_CATEGORIES, useCustomFonts } from "../inspector/font-options";
 import { ensureFontFamily } from "../../../services/project-fonts";
 import { setGraphicValue } from "../../../services/graphic-commands";
+import { useT } from "@openreel/i18n/react";
 
 const builtInFonts = Object.values(FONT_CATEGORIES).flat();
 
@@ -107,6 +108,7 @@ const ColorControl: React.FC<{ label: string; value: string; onCommit: (value: s
 };
 
 const SliderControl: React.FC<{ parameter: GraphicParameter; value: number; onCommit: (value: number) => void }> = ({ parameter, value, onCommit }) => {
+  const t = useT();
   const [live, setLive] = useState(value);
   useEffect(() => setLive(value), [value]);
   const min = parameter.min ?? 0;
@@ -114,7 +116,7 @@ const SliderControl: React.FC<{ parameter: GraphicParameter; value: number; onCo
   return (
     <div className="flex items-center gap-2 min-w-0">
       <Slider
-        aria-label={parameter.label}
+        aria-label={t(parameter.label)}
         min={min}
         max={max}
         step={parameter.step ?? 1}
@@ -138,6 +140,7 @@ interface ControlProps {
 
 /** Keyframe controls of a linked composition's number control: add / remove at the playhead, stop animating. */
 const KeyframeControls: React.FC<{ instance: GraphicInstance; parameter: GraphicParameter; value: number }> = ({ instance, parameter, value }) => {
+  const t = useT();
   const playhead = useTimelineStore((state) => state.playheadPosition);
   const keys = instance.paramKeyframes?.[parameter.id] ?? [];
   const local = playhead - instance.startTime;
@@ -150,7 +153,7 @@ const KeyframeControls: React.FC<{ instance: GraphicInstance; parameter: Graphic
         aria-label={here ? `Remove ${parameter.label} keyframe` : `Add ${parameter.label} keyframe at playhead`}
         aria-pressed={Boolean(here)}
         disabled={!inside}
-        title={inside ? (here ? "Remove the keyframe at the playhead" : "Add a keyframe at the playhead") : "Move the playhead over the composition to keyframe it"}
+        title={inside ? (here ? t("Remove the keyframe at the playhead") : t("Add a keyframe at the playhead")) : t("Move the playhead over the composition to keyframe it")}
         onClick={() => {
           if (here) void removeParamKeyframeCommand(instance.id, parameter.id, here.id);
           else void setParamKeyframeCommand(instance.id, parameter.id, { time: local, value }, `Keyframe ${parameter.label}`);
@@ -163,11 +166,11 @@ const KeyframeControls: React.FC<{ instance: GraphicInstance; parameter: Graphic
         <button
           type="button"
           aria-label={`Stop animating ${parameter.label}`}
-          title="Remove every keyframe and keep the current value"
+          title={t("Remove every keyframe and keep the current value")}
           onClick={() => { void clearParamKeyframesCommand(instance.id, parameter.id); }}
           className="rounded px-1 text-[10px] text-fg-muted hover:text-fg"
         >
-          {keys.length} key{keys.length === 1 ? "" : "s"} ×
+          {keys.length} {t("key")}{keys.length === 1 ? "" : "s"} ×
         </button>
       )}
     </div>
@@ -175,6 +178,7 @@ const KeyframeControls: React.FC<{ instance: GraphicInstance; parameter: Graphic
 };
 
 const GraphicControl: React.FC<ControlProps> = ({ instance, parameter, value }) => {
+  const t = useT();
   const customFonts = useCustomFonts();
   const playhead = useTimelineStore((state) => state.playheadPosition);
   const keyed = Boolean(instance.linkedCompositionId) && isKeyframableParameter(parameter) && (instance.paramKeyframes?.[parameter.id]?.length ?? 0) > 0;
@@ -206,7 +210,7 @@ const GraphicControl: React.FC<ControlProps> = ({ instance, parameter, value }) 
             void ensureFontFamily(font, 700).finally(() => set(font));
           }}
         >
-          <SelectTrigger aria-label={parameter.label} className="h-7 text-xs">
+          <SelectTrigger aria-label={t(parameter.label)} className="h-7 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -220,7 +224,7 @@ const GraphicControl: React.FC<ControlProps> = ({ instance, parameter, value }) 
       );
     }
     case "checkbox":
-      return <Switch aria-label={parameter.label} checked={value === true} onCheckedChange={set} />;
+      return <Switch aria-label={t(parameter.label)} checked={value === true} onCheckedChange={set} />;
     case "number":
       return <CommitNumber label={parameter.label} value={Number(value)} step={parameter.step} onCommit={set} />;
     case "slider":
@@ -244,15 +248,16 @@ const GraphicControl: React.FC<ControlProps> = ({ instance, parameter, value }) 
  * of the template is editable here: that is the point of exposing controls.
  */
 export const GraphicParameterControls: React.FC<{ instance: GraphicInstance }> = ({ instance }) => {
+  const t = useT();
   const playhead = useTimelineStore((state) => state.playheadPosition);
   const groups = groupParameters(instance.template.parameters);
   if (instance.template.parameters.length === 0) {
-    return <p className="text-xs text-fg-muted px-1">This template has no exposed controls. Open Essential Graphics &gt; Edit to expose some.</p>;
+    return <p className="text-xs text-fg-muted px-1">{t("This template has no exposed controls. Open Essential Graphics > Edit to expose some.")}</p>;
   }
   return (
     <div className="flex flex-col gap-3" data-testid="graphic-controls">
       {groups.map(({ group, parameters }) => (
-        <section key={group ?? "_"} aria-label={group ?? "Controls"} className="flex flex-col gap-2">
+        <section key={group ?? "_"} aria-label={group ?? t("Controls")} className="flex flex-col gap-2">
           {group && <h4 className="text-[10px] font-semibold uppercase tracking-wide text-fg-muted">{group}</h4>}
           {parameters.map((parameter) => {
             const value = instance.values[parameter.id] ?? parameter.defaultValue;
@@ -263,8 +268,8 @@ export const GraphicParameterControls: React.FC<{ instance: GraphicInstance }> =
                 data-graphic-control={parameter.id}
                 className={inline ? "flex items-center justify-between gap-2" : "flex flex-col gap-1"}
               >
-                <label className="text-xs text-fg-muted truncate" title={parameter.label}>
-                  {parameter.label}
+                <label className="text-xs text-fg-muted truncate" title={t(parameter.label)}>
+                  {t(parameter.label)}
                 </label>
                 <GraphicControl instance={instance} parameter={parameter} value={value} />
                 {instance.linkedCompositionId && isKeyframableParameter(parameter) && (

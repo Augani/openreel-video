@@ -4,6 +4,7 @@ import {
   useMotionTrackingOverlayStore,
   type TrackingHandle,
 } from "../../../stores/motion-tracking-overlay-store";
+import { useT } from "@openreel/i18n/react";
 
 interface Bounds {
   x: number;
@@ -31,6 +32,7 @@ const HANDLES: Array<{ handle: Exclude<TrackingHandle, "move">; label: string; s
  * on the monitor, in the monitor frame's own pixels.
  */
 export const MotionTrackingOverlay: React.FC<{ clipId: string | null; bounds: Bounds | null }> = ({ clipId, bounds }) => {
+  const t = useT();
   const state = useMotionTrackingOverlayStore();
   const drag = useRef<{ handle: TrackingHandle; startX: number; startY: number; region: NonNullable<typeof state.region> } | null>(null);
   if (!clipId || !bounds || state.clipId !== clipId || !state.region || state.mediaWidth <= 0 || state.mediaHeight <= 0) return null;
@@ -113,7 +115,7 @@ export const MotionTrackingOverlay: React.FC<{ clipId: string | null; bounds: Bo
         />
       ) : null}
       <span className="pointer-events-none absolute rounded bg-black/65 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white/85" style={{ left: box.left, top: Math.max(0, box.top - 16) }}>
-        Track target
+        {t("Track target")}
       </span>
     </div>
   );

@@ -50,6 +50,8 @@ import { diarizeCaptions } from "../../services/diarization";
 import { captionMetadataNotes } from "../../services/export-metadata";
 import { CaptionTranslateSection } from "./CaptionTranslateSection";
 import { formatFrameTimecode } from "../../utils/frame-timecode";
+import { useT } from "@openreel/i18n/react";
+import { translateNow } from "@openreel/i18n/translate";
 
 /** Programme start timecode written into / read out of broadcast caption files. */
 const PROGRAMME_STARTS = [
@@ -110,6 +112,7 @@ const Word = memo(function Word({ word, active, selected, matched, removing }: W
 });
 
 function SpeakerLabel({ name, color, onRename }: { name?: string; color?: string; onRename: (from: string, to: string) => void }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(name ?? "");
   useEffect(() => setDraft(name ?? ""), [name]);
@@ -139,7 +142,7 @@ function SpeakerLabel({ name, color, onRename }: { name?: string; color?: string
   ) : (
     <button
       type="button"
-      title="Rename speaker"
+      title={t("Rename speaker")}
       aria-label={`Speaker ${name}. Click to rename`}
       onClick={() => setEditing(true)}
       className="flex select-none items-center gap-1 rounded px-1 text-[11px] font-semibold text-accent hover:bg-bg-3"
@@ -163,10 +166,11 @@ function SpeakerReassign({
   names: string[];
   onAssign: (speaker: string) => void;
 }) {
+  const t = useT();
   return (
     <select
-      aria-label="Reassign speaker for this passage"
-      title="Reassign this passage to another speaker"
+      aria-label={t("Reassign speaker for this passage")}
+      title={t("Reassign this passage to another speaker")}
       value={current ?? NO_SPEAKER}
       onChange={(e) => {
         const v = e.currentTarget.value;
@@ -179,13 +183,13 @@ function SpeakerReassign({
       onKeyDown={(e) => e.stopPropagation()}
       className="h-5 max-w-[88px] rounded border border-border bg-bg-2 px-0.5 text-[10px] text-fg-3 hover:text-fg"
     >
-      <option value={NO_SPEAKER}>No speaker</option>
+      <option value={NO_SPEAKER}>{t("No speaker")}</option>
       {names.map((n) => (
         <option key={n} value={n}>
           {n}
         </option>
       ))}
-      <option value={NEW_SPEAKER}>New speaker</option>
+      <option value={NEW_SPEAKER}>{t("New speaker")}</option>
     </select>
   );
 }
@@ -202,15 +206,16 @@ function SpeakerRow({
   others: readonly string[];
   onRename: (from: string, to: string) => void;
 }) {
+  const t = useT();
   const report = (outcome: { success: boolean; message?: string }) => {
-    if (!outcome.success) toast.error("Speaker update failed", outcome.message);
+    if (!outcome.success) toast.error(translateNow("Speaker update failed"), outcome.message);
   };
   return (
     <li className="flex items-center gap-1.5">
       <input
         type="color"
         aria-label={`Colour for ${profile.name}`}
-        title="Speaker and caption colour"
+        title={t("Speaker and caption colour")}
         value={/^#[0-9a-f]{6}$/i.test(profile.color) ? profile.color : "#ffffff"}
         onChange={(e) => void updateSpeakerProfile(profile.name, { color: e.currentTarget.value }).then(report)}
         className="size-5 shrink-0 cursor-pointer rounded border border-border bg-transparent p-0"
@@ -220,7 +225,7 @@ function SpeakerRow({
       </span>
       <select
         aria-label={`Caption position for ${profile.name}`}
-        title="Where this speaker's captions sit"
+        title={t("Where this speaker's captions sit")}
         value={profile.position ?? POSITION_AUTO}
         onChange={(e) => {
           const v = e.currentTarget.value;
@@ -230,15 +235,15 @@ function SpeakerRow({
         }}
         className="h-6 rounded border border-border bg-bg-2 px-1 text-[10px] text-fg-2"
       >
-        <option value={POSITION_AUTO}>Position: as is</option>
-        <option value="top">Top</option>
-        <option value="center">Centre</option>
-        <option value="bottom">Bottom</option>
+        <option value={POSITION_AUTO}>{t("Position: as is")}</option>
+        <option value="top">{t("Top")}</option>
+        <option value="center">{t("Centre")}</option>
+        <option value="bottom">{t("Bottom")}</option>
       </select>
       {others.length > 0 && (
         <select
           aria-label={`Merge ${profile.name} into another speaker`}
-          title="Merge this speaker into another (one undo step)"
+          title={t("Merge this speaker into another (one undo step)")}
           value=""
           onChange={(e) => {
             const into = e.currentTarget.value;
@@ -246,7 +251,7 @@ function SpeakerRow({
           }}
           className="h-6 rounded border border-border bg-bg-2 px-1 text-[10px] text-fg-2"
         >
-          <option value="">Merge into...</option>
+          <option value="">{t("Merge into...")}</option>
           {others.map((name) => (
             <option key={name} value={name}>
               {name}
@@ -261,6 +266,7 @@ function SpeakerRow({
 type Tool = "fillers" | "pauses" | "translate" | null;
 
 export function TranscriptPanel() {
+  const t = useT();
   const subtitles = useProjectStore((s) => s.project.timeline.subtitles);
   const frameRate = useProjectStore((s) => s.project.settings.frameRate);
   const playing = useTimelineStore((s) => s.playbackState === "playing");
@@ -300,13 +306,13 @@ export function TranscriptPanel() {
       });
       if (outcome.success)
         toast.success(
-          `${outcome.speakers} speaker${outcome.speakers === 1 ? "" : "s"} found`,
-          "Voice matching is approximate, so check the labels. Rename, recolour or reassign a passage below. Undo restores the previous labels.",
+          translateNow(outcome.speakers === 1 ? "{count} speaker found" : "{count} speakers found", { count: outcome.speakers ?? 0 }),
+          translateNow("Voice matching is approximate, so check the labels. Rename, recolour or reassign a passage below. Undo restores the previous labels."),
         );
-      else toast.error("Speaker detection failed", outcome.message);
+      else toast.error(translateNow("Speaker detection failed"), outcome.message);
     } catch (error) {
       if (!(error instanceof DOMException && error.name === "AbortError"))
-        toast.error("Speaker detection failed", error instanceof Error ? error.message : undefined);
+        toast.error(translateNow("Speaker detection failed"), error instanceof Error ? error.message : undefined);
     } finally {
       detectAbort.current = null;
       setDetect(null);
@@ -454,7 +460,7 @@ export function TranscriptPanel() {
   const report = (label: string, outcome: { success: boolean; message?: string; removed?: number }) => {
     if (outcome.success)
       toast.success(label, outcome.removed !== undefined ? `Removed ${seconds(outcome.removed)}` : undefined);
-    else toast.error(`${label} failed`, outcome.message);
+    else toast.error(translateNow("{label} failed", { label }), outcome.message);
   };
 
   const deleteSelection = () => {
@@ -506,12 +512,14 @@ export function TranscriptPanel() {
       if (lang) setTrackId(lang);
       setExportNotes([...skippedNotes(outcome.errors), ...(outcome.issues ?? [])]);
       toast.success(
-        `Imported ${outcome.added} caption${outcome.added === 1 ? "" : "s"}`,
-        outcome.errors?.length ? `${outcome.errors.length} skipped, see the notes in the Transcript panel` : undefined,
+        translateNow(outcome.added === 1 ? "Imported {count} caption" : "Imported {count} captions", { count: outcome.added ?? 0 }),
+        outcome.errors?.length
+          ? translateNow("{count} skipped, see the notes in the Transcript panel", { count: outcome.errors?.length ?? 0 })
+          : undefined,
       );
     } else {
       setExportNotes([...skippedNotes(outcome.errors), ...(outcome.issues ?? [])]);
-      toast.error(`Could not import ${file.name}`, outcome.message);
+      toast.error(translateNow("Could not import {name}", { name: file.name }), outcome.message);
     }
   };
 
@@ -538,18 +546,18 @@ export function TranscriptPanel() {
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     const problems = file.issues.filter((i) => i.severity !== "info").length;
-    if (problems) toast.warning(`${info.label} exported with ${problems} note${problems === 1 ? "" : "s"}`, "See the export notes in the Transcript panel.");
+    if (problems) toast.warning(translateNow(problems === 1 ? "{label} exported with {count} note" : "{label} exported with {count} notes", { label: info.label, count: problems }), translateNow("See the export notes in the Transcript panel."));
   };
 
   const onRename = async (from: string, to: string) => {
     const outcome = await renameTranscriptSpeaker(from, to);
-    if (!outcome.success) toast.error("Rename failed", outcome.message);
+    if (!outcome.success) toast.error(translateNow("Rename failed"), outcome.message);
   };
 
   const onReassign = async (wordStart: number, wordEnd: number, speaker: string) => {
     const ids = [...new Set(words.slice(wordStart, wordEnd).map((w) => w.subtitleId))];
     const outcome = await setCaptionSpeaker(ids, speaker);
-    if (!outcome.success) toast.error("Reassign failed", outcome.message);
+    if (!outcome.success) toast.error(translateNow("Reassign failed"), outcome.message);
   };
 
   const fillerTotal = cutDuration(chosenFillers);
@@ -565,14 +573,14 @@ export function TranscriptPanel() {
       tabIndex={0}
       onKeyDown={onKeyDown}
       data-testid="transcript-panel"
-      aria-label="Transcript"
+      aria-label={t("Transcript")}
       className="flex min-h-0 flex-1 flex-col outline-none"
     >
       <div className="flex shrink-0 flex-col gap-1.5 border-b border-border px-2.5 py-2">
         <div className="flex items-center gap-1.5">
           <Input
-            aria-label="Search transcript"
-            placeholder="Search transcript"
+            aria-label={t("Search transcript")}
+            placeholder={t("Search transcript")}
             value={query}
             onChange={(e) => {
               setQuery(e.currentTarget.value);
@@ -592,7 +600,7 @@ export function TranscriptPanel() {
               <Button
                 type="button"
                 variant="ghost"
-                aria-label="Next match"
+                aria-label={t("Next match")}
                 disabled={!matches.length}
                 onClick={() => jumpToMatch(matchCursor + 1)}
                 className="h-7 w-7 p-0 text-[11px]"
@@ -611,7 +619,7 @@ export function TranscriptPanel() {
             disabled={!words.length}
             onClick={() => setTool(tool === "fillers" ? null : "fillers")}
           >
-            Remove filler words
+            {t("Remove filler words")}
           </Button>
           <Button
             type="button"
@@ -621,7 +629,7 @@ export function TranscriptPanel() {
             disabled={!words.length}
             onClick={() => setTool(tool === "pauses" ? null : "pauses")}
           >
-            Remove pauses
+            {t("Remove pauses")}
           </Button>
           {detect ? (
             <Button
@@ -629,7 +637,7 @@ export function TranscriptPanel() {
               variant="ghost"
               className={toolbarButton}
               onClick={() => detectAbort.current?.abort()}
-              aria-label="Cancel speaker detection"
+              aria-label={t("Cancel speaker detection")}
             >
               {detect.message} {Math.round(detect.progress * 100)}% · Cancel
             </Button>
@@ -641,21 +649,21 @@ export function TranscriptPanel() {
                 className={toolbarButton}
                 disabled={!words.length}
                 onClick={() => void detectSpeakers()}
-                title="Label who is speaking, on this device. Approximate: best with clearly different voices and one person talking at a time."
+                title={t("Label who is speaking, on this device. Approximate: best with clearly different voices and one person talking at a time.")}
               >
-                Detect speakers
+                {t("Detect speakers")}
               </Button>
               <select
-                aria-label="Number of speakers"
+                aria-label={t("Number of speakers")}
                 value={speakerCount}
                 onChange={(e) => setSpeakerCount(e.currentTarget.value)}
                 onKeyDown={(e) => e.stopPropagation()}
                 className="h-7 rounded border border-border bg-bg-2 px-1 text-[11px] text-fg-2"
               >
-                <option value="auto">Auto</option>
+                <option value="auto">{t("Auto")}</option>
                 {[1, 2, 3, 4, 5, 6].map((n) => (
                   <option key={n} value={n}>
-                    {n} speaker{n === 1 ? "" : "s"}
+                    {n} {t("speaker")}{n === 1 ? "" : "s"}
                   </option>
                 ))}
               </select>
@@ -669,17 +677,17 @@ export function TranscriptPanel() {
             disabled={!subtitles.length}
             onClick={() => setTool(tool === "translate" ? null : "translate")}
           >
-            Translate
+            {t("Translate")}
           </Button>
           <Button
             type="button"
             variant="ghost"
             className={toolbarButton}
-            aria-label="Delete selected transcript text"
+            aria-label={t("Delete selected transcript text")}
             disabled={!selectedRange}
             onClick={deleteSelection}
           >
-            Delete{selectedCount ? ` ${selectedCount} word${selectedCount === 1 ? "" : "s"}` : ""}
+            {t("Delete")}{selectedCount ? ` ${selectedCount} word${selectedCount === 1 ? "" : "s"}` : ""}
           </Button>
         </div>
 
@@ -697,11 +705,11 @@ export function TranscriptPanel() {
 
         {tool === "fillers" && (
           <section
-            aria-label="Filler word preview"
+            aria-label={t("Filler word preview")}
             className="space-y-1.5 rounded-md border border-border bg-bg-1 p-2"
           >
             <Input
-              aria-label="Filler words to remove"
+              aria-label={t("Filler words to remove")}
               value={fillerText}
               onChange={(e) => setFillerText(e.currentTarget.value)}
               onKeyDown={(e) => e.stopPropagation()}
@@ -736,7 +744,7 @@ export function TranscriptPanel() {
                 ))}
               </ul>
             ) : (
-              <p className="text-[11px] text-fg-3">No filler words found.</p>
+              <p className="text-[11px] text-fg-3">{t("No filler words found.")}</p>
             )}
             <Button
               type="button"
@@ -744,17 +752,17 @@ export function TranscriptPanel() {
               disabled={!chosenFillers.length}
               onClick={applyFillers}
             >
-              Remove {chosenFillers.length} filler{chosenFillers.length === 1 ? "" : "s"} ({seconds(fillerTotal)})
+              {t("Remove")} {chosenFillers.length} {t("filler")}{chosenFillers.length === 1 ? "" : "s"} ({seconds(fillerTotal)})
             </Button>
           </section>
         )}
 
         {tool === "pauses" && (
-          <section aria-label="Pause removal" className="space-y-1.5 rounded-md border border-border bg-bg-1 p-2">
+          <section aria-label={t("Pause removal")} className="space-y-1.5 rounded-md border border-border bg-bg-1 p-2">
             <label className="flex items-center gap-2 text-[11px] text-fg-2">
-              Pauses longer than
+              {t("Pauses longer than")}
               <Input
-                aria-label="Minimum pause length in seconds"
+                aria-label={t("Minimum pause length in seconds")}
                 type="number"
                 min={0}
                 step={0.1}
@@ -768,10 +776,10 @@ export function TranscriptPanel() {
             <p className="text-[11px] text-fg-3" aria-live="polite">
               {pauses.length
                 ? `${pauses.length} pause${pauses.length === 1 ? "" : "s"}, ${seconds(pauseTotal)} would be removed (0.20s of breathing room is kept).`
-                : "No pauses that long."}
+                : t("No pauses that long.")}
             </p>
             <Button type="button" className="h-7 w-full text-[11px]" disabled={!pauses.length} onClick={applyPauses}>
-              Remove {pauses.length} pause{pauses.length === 1 ? "" : "s"}
+              {t("Remove")} {pauses.length} {t("pause")}{pauses.length === 1 ? "" : "s"}
             </Button>
           </section>
         )}
@@ -786,7 +794,7 @@ export function TranscriptPanel() {
         >
           {!words.length && (
             <p className="py-6 text-center text-[11px] text-fg-3">
-              No transcript yet. Import SRT, WebVTT, SCC, MCC, EBU-STL, TTML or a word-timed transcript JSON below.
+              {t("No transcript yet. Import SRT, WebVTT, SCC, MCC, EBU-STL, TTML or a word-timed transcript JSON below.")}
             </p>
           )}
           {sentences.map((sentence, i) => {
@@ -830,16 +838,16 @@ export function TranscriptPanel() {
 
       <div className="shrink-0 space-y-1.5 border-t border-border px-2.5 py-2">
         {profiles.length > 0 && (
-          <section aria-label="Speakers">
+          <section aria-label={t("Speakers")}>
             <button
               type="button"
               aria-expanded={speakersOpen}
               aria-controls="transcript-speaker-list"
-              title="Colour and position carry into the captions"
+              title={t("Colour and position carry into the captions")}
               onClick={() => setSpeakersOpen((open) => !open)}
               className="flex w-full items-center gap-2 rounded px-0.5 py-0.5 text-left hover:bg-bg-3"
             >
-              <span className="shrink-0 text-[11px] font-semibold text-fg-2">Speakers</span>
+              <span className="shrink-0 text-[11px] font-semibold text-fg-2">{t("Speakers")}</span>
               <span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
                 {profiles.map((profile) => (
                   <span key={profile.name} className="flex min-w-0 items-center gap-1 text-[10px] text-fg-3">
@@ -849,7 +857,7 @@ export function TranscriptPanel() {
                 ))}
               </span>
               <span aria-hidden className="shrink-0 text-[10px] text-fg-3">
-                {speakersOpen ? "Hide" : "Edit"}
+                {speakersOpen ? t("Hide") : t("Edit")}
               </span>
             </button>
             {speakersOpen && (
@@ -868,24 +876,23 @@ export function TranscriptPanel() {
         )}
         {profiles.length > 0 && (
           <p className="text-[10px] text-fg-3" data-testid="speaker-limits-note">
-            Speakers are matched by voice on this device. It is approximate: similar voices can merge, one voice can
-            split, and overlapping speech is not separated. Check the labels and fix any passage with its menu.
+            {t("Speakers are matched by voice on this device. It is approximate: similar voices can merge, one voice can split, and overlapping speech is not separated. Check the labels and fix any passage with its menu.")}
           </p>
         )}
         {estimated && (
           <p className="text-[10px] text-fg-3">
-            Some captions have no word timings; their word times are estimated from the caption.
+            {t("Some captions have no word timings; their word times are estimated from the caption.")}
           </p>
         )}
         {tracks.length > 1 && (
           <label className="flex items-center justify-between gap-2 text-[11px] text-fg-2">
-            <span>Show this track in the picture</span>
+            <span>{t("Show this track in the picture")}</span>
             <Switch
-              aria-label="Show this caption track in the picture"
+              aria-label={t("Show this caption track in the picture")}
               checked={!trackHidden}
               onCheckedChange={(visible) => {
                 void setCaptionTrackInPicture(activeTrack, visible).then((o) => {
-                  if (!o.success) toast.error("Could not change the picture", o.message);
+                  if (!o.success) toast.error(translateNow("Could not change the picture"), o.message);
                 });
               }}
             />
@@ -893,13 +900,13 @@ export function TranscriptPanel() {
         )}
         {tracks.length > 1 && (
           <Select value={activeTrack || DEFAULT_TRACK_VALUE} onValueChange={(v) => setTrackId(v === DEFAULT_TRACK_VALUE ? "" : v)}>
-            <SelectTrigger aria-label="Caption track" className="h-7 text-[11px]">
+            <SelectTrigger aria-label={t("Caption track")} className="h-7 text-[11px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {tracks.map((t) => (
-                <SelectItem key={t.id || "default"} value={t.id || DEFAULT_TRACK_VALUE}>
-                  {t.id ? `${t.id}${t.language ? ` (${t.language})` : ""}` : "Default captions"} · {t.cueCount}
+              {tracks.map((track) => (
+                <SelectItem key={track.id || "default"} value={track.id || DEFAULT_TRACK_VALUE}>
+                  {track.id ? `${track.id}${track.language ? ` (${track.language})` : ""}` : t("Default captions")} · {track.cueCount}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -907,8 +914,8 @@ export function TranscriptPanel() {
         )}
         <div className="flex items-center gap-1.5">
           <Input
-            aria-label="Language of the imported captions"
-            placeholder="Language (en, fr…)"
+            aria-label={t("Language of the imported captions")}
+            placeholder={t("Language (en, fr…)")}
             value={language}
             onChange={(e) => setLanguage(e.currentTarget.value)}
             onKeyDown={(e) => e.stopPropagation()}
@@ -927,7 +934,7 @@ export function TranscriptPanel() {
             }}
           />
           <Select value={ccChannel} onValueChange={(v) => setCcChannel(v as "1" | "2" | "3" | "4")}>
-            <SelectTrigger aria-label="CEA-608 caption channel for SCC and MCC import" title="Which CEA-608 caption channel an SCC or MCC import reads" className="h-7 w-[58px] shrink-0 text-[11px]">
+            <SelectTrigger aria-label={t("CEA-608 caption channel for SCC and MCC import")} title={t("Which CEA-608 caption channel an SCC or MCC import reads")} className="h-7 w-[58px] shrink-0 text-[11px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -939,20 +946,20 @@ export function TranscriptPanel() {
             </SelectContent>
           </Select>
           <Button type="button" variant="ghost" className={toolbarButton} onClick={() => fileRef.current?.click()}>
-            Import
+            {t("Import")}
           </Button>
         </div>
         {broadcast && (
           <div className="flex items-center gap-1.5 text-[10px] text-fg-3">
-            <span className="shrink-0">Programme start</span>
+            <span className="shrink-0">{t("Programme start")}</span>
             <Select value={programmeStart} onValueChange={setProgrammeStart}>
-              <SelectTrigger aria-label="Programme start timecode" className="h-7 min-w-0 flex-1 text-[11px]">
+              <SelectTrigger aria-label={t("Programme start timecode")} className="h-7 min-w-0 flex-1 text-[11px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {PROGRAMME_STARTS.map((p) => (
                   <SelectItem key={p.value} value={p.value}>
-                    {p.label}
+                    {t(p.label)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -961,7 +968,7 @@ export function TranscriptPanel() {
         )}
         <div className="flex items-center gap-1.5">
           <Select value={exportFormat} onValueChange={(v) => setExportFormat(v as CaptionExportFormat)}>
-            <SelectTrigger aria-label="Caption export format" className="h-7 min-w-0 flex-1 text-[11px]">
+            <SelectTrigger aria-label={t("Caption export format")} className="h-7 min-w-0 flex-1 text-[11px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -976,29 +983,29 @@ export function TranscriptPanel() {
             type="button"
             variant="ghost"
             className={toolbarButton}
-            aria-label="Export captions"
+            aria-label={t("Export captions")}
             disabled={!subtitles.length}
             onClick={() => void exportFile()}
           >
-            Export
+            {t("Export")}
           </Button>
         </div>
         {speakers.length > 0 && (
-          <label className="flex items-center gap-1.5 text-[10px] text-fg-3" title="SRT: a 'Name: ' prefix. WebVTT: <v Name> voice tags. TTML: speaker agents.">
+          <label className="flex items-center gap-1.5 text-[10px] text-fg-3" title={t("SRT: a 'Name: ' prefix. WebVTT: <v Name> voice tags. TTML: speaker agents.")}>
             <input
               type="checkbox"
               checked={exportSpeakers}
               onChange={(e) => setExportSpeakers(e.currentTarget.checked)}
-              aria-label="Include speaker names in exported captions"
+              aria-label={t("Include speaker names in exported captions")}
             />
-            Include speaker names in the export
+            {t("Include speaker names in the export")}
           </label>
         )}
         {exportNotes.length > 0 && (
           <ul
             className="m-0 max-h-24 list-none space-y-0.5 overflow-y-auto p-0 text-[10px] leading-snug"
             data-testid="caption-export-report"
-            aria-label="Caption export notes"
+            aria-label={t("Caption export notes")}
           >
             {exportNotes.slice(0, 20).map((note, i) => (
               <li

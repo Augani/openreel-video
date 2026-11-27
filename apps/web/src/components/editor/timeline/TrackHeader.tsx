@@ -8,6 +8,7 @@ import {
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@openreel/ui";
 import type { Track } from "@openreel/core";
+import { useT } from "@openreel/i18n/react";
 import {
   patchLabel,
   resolveSourceChannelGroups,
@@ -24,6 +25,7 @@ import { useSourceMonitorStore } from "../../../stores/source-monitor-store";
 import { useCompactEditor } from "../../../hooks/useCompactEditor";
 import { getTrackInfo } from "./utils";
 import { getTrackBadge } from "./track-badge";
+import { translateNow } from "@openreel/i18n/translate";
 
 interface TrackHeaderProps {
   track: Track;
@@ -47,6 +49,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
   active = false,
   audioDivider = false,
 }) {
+  const t = useT();
   const compact = useCompactEditor();
   const {
     lockTrack,
@@ -157,7 +160,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
 
   const handleRemoveGaps = async () => {
     const result = await consolidateTrack(track.id);
-    if (!result.success) toast.warning("Remove Gaps", result.error?.message ?? "The gaps could not be removed.");
+    if (!result.success) toast.warning(translateNow("Remove Gaps"), result.error?.message ?? "The gaps could not be removed.");
   };
 
   const startRename = () => {
@@ -196,31 +199,31 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
     const Separator = kind === "context" ? ContextMenuSeparator : DropdownMenuSeparator;
     return <>
       {kind === "context" && isAudio && <>
-        <ContextMenuCheckboxItem checked={track.muted} onCheckedChange={checked => void muteTrack(track.id, checked === true)}>{`Mute ${track.name}`}</ContextMenuCheckboxItem>
-        <ContextMenuCheckboxItem checked={track.solo} onCheckedChange={checked => void soloTrack(track.id, checked === true)}>{`Solo ${track.name}`}</ContextMenuCheckboxItem>
-        <ContextMenuCheckboxItem checked={track.soloSafe === true} onCheckedChange={checked => void setTrackSoloSafe(track.id, checked === true)}>{`Solo Safe ${track.name}`}</ContextMenuCheckboxItem>
+        <ContextMenuCheckboxItem checked={track.muted} onCheckedChange={checked => void muteTrack(track.id, checked === true)}>{t("Mute {name}", { name: track.name })}</ContextMenuCheckboxItem>
+        <ContextMenuCheckboxItem checked={track.solo} onCheckedChange={checked => void soloTrack(track.id, checked === true)}>{t("Solo {name}", { name: track.name })}</ContextMenuCheckboxItem>
+        <ContextMenuCheckboxItem checked={track.soloSafe === true} onCheckedChange={checked => void setTrackSoloSafe(track.id, checked === true)}>{t("Solo Safe {name}", { name: track.name })}</ContextMenuCheckboxItem>
         <Separator />
       </>}
-      <Item onSelect={startRename}><Pencil size={14} aria-hidden />Rename Track</Item>
-      <Item disabled={!hasGaps} onSelect={() => void handleRemoveGaps()}><AlignLeft size={14} aria-hidden />Remove Gaps</Item>
-      {track.groupId && <Item onSelect={() => void groupTracks(track.id)}><Unlink size={14} aria-hidden />Ungroup Track</Item>}
+      <Item onSelect={startRename}><Pencil size={14} aria-hidden />{t("Rename Track")}</Item>
+      <Item disabled={!hasGaps} onSelect={() => void handleRemoveGaps()}><AlignLeft size={14} aria-hidden />{t("Remove Gaps")}</Item>
+      {track.groupId && <Item onSelect={() => void groupTracks(track.id)}><Unlink size={14} aria-hidden />{t("Ungroup Track")}</Item>}
       {groupCandidates.length > 0 && <>
-        <Separator /><Label className="text-xs">Move &amp; trim together</Label>
-        {groupCandidates.map(candidate => <Item key={candidate.id} onSelect={() => void groupTracks(track.id, candidate.id)}><Link2 size={14} aria-hidden />Group with {candidate.name}</Item>)}
+        <Separator /><Label className="text-xs">{t("Move & trim together")}</Label>
+        {groupCandidates.map(candidate => <Item key={candidate.id} onSelect={() => void groupTracks(track.id, candidate.id)}><Link2 size={14} aria-hidden />{t("Group with {name}", { name: candidate.name })}</Item>)}
       </>}
       <Separator />
       {kind === "context" && <>
-        {targetKind && <ContextMenuCheckboxItem checked={isTargeted} onCheckedChange={() => toggleTrackTargeted(track.id)}>Track Target (Shift+T)</ContextMenuCheckboxItem>}
-        <ContextMenuCheckboxItem checked={syncLocked} onCheckedChange={toggleSyncLock}>Sync Lock (Shift+Y)</ContextMenuCheckboxItem>
+        {targetKind && <ContextMenuCheckboxItem checked={isTargeted} onCheckedChange={() => toggleTrackTargeted(track.id)}>{t("Track Target (Shift+T)")}</ContextMenuCheckboxItem>}
+        <ContextMenuCheckboxItem checked={syncLocked} onCheckedChange={toggleSyncLock}>{t("Sync Lock (Shift+Y)")}</ContextMenuCheckboxItem>
         <Separator />
       </>}
       {isAudio && (kind === "context"
-        ? <ContextMenuCheckboxItem checked={showGainLine} onCheckedChange={() => setGainLineVisible(track.id, !showGainLine)}>Show Clip Keyframes</ContextMenuCheckboxItem>
-        : <DropdownMenuItem onSelect={() => setGainLineVisible(track.id, !showGainLine)}>{showGainLine ? "Hide Clip Keyframes" : "Show Clip Keyframes"}</DropdownMenuItem>)}
+        ? <ContextMenuCheckboxItem checked={showGainLine} onCheckedChange={() => setGainLineVisible(track.id, !showGainLine)}>{t("Show Clip Keyframes")}</ContextMenuCheckboxItem>
+        : <DropdownMenuItem onSelect={() => setGainLineVisible(track.id, !showGainLine)}>{t(showGainLine ? "Hide Clip Keyframes" : "Show Clip Keyframes")}</DropdownMenuItem>)}
       {isAudio && (kind === "context"
-        ? <ContextMenuCheckboxItem checked={showAutomationLanes} onCheckedChange={() => setAutomationLanesVisible(track.id, !showAutomationLanes)}>Show Volume and Pan Automation</ContextMenuCheckboxItem>
-        : <DropdownMenuItem onSelect={() => setAutomationLanesVisible(track.id, !showAutomationLanes)}>{showAutomationLanes ? "Hide Volume and Pan Automation" : "Show Volume and Pan Automation"}</DropdownMenuItem>)}
-      <Item onSelect={() => void handleRemoveTrack()}><Trash2 size={14} aria-hidden />Delete Track</Item>
+        ? <ContextMenuCheckboxItem checked={showAutomationLanes} onCheckedChange={() => setAutomationLanesVisible(track.id, !showAutomationLanes)}>{t("Show Volume and Pan Automation")}</ContextMenuCheckboxItem>
+        : <DropdownMenuItem onSelect={() => setAutomationLanesVisible(track.id, !showAutomationLanes)}>{t(showAutomationLanes ? "Hide Volume and Pan Automation" : "Show Volume and Pan Automation")}</DropdownMenuItem>)}
+      <Item onSelect={() => void handleRemoveTrack()}><Trash2 size={14} aria-hidden />{t("Delete Track")}</Item>
     </>;
   };
 
@@ -254,7 +257,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
               data-track-targeted={isTargeted ? "true" : undefined}
               aria-label={`Track target ${track.name || trackInfo.label}`}
               aria-pressed={isTargeted}
-              title={isTargeted ? "Track targeted: Extract, Lift, Add Edit and Paste act on it. Click to untarget (Shift+T)" : "Target this track for Extract, Lift, Add Edit and Paste (Shift+T)"}
+              title={isTargeted ? t("Track targeted: Extract, Lift, Add Edit and Paste act on it. Click to untarget (Shift+T)") : t("Target this track for Extract, Lift, Add Edit and Paste (Shift+T)")}
               onClick={(e) => {
                 e.stopPropagation();
                 toggleTrackTargeted(track.id);
@@ -267,7 +270,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
             {isRenaming ? (
               <Input
                 ref={inputRef}
-                aria-label="Track name"
+                aria-label={t("Track name")}
                 className="h-7 w-full text-xs"
                 value={renameValue}
                 onChange={event => setRenameValue(event.target.value)}
@@ -293,7 +296,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
                 data-testid={`track-output-badge-${track.id}`}
                 title={`Output: ${outputBus?.name ?? "Master"}${sendCount ? `, ${sendCount} send${sendCount === 1 ? "" : "s"}` : ""}`}
               >
-                {"\u2192 "}{outputBus?.name ?? "Master"}{sendCount ? ` +${sendCount}` : ""}
+                {"\u2192 "}{outputBus?.name ?? t("Master")}{sendCount ? ` +${sendCount}` : ""}
               </span>
             )}
           </div>
@@ -301,16 +304,16 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
           {compact && <DropdownMenu>
             <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" aria-label={`Options for ${track.name || trackInfo.label}`}><MoreHorizontal size={18} aria-hidden /></Button></DropdownMenuTrigger>
             <DropdownMenuContent side="right" align="start" className="w-[220px] [&_[role=menuitem]]:gap-2 [&_[role=menuitem]]:text-xs" onCloseAutoFocus={event => { if (renameSession.current) event.preventDefault(); }}>
-              {targetKind && <DropdownMenuItem onSelect={toggleTarget}>{isTarget ? "Clear source patch" : "Patch source to this track"}</DropdownMenuItem>}
-              {targetKind && <DropdownMenuItem onSelect={() => toggleTrackTargeted(track.id)}>{isTargeted ? "Untarget track" : "Target track"}</DropdownMenuItem>}
-              <DropdownMenuItem onSelect={toggleSyncLock}>{syncLocked ? "Turn off Sync Lock" : "Turn on Sync Lock"}</DropdownMenuItem>
-              {isVisual && <DropdownMenuItem onSelect={() => void hideTrack(track.id, !track.hidden)}>{track.hidden ? "Show track" : "Hide track"}</DropdownMenuItem>}
+              {targetKind && <DropdownMenuItem onSelect={toggleTarget}>{t(isTarget ? "Clear source patch" : "Patch source to this track")}</DropdownMenuItem>}
+              {targetKind && <DropdownMenuItem onSelect={() => toggleTrackTargeted(track.id)}>{t(isTargeted ? "Untarget track" : "Target track")}</DropdownMenuItem>}
+              <DropdownMenuItem onSelect={toggleSyncLock}>{t(syncLocked ? "Turn off Sync Lock" : "Turn on Sync Lock")}</DropdownMenuItem>
+              {isVisual && <DropdownMenuItem onSelect={() => void hideTrack(track.id, !track.hidden)}>{t(track.hidden ? "Show track" : "Hide track")}</DropdownMenuItem>}
               {isAudio && <>
-                <DropdownMenuItem onSelect={() => void muteTrack(track.id, !track.muted)}>{track.muted ? "Unmute track" : "Mute track"}</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => void soloTrack(track.id, !track.solo)}>{track.solo ? "Clear solo" : "Solo track"}</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => void setTrackSoloSafe(track.id, track.soloSafe !== true)}>{track.soloSafe === true ? "Turn off Solo Safe" : "Turn on Solo Safe"}</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void muteTrack(track.id, !track.muted)}>{t(track.muted ? "Unmute track" : "Mute track")}</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void soloTrack(track.id, !track.solo)}>{t(track.solo ? "Clear solo" : "Solo track")}</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void setTrackSoloSafe(track.id, track.soloSafe !== true)}>{t(track.soloSafe === true ? "Turn off Solo Safe" : "Turn on Solo Safe")}</DropdownMenuItem>
               </>}
-              <DropdownMenuItem onSelect={() => void lockTrack(track.id, !track.locked)}>{track.locked ? "Unlock track" : "Lock track"}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void lockTrack(track.id, !track.locked)}>{t(track.locked ? "Unlock track" : "Lock track")}</DropdownMenuItem>
               <DropdownMenuSeparator />{trackActions("dropdown")}
             </DropdownMenuContent>
           </DropdownMenu>}
@@ -319,7 +322,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
               <Link2
                 size={13}
                 className="text-accent"
-                aria-label="Track is grouped"
+                aria-label={t("Track is grouped")}
               />
             )}
             {targetKind === "audio" && channelCount >= 2 && (
@@ -330,7 +333,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
                     data-track-target={patchedChannel >= 0 ? "true" : undefined}
                     data-source-patch-channel={patchedChannel >= 0 ? patchedChannel : undefined}
                     aria-label={`Source patch ${track.name}`}
-                    title={patchedChannel >= 0 ? `Source ${patchLabel(patchedChannel)} is patched to this track` : "Patch a source audio channel (A1..An) to this track"}
+                    title={patchedChannel >= 0 ? `Source ${patchLabel(patchedChannel)} is patched to this track` : t("Patch a source audio channel (A1..An) to this track")}
                     className={`flex h-[18px] min-w-[18px] items-center justify-center rounded px-1 py-0 text-[9px] leading-[1.4] font-black transition-colors ${
                       patchedChannel >= 0 ? "bg-accent text-accent-fg" : "text-fg-muted hover:bg-hover hover:text-fg-2"
                     }`}
@@ -340,16 +343,16 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-[200px] [&_[role=menuitem]]:text-xs" onClick={(e) => e.stopPropagation()}>
-                  <DropdownMenuLabel>Patch source audio to {track.name}</DropdownMenuLabel>
+                  <DropdownMenuLabel>{t("Patch source audio to {name}", { name: track.name })}</DropdownMenuLabel>
                   {Array.from({ length: channelCount }, (_, channel) => (
                     <DropdownMenuItem key={channel} data-testid={`track-patch-channel-${channel}`} disabled={track.locked || disabledChannels.includes(channel)} onSelect={() => setChannelPatch(channel, channel === patchedChannel ? null : track.id)}>
-                      {patchedChannel === channel ? "Unpatch" : "Patch"} {patchLabel(channel)}{disabledChannels.includes(channel) ? " (off)" : ""}
+                      {t(patchedChannel === channel ? "Unpatch" : "Patch")} {patchLabel(channel)}{disabledChannels.includes(channel) ? t(" (off)") : ""}
                     </DropdownMenuItem>
                   ))}
                   <DropdownMenuSeparator />
                   {Array.from({ length: channelCount }, (_, channel) => (
                     <DropdownMenuItem key={`t${channel}`} data-testid={`track-toggle-channel-${channel}`} onSelect={() => setChannelEnabled(channel, disabledChannels.includes(channel))}>
-                      {disabledChannels.includes(channel) ? "Switch on" : "Switch off"} {patchLabel(channel)}
+                      {t(disabledChannels.includes(channel) ? "Switch on" : "Switch off")} {patchLabel(channel)}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -361,7 +364,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
                 data-track-target={isTarget ? "true" : undefined}
                 aria-label={isTarget ? `Untarget ${track.name}` : `Target ${track.name}`}
                 aria-pressed={isTarget}
-                title={isTarget ? "Source patch: the Source monitor's " + targetKind + " goes to this track. Click to clear" : "Patch the Source monitor's " + targetKind + " to this track"}
+                title={isTarget ? t("Source patch: the Source monitor's ") + targetKind + t(" goes to this track. Click to clear") : t("Patch the Source monitor's ") + targetKind + t(" to this track")}
                 className={`flex h-[18px] min-w-[18px] items-center justify-center rounded px-1 py-0 text-[9px] leading-[1.4] font-black transition-colors ${
                   isTarget ? "bg-accent text-accent-fg" : "text-fg-muted hover:bg-hover hover:text-fg-2"
                 }`}
@@ -376,7 +379,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
             {isVisual && (
               <Button variant="ghost" size="sm"
                 type="button"
-                aria-label={track.hidden ? "Show track" : "Hide track"}
+                aria-label={track.hidden ? t("Show track") : t("Hide track")}
                 className="h-auto w-auto p-0 text-xs font-normal leading-[1.4] text-fg-muted hover:text-fg-2 transition-colors [&_svg]:size-[11px]"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -392,7 +395,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
                   type="button"
                   aria-label={track.muted ? `Unmute ${track.name}` : `Mute ${track.name}`}
                   aria-pressed={track.muted}
-                  title={track.muted ? "Unmute track" : "Mute track"}
+                  title={track.muted ? t("Unmute track") : t("Mute track")}
                   className={`h-auto w-auto p-0 text-xs font-normal leading-[1.4] transition-colors ${
                     track.muted ? "text-destructive" : "text-fg-muted hover:text-fg-2"
                   }`}
@@ -407,7 +410,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
                   type="button"
                   aria-label={track.solo ? `Clear solo ${track.name}` : `Solo ${track.name}`}
                   aria-pressed={track.solo}
-                  title={track.solo ? "Clear solo" : "Solo track"}
+                  title={track.solo ? t("Clear solo") : t("Solo track")}
                   className={`flex h-[18px] min-w-[18px] items-center justify-center rounded px-1 py-0 text-[9px] leading-[1.4] font-black transition-colors ${
                     track.solo
                       ? "bg-status-warning text-black"
@@ -427,7 +430,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
               data-sync-lock={syncLocked ? "on" : "off"}
               aria-label={`Sync lock ${track.name}`}
               aria-pressed={syncLocked}
-              title={syncLocked ? "Sync Lock on: ripple edits keep this track in sync. Click to turn off (Shift+Y)" : "Sync Lock off: ripple edits leave this track in place. Click to turn on (Shift+Y)"}
+              title={syncLocked ? t("Sync Lock on: ripple edits keep this track in sync. Click to turn off (Shift+Y)") : t("Sync Lock off: ripple edits leave this track in place. Click to turn on (Shift+Y)")}
               className={`h-auto w-auto p-0 text-xs font-normal leading-[1.4] transition-colors ${
                 syncLocked ? "text-accent" : "text-fg-muted opacity-60 hover:text-fg-2"
               } [&_svg]:size-[11px]`}
@@ -440,7 +443,7 @@ export const TrackHeader: React.FC<TrackHeaderProps> = React.memo(function Track
             </Button>
             <Button variant="ghost" size="sm"
               type="button"
-              aria-label={track.locked ? "Unlock" : "Lock"}
+              aria-label={track.locked ? t("Unlock") : t("Lock")}
               className={`h-auto w-auto p-0 text-xs font-normal leading-[1.4] transition-colors ${
                 track.locked ? "text-fg-2" : "text-fg-muted hover:text-fg-2"
               }`}

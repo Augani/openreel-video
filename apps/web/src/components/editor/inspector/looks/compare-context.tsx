@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useMemo, useState } from "react";
+import { useT } from "@openreel/i18n/react";
 
 interface LookCompare {
   compare: boolean;
@@ -23,20 +24,21 @@ export function useLookCompare(): LookCompare {
 
 /** The toggle button. Every instance drives the same state, so the sections stay in step. */
 export const CompareToggle: React.FC<{ testId: string }> = ({ testId }) => {
+  const t = useT();
   const { compare, setCompare } = useLookCompare();
   return (
     <button
       type="button"
       aria-pressed={compare}
-      aria-label="Compare before and after"
-      title="Split every card into the clip as it is now (left) and with the change applied (right)"
+      aria-label={t("Compare before and after")}
+      title={t("Split every card into the clip as it is now (left) and with the change applied (right)")}
       data-testid={testId}
       onClick={() => setCompare(!compare)}
       className={`h-5 shrink-0 rounded border px-1.5 text-[9px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring ${
         compare ? "border-primary bg-primary/15 text-fg" : "border-border bg-bg-1 text-fg-2 hover:text-fg"
       }`}
     >
-      Before / after
+      {t("Before / after")}
     </button>
   );
 };
