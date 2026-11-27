@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { W7_LABELS, makeAddedEffectNonNeutral } from "./sweep-lib";
+import { W7_LABELS, effectSweepFixture, makeAddedEffectNonNeutral } from "./sweep-lib";
 import {
   clickClip,
   clipsOf,
@@ -30,7 +30,7 @@ test(`every Effects-browser card visibly changes the program canvas and undo res
   page,
 }) => {
   test.setTimeout(420_000);
-  await openEditor(page);
+  await openEditor(page, effectSweepFixture());
   const [clip] = clipsOf(await readState(page), "Main");
   await clickClip(page, clip.id);
   await page.getByRole("button", { name: "Effects", exact: true }).first().click();

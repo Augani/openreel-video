@@ -1,4 +1,5 @@
-import { getMediaMemoryBudget, sampleSeekAnchors, subscribeMediaMemoryBudget } from "@openreel/core";
+import { getMediaMemoryBudget, subscribeMediaMemoryBudget } from "@openreel/core";
+import { sampleAnchorsOffThread } from "./sample-anchors-off-thread";
 import { SeekAnchorIndex } from "./seek-anchor-index";
 import { blobIdentity } from "./scrub-frame-cache";
 
@@ -46,7 +47,7 @@ export class SeekAnchorService {
   private isIdle: () => boolean = () => true;
 
   constructor(
-    private readonly sample: typeof sampleSeekAnchors = sampleSeekAnchors,
+    private readonly sample: typeof sampleAnchorsOffThread = sampleAnchorsOffThread,
     private readonly startDelayMs = 1200,
     /** Pause between two sources so their decoders never open back to back. */
     private readonly gapMs = 400,
@@ -120,12 +121,12 @@ export class SeekAnchorService {
     this.index.clear();
   }
 
-  private waitUntilIdle = async (): Promise<void> => {
+  private waitUntilIdle = async (signal: AbortSignal): Promise<void> => {
     // Hold the decode back while the user is seeking/scrubbing/playing, and
     // require a short quiet period so a click never races the sampler.
     // Cheap when the editor has stayed idle; only a busy->idle transition waits.
     let waited = false;
-    for (;;) {
+    while (!signal.aborted) {
       if (this.isIdle()) {
         if (!waited) return;
         await new Promise<void>((resolve) => setTimeout(resolve, 150));
@@ -155,7 +156,7 @@ export class SeekAnchorService {
           const result = await this.sample(job.blob, {
             signal: job.controller.signal,
             maxAnchors: maxAnchorsForBudget(this.index.budgetBytes),
-            waitUntilIdle: this.waitUntilIdle,
+            waitUntilIdle: () => this.waitUntilIdle(job.controller.signal),
             onAnchor: ({ time, bitmap }) => {
               if (job.controller.signal.aborted || !this.jobs.has(id)) bitmap.close();
               else this.index.add(id, time, bitmap);

@@ -529,7 +529,9 @@ export class RenderCache {
     const since = this.version;
     let pending = this.decoded.get(frame);
     if (!pending) {
-      this.startDecode(frame);
+      // A seek or a slow frame can outrun read-ahead. Present the requested
+      // intra frame first, then refill the window without delaying this frame.
+      this.startDecode([frame]);
       pending = this.decoded.get(frame);
     }
     if (!pending) return undefined;
@@ -569,29 +571,20 @@ export class RenderCache {
     }
     if (wanted.length === 0) return;
     if (wanted.length < LOOKAHEAD / 2 && this.decoded.has(from)) return;
-    this.startDecode(wanted[0], wanted);
+    this.startDecode(wanted);
   }
 
-  private startDecode(first: number, frames?: number[]): void {
+  private startDecode(frames: number[]): void {
     const codec = this.codec;
     if (!codec) return;
-    const list = frames ?? this.consecutiveFrom(first);
     const since = this.version;
-    const batch = this.loadAndDecode(codec, list, since);
-    list.forEach((frame, i) => {
+    const batch = this.loadAndDecode(codec, frames, since);
+    frames.forEach((frame, i) => {
       this.decoded.set(
         frame,
         batch.then((bitmaps) => bitmaps[i] ?? null),
       );
     });
-  }
-
-  private consecutiveFrom(first: number): number[] {
-    const list: number[] = [first];
-    for (let f = first + 1; f < first + LOOKAHEAD && this.index.has(f) && !this.decoded.has(f); f++) {
-      list.push(f);
-    }
-    return list;
   }
 
   private async loadAndDecode(

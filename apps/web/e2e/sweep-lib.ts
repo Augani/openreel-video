@@ -175,7 +175,7 @@ export async function sweepOne(page: Page, clipId: string, label: string): Promi
   return row as SweepRow;
 }
 
-export async function prepareSweep(page: Page): Promise<{ clipId: string; labels: string[] }> {
+export function effectSweepFixture(): string {
   // Temporal repair cards need real flicker. Alternate exposure around the second sample;
   // the original static bars correctly need no correction.
   const fixture = join(FIXTURE_DIR, "effect-sweep.mp4");
@@ -189,7 +189,11 @@ export async function prepareSweep(page: Page): Promise<{ clipId: string; labels
     ], { stdio: "pipe" });
     renameSync(temporary, fixture);
   }
-  await openEditor(page, fixture);
+  return fixture;
+}
+
+export async function prepareSweep(page: Page): Promise<{ clipId: string; labels: string[] }> {
+  await openEditor(page, effectSweepFixture());
   const [clip] = clipsOf(await readState(page), "Main");
   await clickClip(page, clip.id);
   // OPENREEL_E2E_ONLY="Glow,Vignette" narrows the sweep while iterating.

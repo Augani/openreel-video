@@ -471,14 +471,20 @@ test.describe("Render Effects In to Out and persistent render files", () => {
     expect(restored.cachedRuns).toEqual([{ start: 0, end: 119 }]);
     await expect.poll(async () => (await levels(page)).map((s) => s.level)).toEqual(["cached", "heavy"]);
 
-    // Observe actual presentation after the cold start. This case tests the restored
-    // frames' source; the separate throughput test measures real-time playback.
+    // Inspect distinct restored frames using slow playback. The full-speed throughput
+    // test above independently measures dropped frames at the project's playback rate.
     await seek(page, 0);
+    await page.evaluate(() => {
+      const hook = (window as unknown as { __openreelE2E: { timeline: { getState(): { setPlaybackRate(rate: number): void } } } }).__openreelE2E;
+      hook.timeline.getState().setPlaybackRate(0.5);
+    });
     await rc(page, (cache) => cache.resetTelemetry());
     await focusEditor(page);
     await page.keyboard.press("Space");
     try {
-      await expect.poll(() => rc(page, (cache) => cache.getTelemetry().cacheFrames), { timeout: 12_000, intervals: [50] }).toBeGreaterThan(10);
+      await expect.poll(() => rc(page, (cache) => new Set(cache.getTelemetry().entries
+        .filter((entry) => entry.source === "cache").map((entry) => Math.floor(entry.time * 30))).size),
+      { timeout: 15_000, intervals: [100] }).toBeGreaterThan(10);
     } finally {
       await page.keyboard.press("Space");
     }

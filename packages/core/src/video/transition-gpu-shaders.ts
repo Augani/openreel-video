@@ -232,8 +232,12 @@ fn shade(pos: vec2f) -> vec4f {
   // a.xy cell size px. The Canvas2D engine downsamples with one bilinear tap per cell, so this does too.
   pixelate: /* wgsl */ `
 fn shade(pos: vec2f) -> vec4f {
-  let q = (floor(pos / u.a.xy) + 0.5) * u.a.xy;
-  return over(sb(q) * u.p, sa(q) * (1.0 - u.p));
+  if (all(u.a.xy == vec2f(1.0))) {
+    return over(sb(pos) * u.p, sa(pos) * (1.0 - u.p));
+  }
+  let dims = vec2i(textureDimensions(texA));
+  let cell = clamp(vec2i(floor(pos / u.a.xy)), vec2i(0), dims - vec2i(1));
+  return over(textureLoad(texB, cell, 0) * u.p, textureLoad(texA, cell, 0) * (1.0 - u.p));
 }`,
 
   // a.x slice count, a.y slice alpha; aux: per slice [top, bottom, x offset, 1 when the slice shows the incoming shot]

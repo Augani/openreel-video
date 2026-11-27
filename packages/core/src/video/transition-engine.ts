@@ -86,6 +86,7 @@ export class TransitionEngine {
   private scratchACtx: OffscreenCanvasRenderingContext2D | null = null;
   private scratchB: OffscreenCanvas | null = null;
   private scratchBCtx: OffscreenCanvasRenderingContext2D | null = null;
+  private readonly mosaicInputs: { A?: OffscreenCanvas; B?: OffscreenCanvas } = {};
   private pixelScratch: OffscreenCanvas | null = null;
   private pixelScratchCtx: OffscreenCanvasRenderingContext2D | null = null;
   private crossZoomCanvas: OffscreenCanvas | null = null;
@@ -255,6 +256,14 @@ export class TransitionEngine {
     try {
       const spec = this.gpuSpec(transition, eased);
       if (!spec || !(await gpu.prepare(spec))) return null;
+      if (spec.kind === "pixel" && spec.shader === "pixelate" && (spec.v[0] > 1 || spec.v[1] > 1)) {
+        // The browser's minification filter varies across graphics backends. Make the
+        // same tiny source mosaics as Canvas2D, then composite and enlarge them on the GPU.
+        const w = Math.round(this.width / spec.v[0]);
+        const h = Math.round(this.height / spec.v[1]);
+        outgoing = this.mosaicInput(outgoing, "A", w, h);
+        incoming = this.mosaicInput(incoming, "B", w, h);
+      }
       return gpu.draw(spec, outgoing, incoming, eased) ? gpu.canvas : null;
     } catch (error) {
       console.warn("[TransitionEngine] GPU transition failed, drawing with Canvas2D:", error);
@@ -1064,6 +1073,16 @@ export class TransitionEngine {
     ctx.restore();
   }
 
+  private mosaicInput(source: CanvasImageSource, slot: "A" | "B", width: number, height: number): OffscreenCanvas {
+    const surface = this.mosaicInputs[slot] ??= new OffscreenCanvas(width, height);
+    if (surface.width !== width) surface.width = width;
+    if (surface.height !== height) surface.height = height;
+    const ctx = surface.getContext("2d")!;
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(this.fitToCanvas(source, slot), 0, 0, width, height);
+    return surface;
+  }
+
   private async renderPixelate(
     outgoing: CanvasImageSource,
     incoming: CanvasImageSource,
@@ -1834,6 +1853,8 @@ export class TransitionEngine {
     this.gpuInit = null;
     this.canvas = null;
     this.ctx = null;
+    delete this.mosaicInputs.A;
+    delete this.mosaicInputs.B;
     this.pixelScratch = null;
     this.pixelScratchCtx = null;
     this.extraScratch = createExtraRenderScratch();
