@@ -889,7 +889,7 @@
   height: 38px;
   border-radius: 50%;
   background: var(--fg);
-  color: #0b0c0e;
+  color: var(--bg);
   padding: 0;
   margin: 0 6px;
   opacity: 1;
@@ -1540,7 +1540,7 @@
   padding: 2px 5px;
 }
 .workspace-track-header[data-active="true"] {
-  background: #191a1e;
+  background: var(--bg-2);
 }
 button.workspace-track-badge {
   border: 0;
@@ -4395,7 +4395,7 @@ button.workspace-track-badge:hover {
 
 /* Measured from the authored Editor shell. The row height includes the audio
    boundary so existing scroll, drag, resize and persisted density stay aligned. */
-.workspace-track-header { border-bottom-color: #1f2024; }
+.workspace-track-header { border-bottom-color: var(--border); }
 .editor-shell:not(.editor-compact) .workspace-track-label { min-width: auto; }
 .editor-shell:not(.editor-compact) .workspace-track-name { max-width: 80px; }
 .editor-shell:not(.editor-compact) .workspace-track-header[data-header-audio="true"] .workspace-track-name { max-width: 56px; }
@@ -4406,11 +4406,11 @@ button.workspace-track-badge:hover {
   padding: 0; border-radius: 4px; font: 600 10.5px Inter, sans-serif;
 }
 .editor-shell:not(.editor-compact) .workspace-track-header[data-audio-divider="true"] {
-  border-bottom: 2px solid #2a2c31; padding-bottom: 1px;
-  box-shadow: inset 0 -1px #1f2024;
+  border-bottom: 2px solid var(--border-strong); padding-bottom: 1px;
+  box-shadow: inset 0 -1px var(--border);
 }
 .editor-shell:not(.editor-compact) .workspace-timeline-lanes [data-audio-divider="true"] {
-  border-bottom: 2px solid #1f2024; box-shadow: inset 0 -1px #1c1d21;
+  border-bottom: 2px solid var(--border-strong); box-shadow: inset 0 -1px var(--border);
 }
 
 /* Live collaboration state on the toolbar button */

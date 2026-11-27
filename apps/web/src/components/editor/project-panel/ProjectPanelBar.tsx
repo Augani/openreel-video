@@ -51,7 +51,7 @@ import type { ProjectPanelData } from "./useProjectPanelData";
 const AutomateToSequenceDialog = React.lazy(() => import("./AutomateToSequenceDialog").then((m) => ({ default: m.AutomateToSequenceDialog })));
 const VrPropertiesDialog = React.lazy(() => import("../VrPropertiesDialog").then((m) => ({ default: m.VrPropertiesDialog })));
 
-const iconButton = "h-[26px] w-[26px] shrink-0 border border-bg-3 bg-[#1c1d21] text-fg-3 hover:text-fg";
+const iconButton = "h-[26px] w-[26px] shrink-0 border border-bg-3 bg-[var(--text-button-bg)] text-fg-3 hover:text-fg";
 
 const Crumb: React.FC<{ label: string; binId: string | null; current: boolean }> = ({ label, binId, current }) => {
   const drop = useBinDropTarget(binId);
@@ -311,7 +311,7 @@ export const ProjectPanelBar: React.FC<{ data: ProjectPanelData; selectionCount:
           aria-label="Grid view"
           aria-pressed={view === "grid"}
           title="Grid view"
-          className={`h-[24px] w-[26px] rounded-none ${view === "grid" ? "bg-[#26282d] text-fg" : "bg-[#1c1d21] text-fg-3"}`}
+          className={`h-[24px] w-[26px] rounded-none ${view === "grid" ? "bg-[var(--chip-selected-bg)] text-fg" : "bg-[var(--text-button-bg)] text-fg-3"}`}
           onClick={() => setView("grid")}
         >
           <LayoutGrid size={14} aria-hidden />
@@ -323,7 +323,7 @@ export const ProjectPanelBar: React.FC<{ data: ProjectPanelData; selectionCount:
           aria-label="List view"
           aria-pressed={view === "list"}
           title="List view"
-          className={`h-[24px] w-[26px] rounded-none ${view === "list" ? "bg-[#26282d] text-fg" : "bg-[#1c1d21] text-fg-3"}`}
+          className={`h-[24px] w-[26px] rounded-none ${view === "list" ? "bg-[var(--chip-selected-bg)] text-fg" : "bg-[var(--text-button-bg)] text-fg-3"}`}
           onClick={() => setView("list")}
         >
           <List size={14} aria-hidden />
