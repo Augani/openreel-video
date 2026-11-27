@@ -172,11 +172,22 @@ fn shade(pos: vec2f) -> vec4f {
 
   // a.x outgoing scale, a.y incoming scale, a.zw centre px
   zoom: /* wgsl */ `
+// Canvas2D scales a letterboxed intermediate. Interpolate with its transparent
+// padding across the last half texel on either side of the fitted picture.
+fn zoomTap(t: texture_2d<f32>, fit: vec4f, pos: vec2f) -> vec4f {
+  if (any(pos < vec2f(0.0)) || any(pos >= u.size)) { return vec4f(0.0); }
+  let start = fit.xy * u.size;
+  let extent = fit.zw * u.size;
+  let end = start + extent;
+  let edge = min(pos - start, end - pos) + 0.5;
+  let coverage = select(vec2f(1.0), clamp(edge, vec2f(0.0), vec2f(1.0)), fit.zw < vec2f(1.0));
+  return textureSampleLevel(t, smp, (pos - start) / extent, 0.0) * coverage.x * coverage.y;
+}
 fn shade(pos: vec2f) -> vec4f {
   let c = u.a.zw;
   let pa = c + (pos - c) / u.a.x;
   let pb = c + (pos - c) / u.a.y;
-  return over(sb(pb) * u.p, sa(pa) * (1.0 - u.p));
+  return over(zoomTap(texB, u.fitB, pb) * u.p, zoomTap(texA, u.fitA, pa) * (1.0 - u.p));
 }`,
 
   // a.xy centre px, a.z max radius
@@ -247,18 +258,12 @@ fn shade(pos: vec2f) -> vec4f {
   // a.x 1 when the strips stack vertically (horizontal blinds), a.y strip count
   blinds: /* wgsl */ `
 fn shade(pos: vec2f) -> vec4f {
-  let base = sa(pos);
-  var inside = 0.0;
-  if (u.a.x > 0.5) {
-    let strip = u.size.y / u.a.y;
-    let within = pos.y - floor(pos.y / strip) * strip;
-    inside = clamp(strip * u.p - (within - 0.5), 0.0, 1.0);
-  } else {
-    let strip = u.size.x / u.a.y;
-    let within = pos.x - floor(pos.x / strip) * strip;
-    inside = clamp(strip * u.p - (within - 0.5), 0.0, 1.0);
-  }
-  return over(sb(pos) * inside, base);
+  let coord = select(pos.x, pos.y, u.a.x > 0.5);
+  let strip = select(u.size.x, u.size.y, u.a.x > 0.5) / u.a.y;
+  // At an exact half-pixel boundary the rounded strip starts on the next pixel.
+  let index = max(0.0, ceil(coord / strip) - 1.0);
+  let end = floor((index + u.p) * strip + 0.5);
+  return select(sa(pos), over(sb(pos), sa(pos)), coord < end);
 }`,
 
   // a.xy centre px, a.z max reach

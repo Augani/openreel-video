@@ -88,6 +88,7 @@ export class TransitionEngine {
   private scratchBCtx: OffscreenCanvasRenderingContext2D | null = null;
   private pixelScratch: OffscreenCanvas | null = null;
   private pixelScratchCtx: OffscreenCanvasRenderingContext2D | null = null;
+  private crossZoomCanvas: OffscreenCanvas | null = null;
   private extraScratch: ExtraRenderScratch = createExtraRenderScratch();
   // WebGPU path (transition-gpu-*.ts): shots are uploaded once and the transition is one GPU pass into a WebGPU canvas,
   // so there are no scratch canvases and no bitmap round trips. The Canvas2D code below stays the fallback (no WebGPU,
@@ -580,10 +581,19 @@ export class TransitionEngine {
       case "additiveDissolve":
         renderAdditiveDissolve(this.getContext(), outgoing, incoming, easedProgress, this.width, this.height);
         break;
+      case "crossZoom": {
+        // The running mean blends up to 24 layers. An 8-bit software canvas rounds each
+        // layer, shifting even flat colours. Accumulate in half float where available.
+        this.crossZoomCanvas ??= new OffscreenCanvas(this.width, this.height);
+        const options = { colorSpace: "srgb", colorType: "float16" } as CanvasRenderingContext2DSettings;
+        const ctx = this.crossZoomCanvas.getContext("2d", options) ?? this.getContext();
+        ctx.clearRect(0, 0, this.width, this.height);
+        renderDrawPlan(ctx, this.planFor(transition, easedProgress), outgoing, incoming, this.width, this.height);
+        return ctx.canvas;
+      }
       case "cubeSpin":
       case "flipOver":
       case "split":
-      case "crossZoom":
       case "pagePeel":
         renderDrawPlan(
           this.getContext(),
@@ -1139,16 +1149,13 @@ export class TransitionEngine {
     ctx.drawImage(outgoing, 0, 0, w, h);
     ctx.save();
     ctx.beginPath();
-    if (horizontal) {
-      const strip = h / blindCount;
-      for (let index = 0; index < blindCount; index += 1) {
-        ctx.rect(0, index * strip, w, strip * progress);
-      }
-    } else {
-      const strip = w / blindCount;
-      for (let index = 0; index < blindCount; index += 1) {
-        ctx.rect(index * strip, 0, strip * progress, h);
-      }
+    const strip = (horizontal ? h : w) / blindCount;
+    for (let index = 0; index < blindCount; index++) {
+      // Snap both ends to the pixel grid so accelerated and software clip masks agree.
+      const start = Math.round(index * strip);
+      const extent = Math.round((index + progress) * strip) - start;
+      if (horizontal) ctx.rect(0, start, w, extent);
+      else ctx.rect(start, 0, extent, h);
     }
     ctx.clip();
     ctx.drawImage(incoming, 0, 0, w, h);
@@ -1799,6 +1806,7 @@ export class TransitionEngine {
     this.width = width;
     this.height = height;
     this.gpu?.resize(width, height);
+    this.crossZoomCanvas = null;
 
     if (typeof OffscreenCanvas !== "undefined") {
       try {
@@ -1815,6 +1823,7 @@ export class TransitionEngine {
   }
 
   dispose(): void {
+    this.crossZoomCanvas = null;
     // OffscreenCanvas doesn't need explicit disposal
     // but we can clear references
     if (this.ctx) {
