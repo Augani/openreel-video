@@ -29,13 +29,14 @@
     --inspector-w: 360px;
     --topbar-h: 40px;
     --toolnav-h: 64px;
-
-    color-scheme: dark;
   }
 
   /* light theme — Claude Design "Editor" mock (emerald brand accent, Inter) */
   :root,
   [data-theme="light"] {
+    color-scheme: light;
+    --control-bg: #f7f7f9;
+    --text-button-bg: var(--bg-2);
     --bg: #f4f4f6;            /* window / app background */
     --bg-1: #ffffff;          /* cards & elevated surfaces */
     --bg-2: #f0f0f3;          /* recessed insets, pills, search fields */
@@ -45,8 +46,8 @@
     --border-strong: #d4d4d8;
     --fg: #1d1d1f;            /* primary text */
     --fg-2: #3a3a3c;          /* secondary text */
-    --fg-3: #7c7c82;          /* tertiary / labels */
-    --fg-muted: #9a9a9f;      /* muted / placeholder */
+    --fg-3: #64646c;          /* tertiary / labels */
+    --fg-muted: #686870;      /* muted / placeholder */
     --hover: #f0f0f3;
     --selected: #e6f9f1;      /* emerald-soft selected state */
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
@@ -77,6 +78,7 @@
   /* dark theme — cinematic, near-black like reference */
   [data-theme="dark"],
   .dark {
+    color-scheme: dark;
     --bg: oklch(0.12 0.005 240);
     --bg-1: oklch(0.16 0.006 240);
     --bg-2: oklch(0.2 0.007 240);

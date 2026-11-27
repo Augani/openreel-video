@@ -37,7 +37,6 @@ import { mediaDisplayDuration } from "@openreel/core";
 import { phoneTrackLayout } from "../mobile/mobile-timeline-layout";
 import { placeSequenceOnTimeline } from "../../../services/sequence-commands";
 
-const CLIP_SCROLL_BUCKET = 96;
 /** Must match the Timeline, which quantises the scroll position it hands to each lane. */
 export const LANE_SCROLL_BUCKET = 256;
 const HANDLE_MARGIN = 48;
@@ -368,6 +367,7 @@ export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane
   // `scrollX` arrives quantised to LANE_SCROLL_BUCKET by the Timeline (so the lane only re-renders when the
   // culled window can change); the window is widened by one bucket so it stays a superset of the real viewport.
   // The overscan shrinks by half a bucket per side in exchange, so the mounted width stays 2 x viewport.
+  // Clips use this same window for their bars and thumbnails, including the unreported scroll within the bucket.
   const cullViewportWidth = viewportWidth > 0 ? viewportWidth + LANE_SCROLL_BUCKET : viewportWidth;
   const cullOverscan = Math.max(0, viewportWidth / 2 - LANE_SCROLL_BUCKET / 2);
   const previousVisible = useRef<Clip[]>([]);
@@ -384,12 +384,6 @@ export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane
     return prev.length === next.length && next.every((clip, i) => clip === prev[i]) ? prev : next;
   }, [track.clips, textClips, shapeClips, scrollX, cullViewportWidth, cullOverscan, pixelsPerSecond, selectedClipIds]);
   previousVisible.current = visibleClips;
-
-  // Clips only use the scroll position to cull thumbnails/waveform bars (120px lookahead).
-  // Quantising it (and widening the viewport by the same amount) keeps that cull a superset
-  // of the real viewport while letting memoised clips skip renders for most scroll ticks.
-  const clipScrollX = Math.floor(scrollX / CLIP_SCROLL_BUCKET) * CLIP_SCROLL_BUCKET;
-  const clipViewportWidth = Math.ceil(viewportWidth / CLIP_SCROLL_BUCKET) * CLIP_SCROLL_BUCKET + CLIP_SCROLL_BUCKET;
 
   // Cross-clip derived state (linked audio, J/L offsets, neighbour transitions, lane badge) is
   // folded into primitives once per commit, with identity preserved per clip when unchanged, so
@@ -490,8 +484,8 @@ export const TrackLane: React.FC<TrackLaneProps> = React.memo(function TrackLane
               getAllTracks={getAllTracks}
               laneInfo={laneInfos.get(clip.id)}
               pixelsPerSecond={pixelsPerSecond}
-              scrollX={clipScrollX}
-              viewportWidth={clipViewportWidth}
+              scrollX={scrollX}
+              viewportWidth={cullViewportWidth}
               isSelected={selectedClipSet.has(clip.id)}
               trackHeights={trackHeights}
               rowHeights={rowHeights}
