@@ -1,5 +1,7 @@
 # OpenReel Video
 
+**[English](README.md) | [简体中文](README.zh-CN.md)**
+
 > **The open source CapCut alternative. Professional video editing in your browser. No uploads. No installs. 100% open source.**
 
 OpenReel Video is a fully-featured browser-based video editor that runs entirely client-side. Built with React, TypeScript, WebCodecs, and WebGPU for professional-grade video editing without the need for expensive software or cloud processing.
