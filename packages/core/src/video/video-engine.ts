@@ -1332,8 +1332,8 @@ export class VideoEngine {
               bitmap = await this.decodeFrameWithMediaBunny(
                 decodeBlob,
                 decodeTime,
-                settings.width,
-                settings.height,
+                width,
+                height,
                 useStabilizedBlob ? `stabilized:${clip.id}` : clipInfo.mediaId,
               );
             }
@@ -1351,8 +1351,8 @@ export class VideoEngine {
                 useStabilizedBlob ? `stabilized:${clip.id}` : mediaItem.id,
                 decodeBlob,
                 decodeTime,
-                settings.width,
-                settings.height,
+                width,
+                height,
                 mediaItem.type === "video" ? frameConformFor(mediaItem) : null,
                 settings.fieldOrder,
               );

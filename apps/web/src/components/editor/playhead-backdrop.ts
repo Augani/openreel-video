@@ -86,6 +86,7 @@ function publish(): void {
 function startShared(): () => void {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let token = 0;
+  let decoder: AbortController | undefined;
   let lastKey = "";
   let thumbUrl: string | null = null;
   let live = true;
@@ -100,9 +101,12 @@ function startShared(): () => void {
     const key = `${clip?.id ?? ""}@${Math.round(playheadPosition * 12)}:${project.mediaLibrary.items.length}`;
     if (key === lastKey) return;
     lastKey = key;
+    decoder?.abort();
+    decoder = new AbortController();
+    const { signal } = decoder;
     const mine = ++token;
     void import("./playhead-frame")
-      .then((module) => module.decodePlayheadFrame(project, playheadPosition))
+      .then((module) => module.decodePlayheadFrame(project, playheadPosition, undefined, signal))
       .then((decoded) => {
         if (mine !== token) return;
         decodedFrame = decoded;
@@ -139,6 +143,7 @@ function startShared(): () => void {
   const offTimeline = useTimelineStore.subscribe(schedule);
   return () => {
     live = false;
+    decoder?.abort();
     token++;
     clearTimeout(timer);
     offProject();

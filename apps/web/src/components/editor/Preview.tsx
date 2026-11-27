@@ -2795,6 +2795,18 @@ export const Preview: React.FC = () => {
           }
 
           try {
+            // Match the export decoder's chroma sampling on a settled frame. While dragging,
+            // keep the seekable video element and scrub cache for low-latency feedback.
+            if (!useTimelineStore.getState().isScrubbing) {
+              const exact = await decodeFrameWithWebCodecs(mediaBlob, mediaTime).catch(() => null);
+              if (isStaleRequest()) { exact?.close(); finish(null); return; }
+              if (exact) {
+                previewProxyCache.noteDecode(clip.mediaId, mediaBlob);
+                scheduleScrubVideoRelease();
+                finish(exact);
+                return;
+              }
+            }
             let cached = videoElementCacheRef.current.get(cacheKey);
             if (cached && cached.blob !== mediaBlob) {
               releaseVideoElement(cached);

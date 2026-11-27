@@ -169,7 +169,7 @@ test("half-float GPU compositor matches the float CPU reference (composite, grad
 test("playback cost of the float path versus the 8-bit grading pass (1080p)", async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   await openHook(page);
-  const result = await page.evaluate(async () => {
+  const result = await page.evaluate(async (softwareGpu) => {
     const core = (window as unknown as { __openreelE2E: { core: HdrCore } }).__openreelE2E.core;
     const hw = core.hdrWorking;
     if (!core.hdrGpu.isGpuHdrAvailable()) return { skipped: "no WebGL2 with EXT_color_buffer_float" };
@@ -204,6 +204,9 @@ test("playback cost of the float path versus the 8-bit grading pass (1080p)", as
 
     const gpu = new core.hdrGpu.GpuHdrCompositor();
     const time = async (n: number, fn: () => void | Promise<void>): Promise<number> => {
+      // Software Vulkan executes every 1080p shader on the CPU. Keep the full-size
+      // workload and the per-frame budget, with fewer repetitions after warm-up.
+      if (softwareGpu) n = Math.min(n, 5);
       await fn();
       const t0 = performance.now();
       for (let i = 0; i < n; i++) await fn();
@@ -262,7 +265,7 @@ test("playback cost of the float path versus the 8-bit grading pass (1080p)", as
     cpu.readSdrView();
     const cpuMs = performance.now() - t0;
     return { previewMs, previewCanvasMs, exportMs, eightBitMs, cpuMs };
-  });
+  }, SOFTWARE_GPU);
   console.log(`[${testInfo.project.name}] 1080p float path cost: ${JSON.stringify(result)}`);
   if ("skipped" in result) test.skip(true, String(result.skipped));
   const r = result as Record<string, number>;
