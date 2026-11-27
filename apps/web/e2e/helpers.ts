@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from "@playwright/test";
+import { basename } from "node:path";
 import { FIXTURE_PATH } from "./global-setup";
 
 export const FPS = 30;
@@ -97,7 +98,7 @@ export const shape = (clips: ClipState[]) =>
  */
 export const importInput = (page: Page): Locator => page.locator('[data-tour="assets"] input[type="file"]');
 
-export async function openEditor(page: Page): Promise<void> {
+export async function openEditor(page: Page, fixturePath = FIXTURE_PATH): Promise<void> {
   await page.addInitScript(() => {
     try {
       localStorage.setItem("openreel-onboarding-complete", "true");
@@ -120,7 +121,7 @@ export async function openEditor(page: Page): Promise<void> {
       await page.goto("/");
       await page.getByRole("button", { name: /Horizontal/ }).click();
       entered = true;
-      await openEditorBody(page);
+      await openEditorBody(page, fixturePath);
       return;
     } catch (error) {
       if (attempt >= 1 || loadsAfterEntry === 0) throw error;
@@ -131,10 +132,11 @@ export async function openEditor(page: Page): Promise<void> {
   }
 }
 
-async function openEditorBody(page: Page): Promise<void> {
+async function openEditorBody(page: Page, fixturePath: string): Promise<void> {
   await page.locator('canvas[aria-label^="Program frame"]').waitFor({ timeout: 60_000 });
-  await importInput(page).setInputFiles(FIXTURE_PATH);
-  const card = page.getByLabel("Select media three-scenes.mp4");
+  const fileName = basename(fixturePath);
+  await importInput(page).setInputFiles(fixturePath);
+  const card = page.getByLabel(`Select media ${fileName}`);
   // Import decodes the file's metadata in the page; on a starved machine (two GPU/software renderers plus an
   // encoder running) that has taken longer than 30 s. The wait is bounded and a miss names what the page said.
   const errors: string[] = [];
@@ -152,7 +154,7 @@ async function openEditorBody(page: Page): Promise<void> {
     page.off("pageerror", onPageError);
   }
   // Double-click opens the Source monitor; the actions menu places on the timeline.
-  await page.getByRole("button", { name: "Media actions for three-scenes.mp4" }).click();
+  await page.getByRole("button", { name: `Media actions for ${fileName}` }).click();
   await page.getByRole("menuitem", { name: "Add to timeline" }).click();
   const match = page.getByRole("button", { name: "Match Video" });
   await match.click({ timeout: 8_000 }).catch(() => undefined);

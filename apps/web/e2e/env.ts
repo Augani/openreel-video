@@ -25,10 +25,11 @@ export const GPU_ARGS: string[] =
     ? ["--enable-gpu", "--use-angle=metal", "--enable-unsafe-webgpu"]
     : [
         "--enable-unsafe-webgpu",
-        "--enable-features=Vulkan",
         "--use-angle=swiftshader",
         "--use-webgpu-adapter=swiftshader",
-        "--ignore-gpu-blocklist",
+        // SwiftShader renders WebGPU; software 2D canvas keeps image uploads and readback in sync.
+        "--enable-unsafe-swiftshader",
+        "--disable-accelerated-2d-canvas",
         "--no-sandbox",
       ]);
 
@@ -46,7 +47,7 @@ export const SOFTWARE_GPU =
 /** Flags for the "WebGPU switched off, WebGL still available" project. */
 export const NOWEBGPU_ARGS: string[] = IS_MAC
   ? ["--enable-gpu", "--use-angle=metal", "--disable-features=WebGPU,WebGPUService"]
-  : ["--use-angle=swiftshader", "--ignore-gpu-blocklist", "--no-sandbox", "--disable-features=WebGPU,WebGPUService"];
+  : ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--disable-accelerated-2d-canvas", "--no-sandbox", "--disable-features=WebGPU,WebGPUService"];
 
 /** Flags for the "no GPU at all" project. */
 export const SOFTWARE_ARGS: string[] = [

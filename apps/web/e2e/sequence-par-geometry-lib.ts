@@ -37,7 +37,7 @@ export interface Measured {
   exported: Moments;
   par: number;
   gpuSubmits: number;
-  gpuAdapter: boolean;
+  gpuAdapter: "hardware" | "software" | null;
   renderer: string;
 }
 
@@ -150,9 +150,9 @@ async function measure(page: Page, time: number, weightSource: string, playFrom?
       const frame = await engine.renderFrame(project, t as number, width, height);
       const exported = moments(read(frame.image, width, height), width, height);
       // requestAdapter can return null for a moment while many GPU clients start at once: ask a few times before concluding there is none.
-      let adapter = false;
+      let adapter = null;
       for (let attempt = 0; attempt < 6 && !adapter; attempt++) {
-        adapter = Boolean(await (navigator as any).gpu?.requestAdapter?.().catch(() => null));
+        adapter = await (navigator as any).gpu?.requestAdapter?.().catch(() => null);
         if (!adapter) await new Promise((resolve) => setTimeout(resolve, 500));
       }
       return {
@@ -160,7 +160,7 @@ async function measure(page: Page, time: number, weightSource: string, playFrom?
         exported,
         par,
         gpuSubmits: (window as any).__gpuSubmits ?? 0,
-        gpuAdapter: adapter,
+        gpuAdapter: !adapter ? null : (adapter.info?.isFallbackAdapter || adapter.isFallbackAdapter || adapter.info?.architecture === "swiftshader" ? "software" as const : "hardware" as const),
         renderer: String(document.querySelector(sel as string)?.getAttribute("data-renderer") ?? ""),
       };
     },

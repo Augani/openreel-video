@@ -95,18 +95,18 @@ export async function auditLayout(page: Page, options: { focus?: boolean; scope?
         out.push({ kind: "clippedText", target: describe(el), detail: `content ${el.scrollWidth}px in ${el.clientWidth}px` });
       }
     }
-    // Overlapping controls.
-    const area = (r: DOMRect) => r.width * r.height;
+    // Layout is fixed until the focus sweep below. Read each clipped box once.
+    const boxes = controls.map(visibleRect);
     for (let i = 0; i < controls.length; i++) {
       for (let j = i + 1; j < controls.length; j++) {
         const a = controls[i], b = controls[j];
         if (a.contains(b) || b.contains(a)) continue;
-        const va = visibleRect(a), vb = visibleRect(b);
+        const va = boxes[i], vb = boxes[j];
         if (!va || !vb) continue;
         const ra = { width: va.right - va.left, height: va.bottom - va.top }, rb = { width: vb.right - vb.left, height: vb.bottom - vb.top };
         const w = Math.min(va.right, vb.right) - Math.max(va.left, vb.left), h = Math.min(va.bottom, vb.bottom) - Math.max(va.top, vb.top);
         if (w <= 2 || h <= 2) continue;
-        if (w * h > 0.25 * Math.min(area(ra as DOMRect), area(rb as DOMRect))) {
+        if (w * h > 0.25 * Math.min(ra.width * ra.height, rb.width * rb.height)) {
           // Resize handles and the like sit on an edge by design.
           if (a.hasAttribute("data-resize-handle") || b.hasAttribute("data-resize-handle")) continue;
           // One of them hidden behind a clipper the other is not inside is not a real overlap.

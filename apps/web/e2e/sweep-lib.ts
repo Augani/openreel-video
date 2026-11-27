@@ -1,3 +1,7 @@
+import { execFileSync } from "node:child_process";
+import { existsSync, renameSync } from "node:fs";
+import { join } from "node:path";
+import { FIXTURE_DIR, FIXTURE_PATH } from "./global-setup";
 import { expect, type Page } from "@playwright/test";
 import {
   clickClip,
@@ -172,7 +176,20 @@ export async function sweepOne(page: Page, clipId: string, label: string): Promi
 }
 
 export async function prepareSweep(page: Page): Promise<{ clipId: string; labels: string[] }> {
-  await openEditor(page);
+  // Temporal repair cards need real flicker. Alternate exposure around the second sample;
+  // the original static bars correctly need no correction.
+  const fixture = join(FIXTURE_DIR, "effect-sweep.mp4");
+  if (!existsSync(fixture)) {
+    const temporary = join(FIXTURE_DIR, `effect-sweep-${process.pid}.mp4`);
+    execFileSync("ffmpeg", [
+      "-y", "-i", FIXTURE_PATH, "-vf", "eq=brightness='if(mod(n,2),0.04,-0.04)':eval=frame:enable='between(t,4.4,5.6)'",
+      "-c:v", "libx264", "-crf", "12", "-g", "15", "-pix_fmt", "yuv420p",
+      "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-color_range", "tv",
+      "-c:a", "copy", temporary,
+    ], { stdio: "pipe" });
+    renameSync(temporary, fixture);
+  }
+  await openEditor(page, fixture);
   const [clip] = clipsOf(await readState(page), "Main");
   await clickClip(page, clip.id);
   // OPENREEL_E2E_ONLY="Glow,Vignette" narrows the sweep while iterating.
