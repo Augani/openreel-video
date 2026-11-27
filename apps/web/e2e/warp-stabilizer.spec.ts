@@ -63,74 +63,63 @@ async function importShaky(page: Page): Promise<{ id: string; start: number }> {
   return { id: clip.id, start: clip.start };
 }
 
-interface Rendered {
-  t: number;
-  pixels: number[];
-  identical: boolean;
-}
-
-/** Frames at `times` rendered by the preview engine and by the export-mode engine; `identical` when they match exactly. */
-async function renderBoth(page: Page, times: number[]): Promise<Rendered[]> {
-  return page.evaluate(
-    async ([list, w, h]) => {
-      const hook = (window as unknown as { __openreelE2E: Hook }).__openreelE2E;
-      const engine = hook.video.getVideoEngine();
-      const read = (bitmap: ImageBitmap): number[] => {
-        const c = new OffscreenCanvas(bitmap.width, bitmap.height);
-        const g = c.getContext("2d", { willReadFrequently: true })!;
-        g.drawImage(bitmap, 0, 0);
-        return Array.from(g.getImageData(0, 0, bitmap.width, bitmap.height).data);
-      };
-      const render = async (exportMode: boolean, t: number): Promise<number[]> => {
-        engine.exportMode = exportMode;
+/** Compare every preview/export byte in the browser, retaining only the previous frame for the shake measurement. */
+async function renderBoth(page: Page, times: number[], captureLuma = false) {
+  return page.evaluate(async ({ times, width, height, captureLuma }) => {
+    const hook = (window as unknown as { __openreelE2E: Hook }).__openreelE2E;
+    const engine = hook.video.getVideoEngine();
+    const ctx = new OffscreenCanvas(width, height).getContext("2d", { willReadFrequently: true })!;
+    const render = async (exportMode: boolean, time: number) => {
+      const previousMode = engine.exportMode;
+      engine.exportMode = exportMode;
+      try {
+        const { image } = await engine.renderFrame(hook.project.getState().project, time, width, height);
         try {
-          return read((await engine.renderFrame(hook.project.getState().project, t, w as number, h as number)).image);
+          ctx.clearRect(0, 0, width, height);
+          ctx.drawImage(image, 0, 0);
+          return ctx.getImageData(0, 0, width, height).data;
         } finally {
-          engine.exportMode = false;
+          image.close();
         }
-      };
-      const out: Rendered[] = [];
-      for (const t of list as number[]) {
-        const preview = await render(false, t);
-        const exported = await render(true, t);
-        let identical = preview.length === exported.length;
-        for (let i = 0; identical && i < preview.length; i++) if (preview[i] !== exported[i]) identical = false;
-        out.push({ t, pixels: preview, identical });
+      } finally {
+        engine.exportMode = previousMode;
       }
-      return out;
-    },
-    [times, W, H] as const,
-  );
-}
-
-const luma = (px: number[], i: number): number => 0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2];
-
-/** Mean absolute luma change between consecutive frames over the centre of the picture: the shake that is left. */
-function residualShake(frames: Rendered[]): number {
-  let sum = 0;
-  let count = 0;
-  for (let k = 1; k < frames.length; k++) {
-    for (let y = Math.floor(H * 0.2); y < Math.floor(H * 0.8); y += 2) {
-      for (let x = Math.floor(W * 0.2); x < Math.floor(W * 0.8); x += 2) {
-        sum += Math.abs(luma(frames[k].pixels, y * W + x) - luma(frames[k - 1].pixels, y * W + x));
-        count++;
+    };
+    const luma = (pixels: Uint8ClampedArray, i: number) => 0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2];
+    let previous: Uint8ClampedArray | undefined;
+    let lumaDifference = 0, samples = 0, empty = 0;
+    const mismatched: number[] = [];
+    const lumaFrames: string[] = [];
+    for (const time of times) {
+      const preview = await render(false, time);
+      const exported = await render(true, time);
+      if (!preview.every((channel, i) => channel === exported[i])) mismatched.push(time);
+      for (let i = 0; i < preview.length; i += 4) {
+        if (preview[i] + preview[i + 1] + preview[i + 2] < 3) empty++;
       }
+      if (previous) {
+        for (let y = Math.floor(height * 0.2); y < Math.floor(height * 0.8); y += 2) {
+          for (let x = Math.floor(width * 0.2); x < Math.floor(width * 0.8); x += 2) {
+            const i = (y * width + x) * 4;
+            lumaDifference += Math.abs(luma(preview, i) - luma(previous, i));
+            samples++;
+          }
+        }
+      }
+      if (captureLuma) {
+        const plane = new Uint8Array(width * height);
+        for (let i = 0; i < plane.length; i++) {
+          const at = i * 4;
+          plane[i] = Math.round(16 + 219 / 255 * (0.2126 * preview[at] + 0.7152 * preview[at + 1] + 0.0722 * preview[at + 2]));
+        }
+        let bytes = "";
+        for (let i = 0; i < plane.length; i += 32768) bytes += String.fromCharCode(...plane.subarray(i, i + 32768));
+        lumaFrames.push(btoa(bytes));
+      }
+      previous = preview;
     }
-  }
-  return sum / count;
-}
-
-/** Fraction of the picture that is empty (black, where the stabilized picture does not reach). */
-function emptyFraction(frames: Rendered[]): number {
-  let empty = 0;
-  let total = 0;
-  for (const f of frames) {
-    for (let i = 0; i < W * H; i++) {
-      if (f.pixels[i * 4] + f.pixels[i * 4 + 1] + f.pixels[i * 4 + 2] < 3) empty++;
-      total++;
-    }
-  }
-  return empty / total;
+    return { mismatched, lumaFrames, shake: lumaDifference / samples, emptyFraction: empty / (times.length * width * height) };
+  }, { times, width: W, height: H, captureLuma });
 }
 
 const clipOf = (page: Page, id: string) =>
@@ -164,7 +153,7 @@ test("Warp Stabilizer: background analysis, Result and Framing switches on one a
 
   // as shot
   const plain = await renderBoth(page, times);
-  const plainShake = residualShake(plain);
+  const plainShake = plain.shake;
   console.log(`[warp e2e] shake as shot ${plainShake.toFixed(2)} luma/frame`);
   expect(plainShake).toBeGreaterThan(1.5);
 
@@ -204,10 +193,10 @@ test("Warp Stabilizer: background analysis, Result and Framing switches on one a
     await setWarp(page, id, patch);
     const frames = await renderBoth(page, times);
     const wide = await renderBoth(page, spread);
-    const mismatched = [...frames, ...wide].filter((f) => !f.identical).map((f) => f.t.toFixed(3));
-    shake[label] = residualShake(frames);
-    empty[label] = emptyFraction(wide);
-    console.log(`[warp e2e] ${label}: shake ${shake[label].toFixed(2)}, empty ${(empty[label] * 100).toFixed(2)}%, preview==export-mode ${frames.length + wide.length - mismatched.length}/${frames.length + wide.length}`);
+    const mismatched = [...frames.mismatched, ...wide.mismatched];
+    shake[label] = frames.shake;
+    empty[label] = wide.emptyFraction;
+    console.log(`[warp e2e] ${label}: shake ${shake[label].toFixed(2)}, empty ${(empty[label] * 100).toFixed(2)}%, preview==export-mode ${times.length + spread.length - mismatched.length}/${times.length + spread.length}`);
     expect(mismatched, `${label}: preview and export-mode renders agree`).toEqual([]);
   }
   // the same analysis served every switch
@@ -247,7 +236,7 @@ test("Warp Stabilizer: background analysis, Result and Framing switches on one a
   );
   await expect.poll(async () => (await clipOf(page, id))?.enabled).toBe(true);
   expect((await clipOf(page, id))!.warpAnalysis!.motion).toEqual(analysisBefore.motion);
-  const previews = await renderBoth(page, frameTimes);
+  const previews = await renderBoth(page, frameTimes, true);
   const first = start + 0.3;
   const exportId = await page.evaluate(
     ([from, count]) => {
@@ -274,14 +263,12 @@ test("Warp Stabilizer: background analysis, Result and Framing switches on one a
   for (let off = 0; off + frameBytes <= raw.length; off += frameBytes) exported.push(raw.subarray(off, off + W * H));
   expect(exported.length).toBeGreaterThan(40);
   // preview frames sit at 0, 0.3, 0.6 ... s into the export (frameTimes are 0.3 s apart from `first`)
-  const psnrs = previews.map((f, k) => {
-    const index = Math.round((f.t - first) * 30);
-    const lumaPlane = new Uint8Array(W * H);
-    for (let i = 0; i < W * H; i++) lumaPlane[i] = Math.round(16 + (219 * (0.2126 * f.pixels[i * 4] + 0.7152 * f.pixels[i * 4 + 1] + 0.0722 * f.pixels[i * 4 + 2])) / 255);
+  const psnrs = previews.lumaFrames.map((bytes, k) => {
+    const index = Math.round((frameTimes[k] - first) * 30);
+    const lumaPlane = Buffer.from(bytes, "base64");
     let se = 0;
     const e = exported[Math.min(index, exported.length - 1)];
     for (let i = 0; i < W * H; i++) se += (lumaPlane[i] - e[i]) ** 2;
-    void k;
     return se === 0 ? Infinity : 10 * Math.log10((255 * 255) / (se / (W * H)));
   });
   console.log(`[warp e2e] exported file vs preview PSNR per frame: ${psnrs.map((v) => v.toFixed(1)).join(" ")}`);

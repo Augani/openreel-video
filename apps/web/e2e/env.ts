@@ -26,7 +26,10 @@ export const GPU_ARGS: string[] =
     : [
         "--enable-unsafe-webgpu",
         "--use-angle=swiftshader",
-        "--use-webgpu-adapter=swiftshader",
+        // Use the same Vulkan implementation for ANGLE and WebGPU. Selecting only
+        // the Dawn fallback adapter on headless Linux makes external textures read black.
+        "--enable-features=Vulkan",
+        "--use-vulkan=swiftshader",
         // SwiftShader renders WebGPU; software 2D canvas keeps image uploads and readback in sync.
         "--enable-unsafe-swiftshader",
         "--disable-accelerated-2d-canvas",

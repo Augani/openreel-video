@@ -389,7 +389,7 @@ export async function runGpuTransitionParity(page: Page): Promise<{ rows: GpuPar
       g.drawImage(canvas, 0, 0);
       return g.getImageData(0, 0, canvas.width, canvas.height).data;
     };
-    const gpuEngine = t.engine.createTransitionEngine(W, H);
+    const gpuEngine = new t.engine.TransitionEngine({ width: W, height: H, useGPU: true });
     const gpuActive: boolean = await gpuEngine.ensureGpu();
     const refEngine = new t.engine.TransitionEngine({ width: W, height: H, useGPU: false });
     const types: string[] = gpuEngine.getAvailableTransitionTypes().filter((type: string) => type !== "morphCut");

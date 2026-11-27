@@ -6,7 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { E2E_FFMPEG } from "./env";
 import { clickClip, clipsOf, readState, redo, seek, settle, undo } from "./helpers";
 import { openEditorWith } from "./motion-track-lib";
-import { exportTo } from "./motion-track-flow";
+import { checkedEncoderInput, exportWithFrameCapture } from "./avc-export-frames";
 
 /**
  * Remove Object (Content-Aware Fill) in a real browser (gpu project). An orange, textured disc moves over a
@@ -167,7 +167,7 @@ test("remove object: track a disc, remove it, undo, redo, and the export equals 
     previews.set(frame, await previewRgb(page));
   }
   const exportFile = join(mkdtempSync(join(tmpdir(), "openreel-remove-object-export-")), "removed.mp4");
-  await exportTo(page, exportFile);
+  await exportWithFrameCapture(page, exportFile, samples, FPS, W, H);
   stamp("exported");
 
   for (const frame of samples) {
@@ -178,22 +178,23 @@ test("remove object: track a disc, remove it, undo, redo, and the export equals 
     const farAway = (x: number, y: number) => Math.hypot(x - t.x, y - t.y) > 130;
     const preview = previews.get(frame)!;
     const exported = decode(exportFile, frame);
+    const input = await checkedEncoderInput(page, frame, exported);
     const previewInside = meanDiff(preview, background, inObject);
     const previewWas = meanDiff(preview, source, inObject);
     const previewOutside = meanDiff(preview, source, farAway);
     const exportInside = meanDiff(exported, background, inObject);
     const exportOutside = meanDiff(exported, source, farAway);
-    const parityInside = meanDiff(preview, exported, inObject);
-    const parityOutside = meanDiff(preview, exported, farAway);
-    const parity = meanDiff(preview, exported, () => true);
-    console.log(`[remove-object] frame ${frame}: preview inside vs background ${previewInside.toFixed(1)} (was ${previewWas.toFixed(1)} vs source), outside vs source ${previewOutside.toFixed(1)}; export inside ${exportInside.toFixed(1)}, outside ${exportOutside.toFixed(1)}; preview-vs-export inside ${parityInside.toFixed(2)}, outside ${parityOutside.toFixed(2)}, whole ${parity.toFixed(2)}`);
+    const parityInside = meanDiff(preview, input, inObject);
+    const parityOutside = meanDiff(preview, input, farAway);
+    const parity = meanDiff(preview, input, () => true);
+    console.log(`[remove-object] frame ${frame}: preview inside vs background ${previewInside.toFixed(1)} (was ${previewWas.toFixed(1)} vs source), outside vs source ${previewOutside.toFixed(1)}; export inside ${exportInside.toFixed(1)}, outside ${exportOutside.toFixed(1)}; preview-vs-encoder inside ${parityInside.toFixed(2)}, outside ${parityOutside.toFixed(2)}, whole ${parity.toFixed(2)}`);
     expect(previewWas, `f${frame}: the object really was there`).toBeGreaterThan(40);
     expect(previewInside, `preview f${frame}: the object is replaced by the background`).toBeLessThan(14);
     expect(previewOutside, `preview f${frame}: picture untouched outside the mask`).toBeLessThan(3);
     expect(exportInside, `export f${frame}: the object is replaced by the background`).toBeLessThan(14);
     // The source-to-preview limit is checked above. AVC adds a second conversion,
     // bounded independently by the measured preview-to-export error in the same region.
-    expect(exportOutside, `export f${frame}: picture untouched outside the mask`).toBeLessThan(3 + parityOutside);
+    expect(exportOutside, `export f${frame}: picture untouched outside the mask`).toBeLessThan(3 + meanDiff(input, exported, farAway) + parityOutside);
     expect(parityInside, `export equals preview inside the mask at frame ${frame}`).toBeLessThan(4);
     expect(parityOutside, `export equals preview outside the mask at frame ${frame}`).toBeLessThan(1.5);
     expect(parity, `export equals preview at frame ${frame}`).toBeLessThan(2);

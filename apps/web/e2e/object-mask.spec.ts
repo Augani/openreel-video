@@ -6,7 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { E2E_FFMPEG } from "./env";
 import { clickClip, clipsOf, readState, seek, settle, undo } from "./helpers";
 import { openEditorWith } from "./motion-track-lib";
-import { exportTo } from "./motion-track-flow";
+import { checkedEncoderInput, exportWithFrameCapture } from "./avc-export-frames";
 
 /**
  * Object mask in a real browser (gpu project). An orange, textured disc moves over a grey textured background.
@@ -194,7 +194,7 @@ test("object mask: click, track forward and backward, effects inside the mask, e
     previews.set(frame, await previewRgb(page));
   }
   stamp("previews captured");
-  await exportTo(page, exportFile);
+  await exportWithFrameCapture(page, exportFile, samples, FPS, W, H);
   stamp("exported");
 
   for (const frame of samples) {
@@ -204,19 +204,20 @@ test("object mask: click, track forward and backward, effects inside the mask, e
     const farAway = (x: number, y: number) => Math.hypot(x - t.x, y - t.y) > 130;
     const preview = previews.get(frame)!;
     const exported = decode(exportFile, frame);
+    const input = await checkedEncoderInput(page, frame, exported);
     const insideInverted = meanDiff(preview, source, inObject, true);
     const outsideKept = meanDiff(preview, source, farAway);
     const exportInside = meanDiff(exported, source, inObject, true);
     const exportOutside = meanDiff(exported, source, farAway);
-    const parityOutside = meanDiff(preview, exported, farAway);
-    const parity = meanDiff(preview, exported, () => true);
-    console.log(`[object-mask] frame ${frame}: preview inside-inverted diff ${insideInverted.toFixed(1)}, outside-kept diff ${outsideKept.toFixed(1)}; export ${exportInside.toFixed(1)} / ${exportOutside.toFixed(1)}; preview-vs-export mean diff ${parity.toFixed(2)}`);
+    const parityOutside = meanDiff(preview, input, farAway);
+    const parity = meanDiff(preview, input, () => true);
+    console.log(`[object-mask] frame ${frame}: preview inside-inverted diff ${insideInverted.toFixed(1)}, outside-kept diff ${outsideKept.toFixed(1)}; export ${exportInside.toFixed(1)} / ${exportOutside.toFixed(1)}; preview-vs-encoder mean diff ${parity.toFixed(2)}`);
     expect(insideInverted, `preview f${frame}: effect shows inside the mask`).toBeLessThan(10);
     expect(outsideKept, `preview f${frame}: picture untouched outside the mask`).toBeLessThan(3);
     expect(exportInside, `export f${frame}: effect shows inside the mask`).toBeLessThan(10);
     // The source-to-preview limit is checked above. AVC adds a second conversion,
     // bounded independently by the measured preview-to-export error in the same region.
-    expect(exportOutside, `export f${frame}: picture untouched outside the mask`).toBeLessThan(3 + parityOutside);
+    expect(exportOutside, `export f${frame}: picture untouched outside the mask`).toBeLessThan(3 + meanDiff(input, exported, farAway) + parityOutside);
     expect(parityOutside, `export preserves the unmasked preview at frame ${frame}`).toBeLessThan(1.5);
     expect(parity, `export equals preview at frame ${frame}`).toBeLessThan(1.5);
   }

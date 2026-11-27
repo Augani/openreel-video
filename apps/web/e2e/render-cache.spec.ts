@@ -449,11 +449,11 @@ test.describe("Render Effects In to Out and persistent render files", () => {
   test("render files persist: a re-initialised cache restores the range from storage and plays it from the cache", async ({ page }) => {
     const [clip] = clipsOf(await readState(page), "Main");
     await HEAVY_STACK(page, clip.id);
-    await markRange(page, 0, 1);
+    await markRange(page, 0, 4);
     await rc(page, (cache) => {
       void cache.renderInToOut();
     });
-    await waitRendered(page, 30);
+    await waitRendered(page, 120);
     const kind = await rc(page, (cache) => cache.storageKind);
     expect(["opfs", "indexeddb"]).toContain(kind);
     expect(await rc(page, (cache) => cache.isPersistent)).toBe(true);
@@ -466,15 +466,23 @@ test.describe("Render Effects In to Out and persistent render files", () => {
       await cache.whenReady();
     });
     const restored = await snapshot(page);
-    expect(restored.restored).toMatchObject({ restored: 30, droppedStale: 0, droppedMissing: 0 });
-    expect(restored.frameCount).toBe(30);
-    expect(restored.cachedRuns).toEqual([{ start: 0, end: 29 }]);
+    expect(restored.restored).toMatchObject({ restored: 120, droppedStale: 0, droppedMissing: 0 });
+    expect(restored.frameCount).toBe(120);
+    expect(restored.cachedRuns).toEqual([{ start: 0, end: 119 }]);
     await expect.poll(async () => (await levels(page)).map((s) => s.level)).toEqual(["cached", "heavy"]);
 
-    await rc(page, (c) => c.resetTelemetry());
-    const measure = await measurePlayback(page, 0, 900);
-    expect(measure.live, "no frame was composited live").toBe(0);
-    expect(measure.cache).toBeGreaterThan(10);
+    // Observe actual presentation after the cold start. This case tests the restored
+    // frames' source; the separate throughput test measures real-time playback.
+    await seek(page, 0);
+    await rc(page, (cache) => cache.resetTelemetry());
+    await focusEditor(page);
+    await page.keyboard.press("Space");
+    try {
+      await expect.poll(() => rc(page, (cache) => cache.getTelemetry().cacheFrames), { timeout: 12_000, intervals: [50] }).toBeGreaterThan(10);
+    } finally {
+      await page.keyboard.press("Space");
+    }
+    expect(await rc(page, (cache) => cache.getTelemetry().liveFrames), "no frame was composited live").toBe(0);
   });
 });
 

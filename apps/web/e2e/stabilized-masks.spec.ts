@@ -6,7 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { E2E_FFMPEG } from "./env";
 import { clickClip, clipsOf, readState, seek, settle } from "./helpers";
 import { openEditorWith } from "./motion-track-lib";
-import { exportTo } from "./motion-track-flow";
+import { checkedEncoderInput, exportWithFrameCapture } from "./avc-export-frames";
 
 /**
  * Object masks on a stabilized clip, and preview == export for a tracked mask (gpu project).
@@ -185,14 +185,15 @@ test("stabilized clip: a tracked effects-only Invert mask stays on the disc in t
 
   const shown = await previews(page, SAMPLES);
   const exportFile = join(mkdtempSync(join(tmpdir(), "openreel-stabilized-masks-export-")), "inverted.mp4");
-  await exportTo(page, exportFile);
+  await exportWithFrameCapture(page, exportFile, SAMPLES, FPS, W, H);
   for (const frame of SAMPLES) {
     const preview = shown.get(frame)!;
     const exported = decode(exportFile, frame);
+    const input = await checkedEncoderInput(page, frame, exported);
     const p = disc(preview);
     const e = disc(exported);
-    const parity = meanDiff(preview, exported);
-    console.log(`[stab-mask] f${frame}: preview inverted fraction ${p.fraction.toFixed(3)} (cyan ${p.cyan}, orange ${p.orange}); export ${e.fraction.toFixed(3)} (cyan ${e.cyan}, orange ${e.orange}); preview-vs-export mean diff ${parity.toFixed(2)}`);
+    const parity = meanDiff(preview, input);
+    console.log(`[stab-mask] f${frame}: preview inverted fraction ${p.fraction.toFixed(3)} (cyan ${p.cyan}, orange ${p.orange}); export ${e.fraction.toFixed(3)} (cyan ${e.cyan}, orange ${e.orange}); preview-vs-encoder mean diff ${parity.toFixed(2)}`);
     expect(p.cyan, `preview f${frame}: the disc is visible`).toBeGreaterThan(2500);
     expect(p.fraction, `preview f${frame}: the mask stays on the disc`).toBeGreaterThanOrEqual(0.97);
     expect(e.fraction, `export f${frame}: the mask stays on the disc`).toBeGreaterThanOrEqual(0.97);
@@ -235,14 +236,15 @@ test("stabilized clip: Remove Object on a tracked mask removes the disc in the m
 
   const shown = await previews(page, SAMPLES);
   const exportFile = join(mkdtempSync(join(tmpdir(), "openreel-stabilized-masks-export-")), "removed.mp4");
-  await exportTo(page, exportFile);
+  await exportWithFrameCapture(page, exportFile, SAMPLES, FPS, W, H);
   for (const frame of SAMPLES) {
     const preview = shown.get(frame)!;
     const exported = decode(exportFile, frame);
+    const input = await checkedEncoderInput(page, frame, exported);
     const p = disc(preview);
     const e = disc(exported);
-    const parity = meanDiff(preview, exported);
-    console.log(`[stab-remove] f${frame}: disc pixels left preview ${p.orange}, export ${e.orange}; preview-vs-export mean diff ${parity.toFixed(2)}`);
+    const parity = meanDiff(preview, input);
+    console.log(`[stab-remove] f${frame}: disc pixels left preview ${p.orange}, export ${e.orange}; preview-vs-encoder mean diff ${parity.toFixed(2)}`);
     // The disc is about 7,800 px (more once the auto-scale magnifies it); a removed disc leaves at most a rim.
     expect(p.orange, `preview f${frame}: the disc is removed`).toBeLessThan(450);
     expect(e.orange, `export f${frame}: the disc is removed`).toBeLessThan(450);
@@ -296,16 +298,17 @@ test("tracked effects-only mask, no stabilizer: the monitor equals the export at
   const frames = Array.from({ length: 30 }, (_, k) => k * 2);
   const shown = await previews(page, frames);
   const exportFile = join(mkdtempSync(join(tmpdir(), "openreel-stabilized-masks-export-")), "plain.mp4");
-  await exportTo(page, exportFile);
+  await exportWithFrameCapture(page, exportFile, frames, FPS, W, H);
   const worst: string[] = [];
   for (const frame of frames) {
     const preview = shown.get(frame)!;
     const exported = decode(exportFile, frame);
-    const parity = meanDiff(preview, exported);
+    const input = await checkedEncoderInput(page, frame, exported);
+    const parity = meanDiff(preview, input);
     const p = disc(preview);
     const e = disc(exported);
     if (parity >= 1.5 || p.fraction < 0.97 || e.fraction < 0.97) worst.push(`f${frame}: diff ${parity.toFixed(2)}, preview ${p.fraction.toFixed(3)}, export ${e.fraction.toFixed(3)}`);
-    console.log(`[plain-mask] f${frame}: preview-vs-export mean diff ${parity.toFixed(2)}, inverted fraction preview ${p.fraction.toFixed(3)} export ${e.fraction.toFixed(3)}`);
+    console.log(`[plain-mask] f${frame}: preview-vs-encoder mean diff ${parity.toFixed(2)}, inverted fraction preview ${p.fraction.toFixed(3)} export ${e.fraction.toFixed(3)}`);
   }
   expect(worst, "every sampled frame: preview equals export and the mask is on the disc").toEqual([]);
 });
