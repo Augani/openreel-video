@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RendererFactory, type RendererConfig } from "./renderer-factory";
+import { RendererFactory, requestRenderAdapter, type RendererConfig } from "./renderer-factory";
 
 const backend = vi.hoisted(() => ({
   gpu: vi.fn(),
@@ -81,4 +81,16 @@ describe("preview renderer preference", () => {
     expect(factory.getCurrentRenderer()).toBe(latest);
     stale.destroy();
   });
+});
+
+it("lets rendering fall back when the browser never returns an adapter", async () => {
+  vi.useFakeTimers();
+  try {
+    vi.stubGlobal("navigator", { gpu: { requestAdapter: () => new Promise(() => {}) } });
+    const adapter = requestRenderAdapter();
+    await vi.runAllTimersAsync();
+    await expect(adapter).resolves.toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
 });

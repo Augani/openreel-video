@@ -8,6 +8,23 @@ export function isSoftwareGpuAdapter(adapter: {
   return adapter.info?.isFallbackAdapter === true || adapter.isFallbackAdapter === true || adapter.info?.architecture === "swiftshader";
 }
 
+/** An unresponsive GPU process must not hold a Canvas2D-capable render or export open. */
+export async function requestRenderAdapter(): Promise<GPUAdapter | null> {
+  const gpu = globalThis.navigator?.gpu;
+  if (!gpu?.requestAdapter) return null;
+  let deadline: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      gpu.requestAdapter({ powerPreference: "high-performance" }),
+      new Promise<null>((resolve) => { deadline = setTimeout(() => resolve(null), 2000); }),
+    ]);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(deadline);
+  }
+}
+
 export type RendererType = "webgpu" | "canvas2d";
 
 export interface RendererConfig {

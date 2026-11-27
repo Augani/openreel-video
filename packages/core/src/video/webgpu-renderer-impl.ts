@@ -1,5 +1,5 @@
 import type { Effect } from "../types/timeline";
-import { isSoftwareGpuAdapter, type Renderer, type RendererConfig, type RenderLayer } from "./renderer-factory";
+import { isSoftwareGpuAdapter, requestRenderAdapter, type Renderer, type RendererConfig, type RenderLayer } from "./renderer-factory";
 import {
   WebGPUEffectsProcessor,
   type EffectsChangeCallback,
@@ -104,9 +104,7 @@ export class WebGPURenderer implements Renderer {
       }
 
       // Request adapter with high-performance preference
-      this.adapter = await navigator.gpu.requestAdapter({
-        powerPreference: "high-performance",
-      });
+      this.adapter = await requestRenderAdapter();
 
       if (!this.adapter || isSoftwareGpuAdapter(this.adapter)) {
         console.warn("[WebGPURenderer] No hardware WebGPU adapter available");

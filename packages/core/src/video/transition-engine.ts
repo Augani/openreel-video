@@ -93,7 +93,7 @@ export class TransitionEngine {
   // WebGPU path (transition-gpu-*.ts): shots are uploaded once and the transition is one GPU pass into a WebGPU canvas,
   // so there are no scratch canvases and no bitmap round trips. The Canvas2D code below stays the fallback (no WebGPU,
   // a lost device, a shot WebGPU cannot take) and the reference the GPU shaders are tested against.
-  private readonly useGpu: boolean;
+  private readonly useGpu: boolean | undefined;
   private gpu: GpuTransitionRenderer | null = null;
   private gpuInit: Promise<boolean> | null = null;
   /** Which renderer drew the last frame (tests, the perf trace and the export log read it). */
@@ -102,7 +102,7 @@ export class TransitionEngine {
   constructor(config: TransitionEngineConfig) {
     this.width = config.width;
     this.height = config.height;
-    this.useGpu = config.useGPU !== false && !canvas2dTransitionsForced();
+    this.useGpu = canvas2dTransitionsForced() ? false : config.useGPU;
     // Lazy initialization for environments without OffscreenCanvas (e.g., Node.js tests)
     this.initializeCanvas();
   }
@@ -212,12 +212,12 @@ export class TransitionEngine {
    * Canvas2D (no WebGPU in this browser, `useGPU: false`, or the device could not be created).
    */
   ensureGpu(): Promise<boolean> {
-    if (!this.useGpu || typeof OffscreenCanvas === "undefined" || typeof navigator === "undefined" || !(navigator as { gpu?: unknown }).gpu) {
+    if (this.useGpu === false || typeof OffscreenCanvas === "undefined" || typeof navigator === "undefined" || !(navigator as { gpu?: unknown }).gpu) {
       return Promise.resolve(false);
     }
     if (this.gpuInit) return this.gpuInit;
     const init: Promise<boolean> = import("./transition-gpu-renderer")
-      .then(({ GpuTransitionRenderer: Renderer }) => Renderer.create(this.width, this.height))
+      .then(({ GpuTransitionRenderer: Renderer }) => Renderer.create(this.width, this.height, this.useGpu === true))
       .then((renderer) => {
         // dispose() ran while the device was being created: nothing owns this renderer any more.
         if (this.gpuInit !== init) {

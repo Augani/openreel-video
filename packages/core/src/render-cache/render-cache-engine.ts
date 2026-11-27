@@ -555,8 +555,10 @@ export class RenderCache {
   }
 
   /** Warm the decode pipeline (e.g. when playback starts). */
-  warm(time: number): void {
-    this.prefetch(this.frameForTime(time));
+  async warm(time: number): Promise<void> {
+    const first = this.frameForTime(time);
+    this.prefetch(first);
+    await this.decoded.get(first);
   }
 
   private prefetch(from: number): void {

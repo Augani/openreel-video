@@ -6,7 +6,7 @@ import {
   type OutputColorSpec,
 } from "./color-output";
 import { rgbaToI420Bt709 } from "./yuv420-sdr";
-import { isSoftwareGpuAdapter } from "../video/renderer-factory";
+import { isSoftwareGpuAdapter, requestRenderAdapter } from "../video/renderer-factory";
 import { takeHdrPayload } from "../color/hdr-payload";
 import { CODEC_MAP, type VideoExportSettings, type ExportError } from "./types";
 import type { Project } from "../types/project";
@@ -279,8 +279,8 @@ export class WebCodecsBackend implements EncoderBackend {
     if (this.smartEnabled && videoCodec !== "avc") {
       throw { code: "UNSUPPORTED_CODEC", message: "Smart render needs H.264 output.", phase: "preparing", recoverable: false } satisfies ExportError;
     }
-    const adapter = await globalThis.navigator?.gpu?.requestAdapter?.({ powerPreference: "high-performance" }).catch(() => null);
-    this.useCpuFrames = !!adapter && isSoftwareGpuAdapter(adapter);
+    const adapter = await requestRenderAdapter();
+    this.useCpuFrames = adapter ? isSoftwareGpuAdapter(adapter) : !!globalThis.navigator?.gpu;
     this.outputColor = outputColorForExport(project, settings.hdr);
     if (this.outputColor && this.smartEnabled) {
       throw { code: "INVALID_SETTINGS", message: "Smart render copies untagged source packets, so it cannot be combined with Rec.2020 or HDR output.", phase: "preparing", recoverable: false } satisfies ExportError;

@@ -1,3 +1,4 @@
+import { isSoftwareGpuAdapter, requestRenderAdapter } from "./renderer-factory";
 /**
  * WebGPU renderer of the transition library.
  *
@@ -28,6 +29,7 @@ const PLAN_SAMPLES = 4;
 const VERTEX_FLOATS = 9;
 
 interface SharedGpu {
+  readonly software: boolean;
   readonly device: GPUDevice;
   readonly bindLayout: GPUBindGroupLayout;
   readonly pipelineLayout: GPUPipelineLayout;
@@ -51,7 +53,7 @@ export function isWebGpuTransitionSupported(): boolean {
 async function createShared(): Promise<SharedGpu | null> {
   if (!isWebGpuTransitionSupported()) return null;
   try {
-    const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
+    const adapter = await requestRenderAdapter();
     if (!adapter) return null;
     const device = await adapter.requestDevice();
     const bindLayout = device.createBindGroupLayout({
@@ -65,6 +67,7 @@ async function createShared(): Promise<SharedGpu | null> {
       ],
     });
     const state: SharedGpu = {
+      software: isSoftwareGpuAdapter(adapter),
       device,
       bindLayout,
       pipelineLayout: device.createPipelineLayout({ bindGroupLayouts: [bindLayout] }),
@@ -383,9 +386,11 @@ export class GpuTransitionRenderer {
   }
 
   /** A renderer on the shared device, or null when WebGPU is unavailable or the device cannot be created. */
-  static async create(width: number, height: number): Promise<GpuTransitionRenderer | null> {
+  static async create(width: number, height: number, allowSoftware = false): Promise<GpuTransitionRenderer | null> {
     const gpu = await getShared();
-    if (!gpu || !gpu.usable) return null;
+    // SwiftShader can accept external video textures and still return an all-black shot.
+    // Keep the explicit GPU mode available for isolated shader tests with canvas inputs.
+    if (!gpu?.usable || (gpu.software && !allowSoftware)) return null;
     const renderer = new GpuTransitionRenderer(width, height);
     renderer.gpu = gpu;
     if (!renderer.configure()) return null;
