@@ -28,10 +28,9 @@ async function loadAll<T extends readonly (() => Promise<unknown>)[] | []>(
 }
 
 /**
- * Loads every group module and returns a function that reads their exports. Reading is separate on purpose: the bundler may
- * fold a small group into the registry's own chunk (desktop build, experimentalMinChunkSize), where that group's bindings are
- * only initialised after the registry module's top-level await has finished. Awaiting the import is fine then, touching the
- * export ("Cannot access ... before initialization") is not, so the registry reads them on first use instead.
+ * Load the group modules now and read their exports on first use. The desktop build must also
+ * preserve the asynchronous import boundary: an inlined import can read the group's namespace
+ * while the registry's top-level await is still pending, before this accessor is returned.
  */
 export async function loadLazyToolGroups(): Promise<() => LazyToolGroups> {
   const [

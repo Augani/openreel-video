@@ -74,8 +74,9 @@ export default defineConfig({
       output: {
         // Desktop: every chunk is a request through the app:// protocol handler and a V8 compile unit, and the
         // core barrel's small shared modules (executor, smart-bins, sequence-par, ...) were each split into a
-        // chunk of their own by the lazy dialogs. Fold chunks under this size into their neighbours.
-        ...(isDesktop ? { experimentalMinChunkSize: 70_000 } : {}),
+        // chunk of their own by the lazy dialogs. Merge tiny chunks only: larger merges can
+        // introduce cycles between the registry's top-level await and the groups it imports.
+        ...(isDesktop ? { experimentalMinChunkSize: 8_000 } : {}),
         manualChunks: (id) => {
           // Exact package match: a prefix test also caught react-markdown / react-syntax-highlighter, and Rollup then pulled
           // their whole dependency trees (unified, micromark, highlight.js, ~100 KB gzip) into the chunk every page preloads.
@@ -94,6 +95,9 @@ export default defineConfig({
           // shell's WindowControls, and the welcome screen then statically imported the whole export
           // engine through it. A chunk of its own keeps the shell's closure small.
           if (isDesktop && id.includes("/components/editor/inspector/multicam-workflow")) return "multicam-workflow";
+          // Keep the text-style namespace outside the registry that awaits it. In 1.2.0 the
+          // inlined import read an uninitialized binding and broke every AI and MCP tool.
+          if (isDesktop && id.endsWith("/packages/agent/src/text-style-tools.ts")) return "agent-text-styles";
           // Desktop: Vite's dynamic-import helper (__vitePreload) is imported by every chunk that has a dynamic import. Left to Rollup
           // it lands in whichever manual chunk happens to contain a module with a dynamic import (it was the agent text tools chunk,
           // then the three.js renderers), and the whole app, the entry first, then statically imports that chunk for the helper.
