@@ -179,30 +179,43 @@ test("multicam angles decode the proxy while proxies are on and the original whe
       const d = (window as any).__openreelE2E.proxy.cache.decodes[id];
       return d ? { source: d.source as string, proxy: d.proxyCount as number, original: d.originalCount as number } : null;
     }, mediaId);
-  // Centre-pixel colourfulness of the first angle's <video>: a gray proxy has none, the red camera a lot.
-  const tileChroma = () =>
-    page.evaluate(async () => {
-      const video = document.querySelector('[data-testid="multicam-angle"][data-angle-index="1"] video') as HTMLVideoElement;
-      await new Promise<void>((resolve) => {
-        if (video.readyState >= 2) resolve();
-        else video.addEventListener("loadeddata", () => resolve(), { once: true });
+  // Selecting a source and presenting its first decoded frame are separate events.
+  // At the start of the common range the red camera is 1.2 s into its own media.
+  const expectedTime = Math.max(...CAMERAS.map((cam) => cam.offset)) - CAMERAS[0].offset;
+  const firstAngle = tiles.first().locator("video");
+  const assertTile = async (source: "original" | "proxy") => {
+    await expect(async () => {
+      const frame = await firstAngle.evaluate((video: HTMLVideoElement) => {
+        if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || video.seeking) return null;
+        const canvas = document.createElement("canvas");
+        canvas.width = 32;
+        canvas.height = 18;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        let chroma = 0;
+        let red = 0;
+        for (let i = 0; i < pixels.length; i += 4) {
+          const r = pixels[i];
+          const g = pixels[i + 1];
+          const b = pixels[i + 2];
+          chroma += Math.max(r, g, b) - Math.min(r, g, b);
+          red += r;
+        }
+        const count = canvas.width * canvas.height;
+        return { chroma: chroma / count, red: red / count, width: video.videoWidth, time: video.currentTime };
       });
-      const c = document.createElement("canvas");
-      c.width = 32;
-      c.height = 18;
-      const g = c.getContext("2d", { willReadFrequently: true })!;
-      g.drawImage(video, 0, 0, 32, 18);
-      const d = g.getImageData(0, 0, 32, 18).data;
-      let chroma = 0;
-      for (let i = 0; i < d.length; i += 4) chroma += Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]);
-      return { chroma: chroma / (d.length / 4), width: video.videoWidth };
-    });
+      if (!frame) throw new Error("Waiting for the paused angle to finish decoding");
+      expect(frame.width).toBe(source === "original" ? 640 : 320);
+      expect(frame.time, "source changes preserve the angle's sync offset").toBeCloseTo(expectedTime, 2);
+      expect(frame.red, "the displayed frame contains the camera image").toBeGreaterThan(20);
+      if (source === "original") expect(frame.chroma, "original is colourful").toBeGreaterThan(40);
+      else expect(frame.chroma, "the proxy is gray").toBeLessThan(8);
+    }).toPass({ timeout: 20_000 });
+  };
 
-  // Baseline: no proxy yet, the tile decodes the original (a red camera).
   await expect.poll(async () => (await decodeSource(ids[0]))?.source).toBe("original");
-  const original = await tileChroma();
-  expect(original.chroma, "original is colourful").toBeGreaterThan(40);
-  expect(original.width).toBe(640);
+  await assertTile("original");
 
   // Attach the proxy as a ready cache entry (what an ingest/attach does) with proxies on.
   await page.evaluate(
@@ -216,10 +229,7 @@ test("multicam angles decode the proxy while proxies are on and the original whe
     { id: ids[0], b64: proxyB64 },
   );
   await expect.poll(async () => (await decodeSource(ids[0]))?.source, { timeout: 20_000 }).toBe("proxy");
-  await expect.poll(async () => (await tileChroma()).width, { timeout: 20_000 }).toBe(320);
-  const proxied = await tileChroma();
-  console.log(`[w8] multicam angle 1 tile: original chroma ${original.chroma.toFixed(1)} (${original.width}px), proxy chroma ${proxied.chroma.toFixed(1)} (${proxied.width}px)`);
-  expect(proxied.chroma, "the proxy is gray").toBeLessThan(8);
+  await assertTile("proxy");
   // The other angles have no proxy and keep decoding their originals.
   expect((await decodeSource(ids[1]))?.source).toBe("original");
 
@@ -233,7 +243,7 @@ test("multicam angles decode the proxy while proxies are on and the original whe
   // Proxies off: the tile goes back to the original.
   await page.evaluate(() => (window as any).__openreelE2E.proxy.cache.setProxiesOn(false));
   await expect.poll(async () => (await decodeSource(ids[0]))?.source, { timeout: 20_000 }).toBe("original");
-  await expect.poll(async () => (await tileChroma()).width, { timeout: 20_000 }).toBe(640);
+  await assertTile("original");
 });
 
 // ---------------------------------------------------------------------------------------------
