@@ -471,13 +471,11 @@ test.describe("Render Effects In to Out and persistent render files", () => {
     expect(restored.cachedRuns).toEqual([{ start: 0, end: 119 }]);
     await expect.poll(async () => (await levels(page)).map((s) => s.level)).toEqual(["cached", "heavy"]);
 
-    // Inspect distinct restored frames using slow playback. The full-speed throughput
-    // test above independently measures dropped frames at the project's playback rate.
+    // Stay inside the restored range while sampling distinct frames. The adjacent
+    // two seconds are intentionally uncached and should play live if entered.
     await seek(page, 0);
-    await page.evaluate(() => {
-      const hook = (window as unknown as { __openreelE2E: { timeline: { getState(): { setPlaybackRate(rate: number): void } } } }).__openreelE2E;
-      hook.timeline.getState().setPlaybackRate(0.5);
-    });
+    await page.getByRole("button", { name: "Enable preview loop" }).click();
+    await expect(page.getByRole("button", { name: "Disable preview loop" })).toHaveAttribute("aria-pressed", "true");
     await rc(page, (cache) => cache.resetTelemetry());
     await focusEditor(page);
     await page.keyboard.press("Space");
