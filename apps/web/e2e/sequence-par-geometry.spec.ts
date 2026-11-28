@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { SOFTWARE_GPU } from "./env";
 import { expectIsotropicBlur, expectRotatedSquare, PAR_CASES, runBlurredDot, runBlurredVideo, runRotatedSquare } from "./sequence-par-geometry-lib";
 
 /**
@@ -11,10 +12,12 @@ for (const { name, par } of PAR_CASES) {
     test.setTimeout(180_000);
     const measured = await runRotatedSquare(page, par, testInfo);
     // macOS has a real GPU: a missing adapter there would silently turn this into a Canvas2D test, so it is a failure.
-    if (process.platform === "darwin") expect(measured.gpuAdapter, "a WebGPU adapter exists on this machine").toBe(true);
-    if (measured.gpuAdapter) {
-      // The monitor really went through the WebGPU compositor (a software adapter counts).
+    if (process.platform === "darwin" && !SOFTWARE_GPU) expect(measured.gpuAdapter, "a hardware WebGPU adapter exists on this machine").toBe("hardware");
+    if (measured.gpuAdapter === "hardware") {
       expect(measured.gpuSubmits, "WebGPU compositor submitted work for the monitor").toBeGreaterThan(0);
+    } else {
+      // The production renderer selects Canvas2D on a software adapter. Verify both that path and its pixels.
+      expect(measured.gpuSubmits, "the fallback compositor uses Canvas2D").toBe(0);
     }
     expectRotatedSquare(measured, par);
   });

@@ -1244,7 +1244,8 @@ const ClipComponentImpl: React.FC<ClipComponentProps> = ({
           viewBox={`0 0 ${Math.max(1, width)} 28`}
         >
           {waveformAmplitudes.map((amplitude, i) => {
-            const h = Math.min(24, amplitude * 26);
+            // Give quiet speech a visible envelope on a 28px track. Silence stays flat.
+            const h = 24 * Math.sqrt(amplitude);
             return (
               <rect
                 key={waveformRange.start + i}

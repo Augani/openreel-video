@@ -1,13 +1,10 @@
 import { createMediaImageBitmap, type Project } from "@openreel/core";
+import { requestThumbnail } from "../../services/preview-thumbnail-worker";
+import { containWithin, decodeVideoBackdrop } from "./playhead-video-frame";
 import { selectPreviewSource } from "./panels/effect-previews/source-selection";
 
 /** Longest side of a decoded playhead frame: crisp for a 2x library card of any aspect, bounded for memory. */
 export const PLAYHEAD_FRAME_MAX = 1280;
-
-function containWithin(width: number, height: number, max: number): { width: number; height: number } {
-  const scale = Math.min(1, max / Math.max(width, height));
-  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
-}
 
 /**
  * The real frame of the footage under the playhead, at the footage's own aspect (never cropped), as a canvas. The
@@ -18,6 +15,7 @@ export async function decodePlayheadFrame(
   project: Pick<Project, "timeline" | "mediaLibrary">,
   playhead: number,
   max: number = PLAYHEAD_FRAME_MAX,
+  signal?: AbortSignal,
 ): Promise<HTMLCanvasElement | null> {
   const source = selectPreviewSource({
     tracks: project.timeline.tracks,
@@ -41,20 +39,23 @@ export async function decodePlayheadFrame(
       bitmap.close();
     }
   }
-  const { Input, ALL_FORMATS, BlobSource, CanvasSink } = await import("mediabunny");
-  const input = new Input({ source: new BlobSource(media.blob), formats: ALL_FORMATS });
+  if (signal?.aborted) return null;
+  const reply = await requestThumbnail(
+    { type: "backdrop", blob: media.blob, time: source.posterSourceTime, max }, { signal },
+  ).catch(() => null);
+  if (signal?.aborted) {
+    if (reply?.type === "backdrop") reply.bitmap?.close();
+    return null;
+  }
+  const frame = reply?.type === "backdrop" && reply.bitmap
+    ? reply.bitmap : await decodeVideoBackdrop(media.blob, source.posterSourceTime, max, signal);
+  if (!frame) return null;
   try {
-    const track = await input.getPrimaryVideoTrack();
-    if (!track || !(await track.canDecode())) return null;
-    const size = containWithin(track.displayWidth, track.displayHeight, max);
-    const sink = new CanvasSink(track, { width: size.width, height: size.height, fit: "fill", poolSize: 1 });
-    const wrapped = await sink.getCanvas(source.posterSourceTime);
-    if (!wrapped) return null;
-    canvas.width = size.width;
-    canvas.height = size.height;
-    canvas.getContext("2d")?.drawImage(wrapped.canvas as HTMLCanvasElement, 0, 0, size.width, size.height);
+    canvas.width = frame.width;
+    canvas.height = frame.height;
+    canvas.getContext("2d")?.drawImage(frame, 0, 0);
     return canvas;
   } finally {
-    input[Symbol.dispose]?.();
+    frame.close();
   }
 }

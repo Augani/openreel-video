@@ -1,3 +1,4 @@
+import { requestRenderAdapter } from "../renderer-factory";
 import type { RGBAFrame } from "./frame-blend";
 import { flowFactor, pyramidLevels } from "./optical-flow-cpu";
 import {
@@ -69,7 +70,7 @@ export class GpuOpticalFlow {
   static async create(): Promise<GpuOpticalFlow | null> {
     try {
       if (typeof navigator === "undefined" || !navigator.gpu) return null;
-      const adapter = await navigator.gpu.requestAdapter({ powerPreference: "high-performance" });
+      const adapter = await requestRenderAdapter();
       if (!adapter) return null;
       const device = await adapter.requestDevice();
       return new GpuOpticalFlow(device);

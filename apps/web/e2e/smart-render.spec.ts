@@ -485,6 +485,19 @@ test("smart render copies a source whose start_time is nonzero and off the frame
   const nSmart = frames(smartFile);
   expect(nSmart).toBe(frames(fullFile));
   expect(nSmart).toBe(LEAD + fixtureFrames);
+  // The MP4 edit list places no picture in the first 43 frames. Holding the first
+  // camera frame in both exports would pass their comparison while erasing that gap.
+  for (const path of [smartFile, fullFile]) {
+    // Use FFmpeg's black-frame detector on the decoded luma plane. H.264 and
+    // video-range conversion can preserve black at different digital levels.
+    const scan = execFileSync(FFMPEG, [
+      "-v", "error", "-i", path, "-map", "0:v:0",
+      "-vf", `trim=end_frame=${LEAD + 1},blackframe,metadata=mode=print:key=lavfi.blackframe.pblack:file=-`,
+      "-f", "null", "-",
+    ], { encoding: "utf8" });
+    const blackFrames = Array.from(scan.matchAll(/^frame:(\d+)\s/gm), ([, frame]) => Number(frame));
+    expect(blackFrames, "only the leading empty edit renders black").toEqual(Array.from({ length: LEAD }, (_, frame) => frame));
+  }
   expect(execFileSync(FFMPEG, ["-v", "error", "-i", smartFile, "-f", "null", "-"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim()).toBe("");
   for (const at of [0.5, 5, 19.6, 20.5, 21.6, 30, 45]) {
     const seekErrors = execFileSync(FFMPEG, ["-v", "error", "-ss", String(at), "-i", smartFile, "-frames:v", "1", "-f", "null", "-"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });

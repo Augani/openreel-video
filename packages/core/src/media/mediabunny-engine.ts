@@ -50,6 +50,7 @@ const SUPPORTED_VIDEO_FORMATS = [
 ];
 
 const SUPPORTED_AUDIO_FORMATS = [
+  "audio/mp4",
   "audio/mpeg",
   "audio/mp3",
   "audio/wav",
@@ -977,46 +978,46 @@ export class MediaBunnyEngine {
       const duration = await audioTrack.computeDuration();
       const totalSamples = Math.ceil(duration * samplesPerSecond);
 
-      const peaks: number[] = [];
-      const rms: number[] = [];
-      const timestamps = Array.from(
-        { length: totalSamples },
-        (_, i) => i / samplesPerSecond,
-      );
+      const peaks = new Float32Array(totalSamples);
+      const rms = new Float32Array(totalSamples);
+      const sumSquares = new Float64Array(totalSamples);
+      const counts = new Uint32Array(totalSamples);
+      let pcm = new Float32Array(0);
 
-      for await (const sample of sink.samplesAtTimestamps(timestamps)) {
-        if (signal?.aborted) {
-          sample?.close();
-          signal.throwIfAborted();
+      // Recorders can emit fragmented files without a seek index. Decode in presentation
+      // order and place frames by timestamp so pauses and gaps stay in the right place.
+      for await (const sample of sink.samples()) {
+        try {
+          signal?.throwIfAborted();
+          const channels = sample.numberOfChannels;
+          const length = sample.numberOfFrames * channels;
+          if (pcm.length < length) pcm = new Float32Array(length);
+          sample.copyTo(pcm, { format: "f32", planeIndex: 0 });
+          const firstBucket = sample.timestamp * samplesPerSecond;
+          const bucketsPerFrame = samplesPerSecond / sample.sampleRate;
+          for (let frame = 0; frame < sample.numberOfFrames; frame++) {
+            const bucket = Math.floor(firstBucket + frame * bucketsPerFrame);
+            if (bucket < 0 || bucket >= totalSamples) continue;
+            const offset = frame * channels;
+            for (let channel = 0; channel < channels; channel++) {
+              const value = pcm[offset + channel];
+              peaks[bucket] = Math.max(peaks[bucket], Math.abs(value));
+              sumSquares[bucket] += value * value;
+            }
+            counts[bucket] += channels;
+          }
+        } finally {
+          sample.close();
         }
-        if (!sample) {
-          peaks.push(0);
-          rms.push(0);
-          continue;
-        }
-        const bytesNeeded = sample.allocationSize({
-          format: "f32",
-          planeIndex: 0,
-        });
-        const floats = new Float32Array(bytesNeeded / 4);
-        sample.copyTo(floats, { format: "f32", planeIndex: 0 });
-        let peak = 0;
-        let sumSquares = 0;
-        for (let i = 0; i < floats.length; i++) {
-          const abs = Math.abs(floats[i]);
-          peak = Math.max(peak, abs);
-          sumSquares += floats[i] * floats[i];
-        }
-
-        peaks.push(peak);
-        rms.push(Math.sqrt(sumSquares / floats.length));
-
-        sample.close();
+      }
+      signal?.throwIfAborted();
+      for (let i = 0; i < totalSamples; i++) {
+        if (counts[i]) rms[i] = Math.sqrt(sumSquares[i] / counts[i]);
       }
 
       return {
-        peaks: new Float32Array(peaks),
-        rms: new Float32Array(rms),
+        peaks,
+        rms,
         sampleRate: samplesPerSecond,
         duration,
         samplesPerSecond,

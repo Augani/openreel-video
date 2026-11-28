@@ -222,6 +222,12 @@ jobs:
           shopt -s nullglob
           files=(release/OpenReel-*.dmg release/OpenReel-*.exe release/OpenReel-*.AppImage release/OpenReel-*.deb)
           if [ ${#files[@]} -eq 0 ]; then echo "::error::No installers found in release/"; exit 1; fi
+          # Preserve the updater payload when a maintainer promotes the GitHub assets to R2.
+          # macOS feeds must be produced together with the signed and notarized apps.
+          case "$RUNNER_OS" in
+            Windows) files+=(release/latest.yml release/OpenReel-*.exe.blockmap) ;;
+            Linux) files+=(release/latest-linux.yml release/OpenReel-*.AppImage.blockmap) ;;
+          esac
           for attempt in 1 2 3; do
             gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 && break
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" --title "OpenReel $tag" \

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Select,
@@ -80,9 +80,9 @@ function AngleTile({
   const mediaTime = sharedTime === null ? null : sharedTime - angle.offset;
   const inRange = mediaTime !== null && mediaTime >= 0 && mediaTime <= angle.duration;
 
-  useEffect(() => {
+  const syncVideo = useCallback(() => {
     const video = ref.current;
-    if (!video || mediaTime === null) return;
+    if (!video || mediaTime === null || video.readyState < HTMLMediaElement.HAVE_METADATA) return;
     const target = Math.max(0, Math.min(angle.duration, mediaTime));
     if (playing && inRange) {
       if (video.paused) {
@@ -96,6 +96,8 @@ function AngleTile({
     if (!video.paused) video.pause();
     if (Math.abs(video.currentTime - target) > 0.01) video.currentTime = target;
   }, [mediaTime, playing, inRange, angle.duration]);
+
+  useEffect(syncVideo, [syncVideo]);
 
   return (
     <button
@@ -120,6 +122,7 @@ function AngleTile({
           muted
           playsInline
           preload="auto"
+          onLoadedMetadata={syncVideo}
           onError={() => { if (blob) previewProxyCache.failPlayback(angle.mediaId, blob); }}
           className="h-full w-full object-contain"
         />

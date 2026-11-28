@@ -86,13 +86,15 @@ export class TransitionEngine {
   private scratchACtx: OffscreenCanvasRenderingContext2D | null = null;
   private scratchB: OffscreenCanvas | null = null;
   private scratchBCtx: OffscreenCanvasRenderingContext2D | null = null;
+  private readonly mosaicInputs: { A?: OffscreenCanvas; B?: OffscreenCanvas } = {};
   private pixelScratch: OffscreenCanvas | null = null;
   private pixelScratchCtx: OffscreenCanvasRenderingContext2D | null = null;
+  private crossZoomCanvas: OffscreenCanvas | null = null;
   private extraScratch: ExtraRenderScratch = createExtraRenderScratch();
   // WebGPU path (transition-gpu-*.ts): shots are uploaded once and the transition is one GPU pass into a WebGPU canvas,
   // so there are no scratch canvases and no bitmap round trips. The Canvas2D code below stays the fallback (no WebGPU,
   // a lost device, a shot WebGPU cannot take) and the reference the GPU shaders are tested against.
-  private readonly useGpu: boolean;
+  private readonly useGpu: boolean | undefined;
   private gpu: GpuTransitionRenderer | null = null;
   private gpuInit: Promise<boolean> | null = null;
   /** Which renderer drew the last frame (tests, the perf trace and the export log read it). */
@@ -101,7 +103,7 @@ export class TransitionEngine {
   constructor(config: TransitionEngineConfig) {
     this.width = config.width;
     this.height = config.height;
-    this.useGpu = config.useGPU !== false && !canvas2dTransitionsForced();
+    this.useGpu = canvas2dTransitionsForced() ? false : config.useGPU;
     // Lazy initialization for environments without OffscreenCanvas (e.g., Node.js tests)
     this.initializeCanvas();
   }
@@ -211,12 +213,12 @@ export class TransitionEngine {
    * Canvas2D (no WebGPU in this browser, `useGPU: false`, or the device could not be created).
    */
   ensureGpu(): Promise<boolean> {
-    if (!this.useGpu || typeof OffscreenCanvas === "undefined" || typeof navigator === "undefined" || !(navigator as { gpu?: unknown }).gpu) {
+    if (this.useGpu === false || typeof OffscreenCanvas === "undefined" || typeof navigator === "undefined" || !(navigator as { gpu?: unknown }).gpu) {
       return Promise.resolve(false);
     }
     if (this.gpuInit) return this.gpuInit;
     const init: Promise<boolean> = import("./transition-gpu-renderer")
-      .then(({ GpuTransitionRenderer: Renderer }) => Renderer.create(this.width, this.height))
+      .then(({ GpuTransitionRenderer: Renderer }) => Renderer.create(this.width, this.height, this.useGpu === true))
       .then((renderer) => {
         // dispose() ran while the device was being created: nothing owns this renderer any more.
         if (this.gpuInit !== init) {
@@ -254,6 +256,14 @@ export class TransitionEngine {
     try {
       const spec = this.gpuSpec(transition, eased);
       if (!spec || !(await gpu.prepare(spec))) return null;
+      if (spec.kind === "pixel" && spec.shader === "pixelate" && (spec.v[0] > 1 || spec.v[1] > 1)) {
+        // The browser's minification filter varies across graphics backends. Make the
+        // same tiny source mosaics as Canvas2D, then composite and enlarge them on the GPU.
+        const w = Math.round(this.width / spec.v[0]);
+        const h = Math.round(this.height / spec.v[1]);
+        outgoing = this.mosaicInput(outgoing, "A", w, h);
+        incoming = this.mosaicInput(incoming, "B", w, h);
+      }
       return gpu.draw(spec, outgoing, incoming, eased) ? gpu.canvas : null;
     } catch (error) {
       console.warn("[TransitionEngine] GPU transition failed, drawing with Canvas2D:", error);
@@ -580,10 +590,19 @@ export class TransitionEngine {
       case "additiveDissolve":
         renderAdditiveDissolve(this.getContext(), outgoing, incoming, easedProgress, this.width, this.height);
         break;
+      case "crossZoom": {
+        // The running mean blends up to 24 layers. An 8-bit software canvas rounds each
+        // layer, shifting even flat colours. Accumulate in half float where available.
+        this.crossZoomCanvas ??= new OffscreenCanvas(this.width, this.height);
+        const options = { colorSpace: "srgb", colorType: "float16" } as CanvasRenderingContext2DSettings;
+        const ctx = this.crossZoomCanvas.getContext("2d", options) ?? this.getContext();
+        ctx.clearRect(0, 0, this.width, this.height);
+        renderDrawPlan(ctx, this.planFor(transition, easedProgress), outgoing, incoming, this.width, this.height);
+        return ctx.canvas;
+      }
       case "cubeSpin":
       case "flipOver":
       case "split":
-      case "crossZoom":
       case "pagePeel":
         renderDrawPlan(
           this.getContext(),
@@ -1054,6 +1073,16 @@ export class TransitionEngine {
     ctx.restore();
   }
 
+  private mosaicInput(source: CanvasImageSource, slot: "A" | "B", width: number, height: number): OffscreenCanvas {
+    const surface = this.mosaicInputs[slot] ??= new OffscreenCanvas(width, height);
+    if (surface.width !== width) surface.width = width;
+    if (surface.height !== height) surface.height = height;
+    const ctx = surface.getContext("2d")!;
+    ctx.clearRect(0, 0, width, height);
+    ctx.drawImage(this.fitToCanvas(source, slot), 0, 0, width, height);
+    return surface;
+  }
+
   private async renderPixelate(
     outgoing: CanvasImageSource,
     incoming: CanvasImageSource,
@@ -1139,16 +1168,13 @@ export class TransitionEngine {
     ctx.drawImage(outgoing, 0, 0, w, h);
     ctx.save();
     ctx.beginPath();
-    if (horizontal) {
-      const strip = h / blindCount;
-      for (let index = 0; index < blindCount; index += 1) {
-        ctx.rect(0, index * strip, w, strip * progress);
-      }
-    } else {
-      const strip = w / blindCount;
-      for (let index = 0; index < blindCount; index += 1) {
-        ctx.rect(index * strip, 0, strip * progress, h);
-      }
+    const strip = (horizontal ? h : w) / blindCount;
+    for (let index = 0; index < blindCount; index++) {
+      // Snap both ends to the pixel grid so accelerated and software clip masks agree.
+      const start = Math.round(index * strip);
+      const extent = Math.round((index + progress) * strip) - start;
+      if (horizontal) ctx.rect(0, start, w, extent);
+      else ctx.rect(start, 0, extent, h);
     }
     ctx.clip();
     ctx.drawImage(incoming, 0, 0, w, h);
@@ -1799,6 +1825,7 @@ export class TransitionEngine {
     this.width = width;
     this.height = height;
     this.gpu?.resize(width, height);
+    this.crossZoomCanvas = null;
 
     if (typeof OffscreenCanvas !== "undefined") {
       try {
@@ -1815,6 +1842,7 @@ export class TransitionEngine {
   }
 
   dispose(): void {
+    this.crossZoomCanvas = null;
     // OffscreenCanvas doesn't need explicit disposal
     // but we can clear references
     if (this.ctx) {
@@ -1825,6 +1853,8 @@ export class TransitionEngine {
     this.gpuInit = null;
     this.canvas = null;
     this.ctx = null;
+    delete this.mosaicInputs.A;
+    delete this.mosaicInputs.B;
     this.pixelScratch = null;
     this.pixelScratchCtx = null;
     this.extraScratch = createExtraRenderScratch();

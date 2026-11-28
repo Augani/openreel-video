@@ -1,3 +1,4 @@
+import { lumaOf, psnr, renderBoth } from "./morph-cut-lib";
 import { expect, test, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync } from "node:fs";
@@ -44,22 +45,6 @@ async function waitDone(page: Page, id: string, timeout = 400_000): Promise<stri
 }
 
 type Matrix = "bt709" | "bt601";
-/** Limited-range luma of RGBA, the plane an H.264 decode hands back (the encoder's matrix differs between GPU and software paths). */
-function lumaOf(rgba: number[], matrix: Matrix = "bt709", fullRange = false): Uint8Array {
-  const out = new Uint8Array(rgba.length / 4);
-  const [kr, kg, kb] = matrix === "bt709" ? [0.2126, 0.7152, 0.0722] : [0.299, 0.587, 0.114];
-  for (let i = 0; i < out.length; i++) {
-    const y = kr * rgba[i * 4] + kg * rgba[i * 4 + 1] + kb * rgba[i * 4 + 2];
-    out[i] = Math.round(fullRange ? y : 16 + (219 * y) / 255);
-  }
-  return out;
-}
-function psnr(a: ArrayLike<number>, b: ArrayLike<number>): number {
-  let se = 0;
-  for (let i = 0; i < a.length; i++) se += (a[i] - b[i]) ** 2;
-  return se === 0 ? Infinity : 10 * Math.log10((255 * 255) / (se / a.length));
-}
-
 /**
  * Shared by the gpu project (optical-flow-export.spec.ts: WebGPU compute when the machine has an adapter) and the
  * fallback projects (fallback-optical-flow.spec.ts: no WebGPU, so the CPU reference renders every frame).
@@ -100,36 +85,8 @@ test("25% speed + Optical Flow: scrub, preview/export parity and distinct export
   expect(d23.changed).toBeGreaterThan(50);
 
   // Preview engine vs export-mode engine at the same playheads, and an unrendered control with Frame Sampling.
-  const engineFrames = await page.evaluate(async (count) => {
-    const h = (window as unknown as { __openreelE2E: Hook }).__openreelE2E;
-    const engine = h.video.getVideoEngine();
-    const toLuma = async (bitmap: ImageBitmap) => {
-      const c = new OffscreenCanvas(bitmap.width, bitmap.height);
-      const g = c.getContext("2d", { willReadFrequently: true })!;
-      g.drawImage(bitmap, 0, 0);
-      return Array.from(g.getImageData(0, 0, bitmap.width, bitmap.height).data);
-    };
-    const render = async (exportMode: boolean, k: number) => {
-      const project = h.project.getState().project;
-      engine.exportMode = exportMode;
-      try {
-        const frame = await engine.renderFrame(project, k / 30, 640, 360);
-        return await toLuma(frame.image);
-      } finally {
-        engine.exportMode = false;
-      }
-    };
-    const out: Array<{ k: number; preview: number[]; identical: boolean }> = [];
-    for (let k = 0; k < count; k++) {
-      const preview = await render(false, k);
-      const exported = await render(true, k);
-      let identical = preview.length === exported.length;
-      for (let i = 0; identical && i < preview.length; i++) if (preview[i] !== exported[i]) identical = false;
-      out.push({ k, preview, identical });
-    }
-    return out;
-  }, FRAMES);
-  const mismatched = engineFrames.filter((f) => !f.identical).map((f) => f.k);
+  const engineFrames = await renderBoth(page, Array.from({ length: FRAMES }, (_, k) => k / 30));
+  const mismatched = engineFrames.flatMap((frame, k) => frame.identical ? [] : [k]);
   console.log(`[optical-flow e2e] preview vs export-mode engine: ${engineFrames.length - mismatched.length}/${engineFrames.length} frames bit-identical`);
   expect(mismatched, "preview and export-mode renders agree at every playhead").toEqual([]);
   let previewLuma = engineFrames.map((f) => lumaOf(f.preview));

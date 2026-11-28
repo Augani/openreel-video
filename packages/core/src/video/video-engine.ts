@@ -279,7 +279,7 @@ export class VideoEngine {
   private useParallelDecoding = true;
   private videoElementCache: Map<
     string,
-    { video: HTMLVideoElement; url: string }
+    { video: HTMLVideoElement; url: string; firstTimestamp: number }
   > = new Map();
   private compoundEngines = new Map<string, VideoEngine>();
   private renderingCompounds = new Set<string>();
@@ -561,6 +561,21 @@ export class VideoEngine {
     }
   }
 
+  private async firstVideoTimestamp(blob: Blob): Promise<number> {
+    if (!this.mediabunny) return 0;
+    const { Input, ALL_FORMATS, BlobSource } = this.mediabunny;
+    const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
+    try {
+      const track = await input.getPrimaryVideoTrack();
+      return track ? await track.getFirstTimestamp() : 0;
+    } catch {
+      // Some containers are readable only by the browser's native decoder.
+      return 0;
+    } finally {
+      input[Symbol.dispose]();
+    }
+  }
+
   /**
    * Decode a frame using native video element (fallback method).
    */
@@ -600,7 +615,7 @@ export class VideoEngine {
         setTimeout(() => reject(new Error("Video load timeout")), 10000);
       });
 
-      cached = { video, url };
+      cached = { video, url, firstTimestamp: await this.firstVideoTimestamp(blob) };
       this.videoElementCache.set(mediaId, cached);
       // The decoder's frame pool is invisible to JS: register its estimated size so the memory governor counts it.
       this.videoElementDecoderRelease.get(mediaId)?.();
@@ -610,30 +625,29 @@ export class VideoEngine {
       );
     }
 
+    // A browser may display the first picture while seeking within an empty MP4
+    // edit. Leave the layer empty until its first presentation timestamp.
+    if (time + 1e-8 < cached.firstTimestamp) return null;
     const { video } = cached;
-
     video.currentTime = time;
-
-    await new Promise<void>((resolve) => {
-      let resolved = false;
-      const onSeeked = () => {
-        if (resolved) return;
-        resolved = true;
-        video.removeEventListener("seeked", onSeeked);
-        resolve();
-      };
-      video.addEventListener("seeked", onSeeked);
-      if (video.readyState >= 2) {
-        onSeeked();
-      }
-      setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          video.removeEventListener("seeked", onSeeked);
-          resolve();
-        }
-      }, 3000);
-    });
+    if (video.seeking || video.readyState < 2) {
+      const ready = await new Promise<boolean>((resolve) => {
+        const finish = (decoded: boolean) => {
+          clearTimeout(timer);
+          video.removeEventListener("seeked", check);
+          video.removeEventListener("loadeddata", check);
+          resolve(decoded);
+        };
+        const check = () => {
+          if (!video.seeking && video.readyState >= 2) finish(true);
+        };
+        const timer = setTimeout(() => finish(false), 3000);
+        video.addEventListener("seeked", check);
+        video.addEventListener("loadeddata", check);
+        check();
+      });
+      if (!ready) return null;
+    }
 
     if (
       !this.decodeCanvas ||
@@ -1332,8 +1346,8 @@ export class VideoEngine {
               bitmap = await this.decodeFrameWithMediaBunny(
                 decodeBlob,
                 decodeTime,
-                settings.width,
-                settings.height,
+                width,
+                height,
                 useStabilizedBlob ? `stabilized:${clip.id}` : clipInfo.mediaId,
               );
             }
@@ -1351,8 +1365,8 @@ export class VideoEngine {
                 useStabilizedBlob ? `stabilized:${clip.id}` : mediaItem.id,
                 decodeBlob,
                 decodeTime,
-                settings.width,
-                settings.height,
+                width,
+                height,
                 mediaItem.type === "video" ? frameConformFor(mediaItem) : null,
                 settings.fieldOrder,
               );

@@ -1,7 +1,7 @@
 {
   "name": "@openreel/desktop",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.2.1",
   "type": "commonjs",
   "main": "dist/main/index.js",
   "bin": {

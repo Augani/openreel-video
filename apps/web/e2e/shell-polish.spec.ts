@@ -73,9 +73,24 @@ test("Help offers Documentation, Report an issue and a real About dialog", async
   await page.getByRole("menuitem", { name: "Help" }).click();
   await expect(page.getByRole("menuitem", { name: "Documentation" })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "Report an issue" })).toBeVisible();
+  // Freeze the real entrance animation so each position can be measured under any runner load.
+  await page.addStyleTag({ content: '[data-testid="about-dialog"] { animation-play-state: paused !important; }' });
   await page.getByRole("menuitem", { name: "About OpenReel" }).click();
   const dialog = page.getByTestId("about-dialog");
   await expect(dialog).toBeVisible();
+  const centerOffsets = await dialog.evaluate((el) => {
+    const animation = el.getAnimations().find((a) => a instanceof CSSAnimation && a.animationName === "enter");
+    if (!animation?.effect) throw new Error("Missing dialog entrance animation");
+    const duration = Number(animation.effect.getTiming().duration);
+    const offsets = [0, 0.5, 1].map((progress) => {
+      animation.currentTime = progress * duration;
+      const box = el.getBoundingClientRect();
+      return Math.hypot(box.x + box.width / 2 - innerWidth / 2, box.y + box.height / 2 - innerHeight / 2);
+    });
+    animation.finish();
+    return offsets;
+  });
+  expect(Math.max(...centerOffsets), "a dialog stays centered throughout its entrance").toBeLessThan(1);
   await expect(dialog.getByTestId("about-version")).toHaveText(/^\d+\.\d+\.\d+/);
   await expect(dialog.getByRole("link", { name: "Documentation" })).toHaveAttribute("href", /github\.com\/Augani\/openreel-video/);
 });

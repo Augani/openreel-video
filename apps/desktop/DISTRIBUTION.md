@@ -28,7 +28,7 @@ pnpm --filter @openreel/desktop fetch:ffmpeg          # host platform's slots
 node apps/desktop/scripts/fetch-ffmpeg.mjs --all       # every slot
 ```
 
-`fetch-ffmpeg.mjs` downloads pinned, **statically-linked** GPL builds from `eugeneware/ffmpeg-static` (release `b6.1.1`), verifies each against a hardcoded SHA256, writes them into `resources/bin/<slot>/`, and refreshes `MANIFEST.json`. It is wired into `pnpm pack`/`pnpm dist` and the release CI. The macOS host fetches **both** `darwin-arm64` and `darwin-x64` because the mac runner builds both arches. These builds link only system frameworks (VideoToolbox/AudioToolbox/AVFoundation) and include `libx264`/`libx265`/`prores`/AAC — verified self-contained (`otool -L` shows no `/opt/homebrew`).
+`fetch-ffmpeg.mjs` downloads the pinned, **statically-linked** GPL builds (OSXExperts 7.1 from the OpenReel mirror for Apple silicon, `eugeneware/ffmpeg-static` release `b6.1.1` for the other targets), verifies each against a hardcoded SHA256, writes them into `resources/bin/<slot>/`, and refreshes `MANIFEST.json`. It is wired into `pnpm pack`/`pnpm dist` and the release CI. The macOS host fetches **both** `darwin-arm64` and `darwin-x64` because the mac runner builds both arches. These builds link only system frameworks (VideoToolbox/AudioToolbox/AVFoundation) and include `libx264`/`libx265`/`prores`/AAC — verified self-contained (`otool -L` shows no `/opt/homebrew`).
 
 **Licensing:** these are **GPL** builds (x264/x265). ffmpeg is invoked as a separate process (not linked), so this is GPL-compatible; ship attribution per `LICENSES/FFMPEG.md` (a product/legal decision to finalize).
 

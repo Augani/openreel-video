@@ -172,11 +172,22 @@ fn shade(pos: vec2f) -> vec4f {
 
   // a.x outgoing scale, a.y incoming scale, a.zw centre px
   zoom: /* wgsl */ `
+// Canvas2D scales a letterboxed intermediate. Interpolate with its transparent
+// padding across the last half texel on either side of the fitted picture.
+fn zoomTap(t: texture_2d<f32>, fit: vec4f, pos: vec2f) -> vec4f {
+  if (any(pos < vec2f(0.0)) || any(pos >= u.size)) { return vec4f(0.0); }
+  let start = fit.xy * u.size;
+  let extent = fit.zw * u.size;
+  let end = start + extent;
+  let edge = min(pos - start, end - pos) + 0.5;
+  let coverage = select(vec2f(1.0), clamp(edge, vec2f(0.0), vec2f(1.0)), fit.zw < vec2f(1.0));
+  return textureSampleLevel(t, smp, (pos - start) / extent, 0.0) * coverage.x * coverage.y;
+}
 fn shade(pos: vec2f) -> vec4f {
   let c = u.a.zw;
   let pa = c + (pos - c) / u.a.x;
   let pb = c + (pos - c) / u.a.y;
-  return over(sb(pb) * u.p, sa(pa) * (1.0 - u.p));
+  return over(zoomTap(texB, u.fitB, pb) * u.p, zoomTap(texA, u.fitA, pa) * (1.0 - u.p));
 }`,
 
   // a.xy centre px, a.z max radius
@@ -221,8 +232,12 @@ fn shade(pos: vec2f) -> vec4f {
   // a.xy cell size px. The Canvas2D engine downsamples with one bilinear tap per cell, so this does too.
   pixelate: /* wgsl */ `
 fn shade(pos: vec2f) -> vec4f {
-  let q = (floor(pos / u.a.xy) + 0.5) * u.a.xy;
-  return over(sb(q) * u.p, sa(q) * (1.0 - u.p));
+  if (all(u.a.xy == vec2f(1.0))) {
+    return over(sb(pos) * u.p, sa(pos) * (1.0 - u.p));
+  }
+  let dims = vec2i(textureDimensions(texA));
+  let cell = clamp(vec2i(floor(pos / u.a.xy)), vec2i(0), dims - vec2i(1));
+  return over(textureLoad(texB, cell, 0) * u.p, textureLoad(texA, cell, 0) * (1.0 - u.p));
 }`,
 
   // a.x slice count, a.y slice alpha; aux: per slice [top, bottom, x offset, 1 when the slice shows the incoming shot]
@@ -247,18 +262,12 @@ fn shade(pos: vec2f) -> vec4f {
   // a.x 1 when the strips stack vertically (horizontal blinds), a.y strip count
   blinds: /* wgsl */ `
 fn shade(pos: vec2f) -> vec4f {
-  let base = sa(pos);
-  var inside = 0.0;
-  if (u.a.x > 0.5) {
-    let strip = u.size.y / u.a.y;
-    let within = pos.y - floor(pos.y / strip) * strip;
-    inside = clamp(strip * u.p - (within - 0.5), 0.0, 1.0);
-  } else {
-    let strip = u.size.x / u.a.y;
-    let within = pos.x - floor(pos.x / strip) * strip;
-    inside = clamp(strip * u.p - (within - 0.5), 0.0, 1.0);
-  }
-  return over(sb(pos) * inside, base);
+  let coord = select(pos.x, pos.y, u.a.x > 0.5);
+  let strip = select(u.size.x, u.size.y, u.a.x > 0.5) / u.a.y;
+  // At an exact half-pixel boundary the rounded strip starts on the next pixel.
+  let index = max(0.0, ceil(coord / strip) - 1.0);
+  let end = floor((index + u.p) * strip + 0.5);
+  return select(sa(pos), over(sb(pos), sa(pos)), coord < end);
 }`,
 
   // a.xy centre px, a.z max reach

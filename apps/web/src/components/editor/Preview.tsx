@@ -2795,6 +2795,18 @@ export const Preview: React.FC = () => {
           }
 
           try {
+            // Match the export decoder's chroma sampling on a settled frame. While dragging,
+            // keep the seekable video element and scrub cache for low-latency feedback.
+            if (!useTimelineStore.getState().isScrubbing) {
+              const exact = await decodeFrameWithWebCodecs(mediaBlob, mediaTime).catch(() => null);
+              if (isStaleRequest()) { exact?.close(); finish(null); return; }
+              if (exact) {
+                previewProxyCache.noteDecode(clip.mediaId, mediaBlob);
+                scheduleScrubVideoRelease();
+                finish(exact);
+                return;
+              }
+            }
             let cached = videoElementCacheRef.current.get(cacheKey);
             if (cached && cached.blob !== mediaBlob) {
               releaseVideoElement(cached);
@@ -2948,20 +2960,23 @@ export const Preview: React.FC = () => {
 
       let missingVisualFrame = false;
 
-      // Compound clips are full nested timelines rather than media blobs.
-      // Route those frames through the canonical compositor so preview and
-      // export share identical nesting, timing, effects and transforms.
-      // ACES mode: the Output Transform lives in the canonical float compositor, so every frame goes through it.
-      const hasActiveCompound = isAcesProject() || timelineTracks.some((track) =>
+      // Nests, masks, temporal effects, transitions and ACES use the export compositor
+      // so scrubbing applies the same timing, effects and transforms as the encoded frame.
+      const transitionInfo = getTransitionAtTime(
+        time,
+        timelineTracks,
+        mediaClipHasVisual,
+      );
+      const needsCompositor = isAcesProject() || timelineTracks.some((track) =>
         !track.hidden &&
         track.clips.some(
           (clip) =>
-            (getCompoundClipId(clip) !== null || clipHasTemporalEffects(clip) || clipHasTimeInterpolation(clip)) &&
+            (getCompoundClipId(clip) !== null || clipHasTemporalEffects(clip) || clipHasTimeInterpolation(clip) || clipMasksById.has(clip.id)) &&
             time >= clip.startTime &&
             time < clip.startTime + clip.duration,
         ),
       );
-      if (hasActiveCompound) {
+      if (needsCompositor || transitionInfo) {
         const frame = await getRenderBridge().renderFrame(time, canCommit);
         if (frame) {
           if (!canCommit()) { frame.image.close(); return false; }
@@ -3005,11 +3020,7 @@ export const Preview: React.FC = () => {
         shouldClearCanvas = false;
       }
 
-      const transitionInfo = getTransitionAtTime(
-        time,
-        timelineTracks,
-        mediaClipHasVisual,
-      );
+
 
       // Same Premiere semantics as the export renderer: a layer touches only the tracks below it (and
       // only affectedTracks when set), applied in painter order so titles/graphics above are untouched.
@@ -5888,6 +5899,11 @@ export const Preview: React.FC = () => {
     };
 
     const startMultiTrackPlayback = async () => {
+      // Restore and decode the first cached frames alongside the media resources.
+      // Starting the audio clock first can skip an entire short cached range.
+      const cacheReady = renderCacheService.cachedFrameIndex(playbackStartPosition) !== null
+        ? renderCacheService.instance.warm(playbackStartPosition)
+        : undefined;
       recordPlaybackEvent("multi-start", playbackStartPosition);
       const initialClips = findAllClipsAtTime(playbackStartPosition);
       const activeTextClips = getActiveTextClips(
@@ -5968,7 +5984,7 @@ export const Preview: React.FC = () => {
         });
       }
 
-      await compoundAudioPreview.prepareAt(project, playbackStartPosition);
+      await Promise.all([compoundAudioPreview.prepareAt(project, playbackStartPosition), cacheReady]);
       if (!isActive) return;
       await audioGraph.resume();
 
