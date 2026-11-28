@@ -3,9 +3,12 @@ export function containWithin(width: number, height: number, max: number): { wid
   return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
 }
 
-export async function decodeVideoBackdrop(blob: Blob, time: number, max: number): Promise<ImageBitmap | null> {
+export async function decodeVideoBackdrop(blob: Blob, time: number, max: number, signal?: AbortSignal): Promise<ImageBitmap | null> {
   const { Input, ALL_FORMATS, BlobSource, CanvasSink } = await import("mediabunny");
+  if (signal?.aborted) return null;
   const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
+  const dispose = () => input[Symbol.dispose]?.();
+  signal?.addEventListener("abort", dispose, { once: true });
   try {
     const track = await input.getPrimaryVideoTrack();
     if (!track || !(await track.canDecode())) return null;
@@ -14,7 +17,11 @@ export async function decodeVideoBackdrop(blob: Blob, time: number, max: number)
     const wrapped = await sink.getCanvas(time);
     if (!wrapped) return null;
     return await createImageBitmap(wrapped.canvas);
+  } catch (error) {
+    if (signal?.aborted) return null;
+    throw error;
   } finally {
-    input[Symbol.dispose]?.();
+    signal?.removeEventListener("abort", dispose);
+    if (!signal?.aborted) dispose();
   }
 }

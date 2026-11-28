@@ -1,4 +1,5 @@
 import { createMediaImageBitmap, type Project } from "@openreel/core";
+import { requestThumbnail } from "../../services/preview-thumbnail-worker";
 import { containWithin, decodeVideoBackdrop } from "./playhead-video-frame";
 import { selectPreviewSource } from "./panels/effect-previews/source-selection";
 
@@ -39,32 +40,15 @@ export async function decodePlayheadFrame(
     }
   }
   if (signal?.aborted) return null;
-  let frame: ImageBitmap | null = null;
-  if (typeof Worker !== "undefined" && typeof OffscreenCanvas !== "undefined") {
-    try {
-      const worker = new Worker(new URL("../../workers/playhead-frame.worker.ts", import.meta.url), { type: "module" });
-      try {
-        frame = await new Promise<ImageBitmap | null>((resolve, reject) => {
-          const abort = () => resolve(null);
-          signal?.addEventListener("abort", abort, { once: true });
-          worker.onmessage = (event: MessageEvent<ImageBitmap | null>) => {
-            signal?.removeEventListener("abort", abort);
-            resolve(event.data);
-          };
-          worker.onerror = (event) => {
-            signal?.removeEventListener("abort", abort);
-            reject(new Error(event.message));
-          };
-          worker.postMessage({ blob: media.blob, time: source.posterSourceTime, max });
-        });
-      } finally {
-        worker.terminate();
-      }
-    } catch {
-      // Some browsers expose WebCodecs only on the main thread.
-    }
+  const reply = await requestThumbnail(
+    { type: "backdrop", blob: media.blob, time: source.posterSourceTime, max }, { signal },
+  ).catch(() => null);
+  if (signal?.aborted) {
+    if (reply?.type === "backdrop") reply.bitmap?.close();
+    return null;
   }
-  if (!frame && !signal?.aborted) frame = await decodeVideoBackdrop(media.blob, source.posterSourceTime, max);
+  const frame = reply?.type === "backdrop" && reply.bitmap
+    ? reply.bitmap : await decodeVideoBackdrop(media.blob, source.posterSourceTime, max, signal);
   if (!frame) return null;
   try {
     canvas.width = frame.width;
